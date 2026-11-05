@@ -23,6 +23,8 @@ Each decision records the choice, the alternatives it beat, and the evidence tha
 
 **Reopen if.** Spike A1 shows UiAutomation cannot connect from `app_process` on API 26 or API 37. Fallback: the same agent code packaged as an instrumentation APK started with `am instrument`, used only for the tree.
 
+**Spike A1 result (2026-11-05, API 26 and 37 emulators): confirmed, no fallback needed.** `new UiAutomation(Looper, IUiAutomationConnection)` plus hidden `connect(int)` works from an `app_process` shell on both; FLAG_DONT_SUPPRESS_ACCESSIBILITY_SERVICES keeps TalkBack bound (`Bound services` stays listed) while flags 0 unbinds it. Added requirements: `clearCache()` before every tree (the cache goes stale because we do not subscribe to content events), and a second UiAutomation client makes our connect throw `IllegalStateException: UiAutomationService ... already registered!` (the `AutomationConflict` signal). See `docs/spikes/android.md` A1.
+
 ## D3. iOS: CoreDevice services first, XCTest runner second, iPhone Mirroring never
 
 **Choice.** On iOS 27+, use the developer services in the Developer Disk Image: display stream, HID, app service, pasteboard. Nothing installed on the phone. Add the PhoneUseRunner for the accessibility tree and for iOS 17 to 26.
@@ -61,6 +63,8 @@ Each decision records the choice, the alternatives it beat, and the evidence tha
 
 **Reopen if.** Benchmarks show tree serialization or parsing above 20 ms on the testbed's 1,000-row screen.
 
+**Spike A1 evidence:** the full tree JSON is 8 to 27 KB for 59 to 192 nodes (Settings main 27 KB on API 37 with the status and navigation bars); serialization is inside the 43 to 130 ms measured tree time and was not separated out. The 20 ms reopen trigger is not reached by anything we measured, but is not proven either; Phase 2 task 2.5 measures parse time on the host.
+
 ## D8. Android minimum API 26 (Android 8.0)
 
 **Choice.** API 26 and above. Prefetch-based tree fetch on API 33+, node-by-node below.
@@ -81,11 +85,15 @@ Each decision records the choice, the alternatives it beat, and the evidence tha
 
 **Cost.** One encoder on the phone, one software decoder on the host (about one CPU core at most at 1080p30). Stream stops when the lease ends. The encoder repeats the last frame every 100 ms on a static screen (as scrcpy does), so the host always has a current frame and can tell a stalled stream from a quiet screen.
 
+**Spike A3 evidence (API 26 and 37 emulators):** the stream decodes with `openh264` with no errors; decode p50 3.6 to 4.6 ms and p95 7.3 to 9.6 ms per 1080-wide frame on the Mac (release build). First decoded frame after opening the stream: p50 219 ms (API 26) and 433 ms (API 37), which misses the 200 ms target and is the one-time cost per lease (the software encoder takes 140 to 230 ms to start); the stream's static frame rate is about 3 fps, not 10; the 4,096 pt² `significant_area` cannot see a switch toggle (see architecture 4.6, now two thresholds). Tap-to-changed-frame latency p50 223 to 352 ms on the emulators. Holds as a decision; see `docs/spikes/android.md` A3.
+
 ## D11. Speak the adb server protocol directly
 
 **Choice.** A small async client in `crates/android/src/adb.rs` for the five services listed in architecture 6.1.
 
 **Rejected.** Spawning `adb` per call (latency, process churn). A third-party adb crate: the protocol subset is small and well documented (AOSP `packages/modules/adb/SERVICES.TXT`), and spike A0 writes most of it anyway.
+
+**Spike A0 evidence:** the whole client (version, track-devices-l, transport + shell,v2,raw, sync push, localabstract) is about 150 lines of Rust and worked on the first try over the SSH tunnel on API 26 and 37. A `shell,v2,raw:echo hi` from our client takes p50 52 to 64 ms (tunnel floor 38 to 40 ms) against 247 to 248 ms for the `adb` CLI; `localabstract:` streams work through the tunnel with a 13 ms ping; a shell,v2 child receives stdin without closing it (the token path works). Confirmed.
 
 ## D12. Actions return a settled diff by default
 

@@ -62,6 +62,14 @@ Loop per component: write its test, run it red, implement the component as archi
 
 **Step 2:** FAIL. **Step 3:** `Agent::start(adb, serial) -> AgentConn { control, video, shell }`. The `shell` stream is held for the agent's lifetime and its output drained into the daemon log (architecture 6.2). Socket name `phone-use-<version>-<8 random hex>`; token: 32 random bytes from `getrandom`, hex-encoded, written to the agent's stdin. The agent prints `ready` on stdout once listening; wait for that line (up to 3 s) instead of retrying the socket. **Step 4:** PASS. Commit.
 
+### Phase 1 findings that change Phase 2 tasks (2026-11-05, `docs/spikes/android.md`)
+
+- Agent tree (tasks 2.2, 2.5): call `clearCache()` before every tree; walk with `getChild(i, FLAG_PREFETCH_DESCENDANTS_DEPTH_FIRST)` on API 33+ (not window-root HYBRID); construct UiAutomation with the public `(Looper, IUiAutomationConnection)` constructor then `connect(int)`; measure dropping the status-bar and navigation-bar windows to hit the 80 ms snapshot budget (API 37 Settings main took 75 to 130 ms p50 with them).
+- Launch (2.2): `pkill -f 'dev.phoneuse.agent.[M]ain'` with the bracket; a Looper must exist on every thread that touches `ClipboardManager` (API 26); closing the shell stream ends the agent in about 1 s.
+- Snapshot (2.7): real Settings on API 37 is Compose, so lists are `android.view.View` with collection info (core now maps them to `list`); windows arrive topmost first, so status-bar nodes print before the app and an app bar prints after its list. Decide the reading order (app window first, then children by top then left) with a golden test on `real_settings_apps`.
+- Video (2.4): the fixture `crates/video/tests/fixtures/settings_scroll.h264` is the agent's video wire stream exactly as received (12-byte codec header, then `u64 pts | u8 flags | u32 len | Annex-B` frames; 60 packets, 1080x2424, 1 keyframe, 1.6 MB). Static screens give about 3 fps, so `Stalled` means no frame for 1 s.
+- Settle (core): thresholds are now `first_change_area = 128 pt²` and `significant_area = 4,096 pt²`.
+
 ### Task 2.4: Video decode and FrameStore
 
 **Files:** Create `crates/video/src/{lib.rs,h264.rs,frame_store.rs}`; test fixture `crates/video/tests/fixtures/settings_scroll.h264` (record 3 s from the emulator with the spike or agent; under 2 MB).

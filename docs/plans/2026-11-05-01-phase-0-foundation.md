@@ -117,7 +117,7 @@ Use `blaze build`, `blaze test`, `blaze check` instead of cargo (user rule). Use
 
 **Files:** Create `crates/core/src/settle.rs`.
 
-**Step 1: Failing tests.** The detector takes `feed(Input, now)` and `poll(now) -> State`. Defaults from architecture 4.6: `expect_change = 500ms`, `quiet = 250ms`, `significant_area = 4096 pt²`, `timeout = 5s`.
+**Step 1: Failing tests.** The detector takes `feed(Input, now)` and `poll(now) -> State`. Defaults from architecture 4.6: `expect_change = 500ms`, `quiet = 250ms`, `significant_area = 4096 pt²`, `first_change_area = 128 pt²` (added after spike A3: a switch toggle changes at most 432 pt², a caret 96 pt²), `timeout = 5s`.
 - After an action, no inputs at all: state at 500 ms is `Done { settled: true, changed: false }`. Not at 250 ms: the first-change window must elapse.
 - After an action, a frame with 20,000 pt² changed at 400 ms, then quiet: `Done { settled: true, changed: true }` at 650 ms.
 - `launch` mode (`expect_change = 3000ms`): first change at 1,800 ms (cold start), settled at 2,050 ms.
