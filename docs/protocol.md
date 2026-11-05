@@ -28,12 +28,12 @@ Version mismatch: the daemon replies with error code `-32010 version_mismatch` a
 | `find` | `device?, text, role?` | `[ElementLine]` (rendered lines such as `@e12 cell "Row 1"`; the elements whose label or hint contains `text`, in any case; `role` is a snake_case role name) |
 | `act` | `device?, action: Action, settle?: bool, timeout_ms?, expect_change_ms?` | `ActionResult` |
 | `wait` | `device?, condition: WaitCondition, timeout_ms?, expect_change_ms?` | `ActionResult` |
-| `apps` | `device?, all?` | `[App]` |
+| `apps` | `device?` | `[App]` (launchable apps: `{id, name, system}`) |
 | `clipboard` | `device?, set?: string` | `{text?: string}` |
 
 `device` is omitted when exactly one device is connected or a default is set. Every device method also takes `session` (string, default `"default"`); refs, diff baselines and leases belong to the session, not to the socket connection (architecture section 5).
 
-Additional methods: `open { device?, url }` → `ActionResult`. `share?: boolean` is accepted by every device method (architecture 5, leases). Typed text and secrets: a `type` action's text is masked (`•••`) in `observation.text` when `secret` is true, and the trace records only its length.
+`open` and `launch` are `act` kinds, not methods. `share?: boolean` is accepted by every device method (architecture 5, leases). Typed text and secrets: a `type` action's text is masked (`•••`) in `observation.text` when `secret` is true, and the trace records only its length.
 
 ```ts
 type Target = {ref: string} | {point: {x: number, y: number}} | {text: string, role?: Role}

@@ -397,7 +397,7 @@ phone-use gesture <json>                   multi-finger paths with timing
 phone-use press <home|back|recents|notifications|lock|volume-up|volume-down|enter|...>
 phone-use launch <app name|package|bundle id>
 phone-use open <url>                       deep link or web URL in its handler app
-phone-use apps [--all]
+phone-use apps
 phone-use wait <"text"|@ref|gone:"text"|settled> [--timeout ms]
 phone-use clipboard [get|set <text>]
 phone-use release

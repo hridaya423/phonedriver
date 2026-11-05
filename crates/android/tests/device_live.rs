@@ -193,7 +193,7 @@ async fn text_clipboard_keys_buttons_apps_and_events() {
     let apps = device.apps().await.unwrap();
     assert!(
         apps.iter()
-            .any(|a| a.id.0 == testbed::PACKAGE && a.name == "PhoneUse Testbed")
+            .any(|a| a.id.0 == testbed::PACKAGE && a.name == "phone-use testbed")
     );
 
     device.button(Button::Home).await.unwrap();

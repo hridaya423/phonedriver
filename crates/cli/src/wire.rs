@@ -42,6 +42,12 @@ pub enum Action {
     Gesture {
         fingers: Vec<Vec<PathPoint>>,
     },
+    Launch {
+        app: String,
+    },
+    Open {
+        url: String,
+    },
     Type {
         text: String,
         into: Option<Target>,
@@ -74,6 +80,8 @@ impl std::fmt::Debug for Action {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Action::Tap { target, .. } => write!(f, "Tap({target:?})"),
+            Action::Launch { app } => write!(f, "Launch({app})"),
+            Action::Open { url } => write!(f, "Open({url})"),
             Action::Gesture { fingers } => write!(f, "Gesture({} fingers)", fingers.len()),
             Action::Type {
                 text, into, mode, ..
@@ -186,6 +194,9 @@ pub struct SnapshotParams {
     pub capture: bool,
     pub timeout_ms: Option<u64>,
 }
+
+#[derive(Debug, Deserialize)]
+pub struct AppsParams {}
 
 #[derive(Debug, Deserialize)]
 pub struct FindParams {

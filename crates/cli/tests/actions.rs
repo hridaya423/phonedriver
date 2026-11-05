@@ -288,7 +288,15 @@ async fn a_ref_to_a_row_that_scrolled_away_is_stale_or_still_that_row() {
     }
 }
 
+async fn stop_testbed(rig: &Rig) {
+    rig.adb
+        .shell(&rig.serial, "am force-stop dev.phoneuse.testbed")
+        .await
+        .unwrap();
+}
+
 async fn surface(rig: &Rig) -> (String, f64, f64) {
+    stop_testbed(rig).await;
     rig.tab("gestures").await;
     let els = elements(rig);
     let e = find(&els, "text", "Gesture surface");
@@ -436,4 +444,165 @@ async fn a_two_finger_pinch_logs_two_pointer_ids_and_pointer_down_and_up_on_sche
         .find(|t| (100.0..=200.0).contains(t))
         .expect("a move near 150 ms");
     assert!((mid - 150.0).abs() <= 20.0, "{mid}");
+}
+
+fn app_id(r: &serde_json::Value) -> String {
+    r["observation"]["header"]["app"]["id"]
+        .as_str()
+        .unwrap_or_default()
+        .to_string()
+}
+
+#[tokio::test]
+#[ignore = "needs PHONE_USE_TEST_DEVICE"]
+async fn press_home_puts_the_launcher_in_the_foreground() {
+    let rig = Rig::new().await;
+    stop_testbed(&rig).await;
+    rig.tab("taps").await;
+    let r = rig.json(&["press", "home"]);
+    assert!(app_id(&r).contains("launcher"), "{r}");
+}
+
+#[tokio::test]
+#[ignore = "needs PHONE_USE_TEST_DEVICE"]
+async fn press_back_on_the_second_screen_returns_to_the_first() {
+    let rig = Rig::new().await;
+    rig.tab("settle").await;
+    rig.ok(&["--expect-change", "1500", "tap", "Open second"]);
+    let r = rig.json(&["press", "back"]);
+    assert!(text(&r).contains("Open second"), "{r}");
+    let log = testbed::wait_for_log(&rig.adb, &rig.serial, 3000, |l| {
+        l.iter()
+            .any(|e| e["ev"] == "second" && e["state"] == "destroyed")
+    })
+    .await;
+    assert!(
+        log.iter()
+            .any(|e| e["ev"] == "second" && e["state"] == "destroyed"),
+        "{log:?}"
+    );
+}
+
+#[tokio::test]
+#[ignore = "needs PHONE_USE_TEST_DEVICE"]
+async fn press_enter_in_the_multiline_field_types_a_newline() {
+    let rig = Rig::new().await;
+    rig.tab("text").await;
+    rig.ok(&["type", "hello", "--into", "multiline"]);
+    rig.ok(&["press", "enter"]);
+    let log = testbed::wait_for_log(&rig.adb, &rig.serial, 3000, |l| {
+        l.iter()
+            .any(|e| e["field"] == "multiline" && e["value"] == "hello\n")
+    })
+    .await;
+    assert!(
+        log.iter()
+            .any(|e| e["field"] == "multiline" && e["value"] == "hello\n"),
+        "{log:?}"
+    );
+}
+
+#[tokio::test]
+#[ignore = "needs PHONE_USE_TEST_DEVICE"]
+async fn press_notifications_shows_the_shade_with_a_posted_notification() {
+    let rig = Rig::new().await;
+    rig.tab("taps").await;
+    let _ = rig
+        .adb
+        .shell(
+            &rig.serial,
+            "pm grant dev.phoneuse.testbed android.permission.POST_NOTIFICATIONS",
+        )
+        .await;
+    rig.adb
+        .shell(
+            &rig.serial,
+            "am start -n dev.phoneuse.testbed/.MainActivity --es notify 'code 482913'",
+        )
+        .await
+        .unwrap();
+    tokio::time::sleep(std::time::Duration::from_millis(1000)).await;
+    let r = rig.json(&["--expect-change", "1500", "press", "notifications"]);
+    let shown = text(&r).contains("482913") || {
+        let s = rig.json(&["snapshot"]);
+        s["text"].as_str().unwrap().contains("482913")
+    };
+    rig.adb
+        .shell(&rig.serial, "cmd statusbar collapse")
+        .await
+        .unwrap();
+    assert!(shown, "{r}");
+}
+
+#[tokio::test]
+#[ignore = "needs PHONE_USE_TEST_DEVICE"]
+async fn apps_lists_the_testbed_by_its_label() {
+    let rig = Rig::new().await;
+    let r = rig.json(&["apps"]);
+    assert!(
+        r.as_array()
+            .unwrap()
+            .iter()
+            .any(|a| { a["id"] == "dev.phoneuse.testbed" && a["name"] == "phone-use testbed" }),
+        "{r}"
+    );
+}
+
+#[tokio::test]
+#[ignore = "needs PHONE_USE_TEST_DEVICE"]
+async fn launch_by_label_or_package_foregrounds_the_testbed_with_a_full_snapshot() {
+    let rig = Rig::new().await;
+    for app in ["phone-use testbed", "dev.phoneuse.testbed"] {
+        rig.ok(&["press", "home"]);
+        let r = rig.json(&["launch", app]);
+        assert_eq!(r["observation"]["kind"], "full", "{app}: {r}");
+        assert_eq!(app_id(&r), "dev.phoneuse.testbed", "{app}: {r}");
+    }
+}
+
+#[tokio::test]
+#[ignore = "needs PHONE_USE_TEST_DEVICE"]
+async fn launching_a_misspelled_app_fails_not_found_and_names_the_real_one() {
+    let rig = Rig::new().await;
+    let name = "Settings";
+    let typo = "Settngs";
+    let out = rig.cli(&["launch", &typo]);
+    assert!(!out.status.success());
+    let err = failure(&out);
+    assert!(err.contains(name), "{err}");
+}
+
+#[tokio::test]
+#[ignore = "needs PHONE_USE_TEST_DEVICE"]
+async fn open_a_deep_link_shows_that_row_and_a_web_link_shows_the_page() {
+    let rig = Rig::new().await;
+    rig.tab("taps").await;
+    let r = rig.json(&[
+        "--expect-change",
+        "1500",
+        "open",
+        "dev.phoneuse.testbed://list/640",
+    ]);
+    assert!(text(&r).contains("Row 640"), "{r}");
+    let r = rig.json(&["--expect-change", "3000", "open", "https://example.com"]);
+    let mut shown = text(&r).contains("Example Domain");
+    for _ in 0..8 {
+        if shown {
+            break;
+        }
+        tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+        let s = rig.json(&["snapshot"]);
+        let t = s["text"].as_str().unwrap();
+        if t.contains("Open with") {
+            rig.ok(&["tap", "Chrome"]);
+            rig.ok(&["tap", "JUST ONCE"]);
+        }
+        for first_run in ["ACCEPT & CONTINUE", "NO THANKS"] {
+            if t.contains(first_run) {
+                rig.ok(&["tap", first_run]);
+            }
+        }
+        shown = t.contains("Example Domain");
+    }
+    assert!(shown, "{r}");
 }
