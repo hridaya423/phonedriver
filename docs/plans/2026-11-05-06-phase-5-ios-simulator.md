@@ -54,6 +54,8 @@ Build WebDriverAgent at `3d6a4e0` for the simulator. Time `GET /source` on the t
 
 **Tests** (`#[ignore]`): `Simulator::list()` parses `xcrun simctl list devices -j` and returns booted devices. Starting the runner builds once (`xcodebuild build-for-testing`, cached by a hash of `ios-runner/`), then launches with `xcodebuild test-without-building -xctestrun <file> -destination id=<udid>` as a child process with `TEST_RUNNER_PHONE_USE_PORT` set to `27753 + index` (xcodebuild strips the prefix and passes `PHONE_USE_PORT` to the test). Test: two simulators get two runners on two ports with no collision. The daemon polls `hello` on the port every 100 ms (up to 60 s for a cold build) instead of reading xcodebuild's output. Killing the daemon kills the child (process group). A second daemon start reuses a running runner if `hello` answers with the same version.
 
+*As built (2026-11-05):* the port is not `27753 + index` but the first free port from 27753 (an index into the booted list shifts when a simulator boots or shuts down, and then a reused runner would be attributed to the wrong simulator). To make reuse safe the runner's `hello` gained `udid` (from `SIMULATOR_UDID`) and `build` (the source hash, passed as `TEST_RUNNER_PHONE_USE_BUILD`); "same version" means same wire version and same build. The sources are embedded in the binary and the build is cached under `~/.phone-use/runner/<hash>`; it targets `generic/platform=iOS Simulator`, so one build serves every simulator. The 60 s readiness wait starts after the build. Live tests: `crates/ios/tests/runner_live.rs`.
+
 ### Task 5.5: IosDevice, Simulator tier
 
 **Files:** Create `crates/ios/src/device.rs`, `crates/ios/src/map.rs`.
