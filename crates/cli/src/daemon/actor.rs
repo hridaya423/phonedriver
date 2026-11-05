@@ -541,7 +541,11 @@ impl Actor {
         }
         let device = self.device()?;
         match p.action {
-            Action::Tap { target } => {
+            Action::Tap {
+                target,
+                count,
+                long,
+            } => {
                 self.need(
                     Capabilities::GESTURE,
                     Op::Gesture,
@@ -551,15 +555,22 @@ impl Actor {
                     at, line: element, ..
                 } = self.resolve_target(s, &target).await?;
                 let started = self.begin_action();
-                device.gesture(tap(at)).await?;
+                device
+                    .gesture(gesture::tap(at, count.unwrap_or(1), long))
+                    .await?;
+                let verb = match (count, long) {
+                    (_, Some(ms)) => format!("long-pressed {ms} ms"),
+                    (Some(n), None) if n > 1 => format!("tapped {n} times"),
+                    _ => "tapped".to_string(),
+                };
                 let summary = match &element {
                     Some(line) => format!(
-                        "tapped {} at {},{}",
+                        "{verb} {} at {},{}",
                         short(line),
                         at.x.round(),
                         at.y.round()
                     ),
-                    None => format!("tapped at {},{}", at.x.round(), at.y.round()),
+                    None => format!("{verb} at {},{}", at.x.round(), at.y.round()),
                 };
                 self.finish(s, p.settle, cfg, started, summary, None, None, None)
                     .await
@@ -594,6 +605,31 @@ impl Actor {
                     .map(|l| format!(" from {}", short(&l)))
                     .unwrap_or_default();
                 let summary = format!("swiped {}{from_text}", direction.name());
+                self.finish(s, p.settle, cfg, started, summary, None, None, None)
+                    .await
+            }
+            Action::Gesture { fingers } => {
+                self.need(
+                    Capabilities::GESTURE,
+                    Op::Gesture,
+                    "this device cannot inject touches",
+                )?;
+                let g = Gesture {
+                    fingers: fingers
+                        .iter()
+                        .map(|f| {
+                            f.iter()
+                                .map(|p| TimedPoint {
+                                    at: Point { x: p.x, y: p.y },
+                                    t_ms: p.t_ms,
+                                })
+                                .collect()
+                        })
+                        .collect(),
+                };
+                let started = self.begin_action();
+                device.gesture(g).await?;
+                let summary = format!("gestured with {} fingers", fingers.len());
                 self.finish(s, p.settle, cfg, started, summary, None, None, None)
                     .await
             }
@@ -672,7 +708,7 @@ impl Actor {
                 let secure = secret || field.as_ref().is_some_and(is_secure);
                 let started = self.begin_action();
                 if let Some(at) = tap_at {
-                    device.gesture(tap(at)).await?;
+                    device.gesture(gesture::tap(at, 1, None)).await?;
                 }
                 let input = match (mode, secure) {
                     (TypeMode::Paste, true) => TextInput::PasteSecret(text.clone()),
@@ -1101,12 +1137,6 @@ fn settle_line(st: State) -> SettleLine {
             settled: false,
             ms: 0,
         },
-    }
-}
-
-fn tap(at: Point) -> Gesture {
-    Gesture {
-        fingers: vec![vec![TimedPoint { at, t_ms: 0 }, TimedPoint { at, t_ms: 0 }]],
     }
 }
 

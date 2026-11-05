@@ -9,6 +9,7 @@ use crate::geometry::{Point, Rect};
 const STEPS: u32 = 10;
 const MOVE_MS: u32 = 250;
 const HOLD_MS: u32 = 150;
+const DOUBLE_TAP_MS: u32 = 80;
 /// Android 8 flings a list that lifts after a gap with no touch samples; stationary samples every 25 ms read as stopped.
 const HOLD_SAMPLE_MS: u32 = 25;
 /// A fast swipe lifts while still moving.
@@ -110,6 +111,18 @@ pub fn scroll(area: Rect, direction: Direction) -> Gesture {
     swipe(area, direction.opposite(), SCROLL_DISTANCE, false)
 }
 
+/// One tap, or `count` taps 80 ms apart, or one press that lifts after `long_ms`.
+pub fn tap(at: Point, count: u32, long_ms: Option<u32>) -> Gesture {
+    let up = long_ms.unwrap_or(0);
+    let fingers = (0..count.max(1))
+        .map(|i| {
+            let t = i * (up + DOUBLE_TAP_MS);
+            vec![TimedPoint { at, t_ms: t }, TimedPoint { at, t_ms: t + up }]
+        })
+        .collect();
+    Gesture { fingers }
+}
+
 /// A drag that ends moving fast enough to fling the list, for crossing long distances.
 pub fn fling(area: Rect, direction: Direction) -> Gesture {
     swipe(area, direction.opposite(), 0.8, true)
@@ -177,5 +190,23 @@ mod tests {
         assert!((p[0].at.y - p[10].at.y - 400.0).abs() < 0.01);
         let g = swipe(AREA, Direction::Right, 0.5, false);
         assert!((path(&g)[10].at.x - path(&g)[0].at.x - 200.0).abs() < 0.01);
+    }
+
+    #[test]
+    fn a_double_tap_is_two_fingers_80_ms_apart_that_never_overlap() {
+        let g = tap(Point { x: 10.0, y: 20.0 }, 2, None);
+        assert_eq!(g.fingers.len(), 2);
+        assert_eq!(g.fingers[0].first().unwrap().t_ms, 0);
+        assert_eq!(g.fingers[0].last().unwrap().t_ms, 0);
+        assert_eq!(g.fingers[1].first().unwrap().t_ms, 80);
+        assert_eq!(g.fingers[1].last().unwrap().t_ms, 80);
+    }
+
+    #[test]
+    fn a_long_press_lifts_after_the_requested_time() {
+        let g = tap(Point { x: 10.0, y: 20.0 }, 1, Some(800));
+        let p = path(&g);
+        assert_eq!((p[0].t_ms, p.last().unwrap().t_ms), (0, 800));
+        assert_eq!(p[0].at, p.last().unwrap().at);
     }
 }

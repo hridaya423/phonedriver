@@ -839,3 +839,66 @@ async fn scroll_until_gives_up_after_max_gestures() {
     assert_eq!(e.code, -32013, "{e:?}");
     assert_eq!(fake.calls().len(), 3);
 }
+
+fn act_with(action: Value) -> Value {
+    json!({"action": action})
+}
+
+#[tokio::test(start_paused = true)]
+async fn tap_count_2_sends_two_taps_80_ms_apart_and_long_sends_one_press_that_lifts_after_the_time()
+{
+    let (source, fake) = FakeSource::with(vec![list_tree(&["Row 0"])]);
+    let (d, _home) = daemon(source);
+    ok(&d, "default", "snapshot", json!({})).await;
+    let point = json!({"point": {"x": 50.0, "y": 60.0}});
+    ok(
+        &d,
+        "default",
+        "act",
+        act_with(json!({"kind": "tap", "target": point, "count": 2})),
+    )
+    .await;
+    ok(
+        &d,
+        "default",
+        "act",
+        act_with(json!({"kind": "tap", "target": point, "long": 800})),
+    )
+    .await;
+    let calls = fake.calls();
+    let gestures: Vec<_> = calls
+        .iter()
+        .filter_map(|c| match c {
+            Call::Gesture(g) => Some(g),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(gestures[0].fingers.len(), 2, "{gestures:?}");
+    assert_eq!(gestures[0].fingers[1][0].t_ms, 80);
+    let p = &gestures[1].fingers[0];
+    assert_eq!(p.last().unwrap().t_ms - p[0].t_ms, 800);
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_gesture_plays_the_fingers_it_is_given_and_a_finger_with_one_point_is_invalid() {
+    let (source, fake) = FakeSource::with(vec![list_tree(&["Row 0"])]);
+    let (d, _home) = daemon(source);
+    ok(&d, "default", "snapshot", json!({})).await;
+    let pinch = json!({"kind": "gesture", "fingers": [
+        [{"x": 100.0, "y": 300.0, "t_ms": 0}, {"x": 50.0, "y": 300.0, "t_ms": 300}],
+        [{"x": 200.0, "y": 300.0, "t_ms": 0}, {"x": 250.0, "y": 300.0, "t_ms": 300}]
+    ]});
+    ok(&d, "default", "act", act_with(pinch)).await;
+    let Some(Call::Gesture(g)) = fake
+        .calls()
+        .into_iter()
+        .find(|c| matches!(c, Call::Gesture(_)))
+    else {
+        panic!("no gesture")
+    };
+    assert_eq!(g.fingers.len(), 2);
+    assert_eq!(g.fingers[1][1].at.x, 250.0);
+    let bad = json!({"kind": "gesture", "fingers": [[{"x": 1.0, "y": 1.0, "t_ms": 0}]]});
+    let e = err(&d, "default", "act", act_with(bad)).await;
+    assert_eq!(e.code, -32602, "{e:?}");
+}

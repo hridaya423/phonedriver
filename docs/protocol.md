@@ -38,8 +38,7 @@ Additional methods: `open { device?, url }` → `ActionResult`. `share?: boolean
 ```ts
 type Target = {ref: string} | {point: {x: number, y: number}} | {text: string, role?: Role}
 type Action =
-  | {kind: "tap", target: Target, count?: number}
-  | {kind: "long_press", target: Target, ms?: number}
+  | {kind: "tap", target: Target, count?: number, long?: number}   // long: hold ms; count taps are 80 ms apart
   | {kind: "type", text: string, into?: Target, mode?: "paste"|"set"|"keys", secret?: boolean, submit?: boolean}
     // the CLI reads secret text from stdin or PHONE_USE_SECRET and sends it here over the user-only socket
   | {kind: "clear", target: Target}
