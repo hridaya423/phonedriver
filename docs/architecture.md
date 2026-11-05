@@ -419,7 +419,7 @@ Text targets resolve by: exact label, then case-insensitive exact, then substrin
 - MacBook (this machine): Rust builds with `blaze`. Has Xcode 27, Android build-tools 37 and platform `android-37.0` at `/opt/homebrew/share/android-commandlinetools`, `d8`, `adb`, JDK 17.
 - Android emulator: Windows PC `win-pc`, AVD `Pixel_API_37`, SDK `D:\Android\Sdk`. Reach it from the Mac with `ssh -N -L 5038:127.0.0.1:5037 win-pc` and `ADB_SERVER_SOCKET=tcp:127.0.0.1:5038`. All agent streams flow through the adb server, so the daemon on the Mac drives the emulator on the PC.
 - An API 26 emulator for the minimum-version checks: create `Pixel_API_26` on win-pc.
-- iOS simulators and any GUI: the Mac mini (cua Space `mini` for shell and files, `mini-desktop` MCP for its screen). Never drive GUIs on the MacBook's own screen.
+- iOS simulators and any GUI: the Mac mini (cua Space `mini` for shell and files, `mini-desktop` MCP for its screen). Never drive GUIs on the MacBook's own screen. On 2026-11-05 the mini had Xcode 27.0, the iOS 26.5 simulator runtime only (no iOS 27), Python 3.14, XcodeGen 2.46 (installed with Homebrew), and no Rust toolchain. Sources reach it by `cua` upload into `~/phone-use-work/`.
 - Physical phones: the MacBook currently sees a paired iPhone 14 Plus on iOS 26.5 and two other iOS devices. These belong to people. Ask the user before driving any physical device.
 
 ## 12. Performance budgets

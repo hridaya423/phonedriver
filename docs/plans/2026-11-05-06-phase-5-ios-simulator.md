@@ -18,7 +18,9 @@
 
 Same tabs as the Android testbed (Phase 2 task 2.8), in SwiftUI with `accessibilityIdentifier` on every control, plus a **Nav** tab with a `NavigationStack` two levels deep (to test `back`). Logging: append JSON lines to `Documents/putb.log`; touches are captured with a `UIWindow` subclass overriding `sendEvent(_:)` so raw touch phases, locations in points and timestamps are logged. Add `crates/ios/tests/support/testbed.rs`: build and install to a simulator (`xcodegen && xcodebuild -scheme Testbed -destination id=<udid> build`, then `simctl install`), `clear_log`, `read_log` (path from `xcrun simctl get_app_container <udid> dev.phoneuse.testbed data`).
 
-**Verify:** boot an iPhone 17 simulator (iOS 27), install, screenshot each tab with `xcrun simctl io <udid> screenshot`, look at each.
+*As built (2026-11-05):* the host helper is `testbeds/ios/testbed.py` (Python 3 standard library), because the mini has no Rust toolchain and tasks 5.1 to 5.3 have no Rust consumer yet; task 5.5 ports it to `crates/ios/tests/support/testbed.rs` when the first Rust live test needs it. Nine tabs do not fit a system `TabView` on a phone (five would hide behind "More"), so the testbed draws its own one-row tab bar (`tab.<name>` identifiers). Tests select a tab with the launch argument `-tab <name>`; `simctl openurl putb://tab/<name>` works too but raises a system "Open in Testbed?" confirmation first. The log is opened with `O_APPEND`, so `clear_log` truncates it rather than deleting it. The mini has only the iOS 26.5 simulator runtime (11 GB free disk, not enough for the iOS 27 runtime), so Phase 5 runs on an iPhone 17 simulator with iOS 26.5, built with the iOS 27 SDK.
+
+**Verify:** boot an iPhone 17 simulator (iOS 27; iOS 26.5 on the mini, see above), install, screenshot each tab with `xcrun simctl io <udid> screenshot`, look at each.
 
 ### Task 5.2: Spike I4: WDA baseline and runner snapshot technique
 
