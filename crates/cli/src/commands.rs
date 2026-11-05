@@ -14,7 +14,7 @@ use crate::daemon::android::AdbSource;
 use crate::daemon::{Config, Daemon, socket};
 use crate::wire::{ActionResult, DeviceEntry, Kind, Observation, ScreenshotResult, VERSION};
 
-const USAGE: &str = "usage: phone-use <command>\n\ncommands:\n  devices\n  snapshot\n  screenshot\n  find\n  launch\n  open\n  apps\n  swipe\n  scroll\n  gesture\n  tap\n  type\n  press\n  wait\n  release\n  daemon\n  version";
+const USAGE: &str = "usage: phone-use <command>\n\ncommands:\n  devices\n  snapshot\n  screenshot\n  find\n  launch\n  open\n  apps\n  swipe\n  scroll\n  gesture\n  tap\n  type\n  clear\n  clipboard\n  press\n  wait\n  release\n  daemon\n  version";
 
 #[derive(Parser)]
 #[command(name = "phone-use", disable_help_subcommand = true)]
@@ -135,6 +135,14 @@ enum Verb {
         submit: bool,
         #[arg(long)]
         secret: bool,
+    },
+    /// Empty a text field: `@ref`, `x,y` or the field's text.
+    Clear { target: String },
+    /// Print the device clipboard, or set it with `clipboard set <text>`.
+    Clipboard {
+        #[arg(value_parser = ["get", "set"])]
+        action: Option<String>,
+        text: Option<String>,
     },
     /// Press a button or key: home, back, recents, notifications, lock, volume-up, volume-down, enter.
     Press { key: String },
@@ -473,6 +481,32 @@ async fn execute(
             }
             let r = client.call("act", act(action)).await?;
             show_action(&r, g.json)
+        }
+        Verb::Clear { target } => {
+            let r = client
+                .call(
+                    "act",
+                    act(json!({"kind": "clear", "target": parse_target(&target)})),
+                )
+                .await?;
+            show_action(&r, g.json)
+        }
+        Verb::Clipboard { action, text } => {
+            let mut p = json!({});
+            if action.as_deref() == Some("set") {
+                let text = text
+                    .ok_or_else(|| Failure::Local("clipboard set needs the text to set".into()))?;
+                p["set"] = json!(text);
+            }
+            let r = client.call("clipboard", with(p)).await?;
+            if g.json {
+                return Ok(r.to_string());
+            }
+            Ok(match r["text"].as_str() {
+                Some(t) => t.to_string(),
+                None if action.as_deref() == Some("set") => "ok clipboard set".into(),
+                None => String::new(),
+            })
         }
         Verb::Press { key } => {
             let r = client
