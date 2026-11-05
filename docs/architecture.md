@@ -150,7 +150,7 @@ Golden tests (`insta`) render fixture trees captured from real devices in Phases
 
 ### 4.5 Diff
 
-`core::diff(prev, next) -> Vec<Change>` where `Change` is `Added(ref)`, `Removed(ref)`, `Changed { ref, field, from, to }`. Rendered as `+`, `-`, `~` lines; consecutive removals collapse to one line. When more than 60% of refs changed, the reply is a full snapshot instead of a diff, because the agent is on a new screen.
+`core::diff(prev, next) -> Vec<Change>` where `Change` is `Added(ref)`, `Removed(ref)`, `Changed { ref, field, from, to }`. Rendered as `+`, `-`, `~` lines; consecutive removals collapse to one line. When more than 60% of refs changed ((added + removed) / refs in either observation), the reply is a full snapshot instead of a diff, because the agent is on a new screen. Line shapes: `- @e1 @e2` (removed refs only), `+ <element line>`, `~ @eN role "label" <from> → <to>` per changed field (label, value, hint, state words). A secure field's value change renders `~ @eN secure field changed` and the `Change` value carries no text.
 
 ### 4.6 Settle
 
