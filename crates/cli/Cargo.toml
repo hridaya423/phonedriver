@@ -1,0 +1,13 @@
+[package]
+name = "phone-use"
+version.workspace = true
+edition.workspace = true
+
+[[bin]]
+name = "phone-use"
+path = "src/main.rs"
+
+[dependencies]
+
+[dev-dependencies]
+assert_cmd = "2.2.2"
