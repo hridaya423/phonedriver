@@ -16,7 +16,7 @@ use crate::daemon::sources::Sources;
 use crate::daemon::{Config, Daemon, socket};
 use crate::wire::{ActionResult, DeviceEntry, Kind, Observation, ScreenshotResult, VERSION};
 
-const USAGE: &str = "usage: phone-use <command>\n\ncommands:\n  devices\n  snapshot\n  screenshot\n  tap\n  type\n  press\n  swipe\n  launch\n  open\n  wait\n  release\n  daemon\n  version";
+const USAGE: &str = "usage: phone-use <command>\n\ncommands:\n  devices\n  snapshot\n  screenshot\n  tap\n  type\n  press\n  swipe\n  launch\n  open\n  wait\n  release\n  daemon\n  doctor\n  version";
 
 #[derive(Parser)]
 #[command(name = "phone-use", disable_help_subcommand = true)]
@@ -119,6 +119,8 @@ enum Verb {
         #[arg(long)]
         detach: bool,
     },
+    /// Check Xcode, booted simulators and their runners; each line says ok, warn or fail, with a fix.
+    Doctor,
     /// Print the version.
     Version,
 }
@@ -134,6 +136,13 @@ pub fn run(cli: Cli) -> ExitCode {
             ExitCode::SUCCESS
         }
         Verb::Daemon { .. } => run_daemon(),
+        Verb::Doctor => {
+            if crate::doctor::run(&socket::home()) {
+                ExitCode::SUCCESS
+            } else {
+                ExitCode::from(1)
+            }
+        }
         verb => {
             let secret = match secret_text(&verb) {
                 Ok(s) => s,
@@ -388,7 +397,7 @@ async fn execute(
                 "released".into()
             })
         }
-        Verb::Daemon { .. } | Verb::Version => Ok(String::new()),
+        Verb::Daemon { .. } | Verb::Doctor | Verb::Version => Ok(String::new()),
     }
 }
 

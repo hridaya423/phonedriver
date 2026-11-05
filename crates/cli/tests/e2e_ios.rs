@@ -330,3 +330,30 @@ async fn a_daemon_killed_alone_leaves_its_runner_to_the_next_and_its_process_gro
     }
     assert_eq!(rig.runners(), 0, "the runner outlived its process group");
 }
+
+#[test]
+#[ignore = "needs PHONE_USE_TEST_DEVICE=sim:<udid>"]
+fn doctor_finds_xcode_the_simulator_and_a_runner_that_answers() {
+    let rig = Rig::new();
+    let out = rig
+        .command()
+        .env_remove("PHONE_USE_DEVICE")
+        .arg("doctor")
+        .output()
+        .unwrap();
+    let text = String::from_utf8_lossy(&out.stdout).to_string();
+    assert!(out.status.success(), "{text}");
+    for name in ["xcode", "xcodegen", "simulators", "runner build"] {
+        assert!(
+            text.lines()
+                .any(|l| l.starts_with("ok") && l.contains(name)),
+            "no ok line for {name}:\n{text}"
+        );
+    }
+    let mine = text
+        .lines()
+        .find(|l| l.contains(&rig.udid) && l.contains("runner"))
+        .unwrap_or_else(|| panic!("no runner line for {}:\n{text}", rig.udid));
+    assert!(mine.starts_with("ok"), "{text}");
+    assert!(!text.lines().any(|l| l.starts_with("fail")), "{text}");
+}
