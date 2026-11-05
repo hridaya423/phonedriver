@@ -1,0 +1,7 @@
+/target
+/spikes/*/build
+*.jar
+.DS_Store
+/testbeds/android/build
+/testbeds/android/.gradle
+/ios-runner/build

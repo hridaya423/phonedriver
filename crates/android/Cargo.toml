@@ -1,0 +1,6 @@
+[package]
+name = "phone-use-android"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
