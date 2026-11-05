@@ -1,0 +1,8 @@
+name: long-emoji-text
+device: ios
+steps:
+  - testbed: text
+  - type: {text: "Family 👨‍👩‍👧‍👦 flags 🇯🇵🇧🇷🇰🇪 hands 👋🏽👍🏿🤝🏻 keycaps 1️⃣2️⃣3️⃣ coder 🧑🏽‍💻 rainbow 🏳️‍🌈 héllo 世界 مرحبا שלום नमस्ते", into: {id: text.multi}}
+  - log: {match: {field: multi, value: "Family 👨‍👩‍👧‍👦 flags 🇯🇵🇧🇷🇰🇪 hands 👋🏽👍🏿🤝🏻 keycaps 1️⃣2️⃣3️⃣ coder 🧑🏽‍💻 rainbow 🏳️‍🌈 héllo 世界 مرحبا שלום नमस्ते"}}
+cleanup:
+  - sh: "xcrun simctl terminate {udid} dev.phoneuse.testbed || true"

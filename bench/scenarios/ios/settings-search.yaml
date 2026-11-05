@@ -1,0 +1,11 @@
+name: settings-search
+device: ios
+steps:
+  - sh: "xcrun simctl terminate {udid} com.apple.Preferences || true"
+  - launch: Settings
+  - tap: {role: search_field}
+  - type: "Wi-Fi"
+  - expect: {element: {role: search_field, contains: "Wi-Fi"}}
+  - expect: {element: {role: text, contains: "Wi-Fi"}}
+cleanup:
+  - sh: "xcrun simctl terminate {udid} com.apple.Preferences || true"

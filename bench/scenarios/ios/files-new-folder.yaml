@@ -1,0 +1,17 @@
+name: files-new-folder
+device: ios
+steps:
+  - sh: "xcrun simctl terminate {udid} com.apple.DocumentsApp || true"
+  - launch: Files
+  - tap: {text: Browse, id: null}
+  - tap: "On My iPhone"
+  - tap: More
+  - tap: "New Folder"
+  - expect: {element: {role: text_field, contains: "untitled folder"}}
+  - type: "M4 Folder"
+  - press: enter
+  - expect: {element: {contains: "M4 Folder"}}
+  - sh: {run: "ls ~/Library/Developer/CoreSimulator/Devices/{udid}/data/Containers/Shared/AppGroup/*/'File Provider Storage'", stdout: "M4 Folder"}
+cleanup:
+  - sh: "rm -rf ~/Library/Developer/CoreSimulator/Devices/{udid}/data/Containers/Shared/AppGroup/*/'File Provider Storage/M4 Folder'"
+  - sh: "xcrun simctl terminate {udid} com.apple.DocumentsApp || true"

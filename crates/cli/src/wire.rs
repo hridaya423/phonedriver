@@ -40,6 +40,25 @@ pub enum Action {
     Press {
         key: String,
     },
+    Swipe {
+        direction: Dir,
+        from: Option<Target>,
+        distance: Option<f32>,
+        #[serde(default)]
+        fast: bool,
+    },
+    Launch {
+        app: String,
+    },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Dir {
+    Up,
+    Down,
+    Left,
+    Right,
 }
 
 impl std::fmt::Debug for Action {
@@ -54,6 +73,10 @@ impl std::fmt::Debug for Action {
                 text.chars().count()
             ),
             Action::Press { key } => write!(f, "Press({key})"),
+            Action::Swipe {
+                direction, from, ..
+            } => write!(f, "Swipe({direction:?}, from {from:?})"),
+            Action::Launch { app } => write!(f, "Launch({app})"),
         }
     }
 }
@@ -169,5 +192,11 @@ fn yes() -> bool {
 #[derive(Debug, Deserialize)]
 pub struct WaitParams {
     pub condition: WaitCondition,
+    pub timeout_ms: Option<u64>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct OpenParams {
+    pub url: String,
     pub timeout_ms: Option<u64>,
 }

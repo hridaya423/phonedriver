@@ -109,6 +109,7 @@ pub fn prune(tree: &RawTree) -> Vec<Node> {
             || hint.is_some()
             || node.role.is_text_entry()
             || node.role == Role::ProgressIndicator
+            || node.role == Role::Keyboard
             || scrollable;
         if !keep {
             continue;
@@ -139,7 +140,7 @@ pub fn prune(tree: &RawTree) -> Vec<Node> {
     out
 }
 
-/// A labeled control is one element to a screen reader: its icons and the text that repeats its label add nothing.
+/// A labeled control is one element to a screen reader: its icons and the texts its label already holds add nothing.
 fn hide_repeats(
     tree: &RawTree,
     children: &[Vec<usize>],
@@ -153,10 +154,10 @@ fn hide_repeats(
         if !child.actions.is_empty() {
             continue;
         }
-        let repeats = child
-            .label
-            .as_deref()
-            .is_some_and(|l| l.trim().eq_ignore_ascii_case(label.trim()));
+        let repeats = child.label.as_deref().is_some_and(|l| {
+            let l = l.trim().to_lowercase();
+            !l.is_empty() && label.to_lowercase().contains(&l)
+        });
         if child.role == Role::Image || repeats {
             absorbed_by[d] = Some(control);
         }
@@ -334,6 +335,18 @@ mod tests {
             .map(|n| n.label.as_deref().unwrap_or("-"))
             .collect();
         assert_eq!(labels, ["Taps", "Wi-Fi", "Connected"]);
+    }
+
+    #[test]
+    fn a_labeled_button_hides_texts_its_label_already_holds() {
+        let json = r#"{"app":{"bundle_id":"x","pid":1},"nodes":[
+            {"p":-1,"cls":"XCUIElementTypeOther","b":[0,0,400,200],"f":"vVe"},
+            {"p":0,"cls":"XCUIElementTypeButton","text":"Apple Account, Sign in to iCloud.","a":["tap"],"b":[0,0,400,80],"f":"vVe"},
+            {"p":1,"cls":"XCUIElementTypeStaticText","text":"Apple Account","b":[10,10,200,30],"f":"vVe"},
+            {"p":1,"cls":"XCUIElementTypeStaticText","text":"Sign in to iCloud.","b":[10,40,300,60],"f":"vVe"}
+        ]}"#;
+        let nodes = prune(&RawTree::from_ios_json(json).unwrap());
+        assert_eq!(nodes.len(), 1, "{nodes:#?}");
     }
 
     #[test]

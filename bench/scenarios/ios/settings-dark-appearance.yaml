@@ -1,0 +1,14 @@
+name: settings-dark-appearance
+device: ios
+steps:
+  - sh: "xcrun simctl terminate {udid} com.apple.Preferences || true"
+  - sh: {run: "xcrun simctl ui {udid} appearance", stdout: light}
+  - launch: Settings
+  - swipe: up
+  - tap: Developer
+  - tap: {text: "Dark Appearance", role: switch}
+  - expect: {element: {text: "Dark Appearance", role: switch}, state: on}
+  - sh: {run: "xcrun simctl ui {udid} appearance", stdout: dark}
+cleanup:
+  - sh: "xcrun simctl ui {udid} appearance light"
+  - sh: "xcrun simctl terminate {udid} com.apple.Preferences || true"

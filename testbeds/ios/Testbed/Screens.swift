@@ -3,11 +3,15 @@ import UserNotifications
 
 struct TapsScreen: View {
     @State private var last = "none"
+    @State private var dark = false
     private let columns = Array(repeating: GridItem(.flexible(), spacing: 8), count: 4)
 
     var body: some View {
         VStack(spacing: 12) {
             Text("Last tap: \(last)").accessibilityIdentifier("taps.last")
+            Toggle("Dark theme", isOn: $dark)
+                .accessibilityIdentifier("taps.dark")
+                .onChange(of: dark) { _, on in Log.event("toggle", ["on": on]) }
             LazyVGrid(columns: columns, spacing: 8) {
                 ForEach(0..<24, id: \.self) { i in
                     Button("B\(i)") {

@@ -74,9 +74,12 @@ Record runner screenshot time (p50/p95) as its own number; it sets how fast the 
 
 **Gate M4:** 12/12 scenarios pass three runs in a row on the iOS 27 simulator. Runner snapshot p50 is at most half of tuned WDA's on the same screens (D4); if not, follow D4: switch to WDA and delete the runner's snapshot code. Numbers in `docs/bench/m4.md`.
 
+*As built (2026-11-05):* the scenarios run through the CLI with `phone-use-bench scenario` (`bench/src/scenario.rs`), and the iOS benchmark is `phone-use-bench ios` (`bench/src/ios.rs`); `main.rs` only dispatches to them, so Phase 3's Android `scenario` subcommand can merge beside them. Three scenarios differ from the list above, because the iOS 26.5 Simulator without an Apple Account cannot do them: Reminders and Calendar have no local list ("New Reminder" and "Add" stay disabled, and Reminders asks to enable iCloud on every launch), so `files-new-folder` (Files, On My iPhone) replaces "Reminders add"; Settings search answers "No Results" for every query on this simulator, so `settings-search` checks that the query reached the field and that Settings answered for it; Settings has no Display & Brightness on the Simulator, so dark appearance is Developer > Dark Appearance, checked with `simctl ui appearance`. The testbed's Taps tab gained a "Dark theme" toggle, as on Android, for the tap-to-settled-diff benchmark row. The gate runs on the iOS 26.5 simulator (see task 5.1). `launch`, `open` and `swipe` were added to the CLI in this task (minimal versions, see `docs/bench/m4.md`), because Phase 3's are not merged yet. WebDriverAgent was not rebuilt for the D4 check: its checkout went with spike I4 and the mini had 2 GB free, so the runner is re-measured against task 5.3's WDA numbers, once as the machine was and once under 5.3's conditions.
+
 ### Task 5.7: doctor for iOS Simulator
 
 Add checks: Xcode found, a simulator booted, runner builds, runner answers `hello`. Test on the mini.
+
 
 ---
 

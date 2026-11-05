@@ -5,6 +5,7 @@
 
 pub mod actor;
 pub mod android;
+pub mod gestures;
 pub mod ios;
 pub mod rpc;
 pub mod session;
@@ -127,10 +128,11 @@ impl Daemon {
                 Ok(json!({}))
             }
             "devices" => Ok(self.devices().await?),
-            "release" | "snapshot" | "screenshot" | "act" | "wait" => {
+            "release" | "snapshot" | "screenshot" | "act" | "wait" | "open" => {
                 let common: Common = rpc::params(params)?;
                 let call = match method {
                     "release" => Call::Release,
+                    "open" => Call::Open(rpc::params(params)?),
                     "snapshot" => Call::Snapshot(rpc::params(params)?),
                     "screenshot" => Call::Screenshot,
                     "act" => Call::Act(

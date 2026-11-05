@@ -1,0 +1,16 @@
+name: nav-back-twice
+device: ios
+steps:
+  - testbed: nav
+  - tap: "Open level 1"
+  - log: {match: {ev: nav, level: 1}}
+  - tap: "Open level 2"
+  - log: {match: {ev: nav, level: 2}}
+  - clear_log: {}
+  - press: back
+  - log: {match: {ev: nav, level: 1}}
+  - press: back
+  - log: {match: {ev: nav, level: 0}}
+  - expect: {element: {text: "Level 0"}}
+cleanup:
+  - sh: "xcrun simctl terminate {udid} dev.phoneuse.testbed || true"

@@ -31,6 +31,11 @@ const ACTIVE_WINDOW: Duration = Duration::from_secs(3);
 const IDLE_POLL: Duration = Duration::from_millis(500);
 const ACTIVE_CHANGE_PT2: f32 = 128.0;
 const EVENT_BACKLOG: usize = 16;
+/// While an app starts, the runner's snapshot fails with `kAXErrorServerNotFound` until the app's accessibility
+/// server answers, or still reports the app that was in front: for about 1.3 s after `simctl launch` returns for
+/// Settings (iOS 26.5 Simulator, every launch).
+const APP_START_WAIT: Duration = Duration::from_secs(5);
+const APP_START_RETRY: Duration = Duration::from_millis(100);
 /// Characters per second for paste mode. A synthesized Cmd+V does not paste text another app put on the
 /// pasteboard (observed on the iOS 26.5 Simulator), so paste types through the runner's text input at a speed
 /// that still entered 102 mixed characters exactly in 267 ms; keys mode types at the runner's default 60.
@@ -157,9 +162,21 @@ impl IosDevice {
     }
 
     async fn snapshot(&self, max_depth: u32) -> Result<Value> {
-        self.client()
-            .request(Op::Tree, json!({"op": "snapshot", "max_depth": max_depth}))
-            .await
+        let deadline = Instant::now() + APP_START_WAIT;
+        loop {
+            let reply = self
+                .client()
+                .request(Op::Tree, json!({"op": "snapshot", "max_depth": max_depth}))
+                .await;
+            match reply {
+                Err(Error::Transport { detail })
+                    if detail.contains("kAXErrorServerNotFound") && Instant::now() < deadline =>
+                {
+                    tokio::time::sleep(APP_START_RETRY).await
+                }
+                other => return other,
+            }
+        }
     }
 }
 
@@ -367,8 +384,14 @@ impl Device for IosDevice {
     }
 
     async fn launch(&self, app: &AppId) -> Result<()> {
-        let _busy = Busy::new(&self.activity);
-        simctl(&["launch", &self.udid, &app.0]).await?;
+        {
+            let _busy = Busy::new(&self.activity);
+            simctl(&["launch", &self.udid, &app.0]).await?;
+        }
+        let deadline = Instant::now() + APP_START_WAIT;
+        while Instant::now() < deadline && self.foreground().await?.as_ref() != Some(app) {
+            tokio::time::sleep(APP_START_RETRY).await;
+        }
         Ok(())
     }
 

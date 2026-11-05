@@ -1,0 +1,12 @@
+name: testbed-list
+device: ios
+steps:
+  - testbed: list
+  - expect: {element: {text: "Row 0"}}
+  - swipe: up
+  - swipe: up
+  - expect: {element: {text: "Row 0"}, absent: true}
+  - expect: {element: {text: "Row 45"}}
+  - log: {match: {ev: scroll}}
+cleanup:
+  - sh: "xcrun simctl terminate {udid} dev.phoneuse.testbed || true"

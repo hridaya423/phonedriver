@@ -27,8 +27,8 @@ use tokio::time::Instant;
 use super::DeviceSource;
 use super::session::{Resolved, Session};
 use crate::wire::{
-    ActParams, Action, ActionResult, Kind, Observation, ScreenshotResult, SnapshotParams, Target,
-    TypeMode, WaitParams,
+    ActParams, Action, ActionResult, Kind, Observation, OpenParams, ScreenshotResult,
+    SnapshotParams, Target, TypeMode, WaitParams,
 };
 
 pub const LEASE_TTL: Duration = Duration::from_secs(600);
@@ -40,6 +40,7 @@ pub enum Call {
     Screenshot,
     Act(ActParams),
     Wait(WaitParams),
+    Open(OpenParams),
     Release,
     /// Who holds the lease, without taking it.
     Leased,
@@ -298,6 +299,7 @@ impl Actor {
             Call::Screenshot => to_value(self.screenshot().await?),
             Call::Act(p) => to_value(self.act(s, p).await?),
             Call::Wait(p) => to_value(self.wait(s, p).await?),
+            Call::Open(p) => to_value(self.open(s, p).await?),
             Call::Release | Call::Leased => json!({}),
         };
         Ok(value)
@@ -544,6 +546,68 @@ impl Actor {
                 self.finish(s, p.settle, cfg, started, summary, via, None, None)
                     .await
             }
+            Action::Swipe {
+                direction,
+                from,
+                distance,
+                fast,
+            } => {
+                self.need(
+                    Capabilities::GESTURE,
+                    Op::Gesture,
+                    "this device cannot inject touches",
+                )?;
+                let start = match &from {
+                    Some(t) => Some(self.resolve_target(s, t).await?.at),
+                    None => None,
+                };
+                let screen = self
+                    .live
+                    .as_ref()
+                    .map_or(device.info().screen, |l| l.screen);
+                let g =
+                    super::gestures::swipe(screen, start, direction, distance.unwrap_or(0.5), fast);
+                let started = self.begin_action();
+                device.gesture(g).await?;
+                let name = serde_json::to_value(direction).unwrap_or_default();
+                let summary = format!("swiped {}", name.as_str().unwrap_or_default());
+                self.finish(s, p.settle, cfg, started, summary, None, None, None)
+                    .await
+            }
+            Action::Launch { app } => {
+                self.need(
+                    Capabilities::LAUNCH,
+                    Op::Launch,
+                    "this device cannot launch apps",
+                )?;
+                let apps = device.apps().await?;
+                let wanted = app.to_lowercase();
+                let found = apps
+                    .iter()
+                    .find(|a| a.id.0 == app)
+                    .or_else(|| apps.iter().find(|a| a.name.to_lowercase() == wanted));
+                let Some(found) = found else {
+                    return Err(Error::NotFound {
+                        query: app,
+                        similar: apps
+                            .iter()
+                            .filter(|a| a.name.to_lowercase().contains(&wanted))
+                            .map(|a| format!("{} ({})", a.name, a.id.0))
+                            .take(5)
+                            .collect(),
+                    });
+                };
+                let id = found.id.clone();
+                let mut cfg = Config::launch();
+                if let Some(t) = p.timeout_ms {
+                    cfg.timeout = Duration::from_millis(t);
+                }
+                let started = self.begin_action();
+                device.launch(&id).await?;
+                let summary = format!("launched {} ({})", found.name, id.0);
+                self.finish(s, p.settle, cfg, started, summary, None, None, None)
+                    .await
+            }
             Action::Type {
                 text,
                 into,
@@ -636,6 +700,12 @@ impl Actor {
         if !settle {
             return Ok(delivered(s, summary, via));
         }
+        let polled = !self
+            .device()?
+            .info()
+            .capabilities
+            .contains(Capabilities::FRAMES);
+        let started = if polled { self.now() } else { started };
         let st = Some(self.settle(cfg, started).await);
         let tree = self.device()?.tree().await?;
         let rendered = self.build(s, &tree, st.map(settle_line));
@@ -687,6 +757,26 @@ impl Actor {
             changed,
             observation,
         })
+    }
+
+    async fn open(&mut self, s: &mut Session, p: OpenParams) -> Result<ActionResult, Error> {
+        self.need(
+            Capabilities::OPEN_URL,
+            Op::OpenUrl,
+            "this device cannot open URLs",
+        )?;
+        let device = self.device()?;
+        let mut cfg = Config::launch();
+        if let Some(t) = p.timeout_ms {
+            cfg.timeout = Duration::from_millis(t);
+        }
+        let started = self.begin_action();
+        device
+            .open_url(&phone_use_core::device::Url(p.url.clone()))
+            .await?;
+        let summary = format!("opened {}", p.url);
+        self.finish(s, true, cfg, started, summary, None, None, None)
+            .await
     }
 
     async fn wait(&mut self, s: &mut Session, p: WaitParams) -> Result<ActionResult, Error> {

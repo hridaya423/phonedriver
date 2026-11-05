@@ -4,6 +4,12 @@
 //!
 //! It starts the daemon itself and calls it over its socket, the path the CLI uses, so the numbers
 //! contain no process start.
+//!
+//! `phone-use-bench scenario ...` runs scenario files (see `scenario.rs`); `phone-use-bench ios ...` is the iOS
+//! Simulator benchmark (see `ios.rs`).
+
+mod ios;
+mod scenario;
 
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
@@ -185,6 +191,11 @@ async fn start_daemon(
 
 #[tokio::main]
 async fn main() {
+    match std::env::args().nth(1).as_deref() {
+        Some("scenario") => return scenario::main(),
+        Some("ios") => return ios::main().await,
+        _ => {}
+    }
     let args = match args() {
         Ok(a) => a,
         Err(e) => {

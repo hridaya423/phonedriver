@@ -1,0 +1,9 @@
+name: safari-open-url
+device: ios
+steps:
+  - sh: "xcrun simctl terminate {udid} com.apple.mobilesafari || true"
+  - open: "https://example.com"
+  - expect: {element: {text: "Example Domain"}, timeout_ms: 15000}
+  - expect: {element: {text: "Address", contains: "example.com"}}
+cleanup:
+  - sh: "xcrun simctl terminate {udid} com.apple.mobilesafari || true"

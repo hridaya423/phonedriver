@@ -1,0 +1,8 @@
+name: testbed-text
+device: ios
+steps:
+  - testbed: text
+  - type: {text: "Hello phone-use", into: {id: text.plain}}
+  - log: {match: {field: plain, value: "Hello phone-use"}}
+cleanup:
+  - sh: "xcrun simctl terminate {udid} dev.phoneuse.testbed || true"
