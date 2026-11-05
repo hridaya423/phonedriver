@@ -1,5 +1,6 @@
 #![allow(dead_code)]
 
+pub mod agent;
 pub mod testbed;
 
 use phone_use_android::adb::Adb;

@@ -86,3 +86,9 @@ pub async fn wait_for_log(
         tokio::time::sleep(std::time::Duration::from_millis(50)).await;
     }
 }
+
+static INSTALLED: tokio::sync::OnceCell<()> = tokio::sync::OnceCell::const_new();
+
+pub async fn ensure_installed(adb: &Adb, serial: &str) {
+    INSTALLED.get_or_init(|| install(adb, serial)).await;
+}
