@@ -109,7 +109,7 @@ pub struct Element {
 }
 ```
 
-`Role` is a closed enum: `Button, Link, Text, Heading, TextField, SearchField, SecureField, Switch, Checkbox, Radio, Slider, Image, List, Cell, Tab, Menu, MenuItem, Dialog, Keyboard, WebView, Alert, ProgressIndicator, Other`. Each platform maps its class names and traits once, in its own crate, in one table. Unknown classes become `Other` and are kept only if they carry text or actions.
+`Role` is a closed enum: `Button, Link, Text, Heading, TextField, SearchField, SecureField, Switch, Checkbox, Radio, Slider, Image, List, Cell, Tab, Menu, MenuItem, Dialog, Keyboard, WebView, Alert, ProgressIndicator, Other`. Each platform maps its class names and traits once, in one table: `Role::from_android_class` and `Role::from_xcui` in `core::element`. They live in `core` so fixtures from both platforms parse and render in core tests without device crates. `core::raw` parses each platform's wire tree into the neutral `RawTree` (label, value and hint already chosen per platform, bounds in points). Unknown classes become `Other` and are kept only if they carry text or actions.
 
 ### 4.3 Refs
 
