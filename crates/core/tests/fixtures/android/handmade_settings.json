@@ -1,0 +1,25 @@
+{
+  "windows": [
+    {"id": 12, "type": "application", "package": "com.android.settings", "layer": 0, "bounds": [0, 0, 1080, 2400]}
+  ],
+  "nodes": [
+    {"p": -1, "w": 12, "cls": "android.widget.FrameLayout", "b": [0, 0, 1080, 2400], "f": "vVe", "n": "100"},
+    {"p": 0, "w": 12, "id": "com.android.settings:id/homepage_title", "cls": "android.widget.TextView", "text": "Settings", "b": [48, 120, 1032, 240], "f": "vVeH", "n": "101"},
+    {"p": 0, "w": 12, "id": "com.android.settings:id/search_src_text", "cls": "android.widget.SearchView$SearchAutoComplete", "text": "Search settings", "hint": "Search settings", "b": [48, 264, 1032, 408], "f": "vVeEh", "a": ["tap", "set_text"], "n": "102"},
+    {"p": 0, "w": 12, "id": "com.android.settings:id/recycler_view", "cls": "androidx.recyclerview.widget.RecyclerView", "b": [0, 432, 1080, 2160], "f": "vVeS", "a": ["scroll_down"], "coll": {"rows": 12, "cols": 1}, "n": "103"},
+    {"p": 3, "w": 12, "cls": "android.widget.LinearLayout", "b": [0, 432, 1080, 672], "f": "vVe", "a": ["tap"], "item": {"row": 0, "col": 0}, "n": "110"},
+    {"p": 4, "w": 12, "id": "android:id/title", "cls": "android.widget.TextView", "text": "Network & internet", "b": [168, 468, 1032, 540], "f": "vVe", "n": "111"},
+    {"p": 4, "w": 12, "id": "android:id/summary", "cls": "android.widget.TextView", "text": "Mobile, Wi‑Fi, hotspot", "b": [168, 552, 1032, 636], "f": "vVe", "n": "112"},
+    {"p": 3, "w": 12, "cls": "android.widget.LinearLayout", "b": [0, 672, 1080, 912], "f": "vVe", "a": ["tap"], "item": {"row": 1, "col": 0}, "n": "120"},
+    {"p": 7, "w": 12, "id": "android:id/title", "cls": "android.widget.TextView", "text": "Connected devices", "b": [168, 708, 1032, 780], "f": "vVe", "n": "121"},
+    {"p": 7, "w": 12, "id": "android:id/summary", "cls": "android.widget.TextView", "text": "Bluetooth, pairing", "b": [168, 792, 1032, 876], "f": "vVe", "n": "122"},
+    {"p": 3, "w": 12, "cls": "android.widget.LinearLayout", "b": [0, 912, 1080, 1152], "f": "vVe", "a": ["tap"], "item": {"row": 2, "col": 0}, "n": "130"},
+    {"p": 10, "w": 12, "id": "android:id/title", "cls": "android.widget.TextView", "text": "Apps", "b": [168, 948, 1032, 1020], "f": "vVe", "n": "131"},
+    {"p": 10, "w": 12, "id": "android:id/summary", "cls": "android.widget.TextView", "text": "Recent apps, default apps", "b": [168, 1032, 1032, 1116], "f": "vVe", "n": "132"},
+    {"p": 3, "w": 12, "cls": "android.widget.LinearLayout", "b": [0, 1152, 1080, 1392], "f": "vVe", "a": ["tap", "long_tap"], "item": {"row": 3, "col": 0}, "n": "140"},
+    {"p": 13, "w": 12, "id": "android:id/title", "cls": "android.widget.TextView", "text": "Dark theme", "b": [168, 1188, 840, 1260], "f": "vVe", "n": "141"},
+    {"p": 13, "w": 12, "id": "android:id/summary", "cls": "android.widget.TextView", "text": "Will turn on automatically at sunset", "b": [168, 1272, 840, 1356], "f": "vVe", "n": "142"},
+    {"p": 13, "w": 12, "id": "com.android.settings:id/switch_widget", "cls": "android.widget.Switch", "desc": "Dark theme", "sd": "On", "b": [900, 1212, 1032, 1332], "f": "vVcCe", "a": ["tap"], "n": "143"},
+    {"p": 0, "w": 12, "id": "com.android.settings:id/seekbar", "cls": "android.widget.SeekBar", "desc": "Brightness level", "b": [48, 2208, 1032, 2352], "f": "vVeF", "a": ["scroll_fwd", "scroll_back"], "range": {"min": 0, "max": 100, "cur": 64, "type": "percent"}, "n": "150"}
+  ]
+}

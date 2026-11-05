@@ -25,7 +25,10 @@ pub struct Rect {
 
 impl Rect {
     pub fn center(&self) -> Point {
-        Point { x: self.x + self.w / 2.0, y: self.y + self.h / 2.0 }
+        Point {
+            x: self.x + self.w / 2.0,
+            y: self.y + self.h / 2.0,
+        }
     }
 
     pub fn area(&self) -> f32 {
@@ -38,7 +41,12 @@ impl Rect {
         let y0 = self.y.max(bounds.y);
         let x1 = (self.x + self.w).min(bounds.x + bounds.w);
         let y1 = (self.y + self.h).min(bounds.y + bounds.h);
-        (x1 > x0 && y1 > y0).then(|| Rect { x: x0, y: y0, w: x1 - x0, h: y1 - y0 })
+        (x1 > x0 && y1 > y0).then_some(Rect {
+            x: x0,
+            y: y0,
+            w: x1 - x0,
+            h: y1 - y0,
+        })
     }
 
     /// The smallest rectangle containing both.
@@ -47,7 +55,12 @@ impl Rect {
         let y0 = self.y.min(other.y);
         let x1 = (self.x + self.w).max(other.x + other.w);
         let y1 = (self.y + self.h).max(other.y + other.h);
-        Rect { x: x0, y: y0, w: x1 - x0, h: y1 - y0 }
+        Rect {
+            x: x0,
+            y: y0,
+            w: x1 - x0,
+            h: y1 - y0,
+        }
     }
 
     pub fn contains(&self, other: Rect) -> bool {
@@ -73,11 +86,17 @@ pub struct Scale {
 
 impl Scale {
     pub fn to_device(&self, p: Point) -> Point {
-        Point { x: p.x * self.density, y: p.y * self.density }
+        Point {
+            x: p.x * self.density,
+            y: p.y * self.density,
+        }
     }
 
     pub fn to_points(&self, p: Point) -> Point {
-        Point { x: p.x / self.density, y: p.y / self.density }
+        Point {
+            x: p.x / self.density,
+            y: p.y / self.density,
+        }
     }
 
     /// iOS HID digitizer coordinates: 0..=65535 across the screen on each axis.
@@ -94,23 +113,54 @@ mod tests {
 
     #[test]
     fn center_of_rect() {
-        let r = Rect { x: 10.0, y: 20.0, w: 100.0, h: 40.0 };
+        let r = Rect {
+            x: 10.0,
+            y: 20.0,
+            w: 100.0,
+            h: 40.0,
+        };
         assert_eq!(r.center(), Point { x: 60.0, y: 40.0 });
     }
 
     #[test]
     fn clip_keeps_visible_part() {
-        let screen = Rect { x: 0.0, y: 0.0, w: 400.0, h: 800.0 };
-        let half = Rect { x: 350.0, y: 100.0, w: 100.0, h: 50.0 };
-        assert_eq!(half.clip(screen), Some(Rect { x: 350.0, y: 100.0, w: 50.0, h: 50.0 }));
-        let gone = Rect { x: 500.0, y: 100.0, w: 100.0, h: 50.0 };
+        let screen = Rect {
+            x: 0.0,
+            y: 0.0,
+            w: 400.0,
+            h: 800.0,
+        };
+        let half = Rect {
+            x: 350.0,
+            y: 100.0,
+            w: 100.0,
+            h: 50.0,
+        };
+        assert_eq!(
+            half.clip(screen),
+            Some(Rect {
+                x: 350.0,
+                y: 100.0,
+                w: 50.0,
+                h: 50.0
+            })
+        );
+        let gone = Rect {
+            x: 500.0,
+            y: 100.0,
+            w: 100.0,
+            h: 50.0,
+        };
         assert_eq!(gone.clip(screen), None);
     }
 
     #[test]
     fn to_device_scales_by_density() {
         let s = Scale { density: 2.625 };
-        assert_eq!(s.to_device(Point { x: 100.0, y: 200.0 }), Point { x: 262.5, y: 525.0 });
+        assert_eq!(
+            s.to_device(Point { x: 100.0, y: 200.0 }),
+            Point { x: 262.5, y: 525.0 }
+        );
     }
 
     #[test]
@@ -118,7 +168,10 @@ mod tests {
         let s = Scale { density: 3.0 };
         let screen = Size { w: 393.0, h: 852.0 };
         assert_eq!(s.to_hid(Point { x: 0.0, y: 0.0 }, screen), (0, 0));
-        assert_eq!(s.to_hid(Point { x: 393.0, y: 852.0 }, screen), (65535, 65535));
+        assert_eq!(
+            s.to_hid(Point { x: 393.0, y: 852.0 }, screen),
+            (65535, 65535)
+        );
     }
 
     proptest! {
