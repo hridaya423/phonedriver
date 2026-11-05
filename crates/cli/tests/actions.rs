@@ -566,7 +566,7 @@ async fn launching_a_misspelled_app_fails_not_found_and_names_the_real_one() {
     let rig = Rig::new().await;
     let name = "Settings";
     let typo = "Settngs";
-    let out = rig.cli(&["launch", &typo]);
+    let out = rig.cli(&["launch", typo]);
     assert!(!out.status.success());
     let err = failure(&out);
     assert!(err.contains(name), "{err}");
