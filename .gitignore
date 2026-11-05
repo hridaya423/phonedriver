@@ -8,3 +8,5 @@
 /spikes/*/target
 /spikes/*/testapp/build
 /spikes/a3out
+/testbeds/android/app/build
+!/testbeds/android/gradle/wrapper/gradle-wrapper.jar
