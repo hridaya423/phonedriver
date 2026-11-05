@@ -358,7 +358,7 @@ Signing: built with Xcode automatic signing for the user's team. A free Apple ID
 
 - Input: H.264 Annex-B access units from the Android agent, or RTP packets from iOS depacketized into access units (section 7.2).
 - Decode: `openh264` for H.264 on every OS. HEVC, only if spike I3 shows the device sends it: VideoToolbox on macOS; on other OSes the CoreDevice tier falls back to `screencaptureservices` PNGs and polled settle until an HEVC decoder is added.
-- Output, `FrameStore`: the latest RGBA frame (`Arc`), a 1/8-scale luma thumbnail, a sequence number, and a timestamp, published on a `watch` channel. Every frame is decoded (inter-frame coding forbids skipping).
+- Output, `FrameStore`: the latest decoded frame (`Arc`, planar YUV 4:2:0), a luma thumbnail with one sample per 4×4 points (the settle measure of section 4.6), a sequence number, and the time of the last frame, with a `watch` channel carrying `FrameRef { seq, changed_area_pt2, changed_box }`. Every frame is decoded (inter-frame coding forbids skipping).
 - Screenshot = encode the latest frame (PNG or JPEG) on the host. With the 100 ms repeat-frame setting, a static screen still produces frames, so the FrameStore is never empty after the first 100 ms and a stalled stream is detectable: no frame for 1 s means the stream is broken, and the actor restarts it rather than serving a stale image. Screenshots requested while an action is settling wait for settle, so encoder pipeline latency cannot return the pre-action frame.
 
 ## 9. Pixels and OCR
