@@ -2,6 +2,7 @@
 
 pub mod diff;
 pub mod element;
+pub mod error;
 pub mod geometry;
 pub mod prune;
 pub mod raw;
