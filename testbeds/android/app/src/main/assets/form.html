@@ -1,0 +1,16 @@
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Testbed form</title></head>
+<body>
+<h1>Web form</h1>
+<form onsubmit="return false">
+<label for="name">Name</label>
+<input id="name" type="text" oninput="Testbed.log(JSON.stringify({ev:'web',field:'name',value:this.value}))">
+<br>
+<label for="agree">Agree</label>
+<input id="agree" type="checkbox" onchange="Testbed.log(JSON.stringify({ev:'web',field:'agree',value:this.checked}))">
+<br>
+<button id="send" onclick="Testbed.log(JSON.stringify({ev:'web',field:'send'}))">Send</button>
+</form>
+</body>
+</html>
