@@ -10,3 +10,4 @@
 /spikes/a3out
 /testbeds/android/app/build
 !/testbeds/android/gradle/wrapper/gradle-wrapper.jar
+/android-agent/build

@@ -30,7 +30,7 @@ Device tests use `#[ignore]` and read the target from `PHONE_USE_TEST_DEVICE` (f
 
 **Files:**
 - Create `android-agent/src/dev/phoneuse/agent/{Main,Control,Video,Input,Accessibility,TextInput,Apps,DeviceState,Json}.java`
-- Create `android-agent/src/dev/phoneuse/agent/wrappers/*.java` (copied from scrcpy wrappers as needed; record each in `NOTICE`)
+- Copy from scrcpy only what the agent compiles against, keeping scrcpy's package names and paths (`android-agent/src/com/genymobile/scrcpy/...`, so provenance is file for file); record each in `NOTICE`. Extra agent files: `Ops.java` (op dispatch), `Monitor.java` (display and keyguard events), `Keyguard.java` (`IWindowManager`, because `KeyguardManager` fails on API 37)
 - Create `android-agent/build.sh` (outputs `android-agent/build/phone-use-agent.jar`; reads `ANDROID_HOME`, defaults to `/opt/homebrew/share/android-commandlinetools`; platform `android-37.0`, build-tools `37.0.0`; `d8 --min-api 26 --release`)
 - Create `crates/android/build.rs`: runs `android-agent/build.sh` when any file under `android-agent/src` is newer than the jar, then exposes the jar path via `cargo:rustc-env=PHONE_USE_AGENT_JAR`. If `PHONE_USE_AGENT_JAR` is already set in the environment, use that file and skip the build. CI: GitHub-hosted runners ship an Android SDK in `ANDROID_HOME`; add a CI step `sdkmanager "platforms;android-37.0" "build-tools;37.0.0"` and set `ANDROID_PLATFORM`/`ANDROID_BUILD_TOOLS` for `build.sh`. On Windows runners `build.sh` runs under Git Bash; verify once.
 - Create `NOTICE`
@@ -40,9 +40,9 @@ Build the agent one component at a time. Each component gets its own failing liv
 | Component | Failing test first |
 |---|---|
 | Main + Control | `hello` with the token returns `api` and display; without the token the stream closes; an unknown op returns `{ok:false, error}` |
-| Accessibility | `tree` on the testbed Taps tab contains 24 buttons with ids `b0`..`b23` and every `RawNode` key the protocol lists for them |
+| Accessibility | `tree` on the testbed Taps tab contains 24 buttons with ids `b0`..`b23` and every `RawNode` key the protocol lists for them, and no status or navigation bar window |
 | Input | `gesture` tap at button `b17`'s center in px produces one testbed `tap` log entry within ±1 px; a two-pointer gesture logs both pointer ids |
-| Video | the video stream's codec header matches `hello`'s display size; a frame arrives within 200 ms on a static screen |
+| Video | the video stream's codec header matches `hello`'s display size; a picture frame arrives within 1 s of the stream start (spike A3: cold start to first frame is p50 433 ms on API 37, so 200 ms cannot hold) |
 | TextInput | `text {mode: paste}` of the Unicode test string into the testbed field logs it exactly; the prior clip is restored |
 | Apps | `apps` includes `dev.phoneuse.testbed`; `launch` foregrounds it (`state.foreground`) |
 | DeviceState | `state` reports `screen_on: false` after `KEYCODE_SLEEP` and `true` after `wake` |

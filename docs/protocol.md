@@ -107,12 +107,12 @@ Frames: `u32 big-endian length` + UTF-8 JSON. Requests carry `id`; replies echo 
 | op | Request fields (device px) | Reply |
 |---|---|---|
 | `hello` | `version` | device facts |
-| `tree` | `include_offscreen?` | `{windows:[{id, type, package, layer, bounds}], nodes:[RawNode]}` |
+| `tree` | none | `{windows:[{id, type, package, layer, bounds}], nodes:[RawNode]}`; every node is listed with its `v`/`V` flags, and full-width status and navigation bar windows (at most a tenth of the screen high, on the top or bottom edge) are left out |
 | `gesture` | `pointers:[{id, path:[{x, y, t_ms}]}]` | `{}` after the final UP is delivered |
 | `key` | `keycode, meta?, action?: "down"|"up"|"press"` | `{}` |
-| `text` | `mode, text, node?` | `{}` |
-| `clipboard_get` / `clipboard_set` | `text?` | `{text?}` |
-| `apps` | `all?` | `[{package, label, system}]` |
+| `text` | `mode` (`paste`, `set`, `keys`), `text`, `sensitive?` (marks the clip `IS_SENSITIVE`) | `{}`; `set` acts on the focused input field; `keys` fails with `unmappable character U+XXXX at N` before typing anything |
+| `clipboard_get` / `clipboard_set` | `text` (set), `sensitive?` | `{text}` (get; null when empty) |
+| `apps` | `all?` | `{apps:[{package, label, system}]}` |
 | `launch` | `package` | `{}` |
 | `open_url` | `url` | `{package}` that handled it |
 | `notifications` | none | `{}` (expands the shade) |
