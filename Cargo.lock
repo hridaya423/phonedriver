@@ -659,6 +659,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "phone-use-bench"
+version = "0.1.0"
+dependencies = [
+ "phone-use",
+ "phone-use-android",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
 name = "phone-use-core"
 version = "0.1.0"
 dependencies = [

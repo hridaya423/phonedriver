@@ -93,6 +93,17 @@ impl Client {
         }
     }
 
+    /// Connects to a daemon that is already listening at `path`, without starting one.
+    pub async fn connect_to(path: &Path, session: &str) -> Result<Client, Failure> {
+        let mut client = Self::open(path, session)
+            .await
+            .map_err(|e| Failure::Local(format!("no daemon at {}: {e}", path.display())))?;
+        client
+            .call_raw("hello", json!({"version": VERSION, "client": "bench"}))
+            .await?;
+        Ok(client)
+    }
+
     async fn open(path: &Path, session: &str) -> std::io::Result<Client> {
         let (read, write) = split(socket::connect(path).await?);
         Ok(Client {
