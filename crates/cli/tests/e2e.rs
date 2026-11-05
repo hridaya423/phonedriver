@@ -52,7 +52,6 @@ impl Rig {
     fn command(&self) -> Command {
         let mut c = Command::cargo_bin("phone-use").unwrap();
         c.env("PHONE_USE_HOME", &self.home)
-            .env("PHONE_USE_SOCKET", self.home.join("d.sock"))
             .env_remove("PHONE_USE_SESSION")
             .env_remove("PHONE_USE_SECRET")
             .arg("--device")

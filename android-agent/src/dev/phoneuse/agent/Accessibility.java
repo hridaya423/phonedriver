@@ -20,6 +20,10 @@ import org.json.JSONObject;
 
 final class Accessibility {
     private static final int FIRST_WINDOWS_RETRIES = 10;
+    // Without UNINTERRUPTIBLE the next getChild cancels the prefetch in flight, so every node past the root's
+    // first batch costs its own IPC: Settings main (155 nodes) took 78 to 103 ms in getChild alone, 41 to 46 ms with it.
+    private static final int PREFETCH = AccessibilityNodeInfo.FLAG_PREFETCH_DESCENDANTS_DEPTH_FIRST
+            | AccessibilityNodeInfo.FLAG_PREFETCH_UNINTERRUPTIBLE;
 
     private static UiAutomation automation;
     private static Method sourceNodeId;
@@ -116,7 +120,7 @@ final class Accessibility {
                 continue;
             }
             AccessibilityNodeInfo root = Build.VERSION.SDK_INT >= 33
-                    ? w.getRoot(AccessibilityNodeInfo.FLAG_PREFETCH_DESCENDANTS_DEPTH_FIRST)
+                    ? w.getRoot(PREFETCH)
                     : w.getRoot();
             JSONObject wj = new JSONObject();
             Json.put(wj, "id", w.getId());
@@ -164,7 +168,7 @@ final class Accessibility {
         int count = n.getChildCount();
         for (int i = 0; i < count; i++) {
             AccessibilityNodeInfo child = Build.VERSION.SDK_INT >= 33
-                    ? n.getChild(i, AccessibilityNodeInfo.FLAG_PREFETCH_DESCENDANTS_DEPTH_FIRST)
+                    ? n.getChild(i, PREFETCH)
                     : n.getChild(i);
             if (child != null) {
                 walk(child, index, nodes);

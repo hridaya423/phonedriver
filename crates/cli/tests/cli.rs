@@ -93,7 +93,10 @@ impl Env {
         });
         let home = tempfile::tempdir().unwrap();
         let socket = if cfg!(windows) {
-            PathBuf::from(format!(r"\\.\pipe\phone-use-test-{}", std::process::id()))
+            PathBuf::from(format!(
+                r"\\.\pipe\phone-use-test-{}",
+                home.path().file_name().unwrap().to_string_lossy()
+            ))
         } else {
             home.path().join("run").join("d.sock")
         };

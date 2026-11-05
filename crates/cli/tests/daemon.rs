@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
@@ -244,7 +244,7 @@ async fn act_on_a_ref_the_screen_no_longer_has_is_stale_with_the_closest_element
 async fn sessions_outlive_connections() {
     let (source, fake) = FakeSource::with(vec![tree(&["One", "Two", "Three"])]);
     let (d, home) = daemon(source);
-    let path = home.path().join("d.sock");
+    let path = local_socket(home.path(), "d.sock");
     let serving = tokio::spawn(d.clone().serve(path.clone()));
     wait_for_socket(&path).await;
     let a = rpc(&path, "default", "snapshot", json!({})).await;
@@ -383,7 +383,7 @@ async fn the_socket_file_is_0600_and_its_directory_0700() {
 async fn the_daemon_exits_after_fifteen_idle_minutes_with_no_clients() {
     let (source, _) = FakeSource::with(vec![]);
     let (d, home) = daemon(source);
-    let path = home.path().join("d.sock");
+    let path = local_socket(home.path(), "d.sock");
     let serving = tokio::spawn(d.clone().serve(path));
     tokio::time::sleep(Duration::from_secs(14 * 60)).await;
     assert!(!serving.is_finished());
@@ -391,9 +391,18 @@ async fn the_daemon_exits_after_fifteen_idle_minutes_with_no_clients() {
     serving.await.unwrap().unwrap();
 }
 
+fn local_socket(home: &Path, name: &str) -> PathBuf {
+    if cfg!(windows) {
+        let scope = home.file_name().unwrap().to_string_lossy();
+        PathBuf::from(format!(r"\\.\pipe\phone-use-test-{scope}-{name}"))
+    } else {
+        home.join(name)
+    }
+}
+
 async fn wait_for_socket(path: &Path) {
     for _ in 0..200 {
-        if path.exists() {
+        if phone_use::daemon::socket::connect(path).await.is_ok() {
             return;
         }
         tokio::time::sleep(Duration::from_millis(10)).await;
