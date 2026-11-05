@@ -124,6 +124,7 @@ final class Screens {
         return root;
     }
 
+    @SuppressLint("ClickableViewAccessibility")
     static View list(Activity a) {
         RecyclerView rv = new RecyclerView(a);
         rv.setId(id(a, "rows"));
@@ -144,7 +145,16 @@ final class Screens {
 
                     @Override
                     public void onBindViewHolder(RecyclerView.ViewHolder h, int pos) {
-                        ((TextView) h.itemView).setText("Row " + pos);
+                        TextView row = (TextView) h.itemView;
+                        row.setText("Row " + pos);
+                        row.setOnTouchListener(
+                                (v, ev) -> {
+                                    if (ev.getActionMasked() == MotionEvent.ACTION_UP) {
+                                        Events.emit(Events.put(Events.event("row"), "n", pos));
+                                    }
+                                    return ev.getActionMasked() == MotionEvent.ACTION_DOWN
+                                            || ev.getActionMasked() == MotionEvent.ACTION_UP;
+                                });
                     }
 
                     @Override

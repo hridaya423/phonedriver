@@ -1,6 +1,6 @@
 ---
 source: crates/core/src/render.rs
-assertion_line: 482
+assertion_line: 500
 expression: "real(include_str!(\"../tests/fixtures/android/real_settings_apps.json\"))"
 ---
 device android:emulator-5554 · Pixel 9 · Android 17 · 360x800pt · portrait
@@ -14,7 +14,7 @@ app com.android.settings (Settings) · keyboard hidden · settled in 212ms
 @e7 heading "All apps"
 @e8 button "Search"
 @e9 button "More options"
-@e10 list scrollable↓
+@e10 list 31 rows scrollable↓
   @e11 button "Android Auto" "291 kB"
   @e12 button "Android System WebView" "201 MB"
   @e13 button "Calendar" "65.54 kB"

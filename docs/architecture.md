@@ -387,7 +387,7 @@ phone-use devices                          list devices, tier, capabilities, lea
 phone-use snapshot [--diff] [--interactive] [--within @eN] [--pixels] [--max-lines N]
 phone-use screenshot [-o file] [--native] [--quality N]
 phone-use find <text> [--role R]           refs matching text
-phone-use tap <@ref|x,y|"text"> [--long [ms]] [--count N]
+phone-use tap <@ref|x,y|"text"> [--role R] [--long [ms]] [--count N]
 phone-use type <text> [--into <target>] [--mode paste|set|keys] [--submit]
 phone-use type --secret [--into <target>]  text from stdin or PHONE_USE_SECRET, never argv
 phone-use clear <target>
@@ -416,7 +416,7 @@ How the less obvious verbs work per platform:
 | `open <url>` | ActivityManager VIEW intent | runner `XCUIDevice.shared.system.open` if installed, else `Unsupported` | runner on device; `simctl openurl` on Simulator |
 | `press back` | `KEYCODE_BACK` | nav-bar back button, else left-edge swipe; `via` says which | same |
 
-Text targets resolve by: exact label, then case-insensitive exact, then substring. More than one match fails with `Ambiguous` and lists refs.
+Text targets resolve by: exact label, then case-insensitive exact, then substring. More than one match fails with `Ambiguous` and lists refs. No match fails with `NotFound`, whose `similar` lists elements whose text contains the query or is within 0.3 of it by normalized optimal-string-alignment distance (insertions, deletions, substitutions and swaps of neighbors, case ignored, so `Rwo 5` suggests `Row 5`; plain Levenshtein would put that swap at 0.4). A list line says its size (`list 1000 rows`); a text row of a list is a `cell`, with its position when the app attached collection item info (RecyclerView does only for rows bound while an accessibility service was connected).
 
 ### 10.2 MCP
 

@@ -27,8 +27,8 @@ use tokio::time::Instant;
 use super::DeviceSource;
 use super::session::{Resolved, Session};
 use crate::wire::{
-    ActParams, Action, ActionResult, Kind, Observation, ScreenshotResult, SnapshotParams, Target,
-    TypeMode, WaitParams,
+    ActParams, Action, ActionResult, FindParams, Kind, Observation, ScreenshotResult,
+    SnapshotParams, Target, TypeMode, WaitParams,
 };
 
 pub const LEASE_TTL: Duration = Duration::from_secs(600);
@@ -40,6 +40,7 @@ pub enum Call {
     Screenshot,
     Act(ActParams),
     Wait(WaitParams),
+    Find(FindParams),
     Release,
     /// Who holds the lease, without taking it.
     Leased,
@@ -319,6 +320,10 @@ impl Actor {
             Call::Screenshot => to_value(self.screenshot().await?),
             Call::Act(p) => to_value(self.act(s, p).await?),
             Call::Wait(p) => to_value(self.wait(s, p).await?),
+            Call::Find(p) => {
+                let now = self.fresh(s).await?;
+                to_value(s.find(&now, &p.text, p.role))
+            }
             Call::Release | Call::Leased => json!({}),
         };
         Ok(value)

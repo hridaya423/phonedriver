@@ -155,6 +155,12 @@ pub struct SnapshotParams {
 }
 
 #[derive(Debug, Deserialize)]
+pub struct FindParams {
+    pub text: String,
+    pub role: Option<Role>,
+}
+
+#[derive(Debug, Deserialize)]
 pub struct ActParams {
     pub action: Action,
     #[serde(default = "yes")]

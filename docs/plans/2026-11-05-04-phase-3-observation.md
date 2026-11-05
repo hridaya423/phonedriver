@@ -28,7 +28,7 @@ Agent fix found on the way (the API 26 empty tree from `progress.md`): `getWindo
 
 ### Task 3.3: Text targets and `find`
 
-**Tests:** on Settings, `tap "Network & internet"` taps the row (the actionable ancestor), and the screen changes. Rows deep in the 1,000-row list render `Row 17` with `coll`/`item` so the header can say `list 1000 rows`. `tap "Row 5"` on the List tab taps row 5. `tap "Row"` fails `Ambiguous` and lists refs. `tap "Rwo 5"` fails `NotFound` with `similar` containing `Row 5` (use normalized Levenshtein ≤ 0.3 for suggestions). `find "row 1" --role cell` lists Row 1, Row 10…Row 19 that are visible.
+**Tests:** on Settings, `tap "Network & internet"` taps the row (the actionable ancestor), and the screen changes. Rows deep in the 1,000-row list render `Row 17` with `coll`/`item` so the header can say `list 1000 rows`. `tap "Row 5"` on the List tab taps row 5. `tap "Row"` fails `Ambiguous` and lists refs. `tap "Rwo 5"` fails `NotFound` with `similar` containing `Row 5` (normalized optimal-string-alignment distance ≤ 0.3 for suggestions: plain Levenshtein puts the swap `Rwo` at 0.4). `find "row 1" --role cell` lists Row 1, Row 10…Row 19 that are visible. The testbed rows log a `row` event on touch so the test can prove which row was tapped; `item` position is asserted only after the list is created while the agent is connected (RecyclerView attaches item info only then), and a text row of a list is a `cell` without it.
 
 ### Task 3.4: Scroll that lands exactly
 

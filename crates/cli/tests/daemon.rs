@@ -674,3 +674,55 @@ async fn expect_change_ms_widens_the_first_change_window_of_an_action_and_of_a_w
     let ms = r["settle_ms"].as_u64().unwrap();
     assert!((940..=1000).contains(&ms), "{ms}");
 }
+
+#[tokio::test(start_paused = true)]
+async fn a_misspelled_text_target_is_not_found_and_names_the_close_element() {
+    let (source, fake) = FakeSource::with(vec![tree(&["Row 5", "Wallpaper"])]);
+    let (d, _home) = daemon(source);
+    let e = err(
+        &d,
+        "default",
+        "act",
+        json!({"action": {"kind": "tap", "target": {"text": "Rwo 5"}}}),
+    )
+    .await;
+    assert_eq!(e.code, -32007);
+    let similar = e.data["similar"].to_string();
+    assert!(similar.contains("Row 5"), "{similar}");
+    assert!(!similar.contains("Wallpaper"), "{similar}");
+    assert!(fake.calls().is_empty());
+}
+
+#[tokio::test(start_paused = true)]
+async fn find_lists_the_elements_whose_text_contains_the_query_in_any_case() {
+    let (source, _) = FakeSource::with(vec![tree(&["Row 1", "Row 10", "Row 2", "Settings"])]);
+    let (d, _home) = daemon(source);
+    let r = ok(&d, "default", "find", json!({"text": "row 1"})).await;
+    let lines: Vec<&str> = r
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|l| l.as_str().unwrap())
+        .collect();
+    assert_eq!(lines.len(), 2, "{lines:?}");
+    assert!(
+        lines[0].contains("\"Row 1\"") && lines[1].contains("\"Row 10\""),
+        "{lines:?}"
+    );
+    let r = ok(
+        &d,
+        "default",
+        "find",
+        json!({"text": "row 1", "role": "cell"}),
+    )
+    .await;
+    assert_eq!(r.as_array().unwrap().len(), 0);
+    let r = ok(
+        &d,
+        "default",
+        "find",
+        json!({"text": "row 1", "role": "button"}),
+    )
+    .await;
+    assert_eq!(r.as_array().unwrap().len(), 2);
+}

@@ -19,6 +19,7 @@ pub struct Node {
     pub state: ElementState,
     pub actions: Actions,
     pub position: Option<ItemPos>,
+    pub collection: Option<crate::raw::Collection>,
     /// Raw indices of inert text descendants merged into this node's label and hint.
     pub absorbed: Vec<usize>,
 }
@@ -105,6 +106,7 @@ pub fn prune(tree: &RawTree) -> Vec<Node> {
                     state: state_of(node.flags),
                     actions: Actions::empty(),
                     position: None,
+                    collection: None,
                     absorbed: Vec::new(),
                 });
             }
@@ -157,6 +159,7 @@ pub fn prune(tree: &RawTree) -> Vec<Node> {
             state: state_of(node.flags),
             actions: node.actions,
             position: node.item,
+            collection: node.collection,
             absorbed: merged[i].clone(),
         });
     }

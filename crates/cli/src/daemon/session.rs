@@ -1,10 +1,11 @@
 //! What one named session remembers about one device: its refs and the last screen it was shown.
 
-use phone_use_core::element::Element;
+use phone_use_core::element::{Element, Role};
 use phone_use_core::error::Error;
 use phone_use_core::geometry::Point;
 use phone_use_core::refs::RefTable;
 use phone_use_core::render::{Rendered, TextMatch};
+use phone_use_core::similar::{SUGGEST_WITHIN, normalized_distance};
 
 use crate::wire::{PointJson, Target};
 
@@ -53,6 +54,17 @@ impl Session {
         }
     }
 
+    /// The rendered lines of the elements whose label or hint contains `text`, in any case.
+    pub fn find(&self, now: &Rendered, text: &str, role: Option<Role>) -> Vec<String> {
+        let q = text.to_lowercase();
+        now.elements
+            .iter()
+            .filter(|e| role.is_none_or(|r| e.role == r))
+            .filter(|e| parts(e).any(|p| p.to_lowercase().contains(&q)))
+            .map(|e| now.line(e))
+            .collect()
+    }
+
     fn closest(&self, r: phone_use_core::element::Ref, now: &Rendered) -> Option<String> {
         let old = self.last.as_ref()?.elements.iter().find(|e| e.r#ref == r)?;
         let label = old.label.as_deref()?.to_lowercase();
@@ -84,18 +96,35 @@ fn lines(now: &Rendered, refs: &[phone_use_core::element::Ref]) -> Vec<String> {
         .collect()
 }
 
+fn parts(e: &Element) -> impl Iterator<Item = &str> {
+    e.label
+        .iter()
+        .map(String::as_str)
+        .chain(e.hint.as_deref().into_iter().flat_map(|h| h.split(" · ")))
+}
+
 fn not_found(now: &Rendered, text: &str) -> Error {
     let q = text.to_lowercase();
-    let similar = now
+    let mut close: Vec<(f32, &Element)> = now
         .elements
         .iter()
-        .filter(|e| {
-            e.label
-                .as_deref()
-                .is_some_and(|l| l.to_lowercase().contains(&q) || q.contains(&l.to_lowercase()))
+        .filter_map(|e| {
+            parts(e)
+                .map(|p| {
+                    let contained = p.to_lowercase().contains(&q) || q.contains(&p.to_lowercase());
+                    let d = normalized_distance(text, p);
+                    if contained { d.min(SUGGEST_WITHIN) } else { d }
+                })
+                .filter(|d| *d <= SUGGEST_WITHIN)
+                .min_by(f32::total_cmp)
+                .map(|d| (d, e))
         })
+        .collect();
+    close.sort_by(|a, b| a.0.total_cmp(&b.0));
+    let similar = close
+        .into_iter()
         .take(5)
-        .map(|e| now.line(e))
+        .map(|(_, e)| now.line(e))
         .collect();
     Error::NotFound {
         query: text.to_string(),

@@ -25,7 +25,7 @@ Version mismatch: the daemon replies with error code `-32010 version_mismatch` a
 | `release` | `device?` | `{}` |
 | `snapshot` | `device?, diff?, interactive?, within?, pixels?, max_lines?, no_settle?, elements?, capture?, timeout_ms?` | `Observation` |
 | `screenshot` | `device?, native?, quality?, format?` | `{path, width, height, scale}` |
-| `find` | `device?, text, role?` | `[ElementLine]` |
+| `find` | `device?, text, role?` | `[ElementLine]` (rendered lines such as `@e12 cell "Row 1"`; the elements whose label or hint contains `text`, in any case; `role` is a snake_case role name) |
 | `act` | `device?, action: Action, settle?: bool, timeout_ms?, expect_change_ms?` | `ActionResult` |
 | `wait` | `device?, condition: WaitCondition, timeout_ms?, expect_change_ms?` | `ActionResult` |
 | `apps` | `device?, all?` | `[App]` |

@@ -1,6 +1,6 @@
 ---
 source: crates/core/src/render.rs
-assertion_line: 419
+assertion_line: 437
 expression: text
 ---
 device android:emulator-5554 · Pixel 9 · Android 17 · 360x800pt · portrait
@@ -9,7 +9,7 @@ app com.android.settings (Settings) · keyboard hidden · settled in 212ms
 @e2 heading "All apps"
 @e3 button "Search"
 @e4 button "More options"
-@e5 list scrollable↓
+@e5 list 32 rows scrollable↓
   @e6 button "Android Auto" "291 kB"
   @e7 button "Android System WebView" "201 MB"
   @e8 button "Calendar" "65.54 kB"
