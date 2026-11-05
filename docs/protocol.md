@@ -181,7 +181,7 @@ One TCP stream to the runner's port: 27753 on a physical device (reached through
 | `activate` | `bundle_id` | `{}` |
 | `open_url` | `url` | `{}` (`XCUIDevice.shared.system.open`) |
 
-iOS `RawNode` uses the same keys as Android with `cls` set to the `XCUIElementType` name and `n` omitted. `text` is `label`, `desc` is unused, `sd` is `value`, `hint` is `placeholderValue`, `id` is `identifier`; flags come from `enabled`, `selected`, `hasFocus`, and the element type (switch, secure text field).
+iOS `RawNode` uses the same keys as Android with `cls` set to the `XCUIElementType` name and `n` omitted. `text` is `label`, `desc` is unused, `sd` is `value`, `hint` is `placeholderValue`, `id` is `identifier`; flags come from `enabled`, `selected`, `hasFocus`, and the element type (switch, secure text field), plus `v` and `V` when the element's frame intersects the screen. `core::prune` drops nodes without `V`, so the runner must set it.
 
 ## 4. Fixture format
 

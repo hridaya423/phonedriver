@@ -1,0 +1,13 @@
+---
+source: crates/core/src/render.rs
+assertion_line: 425
+expression: settings().text(&f).unwrap()
+---
+device android:emulator-5554 · Pixel 9 · Android 17 · 360x800pt · portrait
+app com.android.settings (Settings) · keyboard hidden · settled in 212ms
+@e3 list scrollable↓
+  @e4 button "Network & internet" "Mobile, Wi‑Fi, hotspot"
+  @e5 button "Connected devices" "Bluetooth, pairing"
+  @e6 button "Apps" "Recent apps, default apps"
+  @e7 button "Dark theme" "Will turn on automatically at sunset"
+    @e8 switch "Dark theme" on
