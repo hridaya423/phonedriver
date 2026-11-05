@@ -77,11 +77,11 @@ Loop per component: write its test, run it red, implement the component as archi
 **Step 1: Failing tests.**
 - Decoding the fixture yields N frames with the size from its codec header.
 - `FrameStore::publish` increments `seq`; a `watch::Receiver` sees the newest frame only.
-- `changed_area_pt2` between two identical frames is 0; between the first and last fixture frames (scrolled) it exceeds 4,096 pt²; `changed_box` covers the scrolled list.
+- `changed_area_pt2` between two identical frames is 0; between the first and last fixture frames (scrolled) it exceeds 4,096 pt²; `changed_box` covers the scrolled list (on the fixture: x 33 to 322 pt, y 142 to 921 pt of a 411×923 pt screen). Size changes count as the whole screen changing.
 - A stream with no frame for 1 s reports `Stalled` (architecture section 8).
 - `encode_png(frame, scale)` at scale 1/2.625 gives an image of `412x915` (±1) for a 1080x2400 frame.
 
-**Step 2:** FAIL. **Step 3:** `openh264` decoder on a dedicated blocking thread fed by a bounded channel (capacity 8; when full, the reader blocks, which applies backpressure to the agent socket rather than dropping inter-predicted frames). Thumbnail: box-filter luma to 1/8 scale. **Step 4:** PASS. Commit.
+**Step 2:** FAIL. **Step 3:** `openh264` decoder on a dedicated blocking thread fed by a bounded channel (capacity 8; when full, the reader blocks, which applies backpressure to the agent socket rather than dropping inter-predicted frames). Thumbnail: box-filter luma to one sample per 4×4 points (architecture 4.6; a 1/8 scale would make the measure depend on density). Files: `h264.rs` (wire format and decoder), `frame_store.rs`, `image.rs` (`encode_png`), `stream.rs` (`VideoStream`, the socket reader and decoder thread). **Step 4:** PASS. Commit.
 
 ### Task 2.5: AndroidDevice
 
