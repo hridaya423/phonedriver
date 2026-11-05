@@ -173,20 +173,26 @@ On display change the agent sends a new codec header preceded by a frame with `p
 
 ## 3. Daemon ↔ PhoneUseRunner
 
-One TCP stream to the runner's port: 27753 on a physical device (reached through the idevice provider), or on a simulator the port the daemon assigned through the `PHONE_USE_PORT` environment variable (27753, 27754, … per running simulator; simulators share the host's loopback). Same `u32` length + JSON framing as the Android control stream.
+One TCP stream to the runner's port: 27753 on a physical device (reached through the idevice provider), or on a simulator the port the daemon assigned through the `PHONE_USE_PORT` environment variable (27753, 27754, … per running simulator; simulators share the host's loopback). Same `u32` big-endian length + JSON framing as the Android control stream. On a simulator the runner listens on `127.0.0.1` only (Phase 6 revisits the bind address for devices). One connection at a time: a new connection closes the previous one. Requests run one at a time.
+
+Every request carries `id` and `op`. A reply echoes `id` and adds `ok: true` plus the op's fields, or `ok: false` and `error: {code, message}` with `code` one of `bad_request` (malformed frame, unknown op, missing or ill-typed field), `unsupported` (the op cannot work here), `failed` (XCTest refused or failed; `message` is XCTest's first line).
 
 | op | Request | Reply |
 |---|---|---|
-| `hello` | `version` | `{ios, model, screen:{w,h,scale}}` (points) |
-| `snapshot` | `max_depth, attributes?` | `{app:{bundle_id, pid}, nodes:[RawNode]}` with bounds in points |
-| `gesture` | `pointers:[{path:[{x,y,t_ms}]}]` (points) | `{}` |
-| `screenshot` | `quality (0..100), format: "jpeg"|"png"` | `{data_b64, w, h}` |
+| `hello` | `version` | `{version, ios, model, screen:{w,h,scale}}` (points; `model` is the machine id, for example `iPhone18,3`) |
+| `snapshot` | `max_depth` (default 30) | `{app:{bundle_id, pid}, nodes:[RawNode]}` with bounds in points |
+| `gesture` | `pointers:[{path:[{x,y,t_ms}]}]` (points, 1 to 5 pointers, `t_ms` non-decreasing) | `{}` after the last lift is delivered |
+| `screenshot` | `quality (0..100, default 80), format: "jpeg"|"png"` (default `jpeg`) | `{data_b64, w, h}` (`w`, `h` in pixels) |
 | `type` | `text` | `{}` |
-| `button` | `name: "home"|"volume_up"|"volume_down"|"lock"` | `{}` |
+| `button` | `name: "home"|"volume_up"|"volume_down"|"lock"` | `{}`; volume is `unsupported` on the Simulator |
 | `activate` | `bundle_id` | `{}` |
-| `open_url` | `url` | `{}` (`XCUIDevice.shared.system.open`) |
+| `open_url` | `url` | `{}` (`XCUIDevice.shared.system.openURL`; unlike `simctl openurl`, raises no "Open in …?" confirmation) |
 
-iOS `RawNode` uses the same keys as Android with `cls` set to the `XCUIElementType` name and `n` omitted. `text` is `label`, `desc` is unused, `sd` is `value`, `hint` is `placeholderValue`, `id` is `identifier`; flags come from `enabled`, `selected`, `hasFocus`, and the element type (switch, secure text field), plus `v` and `V` when the element's frame intersects the screen. `core::prune` drops nodes without `V`, so the runner must set it.
+`snapshot` covers the first of `XCAXClient_iOS activeApplications` (the foreground app). Its attribute list is fixed (label, value, identifier, frame, element type, traits, placeholder value, native focus); a request-chosen list was planned and dropped because nothing needs it.
+
+`type` sends key events to whatever has keyboard focus, through a synthesized text-input event with redaction, so the text never reaches XCTest's activity log, xcodebuild's output or the `.xcresult` bundle. With no focused field the keys are dropped and the reply is still `{}`; the daemon checks the field afterwards (`verified` in `ActionResult`).
+
+iOS `RawNode` uses the same keys as Android with `cls` set to the `XCUIElementType` name and `n` and `w` omitted. `text` is `label`, `desc` is unused, `sd` is `value`, `hint` is `placeholderValue`, `id` is `identifier`, `b` is `[l,t,r,b]` in points rounded to 1/100. Flags: `v` and `V` when the frame intersects the application's frame (`core::prune` drops nodes without `V`); `e` enabled; `s` selected; `F` focused; `c` for switch, toggle and checkbox, plus `C` when the value is `1`; `E` for text field, secure text field, search field and text view; `P` for secure text field; `S` for scroll view, table, collection view and web view. `a` is `["tap"]` for button, cell, link, switch, toggle, checkbox, radio button, tab, menu item, key, icon and the text-entry types; no other actions are emitted.
 
 ## 4. Fixture format
 
