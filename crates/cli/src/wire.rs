@@ -23,11 +23,24 @@ pub struct PointJson {
     pub y: f32,
 }
 
+/// One sample of a finger path: points on the screen and milliseconds since the gesture began.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct PathPoint {
+    pub x: f32,
+    pub y: f32,
+    pub t_ms: u32,
+}
+
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum Action {
     Tap {
         target: Target,
+        count: Option<u32>,
+        long: Option<u32>,
+    },
+    Gesture {
+        fingers: Vec<Vec<PathPoint>>,
     },
     Type {
         text: String,
@@ -60,7 +73,8 @@ pub enum Action {
 impl std::fmt::Debug for Action {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Action::Tap { target } => write!(f, "Tap({target:?})"),
+            Action::Tap { target, .. } => write!(f, "Tap({target:?})"),
+            Action::Gesture { fingers } => write!(f, "Gesture({} fingers)", fingers.len()),
             Action::Type {
                 text, into, mode, ..
             } => write!(

@@ -28,7 +28,7 @@ use tokio::time::Instant;
 use self::actor::{Call, Job};
 use self::rpc::RpcError;
 use self::trace::Traces;
-use crate::wire::{Common, DeviceEntry, VERSION};
+use crate::wire::{ActParams, Action, Common, DeviceEntry, VERSION};
 
 const IDLE_EXIT: Duration = Duration::from_secs(15 * 60);
 const SHUTDOWN_GRACE: Duration = Duration::from_millis(500);
@@ -132,10 +132,18 @@ impl Daemon {
                     "snapshot" => Call::Snapshot(rpc::params(params)?),
                     "screenshot" => Call::Screenshot,
                     "find" => Call::Find(rpc::params(params)?),
-                    "act" => Call::Act(
-                        rpc::params(params)
-                            .map_err(|_| RpcError::invalid_params("the action is malformed"))?,
-                    ),
+                    "act" => {
+                        let act: ActParams = rpc::params(params)
+                            .map_err(|_| RpcError::invalid_params("the action is malformed"))?;
+                        if let Action::Gesture { fingers } = &act.action
+                            && (fingers.is_empty() || fingers.iter().any(|f| f.len() < 2))
+                        {
+                            return Err(RpcError::invalid_params(
+                                "each finger needs at least two points: where it lands and where it lifts",
+                            ));
+                        }
+                        Call::Act(act)
+                    }
                     _ => Call::Wait(rpc::params(params)?),
                 };
                 let id = self.resolve(common.device.as_deref()).await?;

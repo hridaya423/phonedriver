@@ -14,7 +14,7 @@ use crate::daemon::android::AdbSource;
 use crate::daemon::{Config, Daemon, socket};
 use crate::wire::{ActionResult, DeviceEntry, Kind, Observation, ScreenshotResult, VERSION};
 
-const USAGE: &str = "usage: phone-use <command>\n\ncommands:\n  devices\n  snapshot\n  screenshot\n  find\n  swipe\n  scroll\n  tap\n  type\n  press\n  wait\n  release\n  daemon\n  version";
+const USAGE: &str = "usage: phone-use <command>\n\ncommands:\n  devices\n  snapshot\n  screenshot\n  find\n  swipe\n  scroll\n  gesture\n  tap\n  type\n  press\n  wait\n  release\n  daemon\n  version";
 
 #[derive(Parser)]
 #[command(name = "phone-use", disable_help_subcommand = true)]
@@ -80,7 +80,15 @@ enum Verb {
         /// With a text target, only an element with this role (`button`, `cell`, `textbox`, ...).
         #[arg(long)]
         role: Option<String>,
+        /// Tap this many times, 80 ms apart.
+        #[arg(long)]
+        count: Option<u32>,
+        /// Hold the press for this many milliseconds.
+        #[arg(long)]
+        long: Option<u32>,
     },
+    /// Play fingers with timed paths, in points: `{"fingers": [[{"x": 100, "y": 300, "t_ms": 0}, {"x": 50, "y": 300, "t_ms": 300}]]}`.
+    Gesture { spec: String },
     /// Drag from the middle of the screen, or of `--from`, the way a finger does.
     Swipe {
         /// up, down, left or right: where the finger moves.
@@ -330,14 +338,31 @@ async fn execute(
             }
             Ok(format!("{path} {}x{}", shot.width, shot.height))
         }
-        Verb::Tap { target, role } => {
+        Verb::Tap {
+            target,
+            role,
+            count,
+            long,
+        } => {
             let mut t = parse_target(&target);
             if let Some(role) = role {
                 t["role"] = role_json(&role)?;
             }
-            let r = client
-                .call("act", act(json!({"kind": "tap", "target": t})))
-                .await?;
+            let mut a = json!({"kind": "tap", "target": t});
+            if let Some(c) = count {
+                a["count"] = json!(c);
+            }
+            if let Some(l) = long {
+                a["long"] = json!(l);
+            }
+            let r = client.call("act", act(a)).await?;
+            show_action(&r, g.json)
+        }
+        Verb::Gesture { spec } => {
+            let mut a: Value = serde_json::from_str(&spec)
+                .map_err(|e| Failure::Local(format!("the gesture is not JSON: {e}")))?;
+            a["kind"] = json!("gesture");
+            let r = client.call("act", act(a)).await?;
             show_action(&r, g.json)
         }
         Verb::Swipe {

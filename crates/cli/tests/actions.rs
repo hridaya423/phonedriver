@@ -287,3 +287,153 @@ async fn a_ref_to_a_row_that_scrolled_away_is_stale_or_still_that_row() {
         assert!(err.contains("stale") || err.contains("no longer"), "{err}");
     }
 }
+
+async fn surface(rig: &Rig) -> (String, f64, f64) {
+    rig.tab("gestures").await;
+    let els = elements(rig);
+    let e = find(&els, "text", "Gesture surface");
+    let (x, y) = center(e);
+    (e["ref"].as_str().unwrap().to_string(), x, y)
+}
+
+async fn touches(rig: &Rig, last: &str) -> Vec<serde_json::Value> {
+    let log = testbed::wait_for_log(&rig.adb, &rig.serial, 4000, |l| {
+        l.iter().any(|e| e["ev"] == "touch" && e["action"] == last)
+    })
+    .await;
+    log.into_iter().filter(|e| e["ev"] == "touch").collect()
+}
+
+fn at(e: &serde_json::Value, action: &str) -> Vec<f64> {
+    e.as_array()
+        .unwrap()
+        .iter()
+        .filter(|t| t["action"] == action)
+        .map(|t| t["t"].as_f64().unwrap())
+        .collect()
+}
+
+#[tokio::test]
+#[ignore = "needs PHONE_USE_TEST_DEVICE"]
+async fn tap_count_2_logs_two_taps_80_ms_apart() {
+    let rig = Rig::new().await;
+    let (r, _, _) = surface(&rig).await;
+    rig.ok(&["tap", &format!("@{r}"), "--count", "2"]);
+    tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+    let log = serde_json::Value::Array(touches(&rig, "ACTION_UP").await);
+    let downs = at(&log, "ACTION_DOWN");
+    let ups = at(&log, "ACTION_UP");
+    assert!(downs.len() >= 2 && !ups.is_empty(), "{log}");
+    let gap = downs[1] - downs[0];
+    assert!((60.0..=100.0).contains(&gap), "gap {gap} ms: {log}");
+}
+
+#[tokio::test]
+#[ignore = "needs PHONE_USE_TEST_DEVICE"]
+async fn swipe_up_from_a_ref_starts_at_the_center_of_that_element() {
+    let rig = Rig::new().await;
+    let (r, cx, cy) = surface(&rig).await;
+    rig.ok(&["swipe", "up", "--from", &format!("@{r}")]);
+    let log = touches(&rig, "ACTION_UP").await;
+    let down = log.iter().find(|e| e["action"] == "ACTION_DOWN").unwrap();
+    let p = &down["ptrs"][0];
+    assert!((p["x_dp"].as_f64().unwrap() - cx).abs() <= 2.0, "{down}");
+    assert!((p["y_dp"].as_f64().unwrap() - cy).abs() <= 2.0, "{down}");
+}
+
+#[tokio::test]
+#[ignore = "needs PHONE_USE_TEST_DEVICE"]
+async fn swipe_left_is_one_finger_moving_left_and_fast_lifts_while_moving() {
+    let rig = Rig::new().await;
+    surface(&rig).await;
+    rig.ok(&["swipe", "left"]);
+    let log = touches(&rig, "ACTION_UP").await;
+    assert!(
+        log.iter().all(|e| e["ptrs"].as_array().unwrap().len() == 1),
+        "one pointer only"
+    );
+    let xs: Vec<f64> = log
+        .iter()
+        .map(|e| e["ptrs"][0]["x_dp"].as_f64().unwrap())
+        .collect();
+    assert!(xs.len() >= 6, "{xs:?}");
+    assert!(xs.windows(2).all(|w| w[1] <= w[0] + 0.5), "{xs:?}");
+    assert!(xs[0] - xs[xs.len() - 1] > 100.0, "{xs:?}");
+
+    testbed::clear_log(&rig.adb, &rig.serial).await;
+    rig.ok(&["swipe", "left", "--fast"]);
+    let log = touches(&rig, "ACTION_UP").await;
+    let moves: Vec<&serde_json::Value> = log
+        .iter()
+        .filter(|e| e["action"] == "ACTION_MOVE")
+        .collect();
+    let n = moves.len();
+    assert!(n >= 2, "{log:?}");
+    let dx = moves[n - 2]["ptrs"][0]["x_dp"].as_f64().unwrap()
+        - moves[n - 1]["ptrs"][0]["x_dp"].as_f64().unwrap();
+    let dt = moves[n - 1]["t"].as_f64().unwrap() - moves[n - 2]["t"].as_f64().unwrap();
+    let up = log.iter().find(|e| e["action"] == "ACTION_UP").unwrap();
+    let gap = up["t"].as_f64().unwrap() - moves[n - 1]["t"].as_f64().unwrap();
+    assert!(dx / dt * 1000.0 > 1000.0, "{dx} dp in {dt} ms");
+    assert!(gap < 40.0, "lifted {gap} ms after the last move");
+}
+
+#[tokio::test]
+#[ignore = "needs PHONE_USE_TEST_DEVICE"]
+async fn a_long_press_of_800_ms_logs_down_and_up_800_ms_apart() {
+    let rig = Rig::new().await;
+    let (r, _, _) = surface(&rig).await;
+    rig.ok(&["tap", &format!("@{r}"), "--long", "800"]);
+    let log = touches(&rig, "ACTION_UP").await;
+    let d = at(&serde_json::Value::Array(log.clone()), "ACTION_DOWN")[0];
+    let u = at(&serde_json::Value::Array(log.clone()), "ACTION_UP")[0];
+    assert!((770.0..=830.0).contains(&(u - d)), "{} ms", u - d);
+}
+
+#[tokio::test]
+#[ignore = "needs PHONE_USE_TEST_DEVICE"]
+async fn a_two_finger_pinch_logs_two_pointer_ids_and_pointer_down_and_up_on_schedule() {
+    let rig = Rig::new().await;
+    let (_, cx, cy) = surface(&rig).await;
+    let g = serde_json::json!({"fingers": [
+        [{"x": cx - 20.0, "y": cy, "t_ms": 0}, {"x": cx - 5.0, "y": cy, "t_ms": 150}, {"x": cx - 60.0, "y": cy, "t_ms": 400}],
+        [{"x": cx + 20.0, "y": cy, "t_ms": 0}, {"x": cx + 5.0, "y": cy, "t_ms": 150}, {"x": cx + 60.0, "y": cy, "t_ms": 400}]
+    ]});
+    rig.ok(&["gesture", &g.to_string()]);
+    let log = touches(&rig, "ACTION_UP").await;
+    let all = serde_json::Value::Array(log.clone());
+    let ids: std::collections::BTreeSet<i64> = log
+        .iter()
+        .flat_map(|e| e["ptrs"].as_array().unwrap().iter())
+        .map(|p| p["id"].as_i64().unwrap())
+        .collect();
+    assert_eq!(ids.len(), 2, "{all}");
+    assert!(
+        log.iter().any(|e| e["action"]
+            .as_str()
+            .unwrap()
+            .starts_with("ACTION_POINTER_DOWN")),
+        "{all}"
+    );
+    assert!(
+        log.iter().any(|e| e["action"]
+            .as_str()
+            .unwrap()
+            .starts_with("ACTION_POINTER_UP")),
+        "{all}"
+    );
+    let first = log[0]["t"].as_f64().unwrap();
+    let last = log.last().unwrap()["t"].as_f64().unwrap();
+    assert!(
+        ((last - first) - 400.0).abs() <= 20.0,
+        "{} ms",
+        last - first
+    );
+    let mid = log
+        .iter()
+        .filter(|e| e["action"] == "ACTION_MOVE")
+        .map(|e| e["t"].as_f64().unwrap() - first)
+        .find(|t| (100.0..=200.0).contains(t))
+        .expect("a move near 150 ms");
+    assert!((mid - 150.0).abs() <= 20.0, "{mid}");
+}
