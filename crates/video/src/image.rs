@@ -28,11 +28,19 @@ fn resample(src: &[u8], sw: usize, sh: usize, ow: usize, oh: usize) -> Vec<u8> {
     out
 }
 
+/// The size in pixels of a `width` by `height` image scaled by `scale`.
+pub fn scaled_size(width: u32, height: u32, scale: f32) -> (u32, u32) {
+    (
+        ((width as f32 * scale).round() as u32).max(1),
+        ((height as f32 * scale).round() as u32).max(1),
+    )
+}
+
 /// PNG of `frame` at `scale` times its pixel size (BT.601 limited range, as the agent's encoder writes it).
 pub fn encode_png(frame: &Frame, scale: f32) -> Result<Vec<u8>, EncodeError> {
     let (w, h) = (frame.width as usize, frame.height as usize);
-    let ow = ((w as f32 * scale).round() as usize).max(1);
-    let oh = ((h as f32 * scale).round() as usize).max(1);
+    let (ow, oh) = scaled_size(frame.width, frame.height, scale);
+    let (ow, oh) = (ow as usize, oh as usize);
     let (cw, ch) = (w.div_ceil(2), h.div_ceil(2));
     let y = resample(&frame.y, w, h, ow, oh);
     let u = resample(&frame.u, cw, ch, ow, oh);
