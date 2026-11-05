@@ -39,6 +39,9 @@ pub struct Cli {
     /// Settle timeout in milliseconds.
     #[arg(long, global = true)]
     timeout: Option<u64>,
+    /// How long to wait for an action's first visible change, in milliseconds (default 500).
+    #[arg(long, global = true)]
+    expect_change: Option<u64>,
     /// Use a device another session holds.
     #[arg(long, global = true)]
     share: bool,
@@ -133,6 +136,7 @@ pub fn run(cli: Cli) -> ExitCode {
                 json: cli.json,
                 no_settle: cli.no_settle,
                 timeout: cli.timeout,
+                expect_change: cli.expect_change,
                 share: cli.share,
             };
             match rt.block_on(execute(verb, secret, &cli.session, &globals)) {
@@ -157,6 +161,7 @@ struct Globals {
     json: bool,
     no_settle: bool,
     timeout: Option<u64>,
+    expect_change: Option<u64>,
     share: bool,
 }
 
@@ -228,6 +233,9 @@ async fn execute(
         let mut p = json!({"action": action, "settle": !g.no_settle});
         if let Some(t) = g.timeout {
             p["timeout_ms"] = json!(t);
+        }
+        if let Some(t) = g.expect_change {
+            p["expect_change_ms"] = json!(t);
         }
         with(p)
     };
@@ -326,6 +334,9 @@ async fn execute(
             let mut p = json!({"condition": {"settled": true}});
             if let Some(t) = g.timeout {
                 p["timeout_ms"] = json!(t);
+            }
+            if let Some(t) = g.expect_change {
+                p["expect_change_ms"] = json!(t);
             }
             let r = client.call("wait", with(p)).await?;
             show_action(&r, g.json)

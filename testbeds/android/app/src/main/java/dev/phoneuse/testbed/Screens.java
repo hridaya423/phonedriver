@@ -10,6 +10,7 @@ import android.text.Editable;
 import android.text.InputType;
 import android.text.TextWatcher;
 import android.util.TypedValue;
+import android.view.Gravity;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
@@ -223,6 +224,117 @@ final class Screens {
                     }
                 });
         root.addView(spinner);
+        TextView ticker = new TextView(a);
+        ticker.setId(id(a, "ticker"));
+        ticker.setTextSize(TypedValue.COMPLEX_UNIT_SP, 10);
+        ticker.setGravity(android.view.Gravity.CENTER);
+        float density = a.getResources().getDisplayMetrics().density;
+        root.addView(ticker, new LinearLayout.LayoutParams((int) (40 * density), (int) (20 * density)));
+        android.os.Handler tick = new android.os.Handler(android.os.Looper.getMainLooper());
+        int[] n = {0};
+        Runnable step = new Runnable() {
+            @Override
+            public void run() {
+                ticker.setText("t" + (n[0]++ % 100));
+                tick.postDelayed(this, 100);
+            }
+        };
+        root.addOnAttachStateChangeListener(
+                new View.OnAttachStateChangeListener() {
+                    @Override
+                    public void onViewAttachedToWindow(View v) {
+                        tick.post(step);
+                    }
+
+                    @Override
+                    public void onViewDetachedFromWindow(View v) {
+                        tick.removeCallbacks(step);
+                    }
+                });
+        return root;
+    }
+
+    private static Button flat(Activity a, String name, String label) {
+        Button b = new Button(a);
+        b.setId(id(a, name));
+        b.setText(label);
+        b.setAllCaps(false);
+        b.setBackground(null);
+        return b;
+    }
+
+    private static void flash(View area) {
+        android.os.Handler h = new android.os.Handler(android.os.Looper.getMainLooper());
+        int[] n = {0};
+        Runnable step = new Runnable() {
+            @Override
+            public void run() {
+                if (n[0] == 150) {
+                    area.setBackgroundColor(0xFFE0E0E0);
+                    Events.emit(Events.event("flash_end"));
+                    return;
+                }
+                area.setBackgroundColor(n[0]++ % 2 == 0 ? 0xFF000000 : 0xFFFFFFFF);
+                h.postDelayed(this, 80);
+            }
+        };
+        Events.emit(Events.event("flash_start"));
+        h.post(step);
+    }
+
+    static View settle(Activity a) {
+        LinearLayout root = column(a);
+        Button slow = flat(a, "slow_open", "Slow open");
+        slow.setOnClickListener(
+                v -> {
+                    Events.emit(Events.put(Events.event("click"), "id", "slow_open"));
+                    v.postDelayed(() -> a.startActivity(
+                            new android.content.Intent(a, SecondActivity.class)), 400);
+                });
+        Button open = flat(a, "open_second", "Open second");
+        open.setOnClickListener(
+                v -> {
+                    Events.emit(Events.put(Events.event("click"), "id", "open_second"));
+                    a.startActivity(new android.content.Intent(a, SecondActivity.class));
+                });
+        Button nothing = flat(a, "nothing", "Do nothing");
+        nothing.setOnClickListener(
+                v -> Events.emit(Events.put(Events.event("click"), "id", "nothing")));
+        Button animate = flat(a, "animate", "Animate");
+        View box = new View(a);
+        box.setId(id(a, "animation_box"));
+        box.setBackgroundColor(0xFF3366CC);
+        box.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+        float density = a.getResources().getDisplayMetrics().density;
+        animate.setOnClickListener(
+                v -> {
+                    Events.emit(Events.put(Events.event("click"), "id", "animate"));
+                    ValueAnimator anim = ValueAnimator.ofFloat(0f, 140f * density);
+                    anim.setDuration(400);
+                    anim.addUpdateListener(x -> box.setTranslationX((float) x.getAnimatedValue()));
+                    anim.addListener(
+                            new android.animation.AnimatorListenerAdapter() {
+                                @Override
+                                public void onAnimationEnd(android.animation.Animator x) {
+                                    box.setTranslationX(0);
+                                    Events.emit(Events.event("animate_end"));
+                                }
+                            });
+                    anim.start();
+                });
+        root.addView(slow);
+        root.addView(open);
+        root.addView(nothing);
+        root.addView(animate);
+        root.addView(box, new LinearLayout.LayoutParams((int) (160 * density), (int) (160 * density)));
+        Button flash = flat(a, "flash", "Flash");
+        View area = new View(a);
+        area.setId(id(a, "flash_area"));
+        area.setBackgroundColor(0xFFE0E0E0);
+        area.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+        flash.setOnClickListener(v -> flash(area));
+        root.addView(flash);
+        root.addView(area, new LinearLayout.LayoutParams((int) (200 * density), (int) (200 * density)));
         return root;
     }
 

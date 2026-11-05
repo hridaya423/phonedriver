@@ -35,4 +35,12 @@
     <item name="ask_permission" type="id" />
     <item name="web" type="id" />
     <item name="toggle" type="id" />
+    <item name="slow_open" type="id" />
+    <item name="nothing" type="id" />
+    <item name="animate" type="id" />
+    <item name="open_second" type="id" />
+    <item name="animation_box" type="id" />
+    <item name="flash" type="id" />
+    <item name="ticker" type="id" />
+    <item name="flash_area" type="id" />
 </resources>

@@ -20,6 +20,8 @@ import org.json.JSONObject;
 
 final class Accessibility {
     private static final int FIRST_WINDOWS_RETRIES = 10;
+    private static final int EMPTY_TREE_RETRIES = 40;
+    private static final int KICK_MS = 600;
     // Without UNINTERRUPTIBLE the next getChild cancels the prefetch in flight, so every node past the root's
     // first batch costs its own IPC: Settings main (155 nodes) took 78 to 103 ms in getChild alone, 41 to 46 ms with it.
     private static final int PREFETCH = AccessibilityNodeInfo.FLAG_PREFETCH_DESCENDANTS_DEPTH_FIRST
@@ -27,6 +29,7 @@ final class Accessibility {
 
     private static UiAutomation automation;
     private static Method sourceNodeId;
+    private static boolean kicked;
     private static int screenW;
     private static int screenH;
 
@@ -106,14 +109,42 @@ final class Accessibility {
         return automation.findFocus(AccessibilityNodeInfo.FOCUS_INPUT);
     }
 
+    // Task 3.1: for 50 to 300 ms after a navigation (Back from a second activity, API 37) getWindows() lists only the
+    // status bar, or the closing activity's window with a root that has no children left, so the read comes back
+    // with at most one node per window. A real screen with nothing but one node per window costs these retries too.
+    //
+    // On API 26 a connection made while the screen animates forever (the testbed's Busy tab) can see no window at
+    // all until the first window change, and neither waiting nor setServiceInfo again nor a tap or key changes
+    // that. Opening and closing the notification shade is a window change, and it repairs the connection. It is
+    // tried once per connection, because a hollow tree is also what a dark screen looks like.
     static JSONObject tree() throws Exception {
         clearCache();
         DisplayInfo di = ServiceManager.getDisplayManager().getDisplayInfo(0);
         screenW = di.getSize().getWidth();
         screenH = di.getSize().getHeight();
+        JSONObject tree = read();
+        for (int i = 0; hollow(tree) && i < EMPTY_TREE_RETRIES; i++) {
+            SystemClock.sleep(20);
+            tree = read();
+            if (i == EMPTY_TREE_RETRIES / 2 && !kicked) {
+                kicked = true;
+                ServiceManager.getStatusBarManager().expandNotificationsPanel();
+                SystemClock.sleep(KICK_MS);
+                ServiceManager.getStatusBarManager().collapsePanels();
+                SystemClock.sleep(KICK_MS);
+            }
+        }
+        return tree;
+    }
+
+    private static boolean hollow(JSONObject tree) throws Exception {
+        return tree.getJSONArray("nodes").length() <= tree.getJSONArray("windows").length();
+    }
+
+    private static JSONObject read() {
         JSONArray windows = new JSONArray();
         JSONArray nodes = new JSONArray();
-        for (AccessibilityWindowInfo w : windows()) {
+        for (AccessibilityWindowInfo w : automation.getWindows()) {
             Rect b = new Rect();
             w.getBoundsInScreen(b);
             if (isEdgeBar(w, b)) {
