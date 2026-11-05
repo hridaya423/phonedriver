@@ -686,6 +686,13 @@ dependencies = [
 [[package]]
 name = "phone-use-ios"
 version = "0.1.0"
+dependencies = [
+ "phone-use-core",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tokio",
+]
 
 [[package]]
 name = "phone-use-video"

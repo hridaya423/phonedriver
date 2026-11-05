@@ -34,12 +34,16 @@ static NSString *PUModel(void)
 static NSDictionary *PUHello(void)
 {
     CGRect bounds = [[XCUIApplication alloc] initWithBundleIdentifier:@"com.apple.springboard"].frame;
-    return @{
+    NSDictionary *env = NSProcessInfo.processInfo.environment;
+    NSMutableDictionary *hello = [@{
         @"version": PURunnerVersion,
         @"ios": UIDevice.currentDevice.systemVersion,
         @"model": PUModel(),
         @"screen": @{@"w": @(bounds.size.width), @"h": @(bounds.size.height), @"scale": @(UIScreen.mainScreen.scale)},
-    };
+    } mutableCopy];
+    if (env[@"SIMULATOR_UDID"]) hello[@"udid"] = env[@"SIMULATOR_UDID"];
+    if (env[@"PHONE_USE_BUILD"]) hello[@"build"] = env[@"PHONE_USE_BUILD"];
+    return hello;
 }
 
 static NSString *PUStringField(NSDictionary *request, NSString *key, NSError **error)
