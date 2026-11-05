@@ -18,7 +18,9 @@
 
 Same tabs as the Android testbed (Phase 2 task 2.8), in SwiftUI with `accessibilityIdentifier` on every control, plus a **Nav** tab with a `NavigationStack` two levels deep (to test `back`). Logging: append JSON lines to `Documents/putb.log`; touches are captured with a `UIWindow` subclass overriding `sendEvent(_:)` so raw touch phases, locations in points and timestamps are logged. Add `crates/ios/tests/support/testbed.rs`: build and install to a simulator (`xcodegen && xcodebuild -scheme Testbed -destination id=<udid> build`, then `simctl install`), `clear_log`, `read_log` (path from `xcrun simctl get_app_container <udid> dev.phoneuse.testbed data`).
 
-**Verify:** boot an iPhone 17 simulator (iOS 27), install, screenshot each tab with `xcrun simctl io <udid> screenshot`, look at each.
+*As built (2026-11-05):* the host helper is `testbeds/ios/testbed.py` (Python 3 standard library), because the mini has no Rust toolchain and tasks 5.1 to 5.3 have no Rust consumer yet; task 5.5 ports it to `crates/ios/tests/support/testbed.rs` when the first Rust live test needs it. Nine tabs do not fit a system `TabView` on a phone (five would hide behind "More"), so the testbed draws its own one-row tab bar (`tab.<name>` identifiers). Tests select a tab with the launch argument `-tab <name>`; `simctl openurl putb://tab/<name>` works too but raises a system "Open in Testbed?" confirmation first. The log is opened with `O_APPEND`, so `clear_log` truncates it rather than deleting it. The mini has only the iOS 26.5 simulator runtime (11 GB free disk, not enough for the iOS 27 runtime), so Phase 5 runs on an iPhone 17 simulator with iOS 26.5, built with the iOS 27 SDK.
+
+**Verify:** boot an iPhone 17 simulator (iOS 27; iOS 26.5 on the mini, see above), install, screenshot each tab with `xcrun simctl io <udid> screenshot`, look at each.
 
 ### Task 5.2: Spike I4: WDA baseline and runner snapshot technique
 
@@ -43,6 +45,8 @@ Build WebDriverAgent at `3d6a4e0` for the simulator. Time `GET /source` on the t
 - `Buttons`: `XCUIDevice.sharedDevice pressButton:` for home and volume; lock through the private method WDA uses (`XCUIDevice+FBHelpers.m` `fb_lockScreen`). `recents` is not supported on iOS.
 
 **Step 4:** PASS. Commit.
+
+*As built (2026-11-05):* the live test is `ios-runner/tests/test_runner.py` (Python 3 standard library, 13 tests, run on the mini), not `crates/ios/tests/runner_live.rs`: the mini has no Rust toolchain and there is no Rust runner client until task 5.4, which moves these checks into Rust. The test method is `testServe` (`testRun` collides with `XCTestCase.testRun`). `hello` reads the screen from SpringBoard's frame because the runner's own process runs letterboxed at 320 x 480. `type` uses a redacted synthesized text-input event instead of `typeText:` (secrets). `snapshot` takes `max_depth` only and requests eight raw AX attribute names; the planned `attributes?` field was dropped. The private API is declared in one trimmed header, `ios-runner/PrivateHeaders/XCTestPrivate.h`, instead of copies of WDA's headers, which pull in dozens of further headers. Volume buttons return `unsupported` on the Simulator. Wire contract in `docs/protocol.md` section 3.
 
 ### Task 5.4: Runner lifecycle on simulators
 

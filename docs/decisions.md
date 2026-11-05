@@ -43,6 +43,8 @@ Each decision records the choice, the alternatives it beat, and the evidence tha
 
 **Reopen if.** The runner's snapshot on the testbed is not at least 2x faster than WDA `/source` with `snapshotMaxDepth` tuned. Then use WDA and delete the runner.
 
+**Measured (2026-11-05, iPhone 17 simulator, iOS 26.5, 50 runs, `docs/spikes/ios.md`).** Runner snapshot p50 22.2 / 12.9 / 24.7 ms on the testbed List tab, Taps tab and Settings. WDA with `snapshotMaxDepth` 30 alone: 380.4 / 108.8 / 477.4 ms (runner 8x to 19x faster). WDA with every knob turned (depth 30, `excluded_attributes=visible,accessible,hittable`, idle waits off): 44.8 / 26.1 / 49.7 ms, so the runner is 2.02x / 2.02x / 2.01x faster at p50 and 2.03x / 1.96x / 1.99x at p95. The decision stands, but against fully tuned WDA the margin is about 1%; the runner reaches it only by requesting eight raw AX attributes instead of XCTest's key-path mapping. Re-measure after any Xcode update, and judge future runner changes against this bar.
+
 ## D5. Logical points as the only public coordinate space
 
 **Choice.** iOS points, Android dp, top-left origin, current orientation. Screenshots default to 1 px per point.

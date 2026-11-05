@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Testbed form</title>
+<style>
+  body { font: -apple-system-body; margin: 16px; }
+  label { display: block; margin: 12px 0 4px; }
+  input { font-size: 17px; width: 100%; box-sizing: border-box; padding: 8px; }
+  button { font-size: 17px; margin-top: 16px; padding: 8px 16px; }
+</style>
+</head>
+<body>
+<h1>Web form</h1>
+<form id="form">
+  <label for="name">Name</label>
+  <input id="name" name="name" placeholder="Your name">
+  <label for="email">Email</label>
+  <input id="email" name="email" type="email" placeholder="you@example.com">
+  <button type="submit">Submit</button>
+</form>
+<p id="status">Not submitted</p>
+<script>
+  const post = (body) => window.webkit.messageHandlers.putb.postMessage(body);
+  for (const input of document.querySelectorAll("input")) {
+    input.addEventListener("input", () => post({ field: input.id, value: input.value }));
+  }
+  document.getElementById("form").addEventListener("submit", (e) => {
+    e.preventDefault();
+    document.getElementById("status").textContent = "Submitted";
+    post({ submit: true, name: document.getElementById("name").value });
+  });
+</script>
+</body>
+</html>
