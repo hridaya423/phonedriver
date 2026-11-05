@@ -307,7 +307,7 @@ async fn apps_lists_the_testbed_and_launch_foregrounds_it() {
         .iter()
         .find(|a| a["package"] == testbed::PACKAGE)
         .unwrap_or_else(|| panic!("testbed not listed: {apps}"));
-    assert_eq!(testbed_app["label"], "PhoneUse Testbed");
+    assert_eq!(testbed_app["label"], "phone-use testbed");
     assert_eq!(testbed_app["system"], false);
 
     c.ok(json!({"op":"key","keycode":3})).await;

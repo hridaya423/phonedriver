@@ -14,7 +14,7 @@ use crate::daemon::android::AdbSource;
 use crate::daemon::{Config, Daemon, socket};
 use crate::wire::{ActionResult, DeviceEntry, Kind, Observation, ScreenshotResult, VERSION};
 
-const USAGE: &str = "usage: phone-use <command>\n\ncommands:\n  devices\n  snapshot\n  screenshot\n  find\n  swipe\n  scroll\n  gesture\n  tap\n  type\n  press\n  wait\n  release\n  daemon\n  version";
+const USAGE: &str = "usage: phone-use <command>\n\ncommands:\n  devices\n  snapshot\n  screenshot\n  find\n  launch\n  open\n  apps\n  swipe\n  scroll\n  gesture\n  tap\n  type\n  press\n  wait\n  release\n  daemon\n  version";
 
 #[derive(Parser)]
 #[command(name = "phone-use", disable_help_subcommand = true)]
@@ -89,6 +89,12 @@ enum Verb {
     },
     /// Play fingers with timed paths, in points: `{"fingers": [[{"x": 100, "y": 300, "t_ms": 0}, {"x": 50, "y": 300, "t_ms": 300}]]}`.
     Gesture { spec: String },
+    /// Open an app by name or package and show its first screen.
+    Launch { app: String },
+    /// Open a web link or deep link in the app that handles it.
+    Open { url: String },
+    /// List the apps that can be launched.
+    Apps,
     /// Drag from the middle of the screen, or of `--from`, the way a finger does.
     Swipe {
         /// up, down, left or right: where the finger moves.
@@ -399,6 +405,36 @@ async fn execute(
             }
             let r = client.call("act", act(a)).await?;
             show_action(&r, g.json)
+        }
+        Verb::Launch { app } => {
+            let r = client
+                .call("act", act(json!({"kind": "launch", "app": app})))
+                .await?;
+            show_action(&r, g.json)
+        }
+        Verb::Open { url } => {
+            let r = client
+                .call("act", act(json!({"kind": "open", "url": url})))
+                .await?;
+            show_action(&r, g.json)
+        }
+        Verb::Apps => {
+            let r = client.call("apps", with(json!({}))).await?;
+            if g.json {
+                return Ok(r.to_string());
+            }
+            let apps = r.as_array().cloned().unwrap_or_default();
+            Ok(apps
+                .iter()
+                .map(|a| {
+                    format!(
+                        "{}  {}",
+                        a["name"].as_str().unwrap_or_default(),
+                        a["id"].as_str().unwrap_or_default()
+                    )
+                })
+                .collect::<Vec<_>>()
+                .join("\n"))
         }
         Verb::Find { text, role } => {
             let mut p = json!({"text": text});

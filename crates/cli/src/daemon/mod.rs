@@ -125,13 +125,14 @@ impl Daemon {
                 Ok(json!({}))
             }
             "devices" => Ok(self.devices().await?),
-            "release" | "snapshot" | "screenshot" | "act" | "wait" | "find" => {
+            "release" | "snapshot" | "screenshot" | "act" | "wait" | "find" | "apps" => {
                 let common: Common = rpc::params(params)?;
                 let call = match method {
                     "release" => Call::Release,
                     "snapshot" => Call::Snapshot(rpc::params(params)?),
                     "screenshot" => Call::Screenshot,
                     "find" => Call::Find(rpc::params(params)?),
+                    "apps" => Call::Apps,
                     "act" => {
                         let act: ActParams = rpc::params(params)
                             .map_err(|_| RpcError::invalid_params("the action is malformed"))?;

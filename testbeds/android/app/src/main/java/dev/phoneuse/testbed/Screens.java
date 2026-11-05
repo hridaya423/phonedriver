@@ -125,7 +125,7 @@ final class Screens {
     }
 
     @SuppressLint("ClickableViewAccessibility")
-    static View list(Activity a) {
+    static View list(Activity a, int row) {
         RecyclerView rv = new RecyclerView(a);
         rv.setId(id(a, "rows"));
         LinearLayoutManager lm = new LinearLayoutManager(a);
@@ -162,6 +162,9 @@ final class Screens {
                         return 1000;
                     }
                 });
+        if (row >= 0) {
+            lm.scrollToPositionWithOffset(row, 0);
+        }
         rv.addOnScrollListener(
                 new RecyclerView.OnScrollListener() {
                     @Override

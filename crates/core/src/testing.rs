@@ -30,6 +30,7 @@ pub struct FakeDevice {
     calls: Mutex<Vec<Call>>,
     clipboard: Mutex<Option<String>>,
     foreground: Mutex<Option<AppId>>,
+    apps: Mutex<Vec<App>>,
     events: broadcast::Sender<DeviceEvent>,
     frames: watch::Sender<FrameRef>,
 }
@@ -50,9 +51,22 @@ impl FakeDevice {
             calls: Mutex::new(Vec::new()),
             clipboard: Mutex::new(None),
             foreground: Mutex::new(None),
+            apps: Mutex::new(Vec::new()),
             events: broadcast::channel(64).0,
             frames: watch::channel(FrameRef::default()).0,
         }
+    }
+
+    /// The launchable apps `apps()` reports, as `(id, name)`.
+    pub fn install(&self, apps: &[(&str, &str)]) {
+        *lock(&self.apps) = apps
+            .iter()
+            .map(|(id, name)| App {
+                id: AppId((*id).into()),
+                name: (*name).into(),
+                system: false,
+            })
+            .collect();
     }
 
     pub fn calls(&self) -> Vec<Call> {
@@ -141,7 +155,7 @@ impl Device for FakeDevice {
     }
 
     async fn apps(&self) -> Result<Vec<App>> {
-        Ok(Vec::new())
+        Ok(lock(&self.apps).clone())
     }
 
     async fn launch(&self, app: &AppId) -> Result<()> {

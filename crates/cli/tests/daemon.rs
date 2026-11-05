@@ -5,7 +5,7 @@ use std::time::Duration;
 use async_trait::async_trait;
 use phone_use::daemon::rpc::RpcError;
 use phone_use::daemon::{Config, Daemon, DeviceSource, Listed};
-use phone_use_core::device::{Capabilities, Device, DeviceEvent, FrameRef};
+use phone_use_core::device::{AppId, Capabilities, Device, DeviceEvent, FrameRef, Url};
 use phone_use_core::error::Error;
 use phone_use_core::geometry::{Point, Rect, Scale};
 use phone_use_core::raw::RawTree;
@@ -901,4 +901,95 @@ async fn a_gesture_plays_the_fingers_it_is_given_and_a_finger_with_one_point_is_
     let bad = json!({"kind": "gesture", "fingers": [[{"x": 1.0, "y": 1.0, "t_ms": 0}]]});
     let e = err(&d, "default", "act", act_with(bad)).await;
     assert_eq!(e.code, -32602, "{e:?}");
+}
+
+fn installed() -> (Arc<FakeSource>, Arc<FakeDevice>) {
+    let (source, fake) = FakeSource::with(vec![
+        list_tree(&["Row 0"]),
+        list_tree(&["Calculator", "7", "8"]),
+    ]);
+    fake.install(&[
+        ("dev.phoneuse.testbed", "phone-use testbed"),
+        ("com.android.calculator2", "Calculator"),
+        ("com.android.settings", "Settings"),
+    ]);
+    (source, fake)
+}
+
+#[tokio::test(start_paused = true)]
+async fn apps_lists_the_launchable_apps_with_their_names() {
+    let (source, _fake) = installed();
+    let (d, _home) = daemon(source);
+    let r = ok(&d, "default", "apps", json!({})).await;
+    let names: Vec<&str> = r
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|a| a["name"].as_str().unwrap())
+        .collect();
+    assert_eq!(names, ["phone-use testbed", "Calculator", "Settings"]);
+}
+
+#[tokio::test(start_paused = true)]
+async fn launch_by_name_in_any_case_or_by_package_foregrounds_the_app_and_returns_a_full_snapshot()
+{
+    for app in [
+        "phone-use testbed",
+        "PHONE-USE TESTBED",
+        "dev.phoneuse.testbed",
+    ] {
+        let (source, fake) = installed();
+        let (d, _home) = daemon(source);
+        ok(&d, "default", "snapshot", json!({})).await;
+        let r = ok(
+            &d,
+            "default",
+            "act",
+            act_with(json!({"kind": "launch", "app": app})),
+        )
+        .await;
+        assert_eq!(r["observation"]["kind"], "full", "{app}: {r}");
+        assert!(
+            fake.calls()
+                .contains(&Call::Launch(AppId("dev.phoneuse.testbed".into()))),
+            "{app}: {:?}",
+            fake.calls()
+        );
+    }
+}
+
+#[tokio::test(start_paused = true)]
+async fn launching_a_misspelled_app_is_not_found_and_names_the_close_app() {
+    let (source, fake) = installed();
+    let (d, _home) = daemon(source);
+    let e = err(
+        &d,
+        "default",
+        "act",
+        act_with(json!({"kind": "launch", "app": "Calculatr"})),
+    )
+    .await;
+    assert_eq!(e.code, -32007, "{e:?}");
+    assert!(
+        e.data["similar"].to_string().contains("Calculator"),
+        "{e:?}"
+    );
+    assert!(fake.calls().is_empty());
+}
+
+#[tokio::test(start_paused = true)]
+async fn open_hands_the_url_to_the_device() {
+    let (source, fake) = installed();
+    let (d, _home) = daemon(source);
+    ok(
+        &d,
+        "default",
+        "act",
+        act_with(json!({"kind": "open", "url": "https://example.com"})),
+    )
+    .await;
+    assert_eq!(
+        fake.calls(),
+        vec![Call::OpenUrl(Url("https://example.com".into()))]
+    );
 }

@@ -7,8 +7,8 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use phone_use_core::device::{
-    Button, Capabilities, Device, DeviceEvent, FrameRef, Gesture, Key, Quality, TextInput,
-    TimedPoint,
+    App, Button, Capabilities, Device, DeviceEvent, FrameRef, Gesture, Key, Quality, TextInput,
+    TimedPoint, Url,
 };
 use phone_use_core::diff::{DiffOrFull, diff};
 use phone_use_core::element::{Actions, Element, ElementState, Ref, Role};
@@ -21,6 +21,7 @@ use phone_use_core::render::{
     AppLine, DeviceLine, Filters, Header, Orientation, Rendered, SettleLine,
 };
 use phone_use_core::settle::{Config, Detector, Input, State};
+use phone_use_core::similar::{SUGGEST_WITHIN, normalized_distance};
 use serde_json::{Value, json};
 use tokio::sync::{broadcast, mpsc, oneshot, watch};
 use tokio::time::Instant;
@@ -42,6 +43,7 @@ pub enum Call {
     Act(ActParams),
     Wait(WaitParams),
     Find(FindParams),
+    Apps,
     Release,
     /// Who holds the lease, without taking it.
     Leased,
@@ -324,6 +326,10 @@ impl Actor {
             Call::Find(p) => {
                 let now = self.fresh(s).await?;
                 to_value(s.find(&now, &p.text, p.role))
+            }
+            Call::Apps => {
+                self.need(Capabilities::APPS, Op::Apps, "this device cannot list apps")?;
+                to_value(self.device()?.apps().await?)
             }
             Call::Release | Call::Leased => json!({}),
         };
@@ -630,6 +636,41 @@ impl Actor {
                 let started = self.begin_action();
                 device.gesture(g).await?;
                 let summary = format!("gestured with {} fingers", fingers.len());
+                self.finish(s, p.settle, cfg, started, summary, None, None, None)
+                    .await
+            }
+            Action::Launch { app } => {
+                self.need(
+                    Capabilities::LAUNCH,
+                    Op::Launch,
+                    "this device cannot launch apps",
+                )?;
+                let installed = device.apps().await?;
+                let found = find_app(&installed, &app)?;
+                cfg.expect_change = p
+                    .expect_change_ms
+                    .map(Duration::from_millis)
+                    .or(Config::launch().expect_change);
+                let started = self.begin_action();
+                device.launch(&found.id).await?;
+                s.last = None;
+                let summary = format!("launched {}", found.name);
+                self.finish(s, p.settle, cfg, started, summary, None, None, None)
+                    .await
+            }
+            Action::Open { url } => {
+                self.need(
+                    Capabilities::OPEN_URL,
+                    Op::OpenUrl,
+                    "this device cannot open links",
+                )?;
+                cfg.expect_change = p
+                    .expect_change_ms
+                    .map(Duration::from_millis)
+                    .or(Config::launch().expect_change);
+                let started = self.begin_action();
+                device.open_url(&Url(url.clone())).await?;
+                let summary = format!("opened {url}");
                 self.finish(s, p.settle, cfg, started, summary, None, None, None)
                     .await
             }
@@ -1138,6 +1179,47 @@ fn settle_line(st: State) -> SettleLine {
             ms: 0,
         },
     }
+}
+
+/// An app by package, then by name in any case, then by a name that contains the text; a close misspelling is `NotFound`
+/// with the names it might have meant.
+fn find_app<'a>(installed: &'a [App], query: &str) -> Result<&'a App, Error> {
+    let q = query.to_lowercase();
+    let steps: [fn(&App, &str, &str) -> bool; 3] = [
+        |a, query, _| a.id.0 == query,
+        |a, _, q| a.name.to_lowercase() == q,
+        |a, _, q| a.name.to_lowercase().contains(q),
+    ];
+    for step in steps {
+        let hits: Vec<&App> = installed.iter().filter(|a| step(a, query, &q)).collect();
+        match hits.as_slice() {
+            [] => {}
+            [one] => return Ok(one),
+            many => {
+                return Err(Error::Ambiguous {
+                    query: query.to_string(),
+                    matches: many
+                        .iter()
+                        .map(|a| format!("{} ({})", a.name, a.id.0))
+                        .collect(),
+                });
+            }
+        }
+    }
+    let mut close: Vec<(f32, &App)> = installed
+        .iter()
+        .map(|a| (normalized_distance(query, &a.name), a))
+        .filter(|(d, _)| *d <= SUGGEST_WITHIN)
+        .collect();
+    close.sort_by(|a, b| a.0.total_cmp(&b.0));
+    Err(Error::NotFound {
+        query: query.to_string(),
+        similar: close
+            .into_iter()
+            .take(5)
+            .map(|(_, a)| a.name.clone())
+            .collect(),
+    })
 }
 
 /// `@e6 button "Display & touch" "Dark theme, font size"` becomes `@e6 "Display & touch"`.
