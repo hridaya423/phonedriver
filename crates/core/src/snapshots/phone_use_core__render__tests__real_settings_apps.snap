@@ -1,6 +1,6 @@
 ---
 source: crates/core/src/render.rs
-assertion_line: 416
+assertion_line: 482
 expression: "real(include_str!(\"../tests/fixtures/android/real_settings_apps.json\"))"
 ---
 device android:emulator-5554 · Pixel 9 · Android 17 · 360x800pt · portrait
@@ -10,19 +10,19 @@ app com.android.settings (Settings) · keyboard hidden · settled in 212ms
 @e3 group "T-Mobile, signal full."
 @e4 image "Wifi signal full."
 @e5 group "Battery charging, 100 percent."
-@e6 list scrollable↓
-  @e7 button "Android Auto" "291 kB"
-  @e8 button "Android System WebView" "201 MB"
-  @e9 button "Calendar" "65.54 kB"
-  @e10 button "Camera" "119 kB"
-  @e11 button "Chrome" "73.94 MB"
-  @e12 button "Clock" "65.54 kB"
-  @e13 button "Contacts" "65.54 kB"
-  @e14 button "Digital Wellbeing" "2.51 MB"
-  @e15 button "Drive" "65.54 kB"
-  @e16 button "Files" "184 kB"
-  @e17 button "Gboard" "134 MB"
-@e18 button "Navigate up"
-@e19 heading "All apps"
-@e20 button "Search"
-@e21 button "More options"
+@e6 button "Navigate up"
+@e7 heading "All apps"
+@e8 button "Search"
+@e9 button "More options"
+@e10 list scrollable↓
+  @e11 button "Android Auto" "291 kB"
+  @e12 button "Android System WebView" "201 MB"
+  @e13 button "Calendar" "65.54 kB"
+  @e14 button "Camera" "119 kB"
+  @e15 button "Chrome" "73.94 MB"
+  @e16 button "Clock" "65.54 kB"
+  @e17 button "Contacts" "65.54 kB"
+  @e18 button "Digital Wellbeing" "2.51 MB"
+  @e19 button "Drive" "65.54 kB"
+  @e20 button "Files" "184 kB"
+  @e21 button "Gboard" "134 MB"

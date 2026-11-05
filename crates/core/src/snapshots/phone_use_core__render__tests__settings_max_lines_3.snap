@@ -1,11 +1,11 @@
 ---
 source: crates/core/src/render.rs
-assertion_line: 434
-expression: settings().text(&f).unwrap()
+assertion_line: 530
+expression: settings_main().text(&f).unwrap()
 ---
 device android:emulator-5554 · Pixel 9 · Android 17 · 360x800pt · portrait
 app com.android.settings (Settings) · keyboard hidden · settled in 212ms
-@e1 heading "Settings"
-@e2 searchbox "Search settings"
-@e3 list scrollable↓
-… 6 more
+@e1 button "Search Settings"
+@e2 group scrollable↓
+  @e3 button "Google" "Services & preferences"
+… 9 more

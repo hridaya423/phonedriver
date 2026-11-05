@@ -8,7 +8,6 @@ use phone_use_core::device::{
 use phone_use_core::error::{Error, Op};
 use phone_use_core::geometry::Size;
 use phone_use_core::raw::RawTree;
-use phone_use_video::frame_store::StreamState;
 use phone_use_video::image::{encode_png, scaled_size};
 use phone_use_video::stream::VideoStream;
 use serde_json::{Value, json};
@@ -122,9 +121,9 @@ impl Device for AndroidDevice {
                 });
             }
         }
-        if store.state() == StreamState::Stalled {
-            return Err(Error::Transport {
-                detail: "the video stream stalled; no frame for over a second".into(),
+        if self.video.ended() {
+            return Err(Error::DeviceGone {
+                id: self.info.id.clone(),
             });
         }
         let frame = store.latest().ok_or_else(|| Error::Transport {

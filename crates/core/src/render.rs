@@ -160,7 +160,7 @@ impl Rendered {
                 Orientation::Landscape => "landscape",
             };
             lines.push(format!(
-                "device {} · {} · {} · {}x{}pt · {orientation}",
+                "device {} · {} · {} · {:.0}x{:.0}pt · {orientation}",
                 d.id, d.model, d.os, d.screen.w, d.screen.h
             ));
         }
@@ -403,6 +403,70 @@ mod tests {
         build_json(json, 2.625).text(&Filters::default()).unwrap()
     }
 
+    fn captured(json: &str) -> Rendered {
+        let density = serde_json::from_str::<serde_json::Value>(json).unwrap()["density"]
+            .as_f64()
+            .unwrap() as f32;
+        build_json(json, density)
+    }
+
+    fn settings_main() -> Rendered {
+        captured(include_str!("../tests/fixtures/android/settings_main.json"))
+    }
+
+    fn golden(name: &str, fixture: &str) {
+        let text = captured(fixture).text(&Filters::default()).unwrap();
+        insta::assert_snapshot!(name, text);
+    }
+
+    #[test]
+    fn captured_settings_apps() {
+        golden(
+            "captured_settings_apps",
+            include_str!("../tests/fixtures/android/settings_apps.json"),
+        );
+    }
+
+    #[test]
+    fn captured_testbed_taps() {
+        golden(
+            "captured_testbed_taps",
+            include_str!("../tests/fixtures/android/testbed_taps.json"),
+        );
+    }
+
+    #[test]
+    fn captured_testbed_text() {
+        golden(
+            "captured_testbed_text",
+            include_str!("../tests/fixtures/android/testbed_text.json"),
+        );
+    }
+
+    #[test]
+    fn captured_testbed_list() {
+        golden(
+            "captured_testbed_list",
+            include_str!("../tests/fixtures/android/testbed_list.json"),
+        );
+    }
+
+    #[test]
+    fn captured_testbed_busy() {
+        golden(
+            "captured_testbed_busy",
+            include_str!("../tests/fixtures/android/testbed_busy.json"),
+        );
+    }
+
+    #[test]
+    fn captured_testbed_secure() {
+        golden(
+            "captured_testbed_secure",
+            include_str!("../tests/fixtures/android/testbed_secure.json"),
+        );
+    }
+
     #[test]
     fn real_settings_main() {
         insta::assert_snapshot!(
@@ -432,10 +496,21 @@ mod tests {
     }
 
     #[test]
+    fn the_screen_size_prints_in_whole_points() {
+        let mut r = settings();
+        r.header.device.as_mut().unwrap().screen = Size {
+            w: 411.42856,
+            h: 923.4286,
+        };
+        let text = r.text(&Filters::default()).unwrap();
+        assert!(text.contains("· 411x923pt ·"), "{text}");
+    }
+
+    #[test]
     fn golden_default() {
         insta::assert_snapshot!(
             "settings_default",
-            settings().text(&Filters::default()).unwrap()
+            settings_main().text(&Filters::default()).unwrap()
         );
     }
 
@@ -445,16 +520,16 @@ mod tests {
             interactive: true,
             ..Filters::default()
         };
-        insta::assert_snapshot!("settings_interactive", settings().text(&f).unwrap());
+        insta::assert_snapshot!("settings_interactive", settings_main().text(&f).unwrap());
     }
 
     #[test]
     fn golden_within() {
         let f = Filters {
-            within: Some(Ref(3)),
+            within: Some(Ref(2)),
             ..Filters::default()
         };
-        insta::assert_snapshot!("settings_within_e3", settings().text(&f).unwrap());
+        insta::assert_snapshot!("settings_within_e2", settings_main().text(&f).unwrap());
     }
 
     #[test]
@@ -463,7 +538,7 @@ mod tests {
             max_lines: Some(3),
             ..Filters::default()
         };
-        insta::assert_snapshot!("settings_max_lines_3", settings().text(&f).unwrap());
+        insta::assert_snapshot!("settings_max_lines_3", settings_main().text(&f).unwrap());
     }
 
     #[test]

@@ -9,7 +9,7 @@ path = "src/main.rs"
 
 [dependencies]
 async-trait = "0.1.92"
-clap = { version = "4.6.7", features = ["derive"] }
+clap = { version = "4.6.7", features = ["derive", "env"] }
 interprocess = { version = "2.4.7", features = ["tokio"] }
 phone-use-android = { version = "0.1.0", path = "../android" }
 phone-use-core = { version = "0.1.0", path = "../core" }
@@ -22,7 +22,7 @@ ulid = { version = "3.0.0", features = ["std"] }
 assert_cmd = "2.2.2"
 phone-use-core = { path = "../core", features = ["testing"] }
 tempfile = "3.27.0"
-tokio = { version = "1.54.1", features = ["test-util"] }
+tokio = { version = "1.54.1", features = ["io-util", "macros", "net", "rt-multi-thread", "test-util", "time"] }
 
 [lints]
 workspace = true

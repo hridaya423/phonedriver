@@ -65,6 +65,11 @@ impl VideoStream {
         }
     }
 
+    /// True once the stream has ended. A quiet stream is not an ended one: a static screen sends no frames.
+    pub fn ended(&self) -> bool {
+        *self.done.borrow()
+    }
+
     /// Resolves once the stream has ended and every packet read has been decoded.
     pub async fn finished(&self) {
         let mut done = self.done.clone();

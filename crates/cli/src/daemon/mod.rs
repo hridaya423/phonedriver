@@ -4,6 +4,7 @@
 //! `actor.rs`, and a route in `Daemon::route`. The CLI side is a clap variant in `commands.rs`.
 
 pub mod actor;
+pub mod android;
 pub mod rpc;
 pub mod session;
 pub mod socket;
@@ -230,8 +231,12 @@ impl Daemon {
 
     /// Serves until `shutdown`, or until 15 minutes pass with no client connected and no request.
     pub async fn serve(self: Arc<Self>, path: PathBuf) -> std::io::Result<()> {
-        use interprocess::local_socket::traits::tokio::Listener as _;
         let listener = socket::listen(&path).await?;
+        self.serve_on(listener).await
+    }
+
+    pub async fn serve_on(self: Arc<Self>, listener: socket::Listener) -> std::io::Result<()> {
+        use interprocess::local_socket::traits::tokio::Listener as _;
         loop {
             let deadline =
                 *self.last_activity.lock().unwrap_or_else(|e| e.into_inner()) + IDLE_EXIT;
