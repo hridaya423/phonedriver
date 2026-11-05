@@ -136,6 +136,8 @@ Pruning rules (`core::render`), applied in this order:
 3. Collapse containers that have no label, no actions, and one child.
 4. Keep a node if it has actions, has text, is a `TextField`/`SecureField`, or is a scrollable container.
 
+Reading order (task 2.7): siblings print top to bottom by vertical center in 8-point bands, then left to right, because the agent lists a window's views in z order (an app bar comes after the list it overlaps); windows keep the agent's order, topmost first (a dialog before the app under it), except the keyboard window, which prints last.
+
 Text-target resolution follows the same rule: `tap "Network & internet"` matches the row whose merged label is that text, so the tap goes to the actionable ancestor, never to an inert text node. If text only matches a non-actionable node, the tap goes to its nearest actionable ancestor; if there is none, to the text's own center.
 
 Text limits: truncate text above 200 chars as `…(+N chars)`. `SecureField` values render as `•••` and are never logged.
@@ -360,7 +362,7 @@ Signing: built with Xcode automatic signing for the user's team. A free Apple ID
 - Input: H.264 Annex-B access units from the Android agent, or RTP packets from iOS depacketized into access units (section 7.2).
 - Decode: `openh264` for H.264 on every OS. HEVC, only if spike I3 shows the device sends it: VideoToolbox on macOS; on other OSes the CoreDevice tier falls back to `screencaptureservices` PNGs and polled settle until an HEVC decoder is added.
 - Output, `FrameStore`: the latest decoded frame (`Arc`, planar YUV 4:2:0), a luma thumbnail with one sample per 4×4 points (the settle measure of section 4.6), a sequence number, and the time of the last frame, with a `watch` channel carrying `FrameRef { seq, changed_area_pt2, changed_box }`. Every frame is decoded (inter-frame coding forbids skipping).
-- Screenshot = encode the latest frame (PNG or JPEG) on the host. With the 100 ms repeat-frame setting, a static screen still produces frames, so the FrameStore is never empty after the first 100 ms and a stalled stream is detectable: no frame for 1 s means the stream is broken, and the actor restarts it rather than serving a stale image. Screenshots requested while an action is settling wait for settle, so encoder pipeline latency cannot return the pre-action frame.
+- Screenshot = encode the latest frame (PNG or JPEG) on the host. A static screen can send no frames for seconds (observed in task 2.7 on the API 37 emulator through the tunnel: bursts at about 10 frames per second, then gaps of up to 5 s with nothing changing on screen), so a quiet stream is not a broken one and the last frame is a correct screenshot. The stream is broken only when its socket ends (`VideoStream::ended`, which `AndroidDevice::screenshot` reports as `DeviceGone`, and which makes the actor reconnect on the next call). The first frame after a connect is awaited for up to 2 s. Screenshots requested while an action is settling wait for settle, so encoder pipeline latency cannot return the pre-action frame.
 
 ## 9. Pixels and OCR
 

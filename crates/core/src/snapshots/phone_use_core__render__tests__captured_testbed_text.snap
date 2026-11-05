@@ -1,0 +1,16 @@
+---
+source: crates/core/src/render.rs
+assertion_line: 419
+expression: text
+---
+device android:emulator-5554 · Pixel 9 · Android 17 · 360x800pt · portrait
+app com.android.settings (Settings) · keyboard hidden · settled in 212ms
+@e1 group scrollable
+  @e2 button "Taps"
+  @e3 button "Text"
+  @e4 button "List"
+  @e5 button "Gestures"
+  @e6 button "Busy"
+@e7 textbox "plain"
+@e8 textbox "multiline"
+@e9 password "password"

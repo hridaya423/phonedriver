@@ -1,0 +1,38 @@
+---
+source: crates/core/src/render.rs
+assertion_line: 419
+expression: text
+---
+device android:emulator-5554 · Pixel 9 · Android 17 · 360x800pt · portrait
+app com.android.settings (Settings) · keyboard hidden · settled in 212ms
+@e1 group scrollable
+  @e2 button "Taps"
+  @e3 button "Text"
+  @e4 button "List"
+  @e5 button "Gestures"
+  @e6 button "Busy"
+@e7 switch "Dark theme" on
+@e8 button "b0"
+@e9 button "b1"
+@e10 button "b2"
+@e11 button "b3"
+@e12 button "b4"
+@e13 button "b5"
+@e14 button "b6"
+@e15 button "b7"
+@e16 button "b8"
+@e17 button "b9"
+@e18 button "b10"
+@e19 button "b11"
+@e20 button "b12"
+@e21 button "b13"
+@e22 button "b14"
+@e23 button "b15"
+@e24 button "b16"
+@e25 button "b17"
+@e26 button "b18"
+@e27 button "b19"
+@e28 button "b20"
+@e29 button "b21"
+@e30 button "b22"
+@e31 button "b23"

@@ -190,4 +190,4 @@ iOS `RawNode` uses the same keys as Android with `cls` set to the `XCUIElementTy
 
 ## 4. Fixture format
 
-Real trees captured for golden tests are stored as the device wire JSON (`tree` or `snapshot` reply) under `crates/core/tests/fixtures/<platform>/<name>.json`, with a sibling `.png` screenshot for humans. Capture with `phone-use snapshot --json --save-fixture <name>` (Phase 2 task 2.7).
+Real trees captured for golden tests are stored as the device wire JSON (`tree` or `snapshot` reply) under `crates/core/tests/fixtures/<platform>/<name>.json`, with a sibling `.png` screenshot for humans. Capture with `phone-use snapshot --save-fixture <name>` (Phase 2 task 2.7; the files go to `crates/core/tests/fixtures/<platform>/` or `--fixture-dir`). The JSON is the device's own `tree` reply without `id` and `ok`, plus a top-level `density` key; core tests read the density from the file. Older `real_*` fixtures have no `density` key (2.625).

@@ -235,3 +235,32 @@ async fn text_clipboard_keys_buttons_apps_and_events() {
     assert!(handled.is_ok(), "{handled:?}");
     device.button(Button::Home).await.unwrap();
 }
+
+#[tokio::test]
+#[ignore = "needs PHONE_USE_TEST_DEVICE"]
+async fn screenshots_keep_working_while_the_screen_is_idle_and_no_frames_arrive() {
+    let (device, serial, _g) = connect().await;
+    testbed::open_tab(&support::adb(), &serial, "taps").await;
+    let mut frames = device.frames().expect("android has a frame stream");
+    let start = std::time::Instant::now();
+    let mut idle_for = Duration::ZERO;
+    let mut last = frames.borrow_and_update().seq;
+    let mut last_at = std::time::Instant::now();
+    while start.elapsed() < Duration::from_secs(25) && idle_for < Duration::from_millis(1500) {
+        if tokio::time::timeout(Duration::from_millis(100), frames.changed())
+            .await
+            .is_ok()
+            && frames.borrow().seq != last
+        {
+            last = frames.borrow().seq;
+            last_at = std::time::Instant::now();
+        }
+        idle_for = last_at.elapsed();
+    }
+    assert!(
+        idle_for >= Duration::from_millis(1500),
+        "this emulator kept sending frames for 25 s, so the idle case was not reached"
+    );
+    let image = device.screenshot(Quality(90)).await;
+    assert!(image.is_ok(), "{image:?}");
+}

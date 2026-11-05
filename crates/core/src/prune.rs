@@ -76,7 +76,7 @@ pub fn prune(tree: &RawTree) -> Vec<Node> {
 
     let mut out: Vec<Node> = Vec::new();
     let mut kept_as: Vec<Option<usize>> = vec![None; n];
-    for i in 0..n {
+    for i in reading_order(tree, &children) {
         let node = &tree.nodes[i];
         let Some(bounds) = clipped[i] else { continue };
         if absorbed_by[i].is_some() {
@@ -133,6 +133,40 @@ pub fn prune(tree: &RawTree) -> Vec<Node> {
         });
     }
     out
+}
+
+/// Siblings whose vertical centers fall in the same band this tall, in points, read as one row.
+const ROW_BAND_PT: f32 = 8.0;
+
+/// Preorder with siblings top to bottom by center, then left to right (the agent lists a window's views in z
+/// order, which puts an app bar after the list it overlaps), and the keyboard window last.
+fn reading_order(tree: &RawTree, children: &[Vec<usize>]) -> Vec<usize> {
+    let key = |&i: &usize| {
+        let b = tree.nodes[i].bounds;
+        (
+            ((b.y + b.h / 2.0) / ROW_BAND_PT).round() as i64,
+            b.x.round() as i64,
+        )
+    };
+    let is_keyboard = |i: &usize| {
+        let w = tree.nodes[*i].window;
+        tree.windows
+            .iter()
+            .any(|win| win.id == w && win.kind == "input_method")
+    };
+    let mut roots: Vec<usize> = (0..tree.nodes.len())
+        .filter(|&i| tree.nodes[i].parent.is_none())
+        .collect();
+    roots.sort_by_key(is_keyboard);
+    let mut order = Vec::with_capacity(tree.nodes.len());
+    let mut stack: Vec<usize> = roots.into_iter().rev().collect();
+    while let Some(i) = stack.pop() {
+        order.push(i);
+        let mut kids = children[i].clone();
+        kids.sort_by_key(key);
+        stack.extend(kids.into_iter().rev());
+    }
+    order
 }
 
 fn state_of(f: NodeFlags) -> ElementState {
@@ -218,6 +252,41 @@ mod tests {
         assert_eq!(nodes[0].label, None);
         assert_eq!(nodes[0].actions, Actions::SCROLL_DOWN);
         assert_eq!(nodes[1].label.as_deref(), Some("Terms"));
+    }
+
+    #[test]
+    fn an_app_bar_listed_after_its_list_prints_first_and_a_row_reads_left_to_right() {
+        let json = r#"{"windows":[{"id":1,"type":"application","bounds":[0,0,100,300]}],"nodes":[
+            {"p":-1,"w":1,"cls":"android.widget.FrameLayout","b":[0,0,100,300],"f":"vVe"},
+            {"p":0,"w":1,"cls":"android.widget.ListView","b":[0,100,100,300],"f":"vVeS","a":["scroll_down"]},
+            {"p":1,"w":1,"cls":"android.widget.TextView","text":"Row","b":[0,100,100,150],"f":"vVe"},
+            {"p":0,"w":1,"cls":"android.widget.TextView","text":"Right","b":[60,10,100,40],"f":"vVe"},
+            {"p":0,"w":1,"cls":"android.widget.TextView","text":"Left","b":[0,11,40,41],"f":"vVe"},
+            {"p":0,"w":1,"cls":"android.widget.TextView","text":"Title","b":[0,0,100,10],"f":"vVe"}
+        ]}"#;
+        let nodes = prune(&RawTree::from_android_json(json, Scale { density: 1.0 }).unwrap());
+        let labels: Vec<_> = nodes
+            .iter()
+            .map(|n| n.label.as_deref().unwrap_or("-"))
+            .collect();
+        assert_eq!(labels, ["Title", "Left", "Right", "-", "Row"]);
+        assert_eq!(nodes[4].parent, Some(3));
+    }
+
+    #[test]
+    fn the_keyboard_window_prints_after_the_windows_it_covers() {
+        let json = r#"{"windows":[
+            {"id":2,"type":"input_method","bounds":[0,200,100,300]},
+            {"id":1,"type":"application","bounds":[0,0,100,300]}],"nodes":[
+            {"p":-1,"w":2,"cls":"android.widget.FrameLayout","text":"keys","b":[0,200,100,300],"f":"vVe"},
+            {"p":-1,"w":1,"cls":"android.widget.TextView","text":"app","b":[0,0,100,20],"f":"vVe"}
+        ]}"#;
+        let nodes = prune(&RawTree::from_android_json(json, Scale { density: 1.0 }).unwrap());
+        let labels: Vec<_> = nodes
+            .iter()
+            .map(|n| n.label.as_deref().unwrap_or("-"))
+            .collect();
+        assert_eq!(labels, ["app", "keys"]);
     }
 
     #[test]

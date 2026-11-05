@@ -1,0 +1,18 @@
+---
+source: crates/core/src/render.rs
+assertion_line: 521
+expression: settings_main().text(&f).unwrap()
+---
+device android:emulator-5554 · Pixel 9 · Android 17 · 360x800pt · portrait
+app com.android.settings (Settings) · keyboard hidden · settled in 212ms
+@e2 group scrollable↓
+  @e3 button "Google" "Services & preferences"
+  @e4 button "Network & internet" "Mobile, Wi‑Fi, hotspot"
+  @e5 button "Connected devices" "Bluetooth, pairing"
+  @e6 button "Apps" "Assistant, recent apps, default apps"
+  @e7 button "Notifications" "Notification history, conversations"
+  @e8 button "Sound & vibration" "Volume and haptics"
+  @e9 button "Modes" "Do Not Disturb, Bedtime, Driving"
+  @e10 button "Display & touch" "Dark theme, font size, touch"
+  @e11 button "Wallpaper & style" "Colors, themed icons, app grid"
+  @e12 button "Storage"

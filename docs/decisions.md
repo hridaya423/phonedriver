@@ -87,6 +87,8 @@ Each decision records the choice, the alternatives it beat, and the evidence tha
 
 **Spike A3 evidence (API 26 and 37 emulators):** the stream decodes with `openh264` with no errors; decode p50 3.6 to 4.6 ms and p95 7.3 to 9.6 ms per 1080-wide frame on the Mac (release build). First decoded frame after opening the stream: p50 219 ms (API 26) and 433 ms (API 37), which misses the 200 ms target and is the one-time cost per lease (the software encoder takes 140 to 230 ms to start); the stream's static frame rate is about 3 fps, not 10; the 4,096 pt² `significant_area` cannot see a switch toggle (see architecture 4.6, now two thresholds). Tap-to-changed-frame latency p50 223 to 352 ms on the emulators. Holds as a decision; see `docs/spikes/android.md` A3.
 
+**Task 2.7 correction (2026-11-05):** the stream's frame rate on a static screen is not a heartbeat. On the API 37 emulator through the tunnel the stream sent bursts of about 10 frames per second and then nothing for up to 5 s while the screen did not change, so `no frame for 1 s` made 18 of 40 screenshots of an idle screen fail. Screenshots now serve the last frame unless the video socket has ended (architecture 8). Settle is unaffected: it needs frames only when the screen changes.
+
 ## D11. Speak the adb server protocol directly
 
 **Choice.** A small async client in `crates/android/src/adb.rs` for the five services listed in architecture 6.1.
