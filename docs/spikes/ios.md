@@ -53,3 +53,21 @@ Two readings of "WDA with `snapshotMaxDepth` tuned":
 - Every WDA knob a careful user would turn (depth 30, idle waits off, `excluded_attributes`): 45.0 / 26.5 / 49.9 ms. Half of that is 22.5 / 13.3 / 25.0 ms. The in-process technique (21.2 / 12.2 / 23.7 ms) is just under half before any transport cost, so the runner can meet 2x only if its transport and request handling add about 1 ms.
 
 We hold the runner to the stricter bar. Task 5.3 measures it end to end over TCP.
+
+## D4: runner end to end vs WebDriverAgent (2026-11-05, task 5.3)
+
+Same simulator, screens and client machine as I4. Runner: `snapshot` with `max_depth` 30 over its TCP socket (length-prefixed JSON, `TCP_NODELAY`), measured from the client. WDA: `GET /session/:id/source` over HTTP. The runner and WDA ran one after the other, never together. 2 warm-up calls, then 50 timed calls per row; times in ms.
+
+| Screen | Runner p50 | Runner p95 | WDA depth 30 p50 | WDA fully tuned p50 | WDA fully tuned p95 | Ratio p50 (tuned / runner) | Ratio p95 |
+|---|---|---|---|---|---|---|---|
+| List (150 elements) | 22.2 | 22.7 | 380.4 | 44.8 | 46.1 | **2.02x** | 2.03x |
+| Taps (59) | 12.9 | 13.5 | 108.8 | 26.1 | 26.5 | **2.02x** | 1.96x |
+| Settings (168) | 24.7 | 25.5 | 477.4 | 49.7 | 50.7 | **2.01x** | 1.99x |
+
+"Fully tuned" means depth 30, `waitForIdleTimeout` 0, `animationCoolOffTimeout` 0, `excluded_attributes=visible,accessible,hittable`. With depth 30 and excluded attributes only (idle waits left at defaults), WDA measured 48.6 / 26.3 / 49.9 ms.
+
+**Verdict.** D4's literal bar (WDA with `snapshotMaxDepth` tuned) is met by 8x to 19x. Against WDA with every knob turned, the runner is just over 2x at p50 on all three screens and just under 2x at p95 on Taps and Settings. The margin is about 1%, small enough that run-to-run noise or an Xcode update can flip it.
+
+**How the runner got there.** The first runner build requested the attribute list produced by `axAttributesForElementSnapshotKeyPaths:` (12 AX names, including window context and display ids, automation type and base type). It measured 23.4 / 13.5 / 26.0 ms (20 runs), which is 1.91x to 1.93x of fully tuned WDA, a miss. Profiling inside the runner (List tab) showed `activeApplications` at 1.4 ms, the AX request at 21 to 24 ms, flattening at 0.45 ms, JSON at 0.4 ms and the main-thread hop under 0.05 ms. Requesting 8 raw names (label, value, identifier, frame, element type, traits, placeholder value, native focus) saved about 1.2 to 1.5 ms. It gave byte-identical node lists on all nine testbed tabs, including the WKWebView, the on-screen keyboard (36 key nodes) and an alert; the only diff was the Busy tab's spinning image, which moved between the two snapshots. The per-snapshot `activeApplications` call (1.4 ms) stays, because it is how the runner follows app switches.
+
+**Runner screenshots** (`XCUIScreen.mainScreen.screenshot`, 1206 x 2622 px, 50 runs): JPEG q80 p50 75 to 81 ms, JPEG q30 74 to 78 ms, PNG 62 to 64 ms. Encoding is not the bottleneck (q30 saves 2 ms), so task 5.6's "JPEG q30 at half scale for settle polling" idea needs scaling, not just quality, to help. All are under the 300 ms threshold in task 5.6.

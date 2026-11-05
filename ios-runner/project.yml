@@ -1,0 +1,25 @@
+name: PhoneUseRunner
+options:
+  deploymentTarget:
+    iOS: "17.0"
+targets:
+  PhoneUseRunner:
+    type: bundle.ui-testing
+    platform: iOS
+    sources: [Runner]
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        PRODUCT_BUNDLE_IDENTIFIER: dev.phoneuse.runner
+        HEADER_SEARCH_PATHS: $(SRCROOT)/PrivateHeaders
+        CLANG_ENABLE_OBJC_ARC: YES
+        GCC_TREAT_WARNINGS_AS_ERRORS: YES
+        CODE_SIGN_IDENTITY: "-"
+        CODE_SIGN_STYLE: Manual
+schemes:
+  PhoneUseRunner:
+    build:
+      targets:
+        PhoneUseRunner: [test]
+    test:
+      targets: [PhoneUseRunner]
