@@ -140,6 +140,8 @@ Reading order (task 2.7): siblings print top to bottom by vertical center in 8-p
 
 Text-target resolution follows the same rule: `tap "Network & internet"` matches the row whose merged label is that text, so the tap goes to the actionable ancestor, never to an inert text node. If text only matches a non-actionable node, the tap goes to its nearest actionable ancestor; if there is none, to the text's own center.
 
+The keyboard window is one `keyboard` node without its keys (task 3.2): an agent types with `type`, and about sixty key nodes made the first typed character a "new screen" in the diff (more than 60% of refs changed).
+
 Text limits: truncate text above 200 chars as `…(+N chars)`. `SecureField` values render as `•••` and are never logged.
 
 Line grammar: `@eN role "label" ["value"] [state…]`, indented two spaces per kept depth. The second quoted string is the value, or the hint when there is no value (a row's merged subtitle, a field's placeholder). A checkable element's value is omitted when its `on`/`off` word already says it. Role words: `button link text heading textbox searchbox password switch checkbox radio slider image list cell tab menu menuitem dialog keyboard webview alert progress group` (`group` is `Other`). An unlabeled `Other` with tap or long-press renders as `button`. States render as words: `off`, `on`, `disabled`, `focused`, `selected`, `scrollable↓`, `scrollable↑↓`, `under-keyboard`.
