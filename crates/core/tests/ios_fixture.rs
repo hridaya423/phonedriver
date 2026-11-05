@@ -26,6 +26,7 @@ fn header() -> Header {
         }),
         keyboard: None,
         settle: None,
+        secure_hidden: false,
     }
 }
 
