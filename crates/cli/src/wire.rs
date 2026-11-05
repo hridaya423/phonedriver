@@ -60,6 +60,9 @@ pub enum Action {
     Press {
         key: String,
     },
+    Clear {
+        target: Target,
+    },
     Swipe {
         direction: Direction,
         from: Option<Target>,
@@ -91,6 +94,7 @@ impl std::fmt::Debug for Action {
                 text.chars().count()
             ),
             Action::Press { key } => write!(f, "Press({key})"),
+            Action::Clear { target } => write!(f, "Clear({target:?})"),
             Action::Swipe { direction, .. } => write!(f, "Swipe({direction:?})"),
             Action::Scroll {
                 direction, until, ..
@@ -197,6 +201,11 @@ pub struct SnapshotParams {
 
 #[derive(Debug, Deserialize)]
 pub struct AppsParams {}
+
+#[derive(Deserialize)]
+pub struct ClipboardParams {
+    pub set: Option<String>,
+}
 
 #[derive(Debug, Deserialize)]
 pub struct FindParams {

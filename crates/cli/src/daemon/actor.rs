@@ -7,8 +7,8 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use phone_use_core::device::{
-    App, Button, Capabilities, Device, DeviceEvent, FrameRef, Gesture, Key, Quality, TextInput,
-    TimedPoint, Url,
+    App, Button, Capabilities, ClipboardOp, Device, DeviceEvent, FrameRef, Gesture, Key, Quality,
+    TextInput, TimedPoint, Url,
 };
 use phone_use_core::diff::{DiffOrFull, diff};
 use phone_use_core::element::{Actions, Element, ElementState, Ref, Role};
@@ -29,8 +29,8 @@ use tokio::time::Instant;
 use super::DeviceSource;
 use super::session::{Resolved, Session};
 use crate::wire::{
-    ActParams, Action, ActionResult, FindParams, Kind, Observation, ScreenshotResult,
-    SnapshotParams, Target, TypeMode, WaitParams,
+    ActParams, Action, ActionResult, ClipboardParams, FindParams, Kind, Observation,
+    ScreenshotResult, SnapshotParams, Target, TypeMode, WaitParams,
 };
 
 pub const LEASE_TTL: Duration = Duration::from_secs(600);
@@ -44,6 +44,7 @@ pub enum Call {
     Wait(WaitParams),
     Find(FindParams),
     Apps,
+    Clipboard(ClipboardParams),
     Release,
     /// Who holds the lease, without taking it.
     Leased,
@@ -330,6 +331,21 @@ impl Actor {
             Call::Apps => {
                 self.need(Capabilities::APPS, Op::Apps, "this device cannot list apps")?;
                 to_value(self.device()?.apps().await?)
+            }
+            Call::Clipboard(p) => {
+                self.need(
+                    Capabilities::CLIPBOARD,
+                    Op::Clipboard,
+                    "this device has no clipboard access",
+                )?;
+                let device = self.device()?;
+                match p.set {
+                    Some(text) => {
+                        device.clipboard(ClipboardOp::Set(text)).await?;
+                        json!({})
+                    }
+                    None => json!({"text": device.clipboard(ClipboardOp::Get).await?}),
+                }
             }
             Call::Release | Call::Leased => json!({}),
         };
@@ -707,6 +723,42 @@ impl Actor {
                     format!("pressed {key}"),
                     None,
                     None,
+                    None,
+                )
+                .await
+            }
+            Action::Clear { target } => {
+                self.need(
+                    Capabilities::TEXT_SET,
+                    Op::Text,
+                    "this device cannot set field values",
+                )?;
+                let r = self.resolve_target(s, &target).await?;
+                let secure = r.element.as_ref().is_some_and(is_secure);
+                let started = self.begin_action();
+                device.gesture(gesture::tap(r.at, 1, None)).await?;
+                device
+                    .text(TextInput::SetValue(String::new()))
+                    .await
+                    .map_err(|e| withhold(e, secure))?;
+                let label = r
+                    .line
+                    .as_deref()
+                    .map(|l| format!(" {}", short(l)))
+                    .unwrap_or_default();
+                let verify = Verify {
+                    field: r.element.map(|e| e.r#ref),
+                    text: String::new(),
+                    secure,
+                };
+                self.finish(
+                    s,
+                    p.settle,
+                    cfg,
+                    started,
+                    format!("cleared{label}"),
+                    Some("set"),
+                    Some(verify),
                     None,
                 )
                 .await
@@ -1134,8 +1186,11 @@ impl Verify {
             return false;
         };
         let Some(value) = e.value.as_deref() else {
-            return false;
+            return self.text.is_empty();
         };
+        if self.text.is_empty() {
+            return value.is_empty();
+        }
         if self.secure || is_secure(e) {
             value.chars().count() >= self.text.chars().count()
         } else {

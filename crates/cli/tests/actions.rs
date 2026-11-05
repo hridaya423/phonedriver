@@ -606,3 +606,64 @@ async fn open_a_deep_link_shows_that_row_and_a_web_link_shows_the_page() {
     }
     assert!(shown, "{r}");
 }
+
+#[tokio::test]
+#[ignore = "needs PHONE_USE_TEST_DEVICE"]
+async fn clear_empties_a_plain_field_and_the_testbed_logs_an_empty_value() {
+    let rig = Rig::new().await;
+    rig.tab("text").await;
+    rig.ok(&["type", "hello", "--into", "plain"]);
+    testbed::wait_for_log(&rig.adb, &rig.serial, 3000, |l| {
+        l.iter()
+            .any(|e| e["field"] == "plain" && e["value"] == "hello")
+    })
+    .await;
+    testbed::clear_log(&rig.adb, &rig.serial).await;
+    let r = rig.json(&["clear", "plain"]);
+    assert_eq!(r["verified"], true, "{r}");
+    let log = testbed::wait_for_log(&rig.adb, &rig.serial, 3000, |l| {
+        l.iter()
+            .any(|e| e["ev"] == "text" && e["field"] == "plain" && e["value"] == "")
+    })
+    .await;
+    assert!(
+        log.iter()
+            .any(|e| e["ev"] == "text" && e["field"] == "plain" && e["value"] == ""),
+        "{log:?}"
+    );
+    let last = log
+        .iter()
+        .rfind(|e| e["ev"] == "text" && e["field"] == "plain")
+        .unwrap();
+    assert_eq!(last["value"], "", "{log:?}");
+}
+
+#[tokio::test]
+#[ignore = "needs PHONE_USE_TEST_DEVICE"]
+async fn clipboard_set_then_get_prints_what_was_set_in_unicode_too() {
+    let rig = Rig::new().await;
+    rig.ok(&["clipboard", "set", "x"]);
+    assert_eq!(rig.ok(&["clipboard"]).trim(), "x");
+    rig.ok(&["clipboard", "set", UNICODE]);
+    assert_eq!(rig.ok(&["clipboard", "get"]).trim(), UNICODE);
+}
+
+#[tokio::test]
+#[ignore = "needs PHONE_USE_TEST_DEVICE"]
+async fn after_a_paste_type_the_device_clipboard_is_what_it_was_before() {
+    let rig = Rig::new().await;
+    rig.tab("text").await;
+    rig.ok(&["clipboard", "set", "before-clip"]);
+    let r = rig.json(&["type", "hello", "--into", "plain", "--mode", "paste"]);
+    assert_eq!(r["verified"], true, "{r}");
+    let log = testbed::read_log(&rig.adb, &rig.serial).await;
+    assert!(
+        log.iter()
+            .any(|e| e["field"] == "plain" && e["value"] == "hello"),
+        "{log:?}"
+    );
+    assert_eq!(rig.ok(&["clipboard"]).trim(), "before-clip");
+    let r = rig.json(&["type", "again", "--into", "plain", "--mode", "paste"]);
+    assert_eq!(r["verified"], true, "{r}");
+    assert_eq!(rig.ok(&["clipboard"]).trim(), "before-clip");
+}

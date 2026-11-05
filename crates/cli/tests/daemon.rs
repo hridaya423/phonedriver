@@ -993,3 +993,55 @@ async fn open_hands_the_url_to_the_device() {
         vec![Call::OpenUrl(Url("https://example.com".into()))]
     );
 }
+
+#[tokio::test(start_paused = true)]
+async fn clear_taps_the_field_sets_its_value_to_nothing_and_verifies_it_is_empty() {
+    let (source, fake) = FakeSource::with(vec![
+        field_tree("hello", false),
+        field_tree("hello", false),
+        field_tree("", false),
+    ]);
+    let (d, _home) = daemon(source);
+    ok(&d, "default", "snapshot", json!({})).await;
+    let r = ok(
+        &d,
+        "default",
+        "act",
+        json!({"action": {"kind": "clear", "target": {"ref": "e1"}}}),
+    )
+    .await;
+    assert_eq!(r["verified"], true, "{r}");
+    assert_eq!(r["via"], "set");
+    let calls = fake.calls();
+    assert!(matches!(calls[0], Call::Gesture(_)), "{calls:?}");
+    assert_eq!(
+        calls[1],
+        Call::Text(phone_use_core::device::TextInput::SetValue(String::new()))
+    );
+}
+
+#[tokio::test(start_paused = true)]
+async fn clear_reports_not_verified_when_the_field_still_holds_text() {
+    let (source, _) = FakeSource::with(vec![field_tree("stuck", false)]);
+    let (d, _home) = daemon(source);
+    ok(&d, "default", "snapshot", json!({})).await;
+    let r = ok(
+        &d,
+        "default",
+        "act",
+        json!({"action": {"kind": "clear", "target": {"ref": "e1"}}}),
+    )
+    .await;
+    assert_eq!(r["verified"], false, "{r}");
+}
+
+#[tokio::test(start_paused = true)]
+async fn clipboard_sets_and_reads_the_device_clipboard_and_the_trace_keeps_neither() {
+    let (source, _) = FakeSource::with(vec![]);
+    let (d, home) = daemon(source);
+    let r = ok(&d, "default", "clipboard", json!({"set": "clip-secret-1"})).await;
+    assert_eq!(r, json!({}));
+    let r = ok(&d, "default", "clipboard", json!({})).await;
+    assert_eq!(r["text"], "clip-secret-1");
+    assert!(!trace_text(home.path()).contains("clip-secret-1"));
+}

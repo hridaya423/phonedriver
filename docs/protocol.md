@@ -29,7 +29,7 @@ Version mismatch: the daemon replies with error code `-32010 version_mismatch` a
 | `act` | `device?, action: Action, settle?: bool, timeout_ms?, expect_change_ms?` | `ActionResult` |
 | `wait` | `device?, condition: WaitCondition, timeout_ms?, expect_change_ms?` | `ActionResult` |
 | `apps` | `device?` | `[App]` (launchable apps: `{id, name, system}`) |
-| `clipboard` | `device?, set?: string` | `{text?: string}` |
+| `clipboard` | `device?, set?: string` | `{text?: string}` (`{}` after a set; `text` is null when the clipboard is empty) |
 
 `device` is omitted when exactly one device is connected or a default is set. Every device method also takes `session` (string, default `"default"`); refs, diff baselines and leases belong to the session, not to the socket connection (architecture section 5).
 
