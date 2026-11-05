@@ -7,3 +7,4 @@ pub mod prune;
 pub mod raw;
 pub mod refs;
 pub mod render;
+pub mod settle;
