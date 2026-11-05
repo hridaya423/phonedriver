@@ -346,6 +346,7 @@ dependencies = [
  "async-trait",
  "getrandom",
  "phone-use-core",
+ "serde",
  "serde_json",
  "sha2",
  "tokio",
