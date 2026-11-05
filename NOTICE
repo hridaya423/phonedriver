@@ -1,5 +1,5 @@
 phone-use
-==
+=========
 
 The on-device agent in android-agent/ contains source files copied from scrcpy
 (https://github.com/Genymobile/scrcpy, commit a60891a), which is licensed under the
@@ -36,7 +36,7 @@ android-agent/src/com/genymobile/scrcpy/wrappers/WindowManager.java
 
 The video encoder settings (android-agent/src/dev/phoneuse/agent/Video.java) follow
 scrcpy's video/SurfaceEncoder.java; the gesture player and control server are new code.
-=======
+
 phone-use includes material derived from the following projects.
 
 ------------------------------------------------------------------------------
