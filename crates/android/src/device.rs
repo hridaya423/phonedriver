@@ -228,4 +228,14 @@ impl Device for AndroidDevice {
         let reply = self.simple(Op::Foreground, json!({"op": "state"})).await?;
         Ok(reply["foreground"].as_str().map(|p| AppId(p.to_string())))
     }
+
+    async fn capture_tree(&self) -> Result<Option<String>> {
+        let mut reply = self.simple(Op::Tree, json!({"op": "tree"})).await?;
+        if let Some(map) = reply.as_object_mut() {
+            map.remove("id");
+            map.remove("ok");
+            map.insert("density".into(), self.density.into());
+        }
+        Ok(Some(reply.to_string()))
+    }
 }

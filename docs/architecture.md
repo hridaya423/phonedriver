@@ -168,7 +168,7 @@ Why two thresholds (spike A3, 20 runs per case on API 26 and 37, `docs/spikes/an
 
 At `timeout` (default 5 s for actions, 2 s for `snapshot`) the detector stops with `settled: false` and `still_changing` (the union of recent `changed_box`es). This is a normal reply with the observation attached, not an error: looping video and carousels never settle and the agent still needs to see the screen. Only `wait settled` turns it into the `NotSettled` error.
 
-`snapshot` also waits for quiet (phase 2 only) unless `--no-settle`.
+`snapshot` also waits for quiet (phase 2 only) unless `--no-settle`. The actor watches frames and window events for as long as it holds a device, so a snapshot of a screen that has already been quiet for `quiet` returns at once; only recent activity is replayed into the detector.
 
 Tested with a simulated clock and scripted event sequences. No sleeps in tests.
 
@@ -217,11 +217,12 @@ pub trait Device: Send + Sync {
     async fn key(&self, k: Key) -> Result<()>;
     async fn button(&self, b: Button) -> Result<()>;      // Home, Back, Recents, Notifications, Lock, VolumeUp, VolumeDown
     async fn open_url(&self, url: &Url) -> Result<()>;
-    async fn text(&self, t: TextInput) -> Result<()>;     // Paste | SetValue | Keystrokes
+    async fn text(&self, t: TextInput) -> Result<()>;     // Paste | PasteSecret | SetValue | Keystrokes
     async fn clipboard(&self, op: ClipboardOp) -> Result<Option<String>>;
     async fn apps(&self) -> Result<Vec<App>>;
     async fn launch(&self, app: &AppId) -> Result<()>;
     async fn foreground(&self) -> Result<Option<AppId>>;
+    async fn capture_tree(&self) -> Result<Option<String>>; // default None: the platform's own tree JSON, for fixtures
 }
 ```
 
