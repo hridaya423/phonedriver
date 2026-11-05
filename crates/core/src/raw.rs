@@ -270,6 +270,9 @@ fn node(
         Platform::Android => Role::from_android_class(&n.cls),
         Platform::Ios => Role::from_xcui(&n.cls),
     };
+    if role == Role::Other && n.coll.is_some_and(|c| c.rows > 0 || c.cols > 0) {
+        role = Role::List;
+    }
     if flags.contains(NodeFlags::PASSWORD) && matches!(role, Role::TextField | Role::Other) {
         role = Role::SecureField;
     }
@@ -485,6 +488,14 @@ mod tests {
             ),
             "{err:?}"
         );
+    }
+
+    #[test]
+    fn compose_lazy_list_with_collection_info_is_a_list() {
+        let json = r#"{"windows":[],"nodes":[{"p":-1,"w":1,"cls":"android.view.View","b":[0,0,1,1],"f":"vVeS","a":["scroll_down","scroll_fwd"],"coll":{"rows":31,"cols":1}},{"p":0,"w":1,"cls":"android.view.View","b":[0,0,1,1],"f":"vVe","a":["tap"]}]}"#;
+        let t = RawTree::from_android_json(json, Scale { density: 1.0 }).unwrap();
+        assert_eq!(t.nodes[0].role, Role::List);
+        assert_eq!(t.nodes[1].role, Role::Other);
     }
 
     #[test]

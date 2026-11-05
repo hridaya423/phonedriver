@@ -399,6 +399,38 @@ mod tests {
         build_json(&json, 1.0)
     }
 
+    fn real(json: &str) -> String {
+        build_json(json, 2.625).text(&Filters::default()).unwrap()
+    }
+
+    #[test]
+    fn real_settings_main() {
+        insta::assert_snapshot!(
+            "real_settings_main",
+            real(include_str!(
+                "../tests/fixtures/android/real_settings_main.json"
+            ))
+        );
+    }
+
+    #[test]
+    fn real_settings_apps() {
+        insta::assert_snapshot!(
+            "real_settings_apps",
+            real(include_str!(
+                "../tests/fixtures/android/real_settings_apps.json"
+            ))
+        );
+    }
+
+    #[test]
+    fn real_dialog() {
+        insta::assert_snapshot!(
+            "real_dialog",
+            real(include_str!("../tests/fixtures/android/real_dialog.json"))
+        );
+    }
+
     #[test]
     fn golden_default() {
         insta::assert_snapshot!(
