@@ -10,6 +10,9 @@ pub struct Config {
     pub quiet: Duration,
     /// Changed area in square points above which a frame counts as a change.
     pub significant_area: f32,
+    /// Changed area above which a frame counts as the first change after an action.
+    /// A switch toggle changes at most 432 pt², a blinking caret 96 pt² (spike A3).
+    pub first_change_area: f32,
     pub timeout: Duration,
 }
 
@@ -19,6 +22,7 @@ impl Config {
             expect_change: Some(Duration::from_millis(500)),
             quiet: Duration::from_millis(250),
             significant_area: 4096.0,
+            first_change_area: 128.0,
             timeout: Duration::from_secs(5),
         }
     }
@@ -92,7 +96,10 @@ impl Detector {
                 changed_area_pt2,
                 changed_box,
             } => {
-                if changed_area_pt2 <= self.config.significant_area {
+                let first = self.last_significant.is_none()
+                    && self.config.expect_change.is_some()
+                    && changed_area_pt2 > self.config.first_change_area;
+                if changed_area_pt2 <= self.config.significant_area && !first {
                     return;
                 }
                 Some(changed_box)
@@ -204,6 +211,29 @@ mod tests {
     }
 
     #[test]
+    fn a_toggle_sized_change_counts_as_the_first_change() {
+        let mut d = Detector::new(Config::action(), ms(0));
+        d.feed(frame(400.0), ms(300));
+        assert_eq!(done(d.poll(ms(549))), None);
+        assert_eq!(done(d.poll(ms(550))), Some((true, true)));
+    }
+
+    #[test]
+    fn a_caret_sized_change_is_not_a_first_change() {
+        let mut d = Detector::new(Config::action(), ms(0));
+        d.feed(frame(96.0), ms(300));
+        assert_eq!(done(d.poll(ms(500))), Some((true, false)));
+    }
+
+    #[test]
+    fn small_frames_after_the_first_change_do_not_extend_quiet() {
+        let mut d = Detector::new(Config::action(), ms(0));
+        d.feed(frame(20_000.0), ms(100));
+        d.feed(frame(400.0), ms(300));
+        assert_eq!(done(d.poll(ms(350))), Some((true, true)));
+    }
+
+    #[test]
     fn no_change_after_action_waits_for_first_change_window() {
         let mut d = Detector::new(Config::action(), ms(0));
         assert_eq!(
@@ -256,13 +286,24 @@ mod tests {
         let mut d = Detector::new(Config::action(), ms(0));
         let mut t = 0;
         while t < 600 {
-            d.feed(frame(1_000.0), ms(t));
+            d.feed(frame(96.0), ms(t));
             if t == 495 {
                 assert_eq!(done(d.poll(ms(t))), None);
             }
             t += 33;
         }
         assert_eq!(done(d.poll(ms(600))), Some((true, false)));
+    }
+
+    #[test]
+    fn a_spinner_sized_change_counts_once_then_never_blocks_quiet() {
+        let mut d = Detector::new(Config::action(), ms(0));
+        let mut t = 0;
+        while t < 2_000 {
+            d.feed(frame(480.0), ms(t));
+            t += 33;
+        }
+        assert_eq!(done(d.poll(ms(250))), Some((true, true)));
     }
 
     #[test]
@@ -330,7 +371,7 @@ mod tests {
                 while next < inputs.len() && inputs[next].0 <= now {
                     let (t, area) = inputs[next];
                     let input = match area { None => Input::WindowChanged, Some(a) => frame(a) };
-                    if area.is_none_or(|a| a > config.significant_area) { last_significant = Some(t); }
+                    if area.is_none_or(|a| a > config.significant_area || (last_significant.is_none() && config.expect_change.is_some() && a > config.first_change_area)) { last_significant = Some(t); }
                     d.feed(input, ms(t));
                     next += 1;
                 }
