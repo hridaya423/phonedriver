@@ -80,6 +80,7 @@ Record runner screenshot time (p50/p95) as its own number; it sets how fast the 
 
 Add checks: Xcode found, a simulator booted, runner builds, runner answers `hello`. Test on the mini.
 
+*As built (2026-11-05):* `crates/cli/src/doctor.rs` and the `doctor` verb, with the line format Phase 4's task 4.3 asks for (`ok`, `warn` or `fail`, a fix under every problem); Phase 4 adds the Android checks to the same file. Checks: `xcodebuild -version`, `xcodegen` (the runner project is generated with it), booted simulators (`warn` when none), the runner build, and for each booted simulator a snapshot through the daemon in a `doctor` session. The runner serves one connection and a new connection cancels the old one, so `doctor` never probes a runner port itself: that would cut off a daemon that holds it. The daemon's connect says `hello`.
 
 ---
 

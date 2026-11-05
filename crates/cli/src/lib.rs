@@ -5,4 +5,5 @@ pub mod commands;
 pub mod daemon;
 #[cfg(windows)]
 mod detach;
+pub mod doctor;
 pub mod wire;
