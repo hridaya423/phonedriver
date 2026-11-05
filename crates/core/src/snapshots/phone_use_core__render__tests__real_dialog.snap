@@ -1,0 +1,11 @@
+---
+source: crates/core/src/render.rs
+assertion_line: 424
+expression: "real(include_str!(\"../tests/fixtures/android/real_dialog.json\"))"
+---
+device android:emulator-5554 · Pixel 9 · Android 17 · 360x800pt · portrait
+app com.android.settings (Settings) · keyboard hidden · settled in 212ms
+@e1 text "Delete conversation?"
+@e2 text "This removes 42 messages from this device."
+@e3 button "CANCEL"
+@e4 button "DELETE"

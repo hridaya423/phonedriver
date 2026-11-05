@@ -5,3 +5,6 @@
 /testbeds/android/build
 /testbeds/android/.gradle
 /ios-runner/build
+/spikes/*/target
+/spikes/*/testapp/build
+/spikes/a3out
