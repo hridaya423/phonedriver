@@ -196,3 +196,51 @@ async fn the_pipeline_decodes_every_packet_without_dropping_any() {
     let f = stream.store.latest().unwrap();
     assert_eq!((f.width, f.height), (1080, 2424));
 }
+
+#[test]
+fn a_region_is_black_when_every_sample_in_it_is_at_the_black_level() {
+    use phone_use_core::geometry::Rect;
+    let store = FrameStore::new(DENSITY);
+    let region = Rect {
+        x: 50.0,
+        y: 100.0,
+        w: 300.0,
+        h: 400.0,
+    };
+    assert!(!store.region_is_black(region), "no frame yet");
+    let mut y = vec![16u8; 1080 * 2400];
+    store.publish(Frame::from_i420(
+        1080,
+        2400,
+        y.clone(),
+        vec![128; 1080 * 2400 / 4],
+        vec![128; 1080 * 2400 / 4],
+    ));
+    assert!(store.region_is_black(region));
+    for row in 600..700 {
+        for col in 400..700 {
+            y[row * 1080 + col] = 220;
+        }
+    }
+    store.publish(Frame::from_i420(
+        1080,
+        2400,
+        y,
+        vec![128; 1080 * 2400 / 4],
+        vec![128; 1080 * 2400 / 4],
+    ));
+    assert!(
+        !store.region_is_black(region),
+        "a bright patch inside the region"
+    );
+    let elsewhere = Rect {
+        x: 5.0,
+        y: 5.0,
+        w: 60.0,
+        h: 60.0,
+    };
+    assert!(
+        store.region_is_black(elsewhere),
+        "the patch is outside this region"
+    );
+}

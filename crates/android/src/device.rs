@@ -6,8 +6,8 @@ use phone_use_core::device::{
     Gesture, Image, ImageFormat, Key, Quality, Result, TextInput, Url,
 };
 use phone_use_core::error::{Error, Op};
-use phone_use_core::geometry::Size;
-use phone_use_core::raw::RawTree;
+use phone_use_core::geometry::{Rect, Size};
+use phone_use_core::raw::{NodeFlags, RawTree};
 use phone_use_video::image::{encode_png, scaled_size};
 use phone_use_video::stream::VideoStream;
 use serde_json::{Value, json};
@@ -32,7 +32,8 @@ pub struct AndroidDevice {
 }
 
 impl AndroidDevice {
-    /// Deploys and starts the agent on `serial`, connects both streams, and starts decoding video.
+    /// Deploys and starts the agent on `serial`, connects both streams, and starts decoding video. It returns
+    /// once the first frame has been decoded (or after 2 s), so settle and screenshots have a picture from the start.
     /// `info().screen` is the size at connect time; a later rotation arrives as `DeviceEvent::DisplayChanged`.
     /// Dropping the device closes the agent's shell stream, which ends the agent within about a second.
     pub async fn connect(adb: &Adb, serial: &str) -> Result<AndroidDevice> {
@@ -46,6 +47,9 @@ impl AndroidDevice {
         let density = hello.density;
         let id = format!("android:{serial}");
         let (events, _) = broadcast::channel(EVENT_BACKLOG);
+        let video = VideoStream::spawn(video, density);
+        let mut first = video.store.subscribe();
+        let _ = tokio::time::timeout(FIRST_FRAME_WAIT, first.wait_for(|f| f.seq > 0)).await;
         Ok(AndroidDevice {
             info: DeviceInfo {
                 id: id.clone(),
@@ -60,7 +64,7 @@ impl AndroidDevice {
             },
             density,
             control: Control::new(id, control, density, events.clone()),
-            video: VideoStream::spawn(video, density),
+            video,
             events,
             log,
             _launched: launched,
@@ -226,6 +230,27 @@ impl Device for AndroidDevice {
     async fn foreground(&self) -> Result<Option<AppId>> {
         let reply = self.simple(Op::Foreground, json!({"op": "state"})).await?;
         Ok(reply["foreground"].as_str().map(|p| AppId(p.to_string())))
+    }
+
+    fn secure_content_hidden(&self, tree: &RawTree) -> bool {
+        tree.windows
+            .iter()
+            .filter(|w| w.kind == "application")
+            .any(|w| {
+                let b = w.bounds;
+                let middle = Rect {
+                    x: b.x,
+                    y: b.y + b.h * 0.25,
+                    w: b.w,
+                    h: b.h * 0.5,
+                };
+                let shows_text = tree.nodes.iter().any(|n| {
+                    n.window == w.id
+                        && n.label.is_some()
+                        && n.flags.contains(NodeFlags::VISIBLE_TO_USER)
+                });
+                shows_text && self.video.store.region_is_black(middle)
+            })
     }
 
     async fn capture_tree(&self) -> Result<Option<String>> {

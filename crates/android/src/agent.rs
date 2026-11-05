@@ -214,6 +214,17 @@ pub async fn write_frame<W: AsyncWrite + Unpin>(s: &mut W, v: &Value) -> Result<
         .map_err(|e| transport(format!("the agent connection broke: {e}")))
 }
 
+/// Reads frames until the reply to request `id`. The agent pushes events at any time, including before a
+/// reply (a window change right after connecting), and they are not replies.
+pub async fn read_reply<R: AsyncRead + Unpin>(s: &mut R, id: u64) -> Result<Value> {
+    loop {
+        let frame = read_frame(s).await?;
+        if frame["id"].as_u64() == Some(id) {
+            return Ok(frame);
+        }
+    }
+}
+
 pub async fn read_frame<R: AsyncRead + Unpin>(s: &mut R) -> Result<Value> {
     let broke = |e: std::io::Error| transport(format!("the agent connection broke: {e}"));
     let mut len = [0u8; 4];
@@ -265,15 +276,12 @@ impl Agent {
             &json!({"id": 0, "op": "hello", "version": VERSION, "token": launched.token}),
         )
         .await?;
-        let reply = read_frame(&mut control).await.map_err(|e| {
+        let reply = read_reply(&mut control, 0).await.map_err(|e| {
             let lines = launched.log.recent().join("\n");
             transport(format!("no hello from the agent ({e}); agent log: {lines}"))
         })?;
         if reply["ok"] != true {
-            return Err(transport(format!(
-                "the agent refused hello: {}",
-                reply["error"]
-            )));
+            return Err(transport(format!("the agent refused hello: {reply}")));
         }
         let hello = serde_json::from_value(reply)
             .map_err(|e| transport(format!("the agent's hello was malformed: {e}")))?;

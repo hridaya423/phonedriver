@@ -204,7 +204,7 @@ final class Screens {
         root.addView(bar);
         TextView spinner = new TextView(a);
         spinner.setText("Spinning");
-        spinner.setTextSize(TypedValue.COMPLEX_UNIT_SP, 24);
+        spinner.setTextSize(TypedValue.COMPLEX_UNIT_SP, 12);
         ValueAnimator anim = ValueAnimator.ofFloat(0f, 360f);
         anim.setDuration(1000);
         anim.setRepeatCount(ValueAnimator.INFINITE);

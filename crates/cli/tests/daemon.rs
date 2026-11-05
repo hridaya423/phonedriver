@@ -508,3 +508,28 @@ async fn a_malformed_type_action_does_not_echo_the_text_in_its_error() {
     assert_eq!(e.code, -32602);
     assert!(!e.to_json().to_string().contains("hunter2"));
 }
+
+#[tokio::test(start_paused = true)]
+async fn a_snapshot_of_a_screen_that_has_been_quiet_returns_at_once_and_one_right_after_activity_waits()
+ {
+    let (source, fake) = FakeSource::with(vec![tree(&["One"])]);
+    let (d, _home) = daemon(source);
+    let first = ok(&d, "default", "snapshot", json!({})).await;
+    let ms = first["settle_ms"].as_u64().unwrap();
+    assert!(
+        (200..=260).contains(&ms),
+        "right after connect the quiet period is still running: {ms}"
+    );
+    tokio::time::sleep(Duration::from_secs(1)).await;
+    let second = ok(&d, "default", "snapshot", json!({})).await;
+    assert_eq!(second["settle_ms"], 0, "{second}");
+    assert_eq!(second["settled"], true);
+    fake.push_frame(big_frame(1));
+    tokio::time::sleep(Duration::from_millis(100)).await;
+    let third = ok(&d, "default", "snapshot", json!({})).await;
+    let ms = third["settle_ms"].as_u64().unwrap();
+    assert!(
+        (140..=260).contains(&ms),
+        "100 ms into a burst, about 150 ms of quiet remain: {ms}"
+    );
+}

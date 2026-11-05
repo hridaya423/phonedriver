@@ -97,7 +97,7 @@ struct Actor {
     live: Option<Live>,
     sessions: HashMap<String, Session>,
     base: Instant,
-    /// The latest input that would have delayed a settle, so a snapshot of an already quiet screen does not wait.
+    /// The latest input that would have delayed a settle, or the moment the device connected: quiet counts from there, so a snapshot of an already quiet screen does not wait.
     recent: Option<(Duration, Input)>,
     names: Arc<Mutex<HashMap<String, String>>>,
 }
@@ -235,6 +235,7 @@ impl Actor {
                 }
             }
         });
+        self.recent = Some((self.now(), Input::WindowChanged));
         self.live = Some(Live {
             device,
             frames,
@@ -329,8 +330,12 @@ impl Actor {
     }
 
     fn build(&self, s: &mut Session, tree: &RawTree, settle: Option<SettleLine>) -> Rendered {
-        let (info, screen) = match &self.live {
-            Some(l) => (l.device.info().clone(), l.screen),
+        let (info, screen, secure_hidden) = match &self.live {
+            Some(l) => (
+                l.device.info().clone(),
+                l.screen,
+                l.device.secure_content_hidden(tree),
+            ),
             None => return Rendered::build(Vec::new(), &[], Header::default()),
         };
         let nodes = prune(tree);
@@ -369,6 +374,7 @@ impl Actor {
             app,
             keyboard,
             settle,
+            secure_hidden,
         };
         Rendered::build(nodes, &refs, header)
     }
@@ -385,7 +391,6 @@ impl Actor {
         let mut det = Detector::new(cfg, started);
         if cfg.expect_change.is_none()
             && let Some((t, input)) = self.recent
-            && started.saturating_sub(t) < cfg.quiet
         {
             det.feed(input, t);
         }
