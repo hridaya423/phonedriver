@@ -140,7 +140,7 @@ Text-target resolution follows the same rule: `tap "Network & internet"` matches
 
 Text limits: truncate text above 200 chars as `…(+N chars)`. `SecureField` values render as `•••` and are never logged.
 
-Line grammar: `@eN role "label" ["value"] [state…]`, indented two spaces per kept depth. States render as words: `off`, `on`, `disabled`, `focused`, `selected`, `scrollable↓`, `scrollable↑↓`, `under-keyboard`.
+Line grammar: `@eN role "label" ["value"] [state…]`, indented two spaces per kept depth. The second quoted string is the value, or the hint when there is no value (a row's merged subtitle, a field's placeholder). A checkable element's value is omitted when its `on`/`off` word already says it. Role words: `button link text heading textbox searchbox password switch checkbox radio slider image list cell tab menu menuitem dialog keyboard webview alert progress group` (`group` is `Other`). An unlabeled `Other` with tap or long-press renders as `button`. States render as words: `off`, `on`, `disabled`, `focused`, `selected`, `scrollable↓`, `scrollable↑↓`, `under-keyboard`.
 
 Header lines: device, app, keyboard state, orientation, settle time, and `loading` when a visible `ProgressIndicator` exists.
 
