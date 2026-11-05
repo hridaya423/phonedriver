@@ -1,0 +1,22 @@
+name: Spike
+options:
+  deploymentTarget:
+    iOS: "17.0"
+targets:
+  Spike:
+    type: bundle.ui-testing
+    platform: iOS
+    sources: [Spike]
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        PRODUCT_BUNDLE_IDENTIFIER: dev.phoneuse.spike
+        CODE_SIGN_IDENTITY: "-"
+        CODE_SIGN_STYLE: Manual
+schemes:
+  Spike:
+    build:
+      targets:
+        Spike: [test]
+    test:
+      targets: [Spike]
