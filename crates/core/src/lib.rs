@@ -10,5 +10,6 @@ pub mod raw;
 pub mod refs;
 pub mod render;
 pub mod settle;
+pub mod similar;
 #[cfg(any(test, feature = "testing"))]
 pub mod testing;

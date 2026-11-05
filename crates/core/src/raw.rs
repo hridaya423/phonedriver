@@ -199,12 +199,23 @@ impl RawTree {
                 bounds: ltrb(w.bounds, scale),
             })
             .collect();
-        let nodes = wire
+        let mut nodes: Vec<RawNode> = wire
             .nodes
             .into_iter()
             .enumerate()
             .map(|(i, n)| node(i, n, scale, platform))
             .collect::<Result<_, _>>()?;
+        // RecyclerView attaches collection item info only to rows bound while an accessibility service was
+        // connected, so rows created before the agent connected carry none: a text row of a list is a cell either way.
+        for i in 0..nodes.len() {
+            let in_list = nodes[i].parent.is_some_and(|p| nodes[p].role == Role::List);
+            let pressable = nodes[i]
+                .actions
+                .intersects(Actions::TAP | Actions::LONG_PRESS);
+            if in_list && !pressable && nodes[i].role == Role::Text {
+                nodes[i].role = Role::Cell;
+            }
+        }
         Ok(RawTree { windows, nodes })
     }
 
@@ -272,6 +283,10 @@ fn node(
     };
     if role == Role::Other && n.coll.is_some_and(|c| c.rows > 0 || c.cols > 0) {
         role = Role::List;
+    }
+    let pressable = actions.intersects(Actions::TAP | Actions::LONG_PRESS);
+    if n.item.is_some() && !pressable && matches!(role, Role::Text | Role::Other) {
+        role = Role::Cell;
     }
     if flags.contains(NodeFlags::PASSWORD) && matches!(role, Role::TextField | Role::Other) {
         role = Role::SecureField;

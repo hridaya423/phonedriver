@@ -91,6 +91,7 @@ impl Rendered {
                 state: n.state,
                 actions: n.actions,
                 position: n.position,
+                collection: n.collection,
                 source: Source::Tree,
                 children: Vec::new(),
             })
@@ -204,6 +205,15 @@ impl Rendered {
         let mut s = format!("@{} {}", e.r#ref, e.role.name());
         if let Some(l) = &e.label {
             let _ = write!(s, " {}", quote(l));
+        }
+        if e.role == Role::List
+            && let Some(c) = e.collection
+        {
+            let _ = match (c.rows, c.cols) {
+                (rows, 0 | 1) => write!(s, " {rows} rows"),
+                (1, cols) => write!(s, " {cols} columns"),
+                (rows, cols) => write!(s, " {rows}x{cols} cells"),
+            };
         }
         if let Some(v) = second_text(e) {
             let _ = write!(s, " {v}");
@@ -359,6 +369,7 @@ pub fn state_words(e: &Element) -> Vec<&'static str> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::element::ItemPos;
     use crate::geometry::{Point, Scale, Size};
     use crate::prune::prune;
     use crate::raw::RawTree;
@@ -720,5 +731,35 @@ mod tests {
             "@e1 list scrollable↑↓"
         );
         assert_eq!(words(r#""scroll_right""#), "@e1 list scrollable→");
+    }
+
+    #[test]
+    fn a_list_line_says_how_many_rows_it_has_and_an_inert_item_is_a_cell() {
+        let r = one(
+            r#"{"p":-1,"w":1,"cls":"androidx.recyclerview.widget.RecyclerView","b":[0,0,400,800],"f":"vVeS","a":["scroll_down"],"coll":{"rows":1000,"cols":1}},
+            {"p":0,"w":1,"cls":"android.widget.TextView","text":"Row 17","b":[0,0,400,40],"f":"vVe","item":{"row":17,"col":0}}"#,
+        );
+        let text = r.text(&Filters::default()).unwrap();
+        assert!(text.contains("@e1 list 1000 rows scrollable↓"), "{text}");
+        assert!(text.contains("@e2 cell \"Row 17\""), "{text}");
+        assert_eq!(r.elements[1].position, Some(ItemPos { row: 17, col: 0 }));
+    }
+
+    #[test]
+    fn a_text_row_without_item_info_is_still_a_cell_of_its_list() {
+        let r = one(
+            r#"{"p":-1,"w":1,"cls":"androidx.recyclerview.widget.RecyclerView","b":[0,0,400,800],"f":"vVeS","a":["scroll_down"],"coll":{"rows":1000,"cols":1}},
+            {"p":0,"w":1,"cls":"android.widget.TextView","text":"Row 17","b":[0,0,400,40],"f":"vVe"}"#,
+        );
+        assert_eq!(r.elements[1].role, Role::Cell);
+        assert_eq!(r.elements[1].position, None);
+    }
+
+    #[test]
+    fn a_clickable_item_stays_a_button() {
+        let r = one(
+            r#"{"p":-1,"w":1,"cls":"android.view.ViewGroup","text":"Wi-Fi","b":[0,0,400,40],"f":"vVe","a":["tap"],"item":{"row":1,"col":0}}"#,
+        );
+        assert_eq!(r.elements[0].role, Role::Button);
     }
 }

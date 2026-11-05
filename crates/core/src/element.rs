@@ -102,6 +102,44 @@ impl Role {
         }
     }
 
+    /// The inverse of `name`, for command lines. The snake_case serde names work too.
+    pub fn from_word(word: &str) -> Option<Role> {
+        const ALL: [Role; 23] = [
+            Role::Button,
+            Role::Link,
+            Role::Text,
+            Role::Heading,
+            Role::TextField,
+            Role::SearchField,
+            Role::SecureField,
+            Role::Switch,
+            Role::Checkbox,
+            Role::Radio,
+            Role::Slider,
+            Role::Image,
+            Role::List,
+            Role::Cell,
+            Role::Tab,
+            Role::Menu,
+            Role::MenuItem,
+            Role::Dialog,
+            Role::Keyboard,
+            Role::WebView,
+            Role::Alert,
+            Role::ProgressIndicator,
+            Role::Other,
+        ];
+        let w = word.to_lowercase();
+        ALL.into_iter().find(|r| {
+            r.name() == w
+                || serde_json::to_value(r)
+                    .ok()
+                    .and_then(|v| v.as_str().map(str::to_string))
+                    .as_deref()
+                    == Some(w.as_str())
+        })
+    }
+
     /// The word used in rendered snapshots.
     pub fn name(self) -> &'static str {
         match self {
@@ -232,6 +270,8 @@ pub struct Element {
     pub state: ElementState,
     pub actions: Actions,
     pub position: Option<ItemPos>,
+    /// Items of a list, from collection info.
+    pub collection: Option<crate::raw::Collection>,
     pub source: Source,
     pub children: Vec<ElementIdx>,
 }

@@ -14,7 +14,7 @@ use crate::daemon::android::AdbSource;
 use crate::daemon::{Config, Daemon, socket};
 use crate::wire::{ActionResult, DeviceEntry, Kind, Observation, ScreenshotResult, VERSION};
 
-const USAGE: &str = "usage: phone-use <command>\n\ncommands:\n  devices\n  snapshot\n  screenshot\n  tap\n  type\n  press\n  wait\n  release\n  daemon\n  version";
+const USAGE: &str = "usage: phone-use <command>\n\ncommands:\n  devices\n  snapshot\n  screenshot\n  find\n  tap\n  type\n  press\n  wait\n  release\n  daemon\n  version";
 
 #[derive(Parser)]
 #[command(name = "phone-use", disable_help_subcommand = true)]
@@ -75,7 +75,18 @@ enum Verb {
         output: Option<PathBuf>,
     },
     /// Tap `@ref`, `x,y` in points, or the element with this text.
-    Tap { target: String },
+    Tap {
+        target: String,
+        /// With a text target, only an element with this role (`button`, `cell`, `textbox`, ...).
+        #[arg(long)]
+        role: Option<String>,
+    },
+    /// List the elements whose text contains this text, in any case.
+    Find {
+        text: String,
+        #[arg(long)]
+        role: Option<String>,
+    },
     /// Type text into a field. Secrets come from stdin or PHONE_USE_SECRET, never from arguments.
     Type {
         text: Option<String>,
@@ -296,14 +307,34 @@ async fn execute(
             }
             Ok(format!("{path} {}x{}", shot.width, shot.height))
         }
-        Verb::Tap { target } => {
+        Verb::Tap { target, role } => {
+            let mut t = parse_target(&target);
+            if let Some(role) = role {
+                t["role"] = role_json(&role)?;
+            }
             let r = client
-                .call(
-                    "act",
-                    act(json!({"kind": "tap", "target": parse_target(&target)})),
-                )
+                .call("act", act(json!({"kind": "tap", "target": t})))
                 .await?;
             show_action(&r, g.json)
+        }
+        Verb::Find { text, role } => {
+            let mut p = json!({"text": text});
+            if let Some(role) = role {
+                p["role"] = role_json(&role)?;
+            }
+            let r = client.call("find", with(p)).await?;
+            if g.json {
+                return Ok(r.to_string());
+            }
+            let lines: Vec<&str> = r
+                .as_array()
+                .map(|a| a.iter().filter_map(Value::as_str).collect())
+                .unwrap_or_default();
+            Ok(if lines.is_empty() {
+                "no match".to_string()
+            } else {
+                lines.join("\n")
+            })
         }
         Verb::Type {
             text,
@@ -351,6 +382,12 @@ async fn execute(
         }
         Verb::Daemon { .. } | Verb::Version => Ok(String::new()),
     }
+}
+
+fn role_json(word: &str) -> Result<Value, Failure> {
+    phone_use_core::element::Role::from_word(word)
+        .and_then(|r| serde_json::to_value(r).ok())
+        .ok_or_else(|| Failure::Local(format!("unknown role {word:?}; use a word from a snapshot line such as button, cell, textbox or switch")))
 }
 
 fn decode<T: serde::de::DeserializeOwned>(v: &Value) -> Result<T, Failure> {
