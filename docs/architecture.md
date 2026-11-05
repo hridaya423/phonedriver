@@ -1,0 +1,458 @@
+# phone-use architecture
+
+phone-use lets an AI agent see and operate a real or virtual phone or tablet: Android and iOS, USB or network, device or emulator. This document is the design. `docs/decisions.md` records why each choice beat its alternatives. `docs/protocol.md` defines every wire format. Terms are defined in `docs/GLOSSARY.md`.
+
+## 1. What the agent experiences
+
+The design starts here. Everything below exists to make this loop fast, exact, and hard to misuse.
+
+```console
+$ phone-use snapshot
+device android:emulator-5554 · Pixel 9 · Android 17 · 412x915pt · portrait
+app com.android.settings (Settings) · keyboard hidden · settled in 212ms
+@e1 searchbox "Search settings"
+@e2 list scrollable↓
+  @e3 button "Network & internet" "Mobile, Wi‑Fi, hotspot"
+  @e4 button "Connected devices" "Bluetooth, pairing"
+  @e5 button "Apps" "Recent apps, default apps"
+  @e6 button "Display & touch" "Dark theme, font size, brightness"
+
+$ phone-use tap @e6
+ok tapped @e6 "Display & touch" at 206,488 · settled in 340ms · new screen
+app com.android.settings (Settings) · keyboard hidden
+@e9 heading "Display & touch"
+@e10 switch "Dark theme" off
+@e11 button "Brightness level" "64%"
+
+$ phone-use tap @e10
+ok tapped @e10 "Dark theme" · settled in 410ms
+~ @e10 switch "Dark theme" off → on
+```
+
+Properties of that loop:
+
+1. **One call per step.** Every action returns its own outcome and what changed, after the screen settles. The agent never has to poll or sleep.
+2. **Refs, not guesses.** `@e10` names an element. The daemon re-locates it at action time, so a list that shifted by a row still gets the right tap. A ref that no longer exists fails with the closest current match.
+3. **Diffs, not dumps.** Within a screen, the agent sees `+`, `-`, `~` lines: 1 to 20 lines instead of 100+. A new screen comes back as a full snapshot.
+4. **Honest results.** `type` reports whether the field now holds the text. `back` on iOS reports how it went back. Unsupported operations say so with a reason.
+5. **Same commands on every device.** Platform differences surface as capabilities and as `via` fields, never as different verbs.
+
+## 2. System shape
+
+```
+ agent ──CLI──┐                                ┌── Android device ── phone-use-agent (app_process, shell uid)
+ agent ──MCP──┼─ JSON-RPC over local socket ─ phone-use daemon ──┼── iOS 27+ device ── CoreDevice services (no app)
+ SDK  ────────┘                                │                 └── iOS ≤26 device / Simulator ── PhoneUseRunner (XCTest)
+                                               └── per device: DeviceActor { connection, FrameStore, Session state }
+```
+
+One Rust binary, `phone-use`, plays three roles selected by subcommand:
+
+- `phone-use <verb>`: the CLI. A thin client. It connects to the daemon, sends one request, prints the reply.
+- `phone-use daemon`: the long-lived process that owns every device connection. Started on demand by the CLI.
+- `phone-use mcp`: an MCP server on stdio. Also a thin client of the daemon.
+
+The daemon exists because the expensive things are persistent: the on-device agent, the iOS tunnel, the video decoder, the tree cache, ref identity. A per-call process (the competitor's model) pays all of that every time.
+
+## 3. Repository layout
+
+```
+phone-use/
+  Cargo.toml                    workspace
+  crates/
+    core/      phone-use-core   pure domain: elements, refs, snapshot render, diff, settle, geometry, errors
+    video/     phone-use-video  H.264/HEVC decode to FrameStore (RGBA + luma thumbnail)
+    android/   phone-use-android adb server client, agent deploy, agent protocol client, AndroidDevice
+    ios/       phone-use-ios    idevice transport, CoreDevice tier, runner client, simulator, IosDevice
+    cli/       phone-use        the binary: cli, daemon, mcp, rpc
+  android-agent/                Java sources for the on-device agent, built to phone-use-agent.jar
+  ios-runner/                   XcodeGen project for PhoneUseRunner (XCTest UI test bundle)
+  testbeds/android/             Gradle app with ground-truth UI and event logging
+  testbeds/ios/                 XcodeGen SwiftUI app with ground-truth UI and event logging
+  bench/                        workspace member `phone-use-bench` (publish = false): latency, scenarios, baselines
+  NOTICE                        attribution for code copied from scrcpy and WebDriverAgent
+  docs/
+```
+
+Why these crate boundaries (each must pay rent):
+- `core` is pure and has no IO. It holds the logic that decides correctness (ref matching, diff, settle, rendering) so it can be property-tested without devices.
+- `video` has two consumers (Android and iOS streams).
+- `android` and `ios` are the two implementations of the `Device` port. Their dependency trees are disjoint (`idevice` is large).
+- `cli` is the only binary. Daemon, CLI and MCP share request types, so they live together.
+
+No other shipped crates (`bench` is a dev-only binary). A new crate needs a second consumer or a disjoint dependency tree. OCR engines live in `cli` because they are IO; the pure merge logic lives in `core`.
+
+## 4. Domain model (`phone-use-core`)
+
+### 4.1 Coordinates
+
+One coordinate space everywhere: **logical points** of the current orientation, origin top-left. iOS points; Android dp (`px / density`). Screenshots default to 1 pixel per point, so a vision model's pixel guess is directly tappable. `--native` returns device pixels with the scale in the reply.
+
+Types: `Point { x: f32, y: f32 }`, `Rect { x, y, w, h }`, `Size`. Conversions to device units happen only inside each device implementation (Android px, iOS HID 0..65535 normalized).
+
+### 4.2 Elements
+
+```rust
+pub struct Element {
+    pub r#ref: Ref,                 // "e12"; stable for the life of the session while the element exists
+    pub role: Role,                 // closed enum, see below
+    pub label: Option<String>,      // accessible name: text, content-desc, accessibilityLabel
+    pub value: Option<String>,      // field text, slider value, switch state text
+    pub hint: Option<String>,       // placeholder (hintText / placeholderValue) or merged subtitle text (4.4)
+    pub id: Option<String>,         // resource-id / accessibilityIdentifier
+    pub bounds: Rect,               // logical points, clipped to the screen
+    pub state: ElementState,        // bitflags: ENABLED FOCUSED SELECTED CHECKED CHECKABLE EXPANDED COLLAPSED PASSWORD
+    pub actions: Actions,           // bitflags: TAP LONG_PRESS EDIT SCROLL_UP SCROLL_DOWN SCROLL_LEFT SCROLL_RIGHT
+    pub position: Option<ItemPos>,  // row/col of this item and its list's size, from collection info
+    pub source: Source,             // Tree | Ocr
+    pub children: Vec<ElementIdx>,
+}
+```
+
+`Role` is a closed enum: `Button, Link, Text, Heading, TextField, SearchField, SecureField, Switch, Checkbox, Radio, Slider, Image, List, Cell, Tab, Menu, MenuItem, Dialog, Keyboard, WebView, Alert, ProgressIndicator, Other`. Each platform maps its class names and traits once, in its own crate, in one table. Unknown classes become `Other` and are kept only if they carry text or actions.
+
+### 4.3 Refs
+
+A ref is assigned the first time an element is seen in a session and is never reused for a different element in that session (monotonic counter).
+
+Matching a new tree to the previous one (`core::refs::assign`), in order:
+1. Platform identity, only with continuity: Android `(windowId, sourceNodeId)` matches only if the role is the same **and** either the label is unchanged or the bounds moved less than 8 points. Recycled list rows (RecyclerView, Compose lazy lists) reuse the same view and node id for a different item after a scroll; without this check `@e12` "Row 12" would silently become "Row 20" and a tap would hit the wrong row. `sourceNodeId` comes from the hidden `AccessibilityNodeInfo.getSourceNodeId()` via reflection; if spike A1 shows it unavailable, step 1 is skipped. iOS snapshots have no stable id.
+2. Structural key: `(role, id, label)` plus nearest-ancestor key, with the closest bounds when several match.
+3. Otherwise a new ref.
+
+Invariants, each a property test:
+- An element whose identity, role, id and label are unchanged keeps its ref.
+- A node id whose label changed and whose bounds jumped is a new element and gets a new ref (recycling).
+- No ref ever refers to two different live elements.
+- `assign` is deterministic for the same input.
+
+At action time, `@eN` resolves against a fresh tree. If the element moved, the action uses the new bounds. If it is gone, the call fails with `StaleRef` and names the best current candidate.
+
+### 4.4 Snapshot rendering
+
+Pruning rules (`core::render`), applied in this order:
+1. Drop invisible nodes: zero area, fully off-screen, or `isVisibleToUser == false`.
+2. **Label actionable containers from their text.** On Android the clickable node is usually an unlabeled layout whose text sits in non-actionable `TextView` children (every Settings row). For a node with actions and no label of its own: collect the text of descendants that have no actions of their own, in preorder; the first becomes `label`, the rest join into `hint` with " · ". Those absorbed descendants are not rendered separately. A descendant with its own actions (a switch inside a row) stays a separate element.
+3. Collapse containers that have no label, no actions, and one child.
+4. Keep a node if it has actions, has text, is a `TextField`/`SecureField`, or is a scrollable container.
+
+Text-target resolution follows the same rule: `tap "Network & internet"` matches the row whose merged label is that text, so the tap goes to the actionable ancestor, never to an inert text node. If text only matches a non-actionable node, the tap goes to its nearest actionable ancestor; if there is none, to the text's own center.
+
+Text limits: truncate text above 200 chars as `…(+N chars)`. `SecureField` values render as `•••` and are never logged.
+
+Line grammar: `@eN role "label" ["value"] [state…]`, indented two spaces per kept depth. States render as words: `off`, `on`, `disabled`, `focused`, `selected`, `scrollable↓`, `scrollable↑↓`, `under-keyboard`.
+
+Header lines: device, app, keyboard state, orientation, settle time, and `loading` when a visible `ProgressIndicator` exists.
+
+Filters: `--interactive` (only nodes with actions), `--within @eN`, `--max-lines N` (summarizes the rest as `… N more`).
+
+Golden tests (`insta`) render fixture trees captured from real devices in Phases 2 and 5.
+
+### 4.5 Diff
+
+`core::diff(prev, next) -> Vec<Change>` where `Change` is `Added(ref)`, `Removed(ref)`, `Changed { ref, field, from, to }`. Rendered as `+`, `-`, `~` lines; consecutive removals collapse to one line. When more than 60% of refs changed, the reply is a full snapshot instead of a diff, because the agent is on a new screen.
+
+### 4.6 Settle
+
+"Settled" means the UI stopped changing in a way that matters. Inputs, each timestamped:
+- `WindowChanged`: Android `TYPE_WINDOW_STATE_CHANGED` and `TYPE_WINDOWS_CHANGED` (a new activity, dialog, popup, or IME window), debounced on the device.
+- `Frame { changed_area_pt2, changed_box }`: from the FrameStore, comparing each frame's luma thumbnail (one sample per 4×4 points, so the measure is the same on a phone and a tablet) with the previous one; a sample counts as changed above 12 luma levels; `changed_area_pt2` is the changed sample count × 16.
+
+Content-change accessibility events are deliberately not an input. Apps emit them for invisible changes and for tickers (a clock label every 100 ms would never settle). Pixels are the ground truth for "the screen moved". Every snapshot fetches a fresh tree, so no event is needed to invalidate a cache.
+
+`core::settle::Detector` is a pure state machine with two phases:
+1. **Wait for the first change.** After an action, a tap that starts a cold activity or a network load can show nothing for hundreds of milliseconds. Returning "settled, nothing changed" then would make the agent tap again. So the detector first waits up to `expect_change` (default 500 ms; 3,000 ms for `launch` and `open`) for a significant input. If none arrives, the reply says `changed: false` and the hint suggests `wait`.
+2. **Wait for quiet.** Then settled when no `WindowChanged` and no frame with `changed_area_pt2 > significant_area` (default 4,096 pt², a 64×64 point region) for `quiet` (default 250 ms). A blinking caret or a 48 dp spinner stays below that area. Spike A3 measures both and sets the default. A visible `ProgressIndicator` is reported as `loading` in the header instead.
+
+At `timeout` (default 5 s for actions, 2 s for `snapshot`) the detector stops with `settled: false` and `still_changing` (the union of recent `changed_box`es). This is a normal reply with the observation attached, not an error: looping video and carousels never settle and the agent still needs to see the screen. Only `wait settled` turns it into the `NotSettled` error.
+
+`snapshot` also waits for quiet (phase 2 only) unless `--no-settle`.
+
+Tested with a simulated clock and scripted event sequences. No sleeps in tests.
+
+Devices without a frame stream (iOS ≤26, Simulator) feed the detector by polling low-quality screenshots back to back (one in flight at a time; the interval is whatever the runner takes, measured in Phase 5). Slower, same contract.
+
+### 4.7 Errors
+
+One enum, every variant written for an agent to act on:
+
+```rust
+pub enum Error {
+    NoDevice { connected: Vec<DeviceSummary> },
+    AmbiguousDevice { connected: Vec<DeviceSummary> },
+    DeviceGone { id: DeviceId },
+    DeviceBusy { id: DeviceId, held_by: SessionName },
+    NeedsUser { action: UserAction },          // see UserAction below
+    StaleRef { r#ref: Ref, closest: Option<ElementLine> },
+    NotFound { query: String, similar: Vec<ElementLine> },
+    Ambiguous { query: String, matches: Vec<ElementLine> },
+    OffScreen { r#ref: Ref, scroll_hint: Direction },
+    Unsupported { op: Op, reason: &'static str },
+    NotSettled { waited_ms: u32, still_changing: Rect },
+    Timeout { waited_ms: u32, condition: String },
+    AutomationConflict { holder: String },     // another UiAutomation client owns the bridge
+    Transport { detail: String },              // the only catch-all, for IO failures we have not classified
+}
+```
+
+`UserAction` is closed: `UnlockDevice`, `AcceptUsbDebugging`, `EnableUsbDebugging`, `AllowXiaomiInjection`, `TrustComputer`, `EnableDeveloperMode`, `MountDeveloperImage`, `ResignRunner`, `ApproveSystemPrompt { text }` (a biometric or OS prompt only a person may answer). Each has one message that tells the user exactly what to do on which device.
+
+Every variant serializes as `{ code, message, hint }`. `hint` names the next command to run.
+
+### 4.8 The `Device` port
+
+The seam between the domain and each platform. Two production implementations plus a test fake.
+
+```rust
+#[async_trait]
+pub trait Device: Send + Sync {
+    fn info(&self) -> &DeviceInfo;                       // id, model, os, screen, capabilities
+    async fn tree(&self) -> Result<RawTree>;              // Unsupported in pixels-only tier
+    fn frames(&self) -> Option<watch::Receiver<FrameRef>>;// None when no stream (polling tier)
+    async fn screenshot(&self, q: Quality) -> Result<Image>;
+    fn events(&self) -> broadcast::Receiver<DeviceEvent>; // WindowChanged, DisplayChanged, Locked, Gone
+    async fn gesture(&self, g: Gesture) -> Result<()>;    // fingers with timed paths, played on or near the device
+    async fn key(&self, k: Key) -> Result<()>;
+    async fn button(&self, b: Button) -> Result<()>;      // Home, Back, Recents, Notifications, Lock, VolumeUp, VolumeDown
+    async fn open_url(&self, url: &Url) -> Result<()>;
+    async fn text(&self, t: TextInput) -> Result<()>;     // Paste | SetValue | Keystrokes
+    async fn clipboard(&self, op: ClipboardOp) -> Result<Option<String>>;
+    async fn apps(&self) -> Result<Vec<App>>;
+    async fn launch(&self, app: &AppId) -> Result<()>;
+    async fn foreground(&self) -> Result<Option<AppId>>;
+}
+```
+
+`Capabilities` is a bitflag set in `DeviceInfo`. The session checks it before calling and returns `Unsupported` with a reason. No method fakes a capability.
+
+`RawTree` is platform-neutral (`Vec<RawNode>` with role already mapped). Ref assignment and pruning happen in `core`, once, for both platforms.
+
+## 5. Daemon (`crates/cli/src/daemon`)
+
+- **Socket.** `$XDG_RUNTIME_DIR/phone-use/daemon.sock`, else `~/.phone-use/run/daemon.sock` (Unix), or the named pipe `\\.\pipe\phone-use-<user>` (Windows), via the `interprocess` crate. Directory mode 0700; on Windows the pipe's security descriptor grants only the current user. No TCP listener. `PHONE_USE_SOCKET` overrides the path. Remote use goes through `ssh -L` socket forwarding (Phase 7, zero network code).
+- **Start.** The CLI connects; on `ENOENT`/`ECONNREFUSED` it spawns `phone-use daemon --detach`, then waits for the daemon's readiness line on an inherited pipe (not a sleep), up to 3 s.
+- **Version.** First message is `hello { version }`. On mismatch the CLI sends `shutdown` and starts its own version.
+- **Idle exit.** No clients and no leases for 15 minutes.
+- **DeviceActor.** One tokio task per device owns the connection, FrameStore, and the sessions on that device. Requests arrive on an mpsc channel. No locks around device state.
+- **Sessions outlive connections.** Every CLI call is a new process and a new socket connection, so session state cannot belong to the connection. Each request names a session: `--session <name>`, else `PHONE_USE_SESSION`, else `default`. The session holds the ref table, the last rendered observation (the diff baseline), and the settle detector. An MCP server process uses one session named `mcp-<pid>` and releases it when stdio closes.
+- **Leases belong to sessions.** A session acquires a device on its first device call. Another session gets `DeviceBusy` unless it passes `--share`. A lease ends on `release` or after 10 minutes without calls. Two agents on one machine should use different `--session` names; the default session is for one agent at a time.
+- **Discovery.** Android: adb `host:track-devices-l` push stream. iOS: usbmuxd listen. Simulators: `xcrun simctl list devices -j booted` on demand.
+- **Device ids.** `android:<serial>`, `ios:<udid>`, `sim:<udid>`, plus aliases in `~/.phone-use/config.toml`. With exactly one device connected, it is the default. Otherwise `AmbiguousDevice` lists them.
+- **Artifacts.** Screenshots go to `~/.phone-use/tmp/<device>/<ulid>.png`. Unique names. Cleared on daemon start when older than 24 h.
+- **Traces.** Per session, `~/.phone-use/traces/<ulid>.jsonl`: each request, the reply's summary line, timing, and settle result. Typed text is replaced with its length when `--secret` is used or when the target is a `SecureField`. Observation text (which can hold messages or balances) is included only with `--trace-full`; screenshots only with `--trace-screens`. Traces older than 7 days are deleted on daemon start. Local only; nothing is uploaded.
+
+## 6. Android
+
+### 6.1 Talking to adb
+
+`crates/android/src/adb.rs` speaks the adb server protocol on TCP (default `127.0.0.1:5037`, overridable with `ADB_SERVER_SOCKET=tcp:host:port`, the variable adb itself honors). No `adb` process per call. Services used:
+
+| Service | Use |
+|---|---|
+| `host:track-devices-l` | Discovery |
+| `host:transport:<serial>` then `shell,v2,raw:<cmd>` | Start the agent, one-off commands |
+| `host:transport:<serial>` then `sync:` | Push the agent jar |
+| `host:transport:<serial>` then `localabstract:<name>` | Open streams straight to the agent's socket. No port forwarding to manage. |
+
+If the default local server is not running, the daemon runs `adb start-server` once and retries. It never does this when `ADB_SERVER_SOCKET` is set: a dead tunnel would otherwise start an empty local server on the tunnel's port and hide the real problem. The remote-server override is also the development loop for the Windows-hosted emulator (Section 11).
+
+### 6.2 The on-device agent
+
+`android-agent/` builds `phone-use-agent.jar` (dex inside a jar) with `javac` against `android.jar` and `d8`, the way `scrcpy/server/build_without_gradle.sh` does. Minimum API 26 (decision D8).
+
+Launch: push with mode 0444 to `/data/local/tmp/phone-use-agent-<sha8>.jar`, where `<sha8>` is the first 8 hex digits of the jar's SHA-256 computed on the host. The jar is already deployed when that path exists (`ls`); no hashing on the device. Then, over a `shell,v2,raw:` stream:
+`CLASSPATH=<jar> app_process / dev.phoneuse.agent.Main <version> <socket-name>` and write a 32-byte random token to its stdin.
+
+- The host holds that shell stream open for the agent's whole life and drains its stdout and stderr (logs go to the daemon's log). adbd kills the child when the stream closes, which is what guarantees a crashed daemon never leaves an agent running.
+- The agent listens on abstract socket `phone-use-<version>-<rand>`. Abstract sockets have no permissions: any app on the phone can connect. So the first request on each stream must carry the token, and the agent drops the connection otherwise. Without this, any installed app would get shell-uid input injection and a full screen reader.
+- The host opens two streams: `control` and `video`. The agent also exits when both streams close or when nothing connects within 10 s.
+- Before launch, the host kills agents of other versions with `pkill -f dev.phoneuse.agent.Main` (the jar path is in the environment, not the command line, so matching on the jar name would never match).
+
+Components (one Java file each where possible):
+
+- **Main.** Version check, Looper thread, socket accept, shutdown.
+- **Control.** Length-prefixed JSON requests and replies plus pushed events (`docs/protocol.md`). Uses `org.json`, which ships with Android; no dependencies.
+- **Video.** Mirror the display into a MediaCodec H.264 encoder input Surface, configured as scrcpy's `video/SurfaceEncoder.java:318-332` does: `KEY_REPEAT_PREVIOUS_FRAME_AFTER = 100 ms` (so the first frame of a static screen is delivered and quality recovers after motion; repeated frames have zero change and do not disturb settle), `KEY_PRIORITY = 0`, `KEY_LATENCY = 1`, I-frame interval 10 s, 30 fps cap, 8 Mbps. Copy scrcpy's size alignment and `MAX_SIZE_FALLBACK` / downsize-on-error logic (`SurfaceEncoder.java:36,79-95,201`): hardware encoders reject some sizes, and 4K tablets exceed most encoders. Request Constrained Baseline only if spike A3 shows the device encoder's default profile breaks `openh264`. Restart on display size or rotation change (`display/DisplayMonitor.java`; the mechanism differs below API 34). On request, ask for a sync frame (`PARAMETER_KEY_REQUEST_SYNC_FRAME`) so a settled screen yields a sharp image.
+- **Input.** `InputManager.injectInputEvent` through reflection, `INJECT_INPUT_EVENT_MODE_WAIT_FOR_FINISH` for the last event of a gesture so the reply means "delivered". Multi-pointer MotionEvents (`PointersState` pattern from scrcpy). Gestures arrive as one message with full timed paths and are played on the device with `SystemClock.uptimeMillis` scheduling, so network jitter cannot distort a fling.
+- **Accessibility.** UiAutomation connected from the shell process (`UiAutomationShellWrapper` pattern) with `UiAutomation.FLAG_DONT_SUPPRESS_ACCESSIBILITY_SERVICES` (API 24). Without it, connecting silently turns off the user's own TalkBack, Switch Access, and password-manager autofill services while we run. Service flags: `FLAG_RETRIEVE_INTERACTIVE_WINDOWS | FLAG_INCLUDE_NOT_IMPORTANT_VIEWS | FLAG_REPORT_VIEW_IDS`. Tree: every window from `getWindows()`, each root fetched with `FLAG_PREFETCH_DESCENDANTS_HYBRID` on API 33+, serialized as a flat array with parent indexes. Prefetch returns nodes in batches, not necessarily the whole tree in one binder call; spike A1 records batch sizes and round trips per screen, and the snapshot budget in section 12 stands or falls on that number. Events: window-state and windows-changed only, coalesced for 16 ms, pushed as `window_changed { window_id, package, t }`. Never calls `waitForIdle`.
+- **Text.** Three modes:
+  - `Paste` (default): keep the current `ClipData` object in agent memory (any type: text, URI, image), set ours, inject `KEYCODE_PASTE` with WAIT_FOR_FINISH, then restore the saved `ClipData` only after the field's text is seen to change in the tree or 500 ms pass, whichever comes first. WebView and some Compose fields read the clipboard asynchronously, so restoring right after injection can paste the old clip. Full Unicode. Respects the app's own input handling.
+  - `SetValue`: `ACTION_SET_TEXT` on the target node. Replaces the content exactly; some apps ignore it (no IME events).
+  - `Keystrokes`: `KeyCharacterMap.load(VIRTUAL_KEYBOARD).getEvents(chars)` injected one by one. That call returns `null` for characters it cannot map; the agent checks every character first and fails the whole request with the first unmappable character, before typing anything.
+
+  After any mode, the session reads the node's text back and reports `verified: true|false`. A password field exposes masked text, so for `SecureField` targets `verified` compares lengths only. A `false` from `Paste` (some OTP and PIN fields block paste) carries the hint to retry with `--mode keys`. `--submit` sends Enter (Android `KEYCODE_ENTER`, iOS Return) after the text.
+- **Apps.** Launcher activities with labels (scrcpy `DeviceApp` pattern). Launch by package through the ActivityManager wrapper. Foreground app from the active window's package.
+- **State.** Screen on, keyguard locked, display size and rotation, IME visible.
+
+### 6.3 Android-specific states
+
+| State | Behavior |
+|---|---|
+| Screen off | Inject `KEYCODE_WAKEUP` before any action; report `woke: true` |
+| Keyguard with PIN/pattern | `NeedsUser(UnlockDevice)`. Never enter credentials |
+| Keyguard swipe-only | Swipe up, then continue |
+| `FLAG_SECURE` window | Frames are black in that window; tree still works. Detected when the window's region in the frame is uniformly black (luma < 4) while the tree shows visible text in it; spike A3 checks this against a real secure screen. Header shows `secure content hidden` |
+| Another UiAutomation client | `AutomationConflict { holder }` with how to stop it |
+| Xiaomi/HyperOS | Injection fails until "USB debugging (Security settings)" is on: `NeedsUser(AllowXiaomiInjection)`. Unverified until tested on Xiaomi hardware |
+| Rotation | Agent restarts the encoder; session maps coordinates with the new size |
+| `wm size` / density change | Same as rotation |
+| IME shown | Header `keyboard shown`; elements under it get `under-keyboard` |
+
+Only display 0 is supported in v1.
+
+## 7. iOS
+
+Three tiers, chosen automatically per device and reported in `phone-use devices`:
+
+| Tier | When | Screen | Input | Tree | Apps | Install on phone |
+|---|---|---|---|---|---|---|
+| **CoreDevice** | iOS 27+ physical device, Developer Mode on | RTP video stream (displayservice), codec chosen by the device | HID: multitouch, buttons, keyboard | Runner if installed; else OCR | app_service | Nothing (runner optional) |
+| **Runner** | iOS 17 to 26 physical device | Runner screenshots, DVT screenshot | Runner (`XCSynthesizedEventRecord`) | Runner | app_service or runner | PhoneUseRunner (signed) |
+| **Simulator** | Booted simulator on a Mac | Runner screenshots | Runner | Runner | `simctl` | PhoneUseRunner (unsigned) |
+
+Honest consequence: without the runner, a CoreDevice-tier phone has no accessibility tree, so snapshots are OCR text only, with no roles, no switches' states, and no icon-only buttons. The full product on iOS needs the runner, which needs code signing (a free Apple ID re-signs every 7 days). Spike I5 (Phase 6) tests whether the Accessibility Inspector audit service (go-ios `ios/accessibility/`) can give a signing-free tree fast enough; if it can, it replaces OCR as the CoreDevice tree source.
+
+Not available on iOS in v1: `press recents` (no API; returns `Unsupported`).
+
+### 7.1 Transport
+
+`idevice`: usbmuxd discovery and lockdown pairing (the user taps Trust once), then the CoreDevice tunnel over the userspace TCP stack, then RSD service lookup. Works on macOS, Linux, Windows. DDI: on macOS, use Xcode's personalized DDI files; elsewhere, `phone-use ios setup` downloads them only after the user confirms the source. Mounting needs Apple's TSS server.
+
+### 7.2 CoreDevice tier
+
+- Start the display media stream first. HID input is silently discarded without it (idevice `hid.rs:1-11`). The stream stays up for the life of the lease.
+- Codec: the offer advertises two codec banks (RTP payload types 123 and 100) and the device picks one. The two reference implementations disagree on which is which: go-ios `ios/display/offer.go:35-38` says 123 is HEVC, 100 is AVC, and "on iOS 27 it chooses AVC"; idevice `display_stream/negotiation.rs:166-186` labels 123 as H.264 and 100 as HEVC, and its depacketizer assumes HEVC on 100. Both agree the device answers with 100. Spike I3 settles it by reading the NAL unit headers of real packets (H.264: 1-byte header, types 1 to 23 plus 24 STAP-A and 28 FU-A; HEVC: 2-byte header, 49 for fragmentation units). The video crate gets an RTP depacketizer for whichever codec the device sends: RFC 6184 for H.264, RFC 7798 for HEVC (idevice's `hevc.rs` covers that one).
+- Touch: points → normalized 0..65535 per axis. Multitouch up to 5 contacts.
+- Buttons: Home, Lock, Volume via `send_button` (button usage codes confirmed in spike I1). `back` taps the navigation bar's back button when the tree shows one (`via: "nav-button"`), else performs a left-edge swipe (`via: "edge-swipe"`).
+- Text: pasteboard `set_text`, then HID keyboard Cmd+V. Keystrokes mode sends HID keyboard usages (US layout). Two effects to confirm in spike I1: creating the HID keyboard may make iOS treat a hardware keyboard as attached and hide the software keyboard (the layout changes); and a keyboard-shortcut paste should not raise the "Allow Paste" prompt. If it does, the reply reports `ApproveSystemPrompt`.
+- Keyframe on demand with RTCP (idevice `display_stream/rtcp.rs`) when the session settles, for a sharp screenshot.
+
+### 7.3 PhoneUseRunner
+
+An XCTest UI test bundle (`ios-runner/`), Objective-C for direct use of private headers copied from WebDriverAgent. One test method that never returns: it opens a TCP listener on device port 27753 and serves our framing.
+
+Requests: `snapshot { max_depth, attributes }` of the active application (WDA `fb_activeApplication` approach, `XCAXClient_iOS` with bounded `maxDepth` and a reduced attribute list), `gesture` (synthesized event record), `screenshot { quality }`, `type`, `button` (home and volume via `XCUIDevice pressButton:`; lock via the private method WDA uses in `XCUIDevice+FBHelpers.m` `fb_lockScreen`), `activate { bundle_id }`, `open_url`.
+
+The runner serves one request at a time. Snapshot and screenshot both run on the main thread, so the Runner and Simulator tiers poll for settle more slowly than the CoreDevice tier (section 12).
+
+Host connects through idevice's device-port connect (as `services/wda.rs` does), so no host port forwarding. Launch: on devices, idevice `xctest`; on simulators, `xcodebuild test-without-building -xctestrun ... -destination id=<udid>` as a child of the daemon, with the port passed as `TEST_RUNNER_PHONE_USE_PORT` (xcodebuild only forwards `TEST_RUNNER_`-prefixed variables to the test process, without the prefix). Readiness: the daemon polls the port with `hello` every 100 ms up to 60 s; it does not rely on xcodebuild's log output.
+
+Private headers drift between Xcode releases. The runner is built and tested against the Xcode on the build machine (27.0 at planning time); a build failure after an Xcode update is expected maintenance, not a design flaw.
+
+Signing: built with Xcode automatic signing for the user's team. A free Apple ID works and expires every 7 days; `phone-use devices` shows the expiry. Signing without a Mac is out of scope for v1 (see "Known gaps").
+
+### 7.4 iOS states
+
+| State | Behavior |
+|---|---|
+| Locked with passcode | `NeedsUser(UnlockDevice)` |
+| Developer Mode off | `NeedsUser(EnableDeveloperMode)`; idevice `amfi` reveals the toggle in Settings |
+| Not paired | `NeedsUser(TrustComputer)` |
+| Runner expired | `NeedsUser(ResignRunner)` with the exact command |
+| Tunnel dropped | Actor reconnects once, then `DeviceGone` |
+
+## 8. Video (`phone-use-video`)
+
+- Input: H.264 Annex-B access units from the Android agent, or RTP packets from iOS depacketized into access units (section 7.2).
+- Decode: `openh264` for H.264 on every OS. HEVC, only if spike I3 shows the device sends it: VideoToolbox on macOS; on other OSes the CoreDevice tier falls back to `screencaptureservices` PNGs and polled settle until an HEVC decoder is added.
+- Output, `FrameStore`: the latest RGBA frame (`Arc`), a 1/8-scale luma thumbnail, a sequence number, and a timestamp, published on a `watch` channel. Every frame is decoded (inter-frame coding forbids skipping).
+- Screenshot = encode the latest frame (PNG or JPEG) on the host. With the 100 ms repeat-frame setting, a static screen still produces frames, so the FrameStore is never empty after the first 100 ms and a stalled stream is detectable: no frame for 1 s means the stream is broken, and the actor restarts it rather than serving a stale image. Screenshots requested while an action is settling wait for settle, so encoder pipeline latency cannot return the pre-action frame.
+
+## 9. Pixels and OCR
+
+For canvases, games, WebViews without accessibility, and CoreDevice devices without the runner.
+
+- `Source::Ocr` elements carry `role: Text`, a label, bounds, and confidence. They get refs like any element.
+- Engine: Apple Vision on macOS (`objc2-vision`). On Linux and Windows, `snapshot --pixels` returns `Unsupported` in v1; add `ocrs` when a user needs it there.
+- `snapshot --pixels` forces OCR. When the tree is empty or a `WebView` has no children, the session merges OCR boxes into the snapshot automatically and marks them `(ocr)`.
+
+## 10. Agent surfaces
+
+### 10.1 CLI verbs
+
+```
+phone-use devices                          list devices, tier, capabilities, leases
+phone-use snapshot [--diff] [--interactive] [--within @eN] [--pixels] [--max-lines N]
+phone-use screenshot [-o file] [--native] [--quality N]
+phone-use find <text> [--role R]           refs matching text
+phone-use tap <@ref|x,y|"text"> [--long [ms]] [--count N]
+phone-use type <text> [--into <target>] [--mode paste|set|keys] [--submit]
+phone-use type --secret [--into <target>]  text from stdin or PHONE_USE_SECRET, never argv
+phone-use clear <target>
+phone-use swipe <up|down|left|right> [--from <target>] [--distance 0..1] [--fast]
+phone-use scroll <up|down|left|right> [--in <target>] [--until "text"|@ref] [--max N]
+phone-use gesture <json>                   multi-finger paths with timing
+phone-use press <home|back|recents|notifications|lock|volume-up|volume-down|enter|...>
+phone-use launch <app name|package|bundle id>
+phone-use open <url>                       deep link or web URL in its handler app
+phone-use apps [--all]
+phone-use wait <"text"|@ref|gone:"text"|settled> [--timeout ms]
+phone-use clipboard [get|set <text>]
+phone-use release
+phone-use daemon [--detach] | mcp | doctor | ios setup | version
+```
+
+Global flags: `--device` (default from `PHONE_USE_DEVICE`), `--session`, `--json` (machine output), `--no-settle`, `--timeout`.
+
+Defaults: `scroll --max 30`; `swipe --distance 0.5`; `tap --count 1` (2 = double tap, taps 80 ms apart); `swipe --from` takes a target and starts the gesture at its center.
+
+How the less obvious verbs work per platform:
+
+| Verb | Android | iOS CoreDevice | iOS Runner / Simulator |
+|---|---|---|---|
+| `press notifications` | StatusBarManager `expandNotificationsPanel` (scrcpy wrapper) | swipe down from the top-left edge | same swipe via runner |
+| `open <url>` | ActivityManager VIEW intent | runner `XCUIDevice.shared.system.open` if installed, else `Unsupported` | runner on device; `simctl openurl` on Simulator |
+| `press back` | `KEYCODE_BACK` | nav-bar back button, else left-edge swipe; `via` says which | same |
+
+Text targets resolve by: exact label, then case-insensitive exact, then substring. More than one match fails with `Ambiguous` and lists refs.
+
+### 10.2 MCP
+
+`phone-use mcp` with `rmcp`, stdio. Ten tools: `devices`, `snapshot`, `screenshot` (returns an image content block), `tap`, `type`, `swipe`, `scroll`, `press`, `launch` (takes `app` or `url`; a URL maps to the `open` verb), `wait`. Each tool's input schema mirrors the CLI verb; outputs are the same text the CLI prints. Few, well-described tools beat many.
+
+### 10.3 Skill
+
+`SKILL.md` at the repo root, printed by `phone-use skill`: the loop (snapshot, act on refs, read the diff), when to use pixels, how to handle `NeedsUser`, and the rule that the agent never enters passwords or payment details without the user's explicit instruction.
+
+## 11. Development environment
+
+- MacBook (this machine): Rust builds with `blaze`. Has Xcode 27, Android build-tools 37 and platform `android-37.0` at `/opt/homebrew/share/android-commandlinetools`, `d8`, `adb`, JDK 17.
+- Android emulator: Windows PC `win-pc`, AVD `Pixel_API_37`, SDK `D:\Android\Sdk`. Reach it from the Mac with `ssh -N -L 5038:127.0.0.1:5037 win-pc` and `ADB_SERVER_SOCKET=tcp:127.0.0.1:5038`. All agent streams flow through the adb server, so the daemon on the Mac drives the emulator on the PC.
+- An API 26 emulator for the minimum-version checks: create `Pixel_API_26` on win-pc.
+- iOS simulators and any GUI: the Mac mini (cua Space `mini` for shell and files, `mini-desktop` MCP for its screen). Never drive GUIs on the MacBook's own screen.
+- Physical phones: the MacBook currently sees a paired iPhone 14 Plus on iOS 26.5 and two other iOS devices. These belong to people. Ask the user before driving any physical device.
+
+## 12. Performance budgets
+
+Falsifiable targets, measured by `bench/` (Phase 2 and 6). A measured miss means profile first, then change the design only with evidence.
+
+| Operation | Android (emulator or USB, daemon on the same machine) | iOS CoreDevice | iOS Runner / Simulator |
+|---|---|---|---|
+| tap, request to delivered | p50 ≤ 15 ms | p50 ≤ 30 ms | p50 ≤ 80 ms |
+| snapshot (Settings main), cold tree, `--no-settle` | p50 ≤ 80 ms | n/a (runner) | p50 ≤ 300 ms |
+| screenshot, settled screen | p50 ≤ 30 ms | p50 ≤ 40 ms | p50 ≤ 400 ms |
+| type 100 chars incl. emoji and CJK | ≤ 150 ms | ≤ 200 ms | ≤ 400 ms |
+| tap to settled diff (simple toggle) | ≤ 600 ms | ≤ 700 ms | ≤ 1200 ms |
+
+The Android numbers are measured with the daemon on the machine that runs the emulator (win-pc), because a network hop through an SSH tunnel adds its own latency. Development over the tunnel is fine; budgets are not judged there.
+
+Baseline: phone-harness 0.3.3 on the same emulator, same machine, same operations (Phase 2, task 2.10).
+
+## 13. Security and privacy
+
+- No telemetry. Nothing leaves the machine except traffic to the device and, for iOS DDI mounting, Apple's TSS server.
+- The daemon socket is user-only. No network listener.
+- Never executes agent-supplied code.
+- Secret text arrives on stdin or in `PHONE_USE_SECRET`, never on the command line (argv is visible in `ps` and shell history). It is never logged, traced, or echoed. Typing into a `SecureField` is treated as secret even without the flag. `SecureField` values never render.
+- The Android agent's socket requires the per-launch token (section 6.2).
+- Clipboard is restored after paste on Android. On iOS the pasteboard holds the pasted text afterwards; replies say so.
+
+## 14. Known gaps in v1 (stated, not hidden)
+
+- iOS runner signing requires a Mac with Xcode.
+- iOS 17 to 26 devices have no frame stream, so settle and screenshots are slower.
+- DRM video renders black on both platforms.
+- Biometric prompts (Face ID, fingerprint) need the user.
+- No audio capture or camera injection.
+- No file push or pull (for example a photo to upload). Add only when an agent task needs it.
+- No GPS location simulation.
