@@ -330,3 +330,24 @@ fn volume_and_recents_are_unsupported_on_the_simulator() {
         );
     }
 }
+
+#[test]
+#[ignore]
+fn the_tree_right_after_a_launch_is_the_launched_app() {
+    let d = device();
+    let udid = udid();
+    for _ in 0..3 {
+        testbed::launch(&udid, "taps");
+        let _ = std::process::Command::new("xcrun")
+            .args(["simctl", "terminate", &udid, "com.apple.Preferences"])
+            .output();
+        std::thread::sleep(Duration::from_millis(500));
+        RT.block_on(d.launch(&AppId("com.apple.Preferences".into())))
+            .unwrap();
+        let t = tree(&d);
+        assert_eq!(
+            t.windows[0].package.as_deref(),
+            Some("com.apple.Preferences")
+        );
+    }
+}

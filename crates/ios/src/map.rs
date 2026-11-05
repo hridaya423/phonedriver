@@ -10,7 +10,9 @@ use serde_json::{Value, json};
 /// The runner reports one foreground app and no windows, so the app becomes the application window and the
 /// on-screen keyboard, when present, the input-method window the header and reading order look for.
 pub fn raw_tree(reply: &Value, screen: Size) -> Result<RawTree, Error> {
-    let mut tree = RawTree::from_ios_json(&reply.to_string()).map_err(|e| Error::Transport {
+    let mut wire = reply.clone();
+    tidy(&mut wire);
+    let mut tree = RawTree::from_ios_json(&wire.to_string()).map_err(|e| Error::Transport {
         detail: format!("the runner sent a snapshot that does not parse: {e}"),
     })?;
     let full = Rect {
@@ -36,6 +38,56 @@ pub fn raw_tree(reply: &Value, screen: Size) -> Result<RawTree, Error> {
         });
     }
     Ok(tree)
+}
+
+/// XCUI exposes each scroll view's indicators as an "Other" element labeled "Vertical scroll bar, 2 pages" with a
+/// percentage value. They are never a target, and as the only labeled child of a multi-line field they became its
+/// label. The label is localized; this matches the English one the Simulator uses.
+fn scroll_indicator(n: &Value) -> bool {
+    n["cls"] == "XCUIElementTypeOther"
+        && n["text"]
+            .as_str()
+            .is_some_and(|t| t.contains("scroll bar, "))
+        && n["sd"].as_str().is_some_and(|v| v.ends_with('%'))
+}
+
+/// Removes scroll indicators and inner switches with their subtrees from the runner's preorder node list,
+/// renumbering parents. A toggle row is a labeled switch the width of the row holding an unlabeled switch, the
+/// control itself (Settings and SwiftUI `Toggle`); a tap at the row's center does not toggle it, so the row takes
+/// the inner switch's bounds and the inner switch goes.
+fn tidy(reply: &mut Value) {
+    let Some(nodes) = reply["nodes"].as_array_mut() else {
+        return;
+    };
+    let parent = |n: &Value| usize::try_from(n["p"].as_i64().unwrap_or(-1)).ok();
+    let is_switch = |n: &Value| n["cls"] == "XCUIElementTypeSwitch";
+    let mut drop: Vec<bool> = nodes.iter().map(scroll_indicator).collect();
+    for i in 0..nodes.len() {
+        if let Some(p) = parent(&nodes[i])
+            && is_switch(&nodes[i])
+            && is_switch(&nodes[p])
+        {
+            nodes[p]["b"] = nodes[i]["b"].clone();
+            drop[i] = true;
+        }
+    }
+    let mut index: Vec<Option<i64>> = Vec::with_capacity(nodes.len());
+    let mut kept = Vec::with_capacity(nodes.len());
+    for (i, mut n) in std::mem::take(nodes).into_iter().enumerate() {
+        let new_parent = match parent(&n) {
+            Some(p) => index.get(p).copied().flatten(),
+            None => Some(-1),
+        };
+        match new_parent {
+            Some(p) if !drop[i] => {
+                n["p"] = p.into();
+                index.push(Some(kept.len() as i64));
+                kept.push(n);
+            }
+            _ => index.push(None),
+        }
+    }
+    *nodes = kept;
 }
 
 pub fn gesture_request(g: &Gesture) -> Value {
@@ -178,6 +230,46 @@ mod tests {
             .unwrap();
         assert_eq!(kb.bounds.y, 574.0);
         assert_eq!(kb.bounds.h, 300.0);
+    }
+
+    #[test]
+    fn scroll_indicators_are_dropped_and_do_not_name_their_field() {
+        let reply = json!({"app": {"bundle_id": "x", "pid": 1}, "nodes": [
+            {"p": -1, "cls": "XCUIElementTypeApplication", "b": [0, 0, 402, 874], "f": "vVe"},
+            {"p": 0, "cls": "XCUIElementTypeTextField", "id": "text.multi", "hint": "Multiline", "a": ["tap"], "b": [32, 164, 370, 228], "f": "vVeE"},
+            {"p": 1, "cls": "XCUIElementTypeOther", "text": "Horizontal scroll bar, 1 page", "sd": "0%", "b": [32, 195, 370, 225], "f": "vVe"},
+            {"p": 2, "cls": "XCUIElementTypeOther", "b": [32, 195, 370, 225], "f": "vVe"},
+            {"p": 0, "cls": "XCUIElementTypeOther", "text": "Vertical scroll bar, 2 pages", "sd": "0%", "b": [369, 62, 399, 791], "f": "vVe"},
+            {"p": 4, "cls": "XCUIElementTypeOther", "b": [369, 62, 399, 791], "f": "vVe"},
+            {"p": 0, "cls": "XCUIElementTypeButton", "text": "Done", "a": ["tap"], "b": [0, 300, 60, 340], "f": "vVe"}
+        ]});
+        let tree = raw_tree(&reply, SCREEN).unwrap();
+        let labels: Vec<Option<&str>> = tree.nodes.iter().map(|n| n.label.as_deref()).collect();
+        assert_eq!(labels, vec![None, None, Some("Done")]);
+        assert_eq!(tree.nodes[1].parent, Some(0));
+        assert_eq!(tree.nodes[2].parent, Some(0));
+    }
+
+    #[test]
+    fn a_switch_row_takes_the_bounds_of_the_switch_inside_it() {
+        let reply = json!({"app": {"bundle_id": "x", "pid": 1}, "nodes": [
+            {"p": -1, "cls": "XCUIElementTypeApplication", "b": [0, 0, 402, 874], "f": "vVe"},
+            {"p": 0, "cls": "XCUIElementTypeSwitch", "id": "UIAppearanceSettings", "text": "Dark Appearance", "sd": "0", "a": ["tap"], "f": "vVec", "b": [36, 184, 366, 212]},
+            {"p": 1, "cls": "XCUIElementTypeButton", "id": "UIAppearanceSettings", "text": "Dark Appearance", "a": ["tap"], "f": "vVe", "b": [36, 187.67, 168.33, 208]},
+            {"p": 1, "cls": "XCUIElementTypeSwitch", "sd": "0", "a": ["tap"], "f": "vVec", "b": [305, 184, 368, 212]},
+            {"p": 0, "cls": "XCUIElementTypeButton", "text": "Done", "a": ["tap"], "b": [0, 300, 60, 340], "f": "vVe"}
+        ]});
+        let tree = raw_tree(&reply, SCREEN).unwrap();
+        let switches: Vec<_> = tree
+            .nodes
+            .iter()
+            .filter(|n| n.role == Role::Switch)
+            .collect();
+        assert_eq!(switches.len(), 1);
+        assert_eq!(switches[0].label.as_deref(), Some("Dark Appearance"));
+        assert_eq!(switches[0].bounds.center(), Point { x: 336.5, y: 198.0 });
+        assert_eq!(tree.nodes.len(), 4);
+        assert_eq!(tree.nodes[3].parent, Some(0));
     }
 
     #[test]

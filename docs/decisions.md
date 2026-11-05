@@ -45,6 +45,8 @@ Each decision records the choice, the alternatives it beat, and the evidence tha
 
 **Measured (2026-11-05, iPhone 17 simulator, iOS 26.5, 50 runs, `docs/spikes/ios.md`).** Runner snapshot p50 22.2 / 12.9 / 24.7 ms on the testbed List tab, Taps tab and Settings. WDA with `snapshotMaxDepth` 30 alone: 380.4 / 108.8 / 477.4 ms (runner 8x to 19x faster). WDA with every knob turned (depth 30, `excluded_attributes=visible,accessible,hittable`, idle waits off): 44.8 / 26.1 / 49.7 ms, so the runner is 2.02x / 2.02x / 2.01x faster at p50 and 2.03x / 1.96x / 1.99x at p95. The decision stands, but against fully tuned WDA the margin is about 1%; the runner reaches it only by requesting eight raw AX attributes instead of XCTest's key-path mapping. Re-measure after any Xcode update, and judge future runner changes against this bar.
 
+**Re-measured (2026-11-05, task 5.6, M4, `docs/bench/m4.md`).** Runner p50 21.5 to 21.9 ms (List) and 24.1 to 24.4 ms (Settings), 2.04x to 2.08x of 5.3's fully tuned WDA; on the Taps tab as 5.3 measured it (59 nodes) 12.6 to 12.7 ms in three series, 2.06x. WDA itself was not re-measured (its checkout went with spike I4 and the mini had 2 GB free). The Taps tab now has a toggle (62 nodes, 13.1 to 13.6 ms), so future comparisons need WDA re-measured on the new screen. The decision stands.
+
 ## D5. Logical points as the only public coordinate space
 
 **Choice.** iOS points, Android dp, top-left origin, current orientation. Screenshots default to 1 px per point.

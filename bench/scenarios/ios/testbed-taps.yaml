@@ -1,0 +1,9 @@
+name: testbed-taps
+device: ios
+steps:
+  - testbed: taps
+  - tap: B17
+  - log: {match: {ev: tap, id: b17}}
+  - expect: {element: {text: "Last tap: b17"}}
+cleanup:
+  - sh: "xcrun simctl terminate {udid} dev.phoneuse.testbed || true"

@@ -16,7 +16,7 @@ use crate::daemon::sources::Sources;
 use crate::daemon::{Config, Daemon, socket};
 use crate::wire::{ActionResult, DeviceEntry, Kind, Observation, ScreenshotResult, VERSION};
 
-const USAGE: &str = "usage: phone-use <command>\n\ncommands:\n  devices\n  snapshot\n  screenshot\n  tap\n  type\n  press\n  wait\n  release\n  daemon\n  version";
+const USAGE: &str = "usage: phone-use <command>\n\ncommands:\n  devices\n  snapshot\n  screenshot\n  tap\n  type\n  press\n  swipe\n  launch\n  open\n  wait\n  release\n  daemon\n  version";
 
 #[derive(Parser)]
 #[command(name = "phone-use", disable_help_subcommand = true)]
@@ -89,6 +89,24 @@ enum Verb {
     },
     /// Press a button or key: home, back, recents, notifications, lock, volume-up, volume-down, enter.
     Press { key: String },
+    /// Swipe one finger the way it moves: up, down, left or right.
+    Swipe {
+        #[arg(value_parser = ["up", "down", "left", "right"])]
+        direction: String,
+        /// Start at this target's center instead of around the screen's center.
+        #[arg(long)]
+        from: Option<String>,
+        /// Length as a fraction of the screen, 0 to 1.
+        #[arg(long)]
+        distance: Option<f32>,
+        /// Lift while moving, so lists fling.
+        #[arg(long)]
+        fast: bool,
+    },
+    /// Start an app by name or id and show its first screen.
+    Launch { app: String },
+    /// Open a URL or deep link in the app that handles it.
+    Open { url: String },
     /// Wait for `settled`.
     Wait {
         #[arg(value_parser = ["settled"])]
@@ -322,6 +340,36 @@ async fn execute(
             let r = client
                 .call("act", act(json!({"kind": "press", "key": key})))
                 .await?;
+            show_action(&r, g.json)
+        }
+        Verb::Swipe {
+            direction,
+            from,
+            distance,
+            fast,
+        } => {
+            let mut action = json!({"kind": "swipe", "direction": direction, "fast": fast});
+            if let Some(f) = from {
+                action["from"] = parse_target(&f);
+            }
+            if let Some(d) = distance {
+                action["distance"] = json!(d);
+            }
+            let r = client.call("act", act(action)).await?;
+            show_action(&r, g.json)
+        }
+        Verb::Launch { app } => {
+            let r = client
+                .call("act", act(json!({"kind": "launch", "app": app})))
+                .await?;
+            show_action(&r, g.json)
+        }
+        Verb::Open { url } => {
+            let mut p = json!({"url": url});
+            if let Some(t) = g.timeout {
+                p["timeout_ms"] = json!(t);
+            }
+            let r = client.call("open", with(p)).await?;
             show_action(&r, g.json)
         }
         Verb::Wait { .. } => {
