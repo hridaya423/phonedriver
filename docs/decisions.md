@@ -110,3 +110,11 @@ Each decision records the choice, the alternatives it beat, and the evidence tha
 **Recommendation.** Apache-2.0, which matches scrcpy (the code we borrow wrappers from) and includes a patent grant. **Needs the user's decision before any public release.** Development proceeds without a LICENSE file until then.
 
 **Also before release.** `openh264` built from source (the crate's default) does not carry Cisco's H.264 patent license, which covers only Cisco's prebuilt binaries. Decide with the user whether release builds load Cisco's binary at runtime or ship the source build.
+
+## D14. The last event of a gesture waits for the app (tap budget stays a target)
+
+**Choice.** The agent injects the last event of a gesture with `WAIT_FOR_FINISH` (architecture 6.2), so a tap's reply means the app handled it. Measured on the API 37 emulator, tap p50 is 30 to 37 ms against the 15 ms budget: about 14 ms is the app handling the event, about 7 ms adb transport.
+
+**Rejected.** Injecting `ASYNC`: tap p50 15.1 ms, still not under 15, and "delivered" would mean "queued", so a `--no-settle` snapshot straight after a tap could read the old screen.
+
+**Reopen if.** A physical phone over USB, with a hardware renderer, shows the same gap (Phase 3), or an agent workload shows taps dominating wall time.

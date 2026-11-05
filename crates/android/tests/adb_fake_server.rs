@@ -185,9 +185,22 @@ async fn closed_port_is_a_transport_error_naming_the_address_and_starts_nothing(
     let dir = std::env::temp_dir().join(format!("pu-adb-{}", std::process::id()));
     std::fs::create_dir_all(&dir).unwrap();
     let marker = dir.join("started");
-    let script = dir.join("adb");
-    std::fs::write(&script, format!("#!/bin/sh\ntouch {}\n", marker.display())).unwrap();
-    std::fs::set_permissions(&script, std::os::unix::fs::PermissionsExt::from_mode(0o755)).unwrap();
+    let script = if cfg!(windows) {
+        let script = dir.join("adb.cmd");
+        std::fs::write(
+            &script,
+            format!("@echo off\r\ntype nul > \"{}\"\r\n", marker.display()),
+        )
+        .unwrap();
+        script
+    } else {
+        let script = dir.join("adb");
+        std::fs::write(&script, format!("#!/bin/sh\ntouch {}\n", marker.display())).unwrap();
+        #[cfg(unix)]
+        std::fs::set_permissions(&script, std::os::unix::fs::PermissionsExt::from_mode(0o755))
+            .unwrap();
+        script
+    };
 
     let addr = {
         let l = TcpListener::bind("127.0.0.1:0").await.unwrap();

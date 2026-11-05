@@ -1,7 +1,6 @@
 //! The CLI's side of the daemon socket, including starting the daemon on demand (architecture 5).
 
 use std::path::{Path, PathBuf};
-use std::process::Stdio;
 use std::time::Duration;
 
 use serde_json::{Value, json};
@@ -189,35 +188,47 @@ fn log_path() -> PathBuf {
 async fn start_daemon() -> Result<(), Failure> {
     let exe = std::env::current_exe()
         .map_err(|e| Failure::Local(format!("cannot find the phone-use binary: {e}")))?;
-    let log = std::fs::create_dir_all(socket::home())
-        .and_then(|()| {
-            std::fs::OpenOptions::new()
-                .create(true)
-                .append(true)
-                .open(log_path())
-        })
-        .map(Stdio::from)
-        .unwrap_or_else(|_| Stdio::null());
-    let mut cmd = tokio::process::Command::new(exe);
-    cmd.arg("daemon")
+    let log = std::fs::create_dir_all(socket::home()).and_then(|()| {
+        std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(log_path())
+    });
+    let ready = spawn_daemon(&exe, log)
+        .map_err(|e| Failure::Local(format!("cannot start the daemon: {e}")))?;
+    let mut lines = BufReader::new(ready).lines();
+    let _ = timeout(READY_WAIT, lines.next_line()).await;
+    Ok(())
+}
+
+#[cfg(unix)]
+fn spawn_daemon(
+    exe: &Path,
+    log: std::io::Result<std::fs::File>,
+) -> std::io::Result<tokio::process::ChildStdout> {
+    use std::process::Stdio;
+    let mut child = tokio::process::Command::new(exe)
+        .arg("daemon")
         .arg("--detach")
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
-        .stderr(log);
-    #[cfg(unix)]
-    cmd.process_group(0);
-    #[cfg(windows)]
-    {
-        const DETACHED_PROCESS: u32 = 0x0000_0008;
-        const CREATE_NEW_PROCESS_GROUP: u32 = 0x0000_0200;
-        cmd.creation_flags(DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP);
-    }
-    let mut child = cmd
-        .spawn()
-        .map_err(|e| Failure::Local(format!("cannot start the daemon: {e}")))?;
-    if let Some(out) = child.stdout.take() {
-        let mut lines = BufReader::new(out).lines();
-        let _ = timeout(READY_WAIT, lines.next_line()).await;
-    }
-    Ok(())
+        .stderr(log.map_or_else(|_| Stdio::null(), Stdio::from))
+        .process_group(0)
+        .spawn()?;
+    child
+        .stdout
+        .take()
+        .ok_or_else(|| std::io::Error::other("no stdout"))
+}
+
+#[cfg(windows)]
+fn spawn_daemon(
+    exe: &Path,
+    log: std::io::Result<std::fs::File>,
+) -> std::io::Result<tokio::fs::File> {
+    let log = match log {
+        Ok(file) => file,
+        Err(_) => std::fs::OpenOptions::new().write(true).open("NUL")?,
+    };
+    crate::detach::spawn_daemon(exe, &log).map(tokio::fs::File::from_std)
 }
