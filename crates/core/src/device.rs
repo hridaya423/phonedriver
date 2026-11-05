@@ -137,6 +137,8 @@ pub struct Url(pub String);
 #[derive(Clone, PartialEq, Eq)]
 pub enum TextInput {
     Paste(String),
+    /// Paste with the clipboard marked sensitive, so the system hides the text in its clipboard preview.
+    PasteSecret(String),
     SetValue(String),
     Keystrokes(String),
 }
@@ -145,6 +147,7 @@ impl fmt::Debug for TextInput {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let (mode, text) = match self {
             TextInput::Paste(t) => ("Paste", t),
+            TextInput::PasteSecret(t) => ("PasteSecret", t),
             TextInput::SetValue(t) => ("SetValue", t),
             TextInput::Keystrokes(t) => ("Keystrokes", t),
         };
@@ -195,4 +198,8 @@ pub trait Device: Send + Sync {
     async fn apps(&self) -> Result<Vec<App>>;
     async fn launch(&self, app: &AppId) -> Result<()>;
     async fn foreground(&self) -> Result<Option<AppId>>;
+    /// The platform's own tree JSON with a `density` key, for saving fixtures; `None` when the platform has none.
+    async fn capture_tree(&self) -> Result<Option<String>> {
+        Ok(None)
+    }
 }

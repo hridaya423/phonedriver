@@ -79,12 +79,17 @@ pub fn gesture_request(g: &Gesture, density: f32) -> Value {
 }
 
 pub fn text_request(t: &TextInput) -> Value {
-    let (mode, text) = match t {
-        TextInput::Paste(s) => ("paste", s),
-        TextInput::SetValue(s) => ("set", s),
-        TextInput::Keystrokes(s) => ("keys", s),
+    let (mode, text, sensitive) = match t {
+        TextInput::Paste(s) => ("paste", s, false),
+        TextInput::PasteSecret(s) => ("paste", s, true),
+        TextInput::SetValue(s) => ("set", s, false),
+        TextInput::Keystrokes(s) => ("keys", s, false),
     };
-    json!({"op": "text", "mode": mode, "text": text})
+    let mut request = json!({"op": "text", "mode": mode, "text": text});
+    if sensitive {
+        request["sensitive"] = true.into();
+    }
+    request
 }
 
 /// Maps an event the agent pushed on the control stream; unknown events are ignored.
@@ -240,6 +245,18 @@ mod tests {
         );
         assert_eq!(event(&json!({"ev":"nope"}), 2.625), None);
         assert_eq!(event(&json!({"id":3,"ok":true}), 2.625), None);
+    }
+
+    #[test]
+    fn a_secret_paste_marks_the_clipboard_sensitive() {
+        let secret = text_request(&TextInput::PasteSecret("s".into()));
+        assert_eq!(secret["mode"], "paste");
+        assert_eq!(secret["sensitive"], true);
+        assert!(
+            text_request(&TextInput::Paste("s".into()))
+                .get("sensitive")
+                .is_none()
+        );
     }
 
     #[test]

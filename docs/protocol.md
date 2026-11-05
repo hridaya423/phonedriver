@@ -23,7 +23,7 @@ Version mismatch: the daemon replies with error code `-32010 version_mismatch` a
 | `shutdown` | none | `{}` |
 | `devices` | none | `[DeviceSummary]` |
 | `release` | `device?` | `{}` |
-| `snapshot` | `device?, diff?, interactive?, within?, pixels?, max_lines?` | `Observation` |
+| `snapshot` | `device?, diff?, interactive?, within?, pixels?, max_lines?, no_settle?, elements?, capture?, timeout_ms?` | `Observation` |
 | `screenshot` | `device?, native?, quality?, format?` | `{path, width, height, scale}` |
 | `find` | `device?, text, role?` | `[ElementLine]` |
 | `act` | `device?, action: Action, settle?: bool, timeout_ms?` | `ActionResult` |
@@ -33,7 +33,7 @@ Version mismatch: the daemon replies with error code `-32010 version_mismatch` a
 
 `device` is omitted when exactly one device is connected or a default is set. Every device method also takes `session` (string, default `"default"`); refs, diff baselines and leases belong to the session, not to the socket connection (architecture section 5).
 
-Additional methods: `open { device?, url }` → `ActionResult`.
+Additional methods: `open { device?, url }` → `ActionResult`. `share?: boolean` is accepted by every device method (architecture 5, leases). Typed text and secrets: a `type` action's text is masked (`•••`) in `observation.text` when `secret` is true, and the trace records only its length.
 
 ```ts
 type Target = {ref: string} | {point: {x: number, y: number}} | {text: string, role?: Role}
@@ -48,14 +48,18 @@ type Action =
   | {kind: "gesture", fingers: Array<Array<{x: number, y: number, t_ms: number}>>}
   | {kind: "press", key: Key}
   | {kind: "launch", app: string}
-type WaitCondition = {appears: Target} | {gone: Target} | {settled: true}
+type WaitCondition = {appears: Target} | {gone: Target} | {settled: true}   // Phase 2 implements settled only
 
 type Observation = {
-  header: Header,                 // device, app, keyboard, orientation, settle_ms, settled, changed,
-                                  // still_changing?, loading
-  text: string,                   // rendered snapshot or diff, exactly what the CLI prints
+  header: Header,                 // core::render::Header: device {id, model, os, screen, orientation}, app {id, name},
+                                  // keyboard (rect or null), settle {settled, ms}
+  text: string,                   // rendered snapshot (with header) or diff lines, exactly what the CLI prints
   kind: "full" | "diff",
-  elements?: ElementJson[]        // only with --json
+  changed: boolean, settled: boolean, settle_ms: number,
+  still_changing?: Rect,          // the union of recent changed boxes when settled is false
+  loading: boolean,
+  elements?: Element[],           // only with `elements: true` (CLI --json)
+  capture?: string                // the device's own tree JSON with a `density` key, only with `capture: true`
 }
 type ActionResult = {
   ok: true,
@@ -63,7 +67,8 @@ type ActionResult = {
   via?: string,                   // "nav-button", "edge-swipe", "paste", ...
   verified?: boolean,             // type: field text now contains the input
   settled: boolean, settle_ms: number,
-  observation: Observation
+  changed: boolean,               // pixels or windows changed, or the diff is not empty
+  observation: Observation       // kind "diff" with empty text when nothing changed
 }
 ```
 
