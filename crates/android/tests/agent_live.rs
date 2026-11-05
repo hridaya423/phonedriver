@@ -259,7 +259,13 @@ async fn set_and_keys_modes_type_and_keys_reports_unmappable_characters() {
     let plain = find_node(&mut c, ":id/plain").await;
     let (x, y) = center(&plain);
     tap(&mut c, x, y).await;
-    tokio::time::sleep(Duration::from_millis(800)).await;
+    for _ in 0..30 {
+        if c.ok(json!({"op":"state"})).await["ime_visible"] == true {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    }
+    tokio::time::sleep(Duration::from_millis(500)).await;
     testbed::clear_log(&raw.adb, &raw.serial).await;
     c.ok(json!({"op":"text","mode":"keys","text":"hello"}))
         .await;

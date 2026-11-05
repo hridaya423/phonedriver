@@ -89,8 +89,8 @@ Loop per component: write its test, run it red, implement the component as archi
 
 **Step 1: Failing tests.**
 - Unit: `map::raw_tree(agent_json, density)` converts px bounds to points, maps classes to roles, decodes flags; uses the fixture captured in Task 2.7 once it exists (start with the handmade one).
-- Live (`#[ignore]`): `AndroidDevice::connect(serial)` then `tree()` on Settings contains a `Button`-role element labeled "Network & internet" (or the label your emulator shows; capture it, then assert it).
-- Live: `gesture(tap at the center of that element)` then within 2 s the tree contains the next screen's heading.
+- Live (`#[ignore]`): `AndroidDevice::connect(&adb, serial)` then `tree()` on Settings contains a `Button`-role element labeled "Network & internet" (API 26's Settings says "Network & Internet", so the match ignores case).
+- Live: `gesture(tap at the center of that element)` then within 2 s the tree contains an "Airplane mode" element and the main list's "Connected devices" button is gone. (The next screen's title is not a heading on API 37: Compose gives it role `Other`, a Phase 3 item.)
 
 **Step 2:** FAIL. **Step 3:** Implement the `Device` trait. Capabilities: everything except `Ocr` for now. Convert points to px only here. **Step 4:** PASS. Commit.
 

@@ -8,7 +8,7 @@ use phone_use_core::error::Error;
 use serde::Deserialize;
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use tokio::net::TcpStream;
 use tokio::task::JoinHandle;
 
@@ -204,7 +204,7 @@ pub async fn launch(adb: &Adb, serial: &str) -> Result<Launched> {
     })
 }
 
-pub async fn write_frame(s: &mut TcpStream, v: &Value) -> Result<()> {
+pub async fn write_frame<W: AsyncWrite + Unpin>(s: &mut W, v: &Value) -> Result<()> {
     let body =
         serde_json::to_vec(v).map_err(|e| transport(format!("cannot encode a frame: {e}")))?;
     let mut msg = (body.len() as u32).to_be_bytes().to_vec();
@@ -214,7 +214,7 @@ pub async fn write_frame(s: &mut TcpStream, v: &Value) -> Result<()> {
         .map_err(|e| transport(format!("the agent connection broke: {e}")))
 }
 
-pub async fn read_frame(s: &mut TcpStream) -> Result<Value> {
+pub async fn read_frame<R: AsyncRead + Unpin>(s: &mut R) -> Result<Value> {
     let broke = |e: std::io::Error| transport(format!("the agent connection broke: {e}"));
     let mut len = [0u8; 4];
     s.read_exact(&mut len).await.map_err(broke)?;
@@ -249,7 +249,7 @@ pub struct Agent {
     pub video: TcpStream,
     pub hello: Hello,
     pub log: AgentLog,
-    _launched: Launched,
+    pub(crate) launched: Launched,
 }
 
 impl Agent {
@@ -289,7 +289,7 @@ impl Agent {
             video,
             hello,
             log: launched.log.clone(),
-            _launched: launched,
+            launched,
         })
     }
 }

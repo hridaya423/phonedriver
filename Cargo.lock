@@ -471,6 +471,7 @@ dependencies = [
  "async-trait",
  "getrandom",
  "phone-use-core",
+ "phone-use-video",
  "serde",
  "serde_json",
  "sha2",
