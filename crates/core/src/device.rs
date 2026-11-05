@@ -199,6 +199,10 @@ pub trait Device: Send + Sync {
     async fn launch(&self, app: &AppId) -> Result<()>;
     async fn foreground(&self) -> Result<Option<AppId>>;
     /// The platform's own tree JSON with a `density` key, for saving fixtures; `None` when the platform has none.
+    /// True when a window of `tree` is secure (`FLAG_SECURE`): its pixels are black while its tree reads.
+    fn secure_content_hidden(&self, _tree: &RawTree) -> bool {
+        false
+    }
     async fn capture_tree(&self) -> Result<Option<String>> {
         Ok(None)
     }

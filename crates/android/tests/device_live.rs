@@ -264,3 +264,15 @@ async fn screenshots_keep_working_while_the_screen_is_idle_and_no_frames_arrive(
     let image = device.screenshot(Quality(90)).await;
     assert!(image.is_ok(), "{image:?}");
 }
+
+#[tokio::test]
+#[ignore = "needs PHONE_USE_TEST_DEVICE"]
+async fn connect_returns_once_the_first_frame_has_arrived() {
+    let (device, _serial, _g) = connect().await;
+    let frames = device.frames().expect("android has a frame stream");
+    assert!(
+        frames.borrow().seq > 0,
+        "no frame yet right after connect: {:?}",
+        *frames.borrow()
+    );
+}

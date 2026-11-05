@@ -14,6 +14,8 @@ const STALL_AFTER: Duration = Duration::from_secs(1);
 /// Architecture 4.6: a thumbnail sample covers 4 by 4 points and counts as changed above 12 luma levels.
 const SAMPLE_POINTS: f32 = 4.0;
 const CHANGED_LEVELS: i16 = 12;
+/// Limited-range video black is luma 16 (spike A3 measured exactly 16 over a FLAG_SECURE window).
+const BLACK_LEVEL: u8 = 20;
 
 /// A decoded picture in planar YUV 4:2:0, rows tightly packed.
 #[derive(Clone)]
@@ -218,6 +220,24 @@ impl FrameStore {
         } else {
             StreamState::Live
         }
+    }
+
+    /// True when the newest frame is black everywhere inside `region` (points): what a `FLAG_SECURE` window looks like.
+    /// False when there is no frame or the region covers no thumbnail sample.
+    pub fn region_is_black(&self, region: Rect) -> bool {
+        let inner = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        let Some(thumb) = &inner.thumb else {
+            return false;
+        };
+        let s = self.sample_pt();
+        let col = |pt: f32| ((pt / s).max(0.0) as usize).min(thumb.cols);
+        let row = |pt: f32| ((pt / s).max(0.0) as usize).min(thumb.rows);
+        let (c0, c1) = (col(region.x), col(region.x + region.w));
+        let (r0, r1) = (row(region.y), row(region.y + region.h));
+        if c0 >= c1 || r0 >= r1 {
+            return false;
+        }
+        (r0..r1).all(|r| (c0..c1).all(|c| thumb.samples[r * thumb.cols + c] <= BLACK_LEVEL))
     }
 
     pub(crate) fn record_decode_error(&self) {

@@ -45,6 +45,9 @@ pub struct Header {
     /// Keyboard frame when it is shown.
     pub keyboard: Option<Rect>,
     pub settle: Option<SettleLine>,
+    /// A secure window is on screen: its pixels are black but its tree is readable.
+    #[serde(default)]
+    pub secure_hidden: bool,
 }
 
 /// A screen ready to print: header plus elements with refs, in preorder.
@@ -188,6 +191,9 @@ impl Rendered {
         }
         if self.loading() {
             parts.push("loading".into());
+        }
+        if h.secure_hidden {
+            parts.push("secure content hidden".into());
         }
         lines.push(parts.join(" · "));
         lines.join("\n")
@@ -378,6 +384,7 @@ mod tests {
                 settled: true,
                 ms: 212,
             }),
+            secure_hidden: false,
         }
     }
 
@@ -493,6 +500,22 @@ mod tests {
             "real_dialog",
             real(include_str!("../tests/fixtures/android/real_dialog.json"))
         );
+    }
+
+    #[test]
+    fn a_secure_window_adds_secure_content_hidden_to_the_header() {
+        let mut r = settings();
+        r.header.secure_hidden = true;
+        let text = r.text(&Filters::default()).unwrap();
+        assert!(
+            text.lines()
+                .nth(1)
+                .unwrap()
+                .ends_with("settled in 212ms · secure content hidden"),
+            "{text}"
+        );
+        r.header.secure_hidden = false;
+        assert!(!r.text(&Filters::default()).unwrap().contains("secure"));
     }
 
     #[test]

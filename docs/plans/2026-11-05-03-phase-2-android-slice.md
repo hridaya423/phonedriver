@@ -145,7 +145,7 @@ Logs go to logcat tag `PUTB`, one JSON object per line. Add `crates/android/test
 
 ### Task 2.9: End-to-end ground-truth tests
 
-**Files:** Create `crates/android/tests/e2e.rs` (`#[ignore]`).
+**Files:** Create `crates/cli/tests/e2e.rs` (`#[ignore]`; it lives in the cli crate because `cargo_bin("phone-use")` finds the binary only from the crate that owns it, and it includes the testbed helper from `crates/android/tests/support/testbed.rs` with `#[path]`).
 
 Each test drives the real CLI binary (`assert_cmd`) against the testbed and checks the testbed's log:
 - Tap on `@ref` of button `b17` → logged tap within ±1 dp of the element's center.
@@ -155,7 +155,7 @@ Each test drives the real CLI binary (`assert_cmd`) against the testbed and chec
 - `phone-use type "hunter2" --into <password field>` (no flag) → the trace still contains no `hunter2`, because the target is a `SecureField`.
 - `phone-use type --secret hunter2` (secret on argv) → usage error exit 2, nothing typed.
 - `screenshot` of the Taps tab → PNG whose size equals the display size in px divided by density (±1), as reported by the agent's `hello`; look at it.
-- Busy tab: `snapshot` returns within 300 ms with `loading` in the header (no idle wait).
+- Busy tab: `snapshot` replies `settled: true` with `settle_ms` under 100 and `loading` in the header (no idle wait); wall time through the SSH tunnel stays under 600 ms (a tree read alone is about 120 ms there, and the debug binary adds more; the 300 ms of the first draft is judged co-located in 2.10). The testbed's rotating label is 12 sp: at 24 sp it changed 2,500 to 3,100 pt² per frame and sometimes passed the 4,096 pt² threshold, which is not a small spinner.
 - Secure tab: header shows `secure content hidden`; tree still contains the label.
 
 Commit when all pass on API 37. Run again on API 26 and record results; failures on API 26 become Phase 3 tasks.
