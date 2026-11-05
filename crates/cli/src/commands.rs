@@ -11,6 +11,8 @@ use serde_json::{Value, json};
 
 use crate::client::{Client, Failure};
 use crate::daemon::android::AdbSource;
+use crate::daemon::ios::SimSource;
+use crate::daemon::sources::Sources;
 use crate::daemon::{Config, Daemon, socket};
 use crate::wire::{ActionResult, DeviceEntry, Kind, Observation, ScreenshotResult, VERSION};
 
@@ -464,8 +466,12 @@ fn run_daemon() -> ExitCode {
         return ExitCode::from(1);
     };
     rt.block_on(async {
+        let sources = Sources(vec![
+            ("android:", Arc::new(AdbSource::from_env())),
+            ("sim:", Arc::new(SimSource::new(socket::home()))),
+        ]);
         let daemon = Daemon::new(
-            Arc::new(AdbSource::from_env()),
+            Arc::new(sources),
             Config {
                 home: socket::home(),
             },

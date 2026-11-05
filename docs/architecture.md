@@ -118,7 +118,8 @@ A ref is assigned the first time an element is seen in a session and is never re
 Matching a new tree to the previous one (`core::refs::assign`), in order:
 1. Platform identity, only with continuity: Android `(windowId, sourceNodeId)` matches only if the role is the same **and** either the label is unchanged or the bounds moved less than 8 points. Recycled list rows (RecyclerView, Compose lazy lists) reuse the same view and node id for a different item after a scroll; without this check `@e12` "Row 12" would silently become "Row 20" and a tap would hit the wrong row. `sourceNodeId` comes from the hidden `AccessibilityNodeInfo.getSourceNodeId()` via reflection; if spike A1 shows it unavailable, step 1 is skipped. iOS snapshots have no stable id.
 2. Structural key: `(role, id, label)` plus nearest-ancestor key, with the closest bounds when several match.
-3. Otherwise a new ref.
+3. App id alone: an element whose app-given id (`accessibilityIdentifier`, resource id) is unique in both trees keeps the ref of the element with that id and role, even when its label changed. iOS snapshots have no platform identity, so without this a status text that changes its label ("Last tap: none" to "Last tap: b17") would print as a removal and an addition instead of a `~` line. Ids shared by several elements (every row of a list named `cell`) are skipped, because matching them by place would hand a row's ref to the next item scrolled into that place.
+4. Otherwise a new ref.
 
 Invariants, each a property test:
 - An element whose identity, role, id and label are unchanged keeps its ref.
@@ -132,7 +133,7 @@ At action time, `@eN` resolves against a fresh tree. If the element moved, the a
 
 Pruning rules (`core::render`), applied in this order:
 1. Drop invisible nodes: zero area, fully off-screen, or `isVisibleToUser == false`.
-2. **Label actionable containers from their text.** On Android the clickable node is usually an unlabeled layout whose text sits in non-actionable `TextView` children (every Settings row). For a node with actions and no label of its own: collect the text of descendants that have no actions of their own, in preorder; the first becomes `label`, the rest join into `hint` with " · ". Those absorbed descendants are not rendered separately. A descendant with its own actions (a switch inside a row) stays a separate element.
+2. **Label actionable containers from their text.** On Android the clickable node is usually an unlabeled layout whose text sits in non-actionable `TextView` children (every Settings row). For a node with actions and no label of its own: collect the text of descendants that have no actions of their own, in preorder; the first becomes `label`, the rest join into `hint` with " · ". Those absorbed descendants are not rendered separately. A descendant with its own actions (a switch inside a row) stays a separate element. A node with actions **and** a label of its own absorbs, without merging, the inert descendants that are images or repeat its label (an iOS tab button lists its icon and its title as children; a screen reader reads the button as one element).
 3. Collapse containers that have no label, no actions, and one child.
 4. Keep a node if it has actions, has text, is a `TextField`/`SecureField`, or is a scrollable container.
 
@@ -174,7 +175,7 @@ At `timeout` (default 5 s for actions, 2 s for `snapshot`) the detector stops wi
 
 Tested with a simulated clock and scripted event sequences. No sleeps in tests.
 
-Devices without a frame stream (iOS ≤26, Simulator) feed the detector by polling low-quality screenshots back to back (one in flight at a time; the interval is whatever the runner takes, measured in Phase 5). Slower, same contract.
+Devices without a frame stream (iOS ≤26, Simulator) feed the detector by polling screenshots. As built (task 5.5), the polling lives in the device, not the session: `IosDevice` asks the runner for a gray `luma` screenshot at 0.25 pixels per point (one sample per 4×4 points, the same measure as the video thumbnail) and publishes it into a `FrameStore`, so `frames()` returns `Some` and the session code is the same for both platforms. Each poll costs about 75 ms on the Simulator (61 ms of it is XCTest's capture, whatever the output size). It polls back to back for 3 s after any input or visible change (above 128 pt²) and every 500 ms otherwise; it never polls between the requests of one input (the tree read and the tap of `back`), because the runner serves one request at a time and an extra poll there pushed the first frame after the input past the 500 ms first-change window (3 of 10 `press back` replies before, 0 of 10 after).
 
 ### 4.7 Errors
 
@@ -225,6 +226,7 @@ pub trait Device: Send + Sync {
     async fn launch(&self, app: &AppId) -> Result<()>;
     async fn foreground(&self) -> Result<Option<AppId>>;
     async fn capture_tree(&self) -> Result<Option<String>>; // default None: the platform's own tree JSON, for fixtures
+    async fn back(&self) -> Result<Option<&'static str>>;   // default: button(Back), no `via`; iOS says nav-button or edge-swipe
 }
 ```
 
@@ -339,7 +341,9 @@ An XCTest UI test bundle (`ios-runner/`), Objective-C for direct use of private 
 
 Requests: `snapshot { max_depth }` of the foreground application (first of `XCAXClient_iOS activeApplications`, `requestSnapshotForElement` with bounded `maxDepth` and eight raw AX attributes), `gesture` (synthesized event record), `screenshot { quality, format }`, `type` (a synthesized text-input event with `shouldRedact`, because `XCUIElement typeText:` writes the text into xcodebuild's output and the `.xcresult` bundle, which the secrets rule forbids), `button` (home and volume via `XCUIDevice pressButton:`, volume unavailable on the Simulator; lock via `pressLockButton`, which WDA's `fb_lockScreen` uses on simulators, while on iOS 27 devices WDA sends an IOHID power press instead, so Phase 6 must do the same), `activate { bundle_id }`, `open_url`. Wire details in `docs/protocol.md` section 3.
 
-The runner serves one request at a time. Every request runs on the main thread as a main-run-loop block (`CFRunLoopPerformBlock`), not a main-queue block, because event synthesis completes through main-queue callbacks that a running main-queue block would deadlock. XCTest reports UI failures as test issues; the runner's `recordIssue:` turns each into an error reply instead of ending the test. Snapshot and screenshot both run on the main thread, so the Runner and Simulator tiers poll for settle more slowly than the CoreDevice tier (section 12). Measured on the iPhone 17 simulator (iOS 26.5): snapshot 13 to 25 ms, screenshot about 75 ms JPEG and 63 ms PNG (`docs/spikes/ios.md`).
+The runner serves one request at a time. Every request runs on the main thread as a main-run-loop block (`CFRunLoopPerformBlock`), not a main-queue block, because event synthesis completes through main-queue callbacks that a running main-queue block would deadlock. XCTest reports UI failures as test issues; the runner's `recordIssue:` turns each into an error reply instead of ending the test. Snapshot and screenshot both run on the main thread, so the Runner and Simulator tiers poll for settle more slowly than the CoreDevice tier (section 12). Measured on the iPhone 17 simulator (iOS 26.5): snapshot 13 to 25 ms, screenshot about 75 ms JPEG and 63 ms PNG (`docs/spikes/ios.md`). Every synthesized event (tap, swipe, typing, key) costs about 230 ms more than its own duration: the testbed logs the tap 30 to 50 ms after the request, but XCTest's completion arrives at about 240 ms, for an empty spot as for a button; the session's `implicitEventConfirmationIntervalForCurrentContext` (5 s by default) made no difference at 0 or 0.05. The runner waits for the completion, so the Simulator tier misses the 80 ms tap budget (decision D15).
+
+Simulator tier (task 5.5, `crates/ios/src/device.rs`). `tree` is the runner's snapshot with the foreground app as the application window and the keyboard, when shown, as an input-method window. Back: the button whose identifier is `BackButton` (UIKit and SwiftUI both name the navigation bar's back button so), else a drag from the left edge to 70% of the width over 300 ms, which also goes back in a web view with back-forward gestures; a hidden navigation bar disables the interactive pop, so the edge swipe then does nothing. `paste` and secret text type through the runner's redacted text input at 5000 characters per second: a synthesized Cmd+V pastes text the app copied itself but not text another process put on the pasteboard (runner or `simctl pbcopy`; no prompt appears, nothing is pasted), so the pasteboard is never used for typing and a secret never lands there. `keys` mode types at 60 per second. `clipboard` uses `simctl pbcopy`/`pbpaste` with a UTF-8 locale (`pbcopy` reads Mac Roman otherwise). `apps` is `simctl listapps` converted by `plutil`; `launch` is `simctl launch`; `open` is the runner's `open_url`, which unlike `simctl openurl` raises no confirmation for custom schemes. `press notifications` drags down from the top edge at 20% of the width. Volume and recents are `Unsupported`.
 
 Host connects through idevice's device-port connect (as `services/wda.rs` does), so no host port forwarding. Launch: on devices, idevice `xctest`; on simulators, `xcodebuild test-without-building -xctestrun ... -destination id=<udid>` as a child of the daemon, with the port passed as `TEST_RUNNER_PHONE_USE_PORT` (xcodebuild only forwards `TEST_RUNNER_`-prefixed variables to the test process, without the prefix). Readiness: the daemon polls the port with `hello` every 100 ms up to 60 s; it does not rely on xcodebuild's log output.
 
@@ -409,7 +413,7 @@ How the less obvious verbs work per platform:
 | Verb | Android | iOS CoreDevice | iOS Runner / Simulator |
 |---|---|---|---|
 | `press notifications` | StatusBarManager `expandNotificationsPanel` (scrcpy wrapper) | swipe down from the top-left edge | same swipe via runner |
-| `open <url>` | ActivityManager VIEW intent | runner `XCUIDevice.shared.system.open` if installed, else `Unsupported` | runner on device; `simctl openurl` on Simulator |
+| `open <url>` | ActivityManager VIEW intent | runner `XCUIDevice.shared.system.open` if installed, else `Unsupported` | runner on device and Simulator (`simctl openurl` asks "Open in …?" for custom schemes) |
 | `press back` | `KEYCODE_BACK` | nav-bar back button, else left-edge swipe; `via` says which | same |
 
 Text targets resolve by: exact label, then case-insensitive exact, then substring. More than one match fails with `Ambiguous` and lists refs.
@@ -455,7 +459,7 @@ Measured in task 2.10 (`docs/bench/m1.md`, win-pc, API 37 emulator, p50 of two 5
 - Never executes agent-supplied code.
 - Secret text arrives on stdin or in `PHONE_USE_SECRET`, never on the command line (argv is visible in `ps` and shell history). It is never logged, traced, or echoed. Typing into a `SecureField` is treated as secret even without the flag. `SecureField` values never render.
 - The Android agent's socket requires the per-launch token (section 6.2).
-- Clipboard is restored after paste on Android. On iOS the pasteboard holds the pasted text afterwards; replies say so.
+- Clipboard is restored after paste on Android. On the iOS Simulator, typing never touches the pasteboard (section 7.3). The CoreDevice tier pastes through it (section 7.2) and the pasteboard holds the text afterwards; replies say so.
 
 ## 14. Known gaps in v1 (stated, not hidden)
 

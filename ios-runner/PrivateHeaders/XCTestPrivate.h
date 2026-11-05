@@ -14,6 +14,7 @@ NS_ASSUME_NONNULL_BEGIN
 - (id)initForTouchAtPoint:(CGPoint)point offset:(double)offset;
 - (id)initForTextInput;
 - (void)typeText:(NSString *)text atOffset:(double)offset typingSpeed:(unsigned long long)speed shouldRedact:(BOOL)redact;
+- (void)typeKey:(NSString *)key modifiers:(unsigned long long)modifiers atOffset:(double)offset;
 - (void)moveToPoint:(CGPoint)point atOffset:(double)offset;
 - (void)liftUpAtOffset:(double)offset;
 @end

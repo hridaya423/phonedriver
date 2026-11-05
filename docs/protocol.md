@@ -182,15 +182,16 @@ Every request carries `id` and `op`. A reply echoes `id` and adds `ok: true` plu
 | `hello` | `version` | `{version, ios, model, screen:{w,h,scale}, udid?, build?}` (points; `model` is the machine id, for example `iPhone18,3`; on a simulator `udid` is the simulator's, from `SIMULATOR_UDID`; `build` echoes the `PHONE_USE_BUILD` the daemon launched it with, the hash of the runner sources) |
 | `snapshot` | `max_depth` (default 30) | `{app:{bundle_id, pid}, nodes:[RawNode]}` with bounds in points |
 | `gesture` | `pointers:[{path:[{x,y,t_ms}]}]` (points, 1 to 5 pointers, `t_ms` non-decreasing) | `{}` after the last lift is delivered |
-| `screenshot` | `quality (0..100, default 80), format: "jpeg"|"png"` (default `jpeg`) | `{data_b64, w, h}` (`w`, `h` in pixels) |
-| `type` | `text` | `{}` |
+| `screenshot` | `quality (0..100, default 80), format: "jpeg"|"png"|"luma"` (default `jpeg`), `scale?` (output pixels per point, above 0 and at most 4; 0 or absent means native pixels; required for `luma`) | `{data_b64, w, h}` (`w`, `h` in pixels); `luma` is one byte of gray per pixel, rows top to bottom, no header |
+| `type` | `text`, `speed?` (characters per second, default 60) | `{}` |
+| `key` | `key` (an `XCUIKeyboardKey` string or a character), `modifiers?` (`"command"`, `"shift"`, `"option"`, `"control"`) | `{}` after the key is delivered |
 | `button` | `name: "home"|"volume_up"|"volume_down"|"lock"` | `{}`; volume is `unsupported` on the Simulator |
 | `activate` | `bundle_id` | `{}` |
 | `open_url` | `url` | `{}` (`XCUIDevice.shared.system.openURL`; unlike `simctl openurl`, raises no "Open in …?" confirmation) |
 
 `snapshot` covers the first of `XCAXClient_iOS activeApplications` (the foreground app). Its attribute list is fixed (label, value, identifier, frame, element type, traits, placeholder value, native focus); a request-chosen list was planned and dropped because nothing needs it.
 
-`type` sends key events to whatever has keyboard focus, through a synthesized text-input event with redaction, so the text never reaches XCTest's activity log, xcodebuild's output or the `.xcresult` bundle. With no focused field the keys are dropped and the reply is still `{}`; the daemon checks the field afterwards (`verified` in `ActionResult`).
+`type` sends key events to whatever has keyboard focus, through a synthesized text-input event with redaction, so the text never reaches XCTest's activity log, xcodebuild's output or the `.xcresult` bundle. With no focused field the keys are dropped and the reply is still `{}`; the daemon checks the field afterwards (`verified` in `ActionResult`). At `speed` 5000 the runner entered 102 mixed characters (accents, CJK, Arabic, emoji with skin tone) exactly in 267 ms on the iOS 26.5 Simulator; the Simulator tier uses that speed for `paste` mode (architecture 7.3). A newline goes through `type` (`"\n"`): `key` with `"\r"` or `"\n"` did not insert one in a multi-line field.
 
 iOS `RawNode` uses the same keys as Android with `cls` set to the `XCUIElementType` name and `n` and `w` omitted. `text` is `label`, `desc` is unused, `sd` is `value`, `hint` is `placeholderValue`, `id` is `identifier`, `b` is `[l,t,r,b]` in points rounded to 1/100. Flags: `v` and `V` when the frame intersects the application's frame (`core::prune` drops nodes without `V`); `e` enabled; `s` selected; `F` focused; `c` for switch, toggle and checkbox, plus `C` when the value is `1`; `E` for text field, secure text field, search field and text view; `P` for secure text field; `S` for scroll view, table, collection view and web view. `a` is `["tap"]` for button, cell, link, switch, toggle, checkbox, radio button, tab, menu item, key, icon and the text-entry types; no other actions are emitted.
 

@@ -5,9 +5,11 @@
 
 pub mod actor;
 pub mod android;
+pub mod ios;
 pub mod rpc;
 pub mod session;
 pub mod socket;
+pub mod sources;
 pub mod trace;
 
 use std::collections::HashMap;

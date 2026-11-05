@@ -72,15 +72,21 @@ static NSDictionary *PUPerform(NSDictionary *request, NSError **error)
     if ([op isEqualToString:@"screenshot"]) {
         NSString *format = request[@"format"] ?: @"jpeg";
         NSNumber *quality = request[@"quality"] ?: @80;
-        if (![format isKindOfClass:NSString.class] || ![quality isKindOfClass:NSNumber.class]) {
-            if (error) *error = PUError(PURunnerErrorBadRequest, @"format must be a string and quality a number");
+        NSNumber *scale = request[@"scale"] ?: @0;
+        if (![format isKindOfClass:NSString.class] || ![quality isKindOfClass:NSNumber.class]
+            || ![scale isKindOfClass:NSNumber.class]) {
+            if (error) *error = PUError(PURunnerErrorBadRequest, @"format must be a string, quality and scale numbers");
             return nil;
         }
-        return PUScreenshot(format, quality.integerValue, error);
+        return PUScreenshot(format, quality.integerValue, scale.doubleValue, error);
     }
     if ([op isEqualToString:@"type"]) {
         NSString *text = PUStringField(request, @"text", error);
-        return text && PUType(text, error) ? @{} : nil;
+        return text && PUType(text, [request[@"speed"] unsignedIntegerValue], error) ? @{} : nil;
+    }
+    if ([op isEqualToString:@"key"]) {
+        NSString *key = PUStringField(request, @"key", error);
+        return key && PUKey(key, request[@"modifiers"] ?: @[], error) ? @{} : nil;
     }
     if ([op isEqualToString:@"button"]) {
         NSString *name = PUStringField(request, @"name", error);

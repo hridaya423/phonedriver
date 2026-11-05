@@ -591,3 +591,21 @@ async fn type_without_into_finds_the_focused_field_in_the_last_observation_inste
         "second tree unread: {next}"
     );
 }
+
+#[tokio::test(start_paused = true)]
+async fn press_back_on_a_device_with_one_way_back_presses_the_button_and_has_no_via() {
+    let (source, fake) = FakeSource::with(vec![tree(&["A"])]);
+    let (d, _home) = daemon(source);
+    let r = ok(
+        &d,
+        "s",
+        "act",
+        json!({"action": {"kind": "press", "key": "back"}, "settle": false}),
+    )
+    .await;
+    assert!(r.get("via").is_none(), "{r}");
+    assert!(
+        fake.calls()
+            .contains(&Call::Button(phone_use_core::device::Button::Back))
+    );
+}
