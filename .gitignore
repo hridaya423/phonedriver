@@ -9,5 +9,4 @@
 /testbeds/ios/Testbed.xcodeproj
 /testbeds/ios/Testbed/Info.plist
 /ios-runner/PhoneUseRunner.xcodeproj
-/ios-runner/Runner/Info.plist
 __pycache__

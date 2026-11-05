@@ -46,6 +46,8 @@ Build WebDriverAgent at `3d6a4e0` for the simulator. Time `GET /source` on the t
 
 **Step 4:** PASS. Commit.
 
+*As built (2026-11-05):* the live test is `ios-runner/tests/test_runner.py` (Python 3 standard library, 13 tests, run on the mini), not `crates/ios/tests/runner_live.rs`: the mini has no Rust toolchain and there is no Rust runner client until task 5.4, which moves these checks into Rust. The test method is `testServe` (`testRun` collides with `XCTestCase.testRun`). `hello` reads the screen from SpringBoard's frame because the runner's own process runs letterboxed at 320 x 480. `type` uses a redacted synthesized text-input event instead of `typeText:` (secrets). `snapshot` takes `max_depth` only and requests eight raw AX attribute names; the planned `attributes?` field was dropped. The private API is declared in one trimmed header, `ios-runner/PrivateHeaders/XCTestPrivate.h`, instead of copies of WDA's headers, which pull in dozens of further headers. Volume buttons return `unsupported` on the Simulator. Wire contract in `docs/protocol.md` section 3.
+
 ### Task 5.4: Runner lifecycle on simulators
 
 **Files:** Create `crates/ios/src/simulator.rs`, `crates/ios/src/runner.rs`.
