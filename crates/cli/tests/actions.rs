@@ -115,7 +115,7 @@ async fn a_text_target_taps_the_row_that_holds_the_text() {
 async fn list_rows_render_as_cells_with_their_position_and_the_list_says_its_size() {
     let rig = Rig::new().await;
     rig.tab("taps").await;
-    rig.tab("list").await;
+    fresh_list(&rig).await;
     let r = rig.json(&["snapshot", "--no-settle"]);
     assert!(
         r["text"].as_str().unwrap().contains("list 1000 rows"),
@@ -131,7 +131,7 @@ async fn list_rows_render_as_cells_with_their_position_and_the_list_says_its_siz
 #[ignore = "needs PHONE_USE_TEST_DEVICE"]
 async fn tapping_row_5_by_text_taps_row_5_and_ambiguous_and_misspelled_texts_fail_with_help() {
     let rig = Rig::new().await;
-    rig.tab("list").await;
+    fresh_list(&rig).await;
     rig.ok(&["tap", "Row 5"]);
     let log = testbed::wait_for_log(&rig.adb, &rig.serial, 3000, |l| {
         l.iter().any(|e| e["ev"] == "row")
@@ -158,7 +158,7 @@ async fn tapping_row_5_by_text_taps_row_5_and_ambiguous_and_misspelled_texts_fai
 #[ignore = "needs PHONE_USE_TEST_DEVICE"]
 async fn find_lists_the_visible_rows_whose_text_contains_the_query() {
     let rig = Rig::new().await;
-    rig.tab("list").await;
+    fresh_list(&rig).await;
     let out = rig.ok(&["find", "row 1", "--role", "cell"]);
     let lines: Vec<&str> = out.lines().collect();
     assert!(lines.iter().any(|l| l.ends_with("cell \"Row 1\"")), "{out}");
@@ -169,4 +169,121 @@ async fn find_lists_the_visible_rows_whose_text_contains_the_query() {
     assert!(lines.iter().all(|l| l.contains(" cell \"Row 1")), "{out}");
     assert!(!lines.iter().any(|l| l.contains("\"Row 2\"")), "{out}");
     assert_eq!(rig.ok(&["find", "zzzz"]).trim(), "no match");
+}
+
+async fn fresh_list(rig: &Rig) {
+    rig.adb
+        .shell(&rig.serial, "am force-stop dev.phoneuse.testbed")
+        .await
+        .unwrap();
+    rig.tab("list").await;
+}
+
+async fn open_list(rig: &Rig) -> Vec<serde_json::Value> {
+    fresh_list(rig).await;
+    elements(rig)
+}
+
+fn rows(els: &[serde_json::Value]) -> Vec<(u32, f64)> {
+    els.iter()
+        .filter_map(|e| {
+            let n = e["label"].as_str()?.strip_prefix("Row ")?.parse().ok()?;
+            Some((n, e["bounds"]["y"].as_f64()?))
+        })
+        .collect()
+}
+
+#[tokio::test]
+#[ignore = "needs PHONE_USE_TEST_DEVICE"]
+async fn scroll_down_moves_the_list_about_60_percent_of_the_viewport_without_a_fling() {
+    let rig = Rig::new().await;
+    let els = open_list(&rig).await;
+    let list = els
+        .iter()
+        .filter(|e| e["actions"].as_str().unwrap().contains("SCROLL_DOWN"))
+        .max_by(|a, b| {
+            a["bounds"]["h"]
+                .as_f64()
+                .partial_cmp(&b["bounds"]["h"].as_f64())
+                .unwrap()
+        })
+        .unwrap_or_else(|| panic!("no scrollable list in {els:#?}"));
+    let viewport = list["bounds"]["h"].as_f64().unwrap();
+    let before = rows(&els);
+    let r = rig.json(&["scroll", "down"]);
+    assert_eq!(r["changed"], true, "{r}");
+    let after = rows(&elements(&rig));
+    let (n0, y0) = before[1];
+    let y1 = after
+        .iter()
+        .find(|(n, _)| *n == n0)
+        .map(|(_, y)| *y)
+        .unwrap_or_else(|| {
+            let (first, fy) = after[0];
+            let h = before[2].1 - before[1].1;
+            fy - f64::from(first - n0) * h
+        });
+    let moved = y0 - y1;
+    assert!(
+        (0.45 * viewport..=0.75 * viewport).contains(&moved),
+        "moved {moved} of {viewport}"
+    );
+    let log = events(&rig, "scroll", 1).await;
+    assert!(!log.is_empty());
+    let all = testbed::read_log(&rig.adb, &rig.serial).await;
+    assert!(
+        all.iter()
+            .filter(|e| e["ev"] == "scroll_state")
+            .all(|e| e["state"] != 2),
+        "the list flung: {all:?}"
+    );
+}
+
+#[tokio::test]
+#[ignore = "needs PHONE_USE_TEST_DEVICE"]
+async fn scroll_until_a_far_row_stops_with_it_visible_in_few_gestures() {
+    let rig = Rig::new().await;
+    open_list(&rig).await;
+    let r = rig.json(&["scroll", "down", "--until", "Row 500", "--max", "30"]);
+    let text = r["observation"]["text"].as_str().unwrap();
+    assert!(text.contains("Row 500"), "{r}");
+    assert!(r["summary"].as_str().unwrap().contains("Row 500"), "{r}");
+    let gestures = testbed::read_log(&rig.adb, &rig.serial)
+        .await
+        .iter()
+        .filter(|e| e["ev"] == "scroll_state" && e["state"] == 1)
+        .count();
+    assert!(gestures < 20, "{gestures} gestures");
+}
+
+#[tokio::test]
+#[ignore = "needs PHONE_USE_TEST_DEVICE"]
+async fn scroll_until_a_row_that_does_not_exist_fails_not_found_at_the_end() {
+    let rig = Rig::new().await;
+    open_list(&rig).await;
+    let out = rig.cli(&["scroll", "down", "--until", "Row 5000", "--max", "60"]);
+    assert!(!out.status.success());
+    let err = String::from_utf8_lossy(&out.stderr);
+    assert!(err.contains("Row 5000"), "{err}");
+}
+
+#[tokio::test]
+#[ignore = "needs PHONE_USE_TEST_DEVICE"]
+async fn a_ref_to_a_row_that_scrolled_away_is_stale_or_still_that_row() {
+    let rig = Rig::new().await;
+    let els = open_list(&rig).await;
+    let row3 = els.iter().find(|e| e["label"] == "Row 3").unwrap();
+    let r3 = row3["ref"].as_str().unwrap().to_string();
+    rig.ok(&["scroll", "down"]);
+    testbed::clear_log(&rig.adb, &rig.serial).await;
+    let out = rig.cli(&["tap", &format!("@{r3}")]);
+    let log = testbed::read_log(&rig.adb, &rig.serial).await;
+    let taps: Vec<_> = log.iter().filter(|e| e["ev"] == "row").collect();
+    if out.status.success() {
+        assert!(taps.iter().all(|e| e["n"] == 3), "{taps:?}");
+    } else {
+        assert!(taps.is_empty(), "{taps:?}");
+        let err = String::from_utf8_lossy(&out.stderr);
+        assert!(err.contains("stale") || err.contains("no longer"), "{err}");
+    }
 }

@@ -726,3 +726,116 @@ async fn find_lists_the_elements_whose_text_contains_the_query_in_any_case() {
     .await;
     assert_eq!(r.as_array().unwrap().len(), 2);
 }
+
+fn list_tree(labels: &[&str]) -> RawTree {
+    let mut nodes = vec![
+        r#"{"p":-1,"w":1,"cls":"android.widget.FrameLayout","b":[0,0,360,800],"f":"vVe"}"#
+            .to_string(),
+        r#"{"p":0,"w":1,"cls":"androidx.recyclerview.widget.RecyclerView","b":[0,100,360,700],"f":"vVeS","a":["scroll_down"],"coll":{"rows":1000,"cols":1}}"#
+            .to_string(),
+    ];
+    for (i, l) in labels.iter().enumerate() {
+        let top = 100 + 50 * i as i32;
+        nodes.push(format!(
+            r#"{{"p":1,"w":1,"cls":"android.widget.TextView","text":"{l}","b":[0,{top},360,{}],"f":"vVe"}}"#,
+            top + 50
+        ));
+    }
+    let json = format!(
+        r#"{{"windows":[{{"id":1,"type":"application","package":"com.example","bounds":[0,0,360,800]}}],"nodes":[{}]}}"#,
+        nodes.join(",")
+    );
+    RawTree::from_android_json(&json, Scale { density: 1.0 }).unwrap()
+}
+
+fn scroll(extra: Value) -> Value {
+    let mut action = json!({"kind": "scroll", "direction": "down"});
+    for (k, v) in extra.as_object().unwrap() {
+        action[k] = v.clone();
+    }
+    json!({"action": action})
+}
+
+#[tokio::test(start_paused = true)]
+async fn scroll_drags_inside_the_scrollable_container_60_percent_of_its_height_and_holds_before_the_lift()
+ {
+    let (source, fake) = FakeSource::with(vec![
+        list_tree(&["Row 0", "Row 1"]),
+        list_tree(&["Row 5", "Row 6"]),
+    ]);
+    let (d, _home) = daemon(source);
+    ok(&d, "default", "snapshot", json!({})).await;
+    let r = ok(&d, "default", "act", scroll(json!({}))).await;
+    assert_eq!(r["ok"], true);
+    let Call::Gesture(g) = &fake.calls()[0] else {
+        panic!("{:?}", fake.calls())
+    };
+    let p = &g.fingers[0];
+    assert!(
+        (p[0].at.y - 580.0).abs() < 0.1,
+        "20% above the bottom edge: {p:?}"
+    );
+    assert!((p[10].at.y - 220.0).abs() < 0.1, "{p:?}");
+    assert!((p[0].at.x - 180.0).abs() < 0.1);
+    assert_eq!(p.last().unwrap().t_ms - p[10].t_ms, 150);
+}
+
+#[tokio::test(start_paused = true)]
+async fn scroll_until_stops_when_the_text_shows_and_reports_its_ref() {
+    let (source, fake) = FakeSource::with(vec![
+        list_tree(&["Row 0", "Row 1"]),
+        list_tree(&["Row 5", "Row 6"]),
+        list_tree(&["Row 9", "Row 10"]),
+    ]);
+    let (d, _home) = daemon(source);
+    let r = ok(
+        &d,
+        "default",
+        "act",
+        scroll(json!({"until": {"text": "Row 10"}})),
+    )
+    .await;
+    let summary = r["summary"].as_str().unwrap();
+    assert!(
+        summary.contains("2 times") && summary.contains("Row 10"),
+        "{summary}"
+    );
+    assert_eq!(fake.calls().len(), 2);
+}
+
+#[tokio::test(start_paused = true)]
+async fn scroll_until_fails_not_found_after_two_scrolls_in_a_row_change_nothing() {
+    let (source, fake) = FakeSource::with(vec![list_tree(&["Row 998", "Row 999"])]);
+    let (d, _home) = daemon(source);
+    let e = err(
+        &d,
+        "default",
+        "act",
+        scroll(json!({"until": {"text": "Row 5000"}})),
+    )
+    .await;
+    assert_eq!(e.code, -32007, "{e:?}");
+    assert_eq!(
+        fake.calls().len(),
+        2,
+        "the end is two scrolls that change nothing"
+    );
+}
+
+#[tokio::test(start_paused = true)]
+async fn scroll_until_gives_up_after_max_gestures() {
+    let trees: Vec<RawTree> = (0..10)
+        .map(|i| list_tree(&[&format!("Row {}", i * 2), &format!("Row {}", i * 2 + 1)]))
+        .collect();
+    let (source, fake) = FakeSource::with(trees);
+    let (d, _home) = daemon(source);
+    let e = err(
+        &d,
+        "default",
+        "act",
+        scroll(json!({"until": {"text": "Row 99"}, "max": 3})),
+    )
+    .await;
+    assert_eq!(e.code, -32013, "{e:?}");
+    assert_eq!(fake.calls().len(), 3);
+}

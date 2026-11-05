@@ -166,11 +166,16 @@ final class Screens {
                 new RecyclerView.OnScrollListener() {
                     @Override
                     public void onScrollStateChanged(RecyclerView r, int state) {
+                        JSONObject o = Events.event("scroll_state");
+                        Events.put(o, "state", state);
+                        Events.put(o, "first", lm.findFirstVisibleItemPosition());
+                        Events.put(o, "last", lm.findLastVisibleItemPosition());
+                        Events.emit(o);
                         if (state == RecyclerView.SCROLL_STATE_IDLE) {
-                            JSONObject o = Events.event("scroll");
-                            Events.put(o, "first", lm.findFirstVisibleItemPosition());
-                            Events.put(o, "last", lm.findLastVisibleItemPosition());
-                            Events.emit(o);
+                            JSONObject i = Events.event("scroll");
+                            Events.put(i, "first", lm.findFirstVisibleItemPosition());
+                            Events.put(i, "last", lm.findLastVisibleItemPosition());
+                            Events.emit(i);
                         }
                     }
                 });

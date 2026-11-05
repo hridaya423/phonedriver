@@ -406,6 +406,8 @@ phone-use daemon [--detach] | mcp | doctor | ios setup | version
 
 Global flags: `--device` (default from `PHONE_USE_DEVICE`), `--session`, `--json` (machine output), `--no-settle`, `--timeout`.
 
+Scroll mechanics: `scroll` drags 60% of the largest scrollable container (or `--in`) in 10 steps over 250 ms, then holds 150 ms with a stationary sample every 25 ms before the lift (Android 8 flings a list that lifts after a gap with no samples), so it never flings. `scroll --until "Label N"` flings when the visible labels share the prefix and the target is over three screens away, and turns back on overshoot; other targets scroll one drag at a time. Two scrolls in a row that change nothing end the search with `NotFound`.
+
 Defaults: `scroll --max 30`; `swipe --distance 0.5`; `tap --count 1` (2 = double tap, taps 80 ms apart); `swipe --from` takes a target and starts the gesture at its center.
 
 How the less obvious verbs work per platform:

@@ -5,6 +5,7 @@ pub mod diff;
 pub mod element;
 pub mod error;
 pub mod geometry;
+pub mod gesture;
 pub mod prune;
 pub mod raw;
 pub mod refs;

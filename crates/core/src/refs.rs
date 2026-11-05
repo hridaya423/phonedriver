@@ -27,6 +27,11 @@ struct Seen {
     center: Point,
 }
 
+fn in_list(nodes: &[Node], i: usize) -> bool {
+    std::iter::successors(nodes[i].parent, |&p| nodes[p].parent)
+        .any(|p| nodes[p].role == Role::List)
+}
+
 /// Assigns session-stable refs to pruned nodes (architecture 4.3).
 #[derive(Debug, Default)]
 pub struct RefTable {
@@ -69,8 +74,10 @@ impl RefTable {
                 continue;
             };
             let prev = &self.last[j];
-            let continuous =
-                prev.label == n.label || prev.center.distance(n.bounds.center()) < SAME_PLACE_PT;
+            let same_place = prev.center.distance(n.bounds.center()) < SAME_PLACE_PT;
+            // A list recycles one view for many items, so an item at the old place with another label is another
+            // item; elsewhere a new label at the old place is the same element changing (a counter, a clock).
+            let continuous = prev.label == n.label || (same_place && !in_list(nodes, i));
             if prev.role == n.role && continuous && claimed.insert(j) {
                 out[i] = Some(prev.r);
             }
@@ -142,9 +149,13 @@ mod tests {
     use crate::raw::RawTree;
 
     fn android(rows: &[(&str, &str, f32)]) -> RawTree {
+        android_in("androidx.recyclerview.widget.RecyclerView", rows)
+    }
+
+    fn android_in(container: &str, rows: &[(&str, &str, f32)]) -> RawTree {
         let mut nodes = vec![
             r#"{"p":-1,"w":1,"cls":"android.widget.FrameLayout","b":[0,0,400,2000],"f":"vVe","n":"root"}"#.to_string(),
-            r#"{"p":0,"w":1,"cls":"androidx.recyclerview.widget.RecyclerView","b":[0,0,400,2000],"f":"vVeS","a":["scroll_down"],"n":"list"}"#.to_string(),
+            format!(r#"{{"p":0,"w":1,"cls":"{container}","b":[0,0,400,2000],"f":"vVeS","a":["scroll_down"],"n":"list"}}"#),
         ];
         for (n, label, y) in rows {
             nodes.push(format!(
@@ -190,10 +201,23 @@ mod tests {
     #[test]
     fn label_change_in_place_keeps_ref() {
         let mut t = RefTable::default();
-        refs(&mut t, &android(&[("c", "3 items", 0.0)]));
+        let in_a_group =
+            |label: &str| android_in("android.widget.LinearLayout", &[("c", label, 0.0)]);
+        refs(&mut t, &in_a_group("3 items"));
+        assert_eq!(refs(&mut t, &in_a_group("4 items")), ["e1", "e2"]);
+    }
+
+    #[test]
+    fn a_recycled_list_slot_showing_another_item_in_the_same_place_is_a_new_element() {
+        let mut t = RefTable::default();
         assert_eq!(
-            refs(&mut t, &android(&[("c", "4 items", 0.0)])),
+            refs(&mut t, &android(&[("7", "Row 3", 300.0)])),
             ["e1", "e2"]
+        );
+        assert_eq!(
+            refs(&mut t, &android(&[("7", "Row 14", 300.0)])),
+            ["e1", "e3"],
+            "a tap on @e2 must not land on Row 14"
         );
     }
 
@@ -258,7 +282,7 @@ mod tests {
             .iter()
             .map(|(a, b, y)| (a.as_str(), b.as_str(), *y))
             .collect();
-        android(&borrowed)
+        android_in("android.widget.LinearLayout", &borrowed)
     }
 
     proptest! {
