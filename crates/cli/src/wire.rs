@@ -160,6 +160,8 @@ pub struct ActParams {
     #[serde(default = "yes")]
     pub settle: bool,
     pub timeout_ms: Option<u64>,
+    /// How long to wait for the first change; the default is 500 ms, or 3 s for `launch` and `open`.
+    pub expect_change_ms: Option<u64>,
 }
 
 fn yes() -> bool {
@@ -170,4 +172,5 @@ fn yes() -> bool {
 pub struct WaitParams {
     pub condition: WaitCondition,
     pub timeout_ms: Option<u64>,
+    pub expect_change_ms: Option<u64>,
 }

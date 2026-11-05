@@ -63,6 +63,7 @@ pub fn spawn(id: String, source: Arc<dyn DeviceSource>, home: PathBuf) -> mpsc::
         sessions: HashMap::new(),
         base: Instant::now(),
         recent: None,
+        unobserved: None,
         names: Arc::default(),
     };
     tokio::spawn(actor.run(rx));
@@ -99,6 +100,8 @@ struct Actor {
     base: Instant,
     /// The latest input that would have delayed a settle, or the moment the device connected: quiet counts from there, so a snapshot of an already quiet screen does not wait.
     recent: Option<(Duration, Input)>,
+    /// When an action was last delivered without waiting for its effects.
+    unobserved: Option<Duration>,
     names: Arc<Mutex<HashMap<String, String>>>,
 }
 
@@ -161,6 +164,24 @@ impl Actor {
     fn drop_lease(&mut self) {
         self.lease = None;
         self.live = None;
+        self.unobserved = None;
+    }
+
+    /// The settle parameters for a call that only observes. Right after an action that was sent without settling, the
+    /// effect may not have shown yet (a frame takes 100 to 300 ms to arrive), so quiet right now proves nothing:
+    /// wait for the first change from the action's own start.
+    fn observe(&mut self, mut cfg: Config, expect_change_ms: Option<u64>) -> (Config, Duration) {
+        let now = self.now();
+        let window = expect_change_ms
+            .map(Duration::from_millis)
+            .or(Config::action().expect_change);
+        match self.unobserved.take() {
+            Some(t) if window.is_some_and(|w| now.saturating_sub(t) < w) => {
+                cfg.expect_change = window;
+                (cfg, t)
+            }
+            _ => (cfg, now),
+        }
     }
 
     fn absorb(&mut self, sig: Signal, at: Duration) -> Option<Input> {
@@ -389,8 +410,8 @@ impl Actor {
 
     async fn settle(&mut self, cfg: Config, started: Duration) -> State {
         let mut det = Detector::new(cfg, started);
-        if cfg.expect_change.is_none()
-            && let Some((t, input)) = self.recent
+        if let Some((t, input)) = self.recent
+            && (cfg.expect_change.is_none() || t >= started)
         {
             det.feed(input, t);
         }
@@ -420,7 +441,7 @@ impl Actor {
             if let Some(t) = p.timeout_ms {
                 cfg.timeout = Duration::from_millis(t);
             }
-            let started = self.now();
+            let (cfg, started) = self.observe(cfg, None);
             Some(self.settle(cfg, started).await)
         };
         let tree = device.tree().await?;
@@ -508,6 +529,9 @@ impl Actor {
         let mut cfg = Config::action();
         if let Some(t) = p.timeout_ms {
             cfg.timeout = Duration::from_millis(t);
+        }
+        if let Some(t) = p.expect_change_ms {
+            cfg.expect_change = Some(Duration::from_millis(t));
         }
         let device = self.device()?;
         match p.action {
@@ -639,8 +663,10 @@ impl Actor {
         mask: Option<String>,
     ) -> Result<ActionResult, Error> {
         if !settle {
+            self.unobserved = Some(started);
             return Ok(delivered(s, summary, via));
         }
+        self.unobserved = None;
         let st = Some(self.settle(cfg, started).await);
         let tree = self.device()?.tree().await?;
         let rendered = self.build(s, &tree, st.map(settle_line));
@@ -700,7 +726,7 @@ impl Actor {
             .timeout_ms
             .map_or(Config::action().timeout, Duration::from_millis);
         cfg.timeout = timeout;
-        let started = self.now();
+        let (cfg, started) = self.observe(cfg, p.expect_change_ms);
         let st = self.settle(cfg, started).await;
         if let State::Done {
             settled: false,

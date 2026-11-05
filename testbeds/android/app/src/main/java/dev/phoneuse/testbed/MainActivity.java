@@ -15,7 +15,7 @@ import android.widget.LinearLayout;
 
 public final class MainActivity extends Activity {
     private static final String[] TABS = {
-        "taps", "text", "list", "gestures", "busy", "secure", "dialogs", "web"
+        "taps", "text", "list", "gestures", "busy", "secure", "dialogs", "web", "settle"
     };
 
     private FrameLayout content;
@@ -94,6 +94,7 @@ public final class MainActivity extends Activity {
                 break;
             case "dialogs": screen = Screens.dialogs(this); break;
             case "web": screen = Screens.web(this); break;
+            case "settle": screen = Screens.settle(this); break;
             default: screen = Screens.taps(this); break;
         }
         content.addView(screen, new FrameLayout.LayoutParams(

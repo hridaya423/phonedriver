@@ -26,8 +26,8 @@ Version mismatch: the daemon replies with error code `-32010 version_mismatch` a
 | `snapshot` | `device?, diff?, interactive?, within?, pixels?, max_lines?, no_settle?, elements?, capture?, timeout_ms?` | `Observation` |
 | `screenshot` | `device?, native?, quality?, format?` | `{path, width, height, scale}` |
 | `find` | `device?, text, role?` | `[ElementLine]` |
-| `act` | `device?, action: Action, settle?: bool, timeout_ms?` | `ActionResult` |
-| `wait` | `device?, condition: WaitCondition, timeout_ms?` | `ActionResult` |
+| `act` | `device?, action: Action, settle?: bool, timeout_ms?, expect_change_ms?` | `ActionResult` |
+| `wait` | `device?, condition: WaitCondition, timeout_ms?, expect_change_ms?` | `ActionResult` |
 | `apps` | `device?, all?` | `[App]` |
 | `clipboard` | `device?, set?: string` | `{text?: string}` |
 

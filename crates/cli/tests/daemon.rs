@@ -591,3 +591,86 @@ async fn type_without_into_finds_the_focused_field_in_the_last_observation_inste
         "second tree unread: {next}"
     );
 }
+
+#[tokio::test(start_paused = true)]
+async fn wait_settled_right_after_an_unobserved_action_waits_for_its_first_change() {
+    let (source, fake) = FakeSource::with(vec![tree(&["One"])]);
+    let (d, _home) = daemon(source);
+    ok(&d, "default", "snapshot", json!({})).await;
+    tokio::time::sleep(Duration::from_secs(1)).await;
+    let mut params = tap_point(10.0, 10.0);
+    params["settle"] = json!(false);
+    ok(&d, "default", "act", params).await;
+    tokio::spawn(async move {
+        tokio::time::sleep(Duration::from_millis(300)).await;
+        fake.push_frame(big_frame(1));
+    });
+    tokio::time::sleep(Duration::from_millis(100)).await;
+    let r = ok(
+        &d,
+        "default",
+        "wait",
+        json!({"condition": {"settled": true}}),
+    )
+    .await;
+    let ms = r["settle_ms"].as_u64().unwrap();
+    assert!(
+        (500..=600).contains(&ms),
+        "the first change arrived 300 ms after the action and quiet takes 250 ms more: {ms}"
+    );
+}
+
+#[tokio::test(start_paused = true)]
+async fn an_unobserved_action_is_forgotten_after_the_first_change_window() {
+    let (source, _) = FakeSource::with(vec![tree(&["One"])]);
+    let (d, _home) = daemon(source);
+    ok(&d, "default", "snapshot", json!({})).await;
+    let mut params = tap_point(10.0, 10.0);
+    params["settle"] = json!(false);
+    ok(&d, "default", "act", params).await;
+    tokio::time::sleep(Duration::from_secs(2)).await;
+    let r = ok(
+        &d,
+        "default",
+        "wait",
+        json!({"condition": {"settled": true}}),
+    )
+    .await;
+    assert_eq!(r["settle_ms"], 0, "{r}");
+}
+
+#[tokio::test(start_paused = true)]
+async fn expect_change_ms_widens_the_first_change_window_of_an_action_and_of_a_wait() {
+    let (source, fake) = FakeSource::with(vec![tree(&["One"])]);
+    let (d, _home) = daemon(source);
+    ok(&d, "default", "snapshot", json!({})).await;
+    let pusher = fake.clone();
+    tokio::spawn(async move {
+        tokio::time::sleep(Duration::from_millis(700)).await;
+        pusher.push_frame(big_frame(1));
+    });
+    let mut params = tap_point(10.0, 10.0);
+    params["expect_change_ms"] = json!(1500);
+    let r = ok(&d, "default", "act", params).await;
+    assert_eq!(r["changed"], true, "{r}");
+    let ms = r["settle_ms"].as_u64().unwrap();
+    assert!((940..=1000).contains(&ms), "{ms}");
+
+    let mut params = tap_point(10.0, 10.0);
+    params["settle"] = json!(false);
+    ok(&d, "default", "act", params).await;
+    let late = fake.clone();
+    tokio::spawn(async move {
+        tokio::time::sleep(Duration::from_millis(700)).await;
+        late.push_frame(big_frame(2));
+    });
+    let r = ok(
+        &d,
+        "default",
+        "wait",
+        json!({"condition": {"settled": true}, "expect_change_ms": 1500}),
+    )
+    .await;
+    let ms = r["settle_ms"].as_u64().unwrap();
+    assert!((940..=1000).contains(&ms), "{ms}");
+}
