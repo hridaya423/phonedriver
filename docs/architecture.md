@@ -262,7 +262,7 @@ If the default local server is not running, the daemon runs `adb start-server` o
 
 `android-agent/` builds `phone-use-agent.jar` (dex inside a jar) with `javac` against `android.jar` and `d8`, the way `scrcpy/server/build_without_gradle.sh` does. Minimum API 26 (decision D8).
 
-Launch: push with mode 0444 to `/data/local/tmp/phone-use-agent-<sha8>.jar`, where `<sha8>` is the first 8 hex digits of the jar's SHA-256 computed on the host. The jar is already deployed when that path exists (`ls`); no hashing on the device. Then, over a `shell,v2,raw:` stream:
+Launch: push with mode 0444 to `/data/local/tmp/phone-use-agent-<sha8>.jar`, where `<sha8>` is the first 8 hex digits of the jar's SHA-256 computed on the host. The jar is already deployed when that path exists (`ls`); no hashing on the device. The push goes to `<path>.part` and is `mv`ed into place, so an interrupted push cannot leave a truncated jar at the final path. Then, over a `shell,v2,raw:` stream:
 `CLASSPATH=<jar> app_process / dev.phoneuse.agent.Main <version> <socket-name>` and write a 32-byte random token to its stdin.
 
 - The host holds that shell stream open for the agent's whole life and drains its stdout and stderr (logs go to the daemon's log). adbd kills the child when the stream closes, which is what guarantees a crashed daemon never leaves an agent running.

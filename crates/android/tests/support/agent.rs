@@ -1,12 +1,10 @@
-use std::time::Duration;
-
-use phone_use_android::adb::{Adb, ShellPacket, ShellStream};
+use phone_use_android::adb::Adb;
+use phone_use_android::agent::{self, Launched};
 use serde_json::{Value, json};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
 
-pub const VERSION: &str = "0.1.0";
-const JAR: &str = "/data/local/tmp/phone-use-agent-test.jar";
+pub use phone_use_android::agent::VERSION;
 
 static DEVICE_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
 
@@ -20,63 +18,17 @@ pub struct RawAgent {
     pub serial: String,
     pub name: String,
     pub token: String,
-    pub shell: ShellStream,
-    pub stderr: String,
-}
-
-fn random_hex(n: usize) -> String {
-    let mut b = vec![0u8; n];
-    getrandom::fill(&mut b).unwrap();
-    b.iter().map(|x| format!("{x:02x}")).collect()
+    pub launched: Launched,
 }
 
 pub async fn launch(adb: &Adb, serial: &str) -> RawAgent {
-    adb.shell(serial, "pkill -f 'dev.phoneuse.agent.[M]ain'")
-        .await
-        .unwrap();
-    let jar = std::fs::read(env!("PHONE_USE_AGENT_JAR")).unwrap();
-    adb.shell(serial, &format!("rm -f {JAR}")).await.unwrap();
-    adb.push(serial, &jar, JAR, 0o444).await.unwrap();
-    let name = format!("phone-use-{VERSION}-{}", random_hex(4));
-    let token = random_hex(32);
-    let mut shell = adb
-        .shell_stream(
-            serial,
-            &format!("CLASSPATH={JAR} app_process / dev.phoneuse.agent.Main {VERSION} {name}"),
-        )
-        .await
-        .unwrap();
-    shell
-        .write_stdin(format!("{token}\n").as_bytes())
-        .await
-        .unwrap();
-    let mut stderr = String::new();
-    let mut stdout = String::new();
-    let ready = tokio::time::timeout(Duration::from_secs(5), async {
-        while let Some(p) = shell.next().await.unwrap() {
-            match p {
-                ShellPacket::Stdout(d) => {
-                    stdout.push_str(&String::from_utf8_lossy(&d));
-                    if stdout.lines().any(|l| l == "ready") {
-                        return true;
-                    }
-                }
-                ShellPacket::Stderr(d) => stderr.push_str(&String::from_utf8_lossy(&d)),
-                ShellPacket::Exit(_) => return false,
-            }
-        }
-        false
-    })
-    .await
-    .unwrap_or(false);
-    assert!(ready, "agent did not print ready; stderr: {stderr}");
+    let launched = agent::launch(adb, serial).await.unwrap();
     RawAgent {
         adb: adb.clone(),
         serial: serial.to_string(),
-        name,
-        token,
-        shell,
-        stderr,
+        name: launched.name.clone(),
+        token: launched.token.clone(),
+        launched,
     }
 }
 
@@ -102,7 +54,7 @@ pub struct RawControl {
 }
 
 impl RawAgent {
-    pub async fn control(&mut self) -> RawControl {
+    pub async fn control(&self) -> RawControl {
         let mut s = self
             .adb
             .open_abstract(&self.serial, &self.name)
@@ -117,8 +69,8 @@ impl RawAgent {
         let hello = match read_frame(&mut s).await {
             Ok(h) => h,
             Err(e) => panic!(
-                "no hello reply ({e}); agent stderr: {}",
-                self.drain_stderr().await
+                "no hello reply ({e}); agent log: {}",
+                self.launched.log.recent().join("\n")
             ),
         };
         RawControl {
@@ -126,21 +78,6 @@ impl RawAgent {
             hello,
             next_id: 1,
         }
-    }
-
-    pub async fn drain_stderr(&mut self) -> String {
-        let mut text = std::mem::take(&mut self.stderr);
-        while let Ok(Ok(Some(p))) =
-            tokio::time::timeout(Duration::from_millis(500), self.shell.next()).await
-        {
-            match p {
-                ShellPacket::Stderr(d) | ShellPacket::Stdout(d) => {
-                    text.push_str(&String::from_utf8_lossy(&d))
-                }
-                ShellPacket::Exit(c) => text.push_str(&format!("[exit {c}]")),
-            }
-        }
-        text
     }
 
     pub async fn video(&self) -> TcpStream {

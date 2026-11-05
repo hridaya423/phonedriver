@@ -17,7 +17,7 @@ async fn start() -> (
     let guard = agent::exclusive().await;
     let (adb, serial) = (support::adb(), support::serial());
     testbed::ensure_installed(&adb, &serial).await;
-    let mut raw = agent::launch(&adb, &serial).await;
+    let raw = agent::launch(&adb, &serial).await;
     let control = raw.control().await;
     (raw, control, guard)
 }
