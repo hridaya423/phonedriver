@@ -21,11 +21,13 @@
   <button type="submit">Submit</button>
 </form>
 <p id="status">Not submitted</p>
+<p><a id="details" href="#details">Details</a></p>
 <script>
   const post = (body) => window.webkit.messageHandlers.putb.postMessage(body);
   for (const input of document.querySelectorAll("input")) {
     input.addEventListener("input", () => post({ field: input.id, value: input.value }));
   }
+  window.addEventListener("hashchange", () => post({ page: location.hash || "#form" }));
   document.getElementById("form").addEventListener("submit", (e) => {
     e.preventDefault();
     document.getElementById("status").textContent = "Submitted";

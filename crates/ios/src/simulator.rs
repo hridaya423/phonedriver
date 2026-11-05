@@ -65,11 +65,13 @@ pub async fn simctl(args: &[&str]) -> Result<String> {
 }
 
 /// Runs `xcrun simctl <args>` with `input` on its standard input. Neither the input nor the output goes into errors,
-/// because the input may be a secret (`pbcopy`).
+/// because the input may be a secret (`pbcopy`). `pbcopy` reads its input as Mac Roman unless the locale says
+/// UTF-8, and a daemon started without a locale has none.
 pub async fn simctl_with_input(args: &[&str], input: Option<&str>) -> Result<String> {
     let mut cmd = Command::new("xcrun");
     cmd.arg("simctl")
         .args(args)
+        .env("LC_CTYPE", "UTF-8")
         .stdin(if input.is_some() {
             std::process::Stdio::piped()
         } else {
@@ -104,6 +106,40 @@ pub async fn simctl_with_input(args: &[&str], input: Option<&str>) -> Result<Str
         });
     }
     Ok(String::from_utf8_lossy(&out.stdout).into_owned())
+}
+
+/// Converts the old-style property list `simctl listapps` prints into JSON with `plutil`.
+pub async fn plist_to_json(plist: &str) -> Result<Value> {
+    let mut child = Command::new("plutil")
+        .args(["-convert", "json", "-o", "-", "--", "-"])
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .kill_on_drop(true)
+        .spawn()
+        .map_err(|e| Error::Transport {
+            detail: format!("cannot run plutil: {e}"),
+        })?;
+    if let Some(mut stdin) = child.stdin.take() {
+        stdin
+            .write_all(plist.as_bytes())
+            .await
+            .map_err(|e| Error::Transport {
+                detail: format!("cannot write to plutil: {e}"),
+            })?;
+    }
+    let out = child
+        .wait_with_output()
+        .await
+        .map_err(|e| Error::Transport {
+            detail: format!("plutil failed: {e}"),
+        })?;
+    serde_json::from_slice(&out.stdout).map_err(|e| Error::Transport {
+        detail: format!(
+            "plutil did not print JSON ({e}): {}",
+            String::from_utf8_lossy(&out.stderr).trim()
+        ),
+    })
 }
 
 #[cfg(test)]

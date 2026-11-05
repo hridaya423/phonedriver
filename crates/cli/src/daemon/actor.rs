@@ -536,18 +536,13 @@ impl Actor {
             }
             Action::Press { key } => {
                 let started = self.begin_action();
-                press(&*device, &key).await?;
-                self.finish(
-                    s,
-                    p.settle,
-                    cfg,
-                    started,
-                    format!("pressed {key}"),
-                    None,
-                    None,
-                    None,
-                )
-                .await
+                let via = press(&*device, &key).await?;
+                let summary = match via {
+                    Some(how) => format!("pressed {key} via {how}"),
+                    None => format!("pressed {key}"),
+                };
+                self.finish(s, p.settle, cfg, started, summary, via, None, None)
+                    .await
             }
             Action::Type {
                 text,
@@ -880,13 +875,17 @@ fn first_quoted(s: &str) -> Option<String> {
     None
 }
 
-async fn press(device: &dyn Device, key: &str) -> Result<(), Error> {
+/// Presses a button or key; returns how, for `back` on platforms with more than one way.
+async fn press(device: &dyn Device, key: &str) -> Result<Option<&'static str>, Error> {
     let name = Value::String(key.replace('-', "_"));
     if let Ok(b) = serde_json::from_value::<Button>(name.clone()) {
-        return device.button(b).await;
+        if b == Button::Back {
+            return device.back().await;
+        }
+        return device.button(b).await.map(|()| None);
     }
     if let Ok(k) = serde_json::from_value::<Key>(name) {
-        return device.key(k).await;
+        return device.key(k).await.map(|()| None);
     }
     Err(Error::NotFound {
         query: key.to_string(),
