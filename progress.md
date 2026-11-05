@@ -26,3 +26,6 @@ See the master plan, "Open questions for the user". None block Phases 0 to 4.
 ## Evidence log
 
 (Append one entry per task: date, task, command, observed output.)
+
+- 2026-11-05, Task 0.1 workspace skeleton. `blaze test -p phone-use` failed first (stdout "" for `version`, no usage), then `test result: ok. 2 passed`. `blaze pin` wrote `[workspace.metadata.blaze] version = "0.20261030.1"`.
+- 2026-11-05, Task 0.2 lints and CI. `cargo fmt --check && cargo clippy --all-targets -- -D warnings` → `Finished`, no warnings; `blaze test` all green. Clippy group needs `priority = -1` (`all = { level = "deny", priority = -1 }`). CI (`.github/workflows/ci.yml`) cannot run until a remote exists, which is a one-way door left to the user.
