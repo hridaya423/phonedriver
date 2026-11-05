@@ -74,12 +74,40 @@ pub fn prune(tree: &RawTree) -> Vec<Node> {
         }
     }
 
+    let in_keyboard = |i: usize| {
+        let w = tree.nodes[i].window;
+        tree.windows
+            .iter()
+            .any(|win| win.id == w && win.kind == "input_method")
+    };
     let mut out: Vec<Node> = Vec::new();
     let mut kept_as: Vec<Option<usize>> = vec![None; n];
     for i in reading_order(tree, &children) {
         let node = &tree.nodes[i];
         let Some(bounds) = clipped[i] else { continue };
         if absorbed_by[i].is_some() {
+            continue;
+        }
+        if in_keyboard(i) {
+            // Typing is `type`, not tapping keys, and sixty key nodes turn every typed character into a new screen.
+            if node.parent.is_none() {
+                kept_as[i] = Some(out.len());
+                out.push(Node {
+                    raw: i,
+                    parent: None,
+                    depth: 0,
+                    role: Role::Keyboard,
+                    label: None,
+                    value: None,
+                    hint: None,
+                    id: None,
+                    bounds,
+                    state: state_of(node.flags),
+                    actions: Actions::empty(),
+                    position: None,
+                    absorbed: Vec::new(),
+                });
+            }
             continue;
         }
         let texts: Vec<&str> = merged[i]
@@ -286,7 +314,24 @@ mod tests {
             .iter()
             .map(|n| n.label.as_deref().unwrap_or("-"))
             .collect();
-        assert_eq!(labels, ["app", "keys"]);
+        assert_eq!(labels, ["app", "-"]);
+        assert_eq!(nodes[1].role, Role::Keyboard);
+    }
+
+    #[test]
+    fn the_keyboard_window_is_one_node_without_its_keys() {
+        let json = r#"{"windows":[
+            {"id":2,"type":"input_method","bounds":[0,200,100,300]},
+            {"id":1,"type":"application","bounds":[0,0,100,300]}],"nodes":[
+            {"p":-1,"w":2,"cls":"android.widget.FrameLayout","b":[0,200,100,300],"f":"vVe"},
+            {"p":0,"w":2,"cls":"android.widget.Button","text":"q","b":[0,200,10,220],"f":"vVe","a":["tap"]},
+            {"p":0,"w":2,"cls":"android.widget.Button","text":"w","b":[10,200,20,220],"f":"vVe","a":["tap"]},
+            {"p":-1,"w":1,"cls":"android.widget.TextView","text":"app","b":[0,0,100,20],"f":"vVe"}
+        ]}"#;
+        let nodes = prune(&RawTree::from_android_json(json, Scale { density: 1.0 }).unwrap());
+        assert_eq!(nodes.len(), 2);
+        assert_eq!(nodes[1].role, Role::Keyboard);
+        assert_eq!(nodes[1].bounds.y, 200.0);
     }
 
     #[test]
