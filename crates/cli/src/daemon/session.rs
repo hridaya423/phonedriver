@@ -17,6 +17,8 @@ pub struct Session {
 pub struct Resolved {
     pub at: Point,
     pub element: Option<Element>,
+    /// The element's rendered line, such as `@e6 button "Display & touch"`.
+    pub line: Option<String>,
 }
 
 impl Session {
@@ -28,6 +30,7 @@ impl Session {
             } => Ok(Resolved {
                 at: Point { x: *x, y: *y },
                 element: None,
+                line: None,
             }),
             Target::Ref { r#ref } => match now.index_of(*r#ref) {
                 Some(i) => Ok(element_at(now, i)),
@@ -70,6 +73,7 @@ fn element_at(now: &Rendered, i: usize) -> Resolved {
     Resolved {
         at: e.bounds.center(),
         element: Some(e.clone()),
+        line: Some(now.line(e)),
     }
 }
 

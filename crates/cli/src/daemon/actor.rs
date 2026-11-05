@@ -25,7 +25,7 @@ use tokio::sync::{broadcast, mpsc, oneshot, watch};
 use tokio::time::Instant;
 
 use super::DeviceSource;
-use super::session::Session;
+use super::session::{Resolved, Session};
 use crate::wire::{
     ActParams, Action, ActionResult, Kind, Observation, ScreenshotResult, SnapshotParams, Target,
     TypeMode, WaitParams,
@@ -484,6 +484,26 @@ impl Actor {
         Ok(self.build(s, &tree, None))
     }
 
+    /// Where a target is now. Only a ref or text target needs the screen, so a point costs no tree read.
+    async fn resolve_target(
+        &mut self,
+        s: &mut Session,
+        target: &Target,
+    ) -> Result<Resolved, Error> {
+        if let Target::Point { point } = target {
+            return Ok(Resolved {
+                at: Point {
+                    x: point.x,
+                    y: point.y,
+                },
+                element: None,
+                line: None,
+            });
+        }
+        let now = self.fresh(s).await?;
+        s.resolve(target, &now)
+    }
+
     async fn act(&mut self, s: &mut Session, p: ActParams) -> Result<ActionResult, Error> {
         let mut cfg = Config::action();
         if let Some(t) = p.timeout_ms {
@@ -497,20 +517,9 @@ impl Actor {
                     Op::Gesture,
                     "this device cannot inject touches",
                 )?;
-                let (at, element) = match &target {
-                    Target::Point { .. } => {
-                        let r = s.resolve(
-                            &target,
-                            &Rendered::build(Vec::new(), &[], Header::default()),
-                        )?;
-                        (r.at, None)
-                    }
-                    _ => {
-                        let now = self.fresh(s).await?;
-                        let r = s.resolve(&target, &now)?;
-                        (r.at, r.element.map(|e| now.line(&e)))
-                    }
-                };
+                let Resolved {
+                    at, line: element, ..
+                } = self.resolve_target(s, &target).await?;
                 let started = self.begin_action();
                 device.gesture(tap(at)).await?;
                 let summary = match &element {
@@ -557,19 +566,21 @@ impl Actor {
                     TypeMode::Keys => (Capabilities::TEXT_KEYS, "this device cannot type keys"),
                 };
                 self.need(cap, Op::Text, reason)?;
-                let now = self.fresh(s).await?;
                 let (field, tap_at): (Option<Element>, Option<Point>) = match &into {
                     Some(t) => {
-                        let r = s.resolve(t, &now)?;
+                        let r = self.resolve_target(s, t).await?;
                         (r.element, Some(r.at))
                     }
                     None => (
-                        now.elements
-                            .iter()
-                            .find(|e| {
-                                e.state.contains(ElementState::FOCUSED) && e.role.is_text_entry()
-                            })
-                            .cloned(),
+                        s.last.as_ref().and_then(|last| {
+                            last.elements
+                                .iter()
+                                .find(|e| {
+                                    e.state.contains(ElementState::FOCUSED)
+                                        && e.role.is_text_entry()
+                                })
+                                .cloned()
+                        }),
                         None,
                     ),
                 };
@@ -627,11 +638,10 @@ impl Actor {
         verify: Option<Verify>,
         mask: Option<String>,
     ) -> Result<ActionResult, Error> {
-        let st = if settle {
-            Some(self.settle(cfg, started).await)
-        } else {
-            None
-        };
+        if !settle {
+            return Ok(delivered(s, summary, via));
+        }
+        let st = Some(self.settle(cfg, started).await);
         let tree = self.device()?.tree().await?;
         let rendered = self.build(s, &tree, st.map(settle_line));
         let verified = verify.map(|v| v.check(&rendered));
@@ -734,6 +744,35 @@ impl Actor {
             changed: true,
             observation,
         })
+    }
+}
+
+/// The reply to an input sent with `settle: false`: delivered, nothing observed.
+fn delivered(s: &Session, summary: String, via: Option<&'static str>) -> ActionResult {
+    ActionResult {
+        ok: true,
+        summary,
+        via: via.map(str::to_string),
+        verified: None,
+        settled: false,
+        settle_ms: 0,
+        changed: false,
+        observation: Observation {
+            header: s
+                .last
+                .as_ref()
+                .map(|l| l.header.clone())
+                .unwrap_or_default(),
+            text: String::new(),
+            kind: Kind::Diff,
+            changed: false,
+            settled: false,
+            settle_ms: 0,
+            still_changing: None,
+            loading: false,
+            elements: None,
+            capture: None,
+        },
     }
 }
 

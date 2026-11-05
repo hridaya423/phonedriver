@@ -533,3 +533,52 @@ async fn a_snapshot_of_a_screen_that_has_been_quiet_returns_at_once_and_one_righ
         "100 ms into a burst, about 150 ms of quiet remain: {ms}"
     );
 }
+
+#[tokio::test(start_paused = true)]
+async fn act_without_settle_returns_when_the_input_is_delivered_and_reads_no_tree() {
+    let (source, fake) = FakeSource::with(vec![tree(&["One"]), tree(&["Two"])]);
+    let (d, _home) = daemon(source);
+    ok(&d, "default", "snapshot", json!({})).await;
+    let mut params = tap_point(10.0, 10.0);
+    params["settle"] = json!(false);
+    let started = tokio::time::Instant::now();
+    let r = ok(&d, "default", "act", params).await;
+    assert_eq!(started.elapsed(), Duration::ZERO, "no settle wait");
+    assert_eq!(r["ok"], true);
+    assert_eq!(r["settled"], false);
+    assert_eq!(r["observation"]["text"], "");
+    assert_eq!(fake.calls().len(), 1);
+    let next = ok(&d, "default", "snapshot", json!({"no_settle": true})).await;
+    assert!(
+        next["text"].as_str().unwrap().contains("Two"),
+        "the second scripted tree is still unread: {next}"
+    );
+}
+
+#[tokio::test(start_paused = true)]
+async fn type_without_into_finds_the_focused_field_in_the_last_observation_instead_of_reading_a_tree()
+ {
+    let (source, fake) = FakeSource::with(vec![field_tree("", true), tree(&["Two"])]);
+    let (d, _home) = daemon(source);
+    ok(&d, "default", "snapshot", json!({})).await;
+    let r = ok(
+        &d,
+        "default",
+        "act",
+        json!({"action": {"kind": "type", "text": "hunter2"}, "settle": false}),
+    )
+    .await;
+    assert_eq!(r["ok"], true);
+    assert_eq!(
+        fake.calls()[0],
+        Call::Text(phone_use_core::device::TextInput::PasteSecret(
+            "hunter2".into()
+        )),
+        "the last observation showed a focused password field"
+    );
+    let next = ok(&d, "default", "snapshot", json!({"no_settle": true})).await;
+    assert!(
+        next["text"].as_str().unwrap().contains("Two"),
+        "second tree unread: {next}"
+    );
+}
