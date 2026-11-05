@@ -2,6 +2,7 @@
 
 use phone_use_core::device::Capabilities;
 use phone_use_core::element::{Element, Ref, Role};
+use phone_use_core::error::Direction;
 use phone_use_core::geometry::Rect;
 use phone_use_core::render::Header;
 use serde::{Deserialize, Serialize};
@@ -40,6 +41,20 @@ pub enum Action {
     Press {
         key: String,
     },
+    Swipe {
+        direction: Direction,
+        from: Option<Target>,
+        distance: Option<f32>,
+        #[serde(default)]
+        fast: bool,
+    },
+    Scroll {
+        direction: Direction,
+        #[serde(rename = "in")]
+        within: Option<Target>,
+        until: Option<Target>,
+        max: Option<u32>,
+    },
 }
 
 impl std::fmt::Debug for Action {
@@ -54,6 +69,10 @@ impl std::fmt::Debug for Action {
                 text.chars().count()
             ),
             Action::Press { key } => write!(f, "Press({key})"),
+            Action::Swipe { direction, .. } => write!(f, "Swipe({direction:?})"),
+            Action::Scroll {
+                direction, until, ..
+            } => write!(f, "Scroll({direction:?}, until {until:?})"),
         }
     }
 }

@@ -34,6 +34,15 @@ impl Direction {
             Direction::Right => "right",
         }
     }
+
+    pub fn opposite(self) -> Direction {
+        match self {
+            Direction::Up => Direction::Down,
+            Direction::Down => Direction::Up,
+            Direction::Left => Direction::Right,
+            Direction::Right => Direction::Left,
+        }
+    }
 }
 
 /// The operations a session can ask a device for.

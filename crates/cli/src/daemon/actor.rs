@@ -11,9 +11,10 @@ use phone_use_core::device::{
     TimedPoint,
 };
 use phone_use_core::diff::{DiffOrFull, diff};
-use phone_use_core::element::{Element, ElementState, Ref, Role};
-use phone_use_core::error::{Error, Op};
+use phone_use_core::element::{Actions, Element, ElementState, Ref, Role};
+use phone_use_core::error::{Direction, Error, Op};
 use phone_use_core::geometry::{Point, Rect, Size};
+use phone_use_core::gesture;
 use phone_use_core::prune::prune;
 use phone_use_core::raw::RawTree;
 use phone_use_core::render::{
@@ -563,6 +564,61 @@ impl Actor {
                 self.finish(s, p.settle, cfg, started, summary, None, None, None)
                     .await
             }
+            Action::Swipe {
+                direction,
+                from,
+                distance,
+                fast,
+            } => {
+                self.need(
+                    Capabilities::GESTURE,
+                    Op::Gesture,
+                    "this device cannot inject touches",
+                )?;
+                let screen = self.screen_rect();
+                let (start, line) = match &from {
+                    Some(t) => {
+                        let r = self.resolve_target(s, t).await?;
+                        (Some(r.at), r.line)
+                    }
+                    None => (None, None),
+                };
+                let distance = distance.unwrap_or(0.5);
+                let g = match start {
+                    Some(at) => gesture::swipe_from(at, screen, direction, distance, fast),
+                    None => gesture::swipe(screen, direction, distance, fast),
+                };
+                let started = self.begin_action();
+                device.gesture(g).await?;
+                let from_text = line
+                    .map(|l| format!(" from {}", short(&l)))
+                    .unwrap_or_default();
+                let summary = format!("swiped {}{from_text}", direction.name());
+                self.finish(s, p.settle, cfg, started, summary, None, None, None)
+                    .await
+            }
+            Action::Scroll {
+                direction,
+                within,
+                until,
+                max,
+            } => {
+                self.need(
+                    Capabilities::GESTURE,
+                    Op::Gesture,
+                    "this device cannot inject touches",
+                )?;
+                self.scroll(
+                    s,
+                    p.settle,
+                    cfg,
+                    direction,
+                    within,
+                    until,
+                    max.unwrap_or(30),
+                )
+                .await
+            }
             Action::Press { key } => {
                 let started = self.begin_action();
                 press(&*device, &key).await?;
@@ -655,6 +711,115 @@ impl Actor {
         }
     }
 
+    fn screen_rect(&self) -> Rect {
+        let size = self
+            .live
+            .as_ref()
+            .map_or(Size { w: 0.0, h: 0.0 }, |l| l.screen);
+        Rect {
+            x: 0.0,
+            y: 0.0,
+            w: size.w,
+            h: size.h,
+        }
+    }
+
+    /// One drag that stops under the finger, or with `until` drags until the text shows (architecture 10.1). The
+    /// end of the content is two drags in a row that change nothing.
+    #[allow(clippy::too_many_arguments)]
+    async fn scroll(
+        &mut self,
+        s: &mut Session,
+        settle: bool,
+        cfg: Config,
+        direction: Direction,
+        within: Option<Target>,
+        until: Option<Target>,
+        max: u32,
+    ) -> Result<ActionResult, Error> {
+        let device = self.device()?;
+        let mut now = self.fresh(s).await?;
+        let area = match &within {
+            Some(t) => s
+                .resolve(t, &now)?
+                .element
+                .map_or_else(|| self.screen_rect(), |e| e.bounds),
+            None => scroll_container(&now, direction).unwrap_or_else(|| self.screen_rect()),
+        };
+        let Some(until) = until else {
+            let started = self.begin_action();
+            device.gesture(gesture::scroll(area, direction)).await?;
+            let summary = format!("scrolled {}", direction.name());
+            return self
+                .finish(s, settle, cfg, started, summary, None, None, None)
+                .await;
+        };
+        let mut gestures = 0u32;
+        let mut idle = 0u32;
+        loop {
+            match s.resolve(&until, &now) {
+                Ok(found) => {
+                    let line = found.line.unwrap_or_default();
+                    let summary = format!(
+                        "scrolled {} {gestures} times to {}",
+                        direction.name(),
+                        short(&line)
+                    );
+                    let st = State::Done {
+                        settled: true,
+                        changed: gestures > 0,
+                        still_changing: None,
+                        elapsed: Duration::ZERO,
+                    };
+                    return self.report(s, st, summary, None, None, None).await;
+                }
+                Err(Error::NotFound { .. } | Error::StaleRef { .. }) => {}
+                Err(e) => return Err(e),
+            }
+            if idle >= 2 {
+                let query = match &until {
+                    Target::Text { text, .. } => text.clone(),
+                    Target::Ref { r#ref } => format!("@{}", r#ref),
+                    Target::Point { .. } => "the target".into(),
+                };
+                return Err(Error::NotFound {
+                    query,
+                    similar: Vec::new(),
+                });
+            }
+            if gestures >= max {
+                return Err(Error::Timeout {
+                    waited_ms: 0,
+                    condition: format!("the target to scroll into view within {max} gestures"),
+                });
+            }
+            let started = self.begin_action();
+            let (dir, far) = match numbered_distance(&until, &now, direction) {
+                Some((behind, rows, span)) => {
+                    let dir = if behind {
+                        direction.opposite()
+                    } else {
+                        direction
+                    };
+                    (dir, rows > 3 * span)
+                }
+                None => (direction, false),
+            };
+            let g = if far {
+                gesture::fling(area, dir)
+            } else {
+                gesture::scroll(area, dir)
+            };
+            device.gesture(g).await?;
+            gestures += 1;
+            self.settle(cfg, started).await;
+            let next = self.fresh(s).await?;
+            let moved = !matches!(diff(&now, &next), DiffOrFull::Diff(c) if c.is_empty());
+            idle = if moved { 0 } else { idle + 1 };
+            now = next;
+        }
+    }
+
     #[allow(clippy::too_many_arguments)]
     async fn finish(
         &mut self,
@@ -672,7 +837,21 @@ impl Actor {
             return Ok(delivered(s, summary, via));
         }
         self.unobserved = None;
-        let st = Some(self.settle(cfg, started).await);
+        let st = self.settle(cfg, started).await;
+        self.report(s, st, summary, via, verify, mask).await
+    }
+
+    /// Reads the screen after a settle and answers with what changed since the agent last saw it.
+    async fn report(
+        &mut self,
+        s: &mut Session,
+        st: State,
+        summary: String,
+        via: Option<&'static str>,
+        verify: Option<Verify>,
+        mask: Option<String>,
+    ) -> Result<ActionResult, Error> {
+        let st = Some(st);
         let tree = self.device()?.tree().await?;
         let rendered = self.build(s, &tree, st.map(settle_line));
         let verified = verify.map(|v| v.check(&rendered));
@@ -776,6 +955,55 @@ impl Actor {
             observation,
         })
     }
+}
+
+/// For a target like "Row 500" among rows labelled "Row 12", "Row 13": whether the target lies against `direction`,
+/// how many rows away it is, and how many rows are visible. Lets the search fling across a long list and come back
+/// instead of dragging a screen at a time.
+fn numbered_distance(
+    until: &Target,
+    now: &Rendered,
+    direction: Direction,
+) -> Option<(bool, i64, i64)> {
+    let Target::Text { text, .. } = until else {
+        return None;
+    };
+    let split = |label: &str| -> Option<(String, i64)> {
+        let digits = label.len() - label.trim_end_matches(|c: char| c.is_ascii_digit()).len();
+        let (head, tail) = label.split_at(label.len() - digits);
+        Some((head.to_string(), tail.parse().ok()?))
+    };
+    let (prefix, want) = split(text)?;
+    let seen: Vec<i64> = now
+        .elements
+        .iter()
+        .filter_map(|e| split(e.label.as_deref()?))
+        .filter(|(p, _)| *p == prefix)
+        .map(|(_, n)| n)
+        .collect();
+    let (min, max) = (*seen.iter().min()?, *seen.iter().max()?);
+    let forward = matches!(direction, Direction::Down | Direction::Right);
+    let (behind, rows) = if want > max {
+        (!forward, want - max)
+    } else if want < min {
+        (forward, min - want)
+    } else {
+        return None;
+    };
+    Some((behind, rows, max - min + 1))
+}
+
+/// The largest element that scrolls along the axis of `direction`.
+fn scroll_container(now: &Rendered, direction: Direction) -> Option<Rect> {
+    let axis = match direction {
+        Direction::Up | Direction::Down => Actions::SCROLL_UP | Actions::SCROLL_DOWN,
+        Direction::Left | Direction::Right => Actions::SCROLL_LEFT | Actions::SCROLL_RIGHT,
+    };
+    now.elements
+        .iter()
+        .filter(|e| e.actions.intersects(axis))
+        .max_by(|a, b| a.bounds.area().total_cmp(&b.bounds.area()))
+        .map(|e| e.bounds)
 }
 
 /// The reply to an input sent with `settle: false`: delivered, nothing observed.

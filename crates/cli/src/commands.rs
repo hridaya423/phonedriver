@@ -14,7 +14,7 @@ use crate::daemon::android::AdbSource;
 use crate::daemon::{Config, Daemon, socket};
 use crate::wire::{ActionResult, DeviceEntry, Kind, Observation, ScreenshotResult, VERSION};
 
-const USAGE: &str = "usage: phone-use <command>\n\ncommands:\n  devices\n  snapshot\n  screenshot\n  find\n  tap\n  type\n  press\n  wait\n  release\n  daemon\n  version";
+const USAGE: &str = "usage: phone-use <command>\n\ncommands:\n  devices\n  snapshot\n  screenshot\n  find\n  swipe\n  scroll\n  tap\n  type\n  press\n  wait\n  release\n  daemon\n  version";
 
 #[derive(Parser)]
 #[command(name = "phone-use", disable_help_subcommand = true)]
@@ -80,6 +80,29 @@ enum Verb {
         /// With a text target, only an element with this role (`button`, `cell`, `textbox`, ...).
         #[arg(long)]
         role: Option<String>,
+    },
+    /// Drag from the middle of the screen, or of `--from`, the way a finger does.
+    Swipe {
+        /// up, down, left or right: where the finger moves.
+        direction: String,
+        #[arg(long)]
+        from: Option<String>,
+        /// Share of the screen to cross, 0 to 1; the default is 0.5.
+        #[arg(long)]
+        distance: Option<f32>,
+        #[arg(long)]
+        fast: bool,
+    },
+    /// Scroll the content so more of it shows in `direction`, or until `--until` text shows.
+    Scroll {
+        direction: String,
+        /// The element to scroll; the default is the largest scrollable one.
+        #[arg(long = "in")]
+        within: Option<String>,
+        #[arg(long)]
+        until: Option<String>,
+        #[arg(long)]
+        max: Option<u32>,
     },
     /// List the elements whose text contains this text, in any case.
     Find {
@@ -315,6 +338,41 @@ async fn execute(
             let r = client
                 .call("act", act(json!({"kind": "tap", "target": t})))
                 .await?;
+            show_action(&r, g.json)
+        }
+        Verb::Swipe {
+            direction,
+            from,
+            distance,
+            fast,
+        } => {
+            let mut a = json!({"kind": "swipe", "direction": direction, "fast": fast});
+            if let Some(f) = from {
+                a["from"] = parse_target(&f);
+            }
+            if let Some(d) = distance {
+                a["distance"] = json!(d);
+            }
+            let r = client.call("act", act(a)).await?;
+            show_action(&r, g.json)
+        }
+        Verb::Scroll {
+            direction,
+            within,
+            until,
+            max,
+        } => {
+            let mut a = json!({"kind": "scroll", "direction": direction});
+            if let Some(w) = within {
+                a["in"] = parse_target(&w);
+            }
+            if let Some(u) = until {
+                a["until"] = parse_target(&u);
+            }
+            if let Some(m) = max {
+                a["max"] = json!(m);
+            }
+            let r = client.call("act", act(a)).await?;
             show_action(&r, g.json)
         }
         Verb::Find { text, role } => {
