@@ -8,6 +8,7 @@ use phone_use_android::device::AndroidDevice;
 use phone_use_core::device::{Capabilities, Device};
 use phone_use_core::error::Error;
 
+use super::progress::after_a_second;
 use super::{DeviceSource, Listed};
 
 pub struct AdbSource {
@@ -43,6 +44,16 @@ impl DeviceSource for AdbSource {
 
     async fn connect(&self, id: &str) -> Result<Arc<dyn Device>, Error> {
         let serial = id.strip_prefix("android:").unwrap_or(id);
-        Ok(Arc::new(AndroidDevice::connect(&self.adb, serial).await?))
+        let connecting = AndroidDevice::connect(&self.adb, serial);
+        let device = after_a_second(
+            || {
+                format!(
+                    "starting the Android agent on {serial} (the first run on a device pushes it)"
+                )
+            },
+            connecting,
+        )
+        .await?;
+        Ok(Arc::new(device))
     }
 }

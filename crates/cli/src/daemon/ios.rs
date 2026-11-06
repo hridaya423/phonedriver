@@ -14,11 +14,19 @@ use phone_use_ios::{discovery, transport};
 use tokio::sync::Mutex;
 use tokio::time::Instant;
 
+use super::progress::after_a_second;
 use super::{DeviceSource, Listed};
 
 /// `simctl list` takes about 70 ms on the Mac mini and the daemon lists devices on every request, which added that
 /// much to every iOS call; a listing this recent is reused.
 const LIST_TTL: Duration = Duration::from_secs(2);
+
+fn starting_runner(name: &str, home: &std::path::Path) -> String {
+    format!(
+        "starting the iOS runner on {name} (the first run builds it; logs are in {})",
+        home.join("runner").display()
+    )
+}
 
 pub struct SimSource {
     home: PathBuf,
@@ -71,7 +79,9 @@ impl DeviceSource for SimSource {
             .into_iter()
             .find(|s| s.udid == udid)
             .ok_or_else(|| Error::DeviceGone { id: id.to_string() })?;
-        Ok(Arc::new(IosDevice::connect(&sim, &self.home).await?))
+        let connecting = IosDevice::connect(&sim, &self.home);
+        let device = after_a_second(|| starting_runner(&sim.name, &self.home), connecting).await?;
+        Ok(Arc::new(device))
     }
 }
 
@@ -170,8 +180,9 @@ impl DeviceSource for PhysicalSource {
         let team = std::env::var("PHONE_USE_TEAM").map_err(|_| Error::NeedsUser {
             action: UserAction::SetSigningTeam,
         })?;
-        Ok(Arc::new(
-            IosDevice::connect_physical(&wired, &found.model, &team, &self.home).await?,
-        ))
+        let connecting = IosDevice::connect_physical(&wired, &found.model, &team, &self.home);
+        let device =
+            after_a_second(|| starting_runner(&found.model, &self.home), connecting).await?;
+        Ok(Arc::new(device))
     }
 }
