@@ -66,6 +66,14 @@ pub fn span(secs: u64) -> String {
     }
 }
 
+fn covered(behind_keyboard: bool, by: Option<&str>) -> String {
+    match (behind_keyboard, by) {
+        (true, _) => "under the keyboard".into(),
+        (false, Some(name)) => format!("under the {name}"),
+        (false, None) => "off screen".into(),
+    }
+}
+
 fn times(n: u32) -> String {
     if n == 1 {
         "1 time".into()
@@ -236,13 +244,15 @@ pub enum Error {
         query: String,
         matches: Vec<ElementLine>,
     },
-    #[error("@{} is {}", r#ref, if *behind_keyboard { "under the keyboard" } else { "off screen" })]
+    #[error("@{} is {}", r#ref, covered(*behind_keyboard, covered_by.as_deref()))]
     OffScreen {
         #[serde(rename = "ref")]
         r#ref: Ref,
         scroll_hint: Direction,
         /// The element is on screen but the keyboard covers it.
         behind_keyboard: bool,
+        /// The element is on screen but this one (a floating `Toolbar`) covers its center.
+        covered_by: Option<String>,
     },
     #[error("{} is not supported on this device: {reason}", op.name())]
     Unsupported { op: Op, reason: &'static str },
@@ -339,6 +349,14 @@ impl Error {
                 ..
             } => format!(
                 "Hide the keyboard with `phone-use press hide-keyboard`, or `phone-use scroll {}` to bring the element above it.",
+                scroll_hint.name()
+            ),
+            Error::OffScreen {
+                scroll_hint,
+                covered_by: Some(name),
+                ..
+            } => format!(
+                "Scroll first: `phone-use scroll {}` moves the element out from under the {name}.",
                 scroll_hint.name()
             ),
             Error::OffScreen { scroll_hint, .. } => {
@@ -464,11 +482,19 @@ mod tests {
                 r#ref: Ref(30),
                 scroll_hint: Direction::Down,
                 behind_keyboard: false,
+                covered_by: None,
+            },
+            Error::OffScreen {
+                r#ref: Ref(32),
+                scroll_hint: Direction::Down,
+                behind_keyboard: false,
+                covered_by: Some("Toolbar".into()),
             },
             Error::OffScreen {
                 r#ref: Ref(31),
                 scroll_hint: Direction::Down,
                 behind_keyboard: true,
+                covered_by: None,
             },
             Error::Unsupported {
                 op: Op::Clipboard,

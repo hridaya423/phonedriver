@@ -638,6 +638,7 @@ impl Actor {
                 element: None,
                 line: None,
                 under_keyboard: false,
+                covered: None,
             });
         }
         let now = self.fresh(s).await?;
@@ -783,12 +784,22 @@ impl Actor {
                     line: element,
                     element: found,
                     under_keyboard,
+                    covered,
                 } = self.resolve_target(s, &target).await?;
                 if let (true, Some(e)) = (under_keyboard, &found) {
                     return Err(Error::OffScreen {
                         r#ref: e.r#ref,
                         scroll_hint: Direction::Down,
                         behind_keyboard: true,
+                        covered_by: None,
+                    });
+                }
+                if let (Some((bar, scroll_hint)), Some(e)) = (covered, &found) {
+                    return Err(Error::OffScreen {
+                        r#ref: e.r#ref,
+                        scroll_hint,
+                        behind_keyboard: false,
+                        covered_by: Some(bar),
                     });
                 }
                 let started = self.begin_action();
@@ -1129,7 +1140,7 @@ impl Actor {
         let max = max.unwrap_or_else(|| default_scroll_limit(&until, &now, direction));
         loop {
             match s.resolve(&until, &now) {
-                Ok(found) => {
+                Ok(found) if found.covered.is_none() || idle >= 2 => {
                     let line = found.line.unwrap_or_default();
                     let summary = format!(
                         "scrolled {} {gestures} times to {}",
@@ -1157,7 +1168,7 @@ impl Actor {
                     };
                     return self.report(s, st, summary, None, None, None).await;
                 }
-                Err(Error::NotFound { .. } | Error::StaleRef { .. }) => {}
+                Ok(_) | Err(Error::NotFound { .. } | Error::StaleRef { .. }) => {}
                 Err(e) => return Err(e),
             }
             let query = || match &until {

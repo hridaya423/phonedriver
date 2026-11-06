@@ -59,10 +59,21 @@ fn scroll_indicator(n: &Value) -> bool {
         && n["sd"].as_str().is_some_and(|v| v.ends_with('%'))
 }
 
+/// Which way an indicator runs, how many pages its scroll view has, and where it is, as `(vertical, pages, percent)`.
+fn scroll_position(n: &Value) -> Option<(bool, u32, f32)> {
+    let text = n["text"].as_str()?;
+    let (axis, rest) = text.split_once(" scroll bar, ")?;
+    let pages = rest.split_whitespace().next()?.parse().ok()?;
+    let percent = n["sd"].as_str()?.trim_end_matches('%').parse().ok()?;
+    Some((axis == "Vertical", pages, percent))
+}
+
 /// Removes scroll indicators and inner switches with their subtrees from the runner's preorder node list,
 /// renumbering parents. The window that holds the keyboard keeps only the `Keyboard` node (now a child of the
-/// application): its keys and its Emoji and Dictate buttons are the keyboard, and typing is `type`. A toggle row is a labeled switch the width of the row holding an unlabeled switch, the
-/// control itself (Settings and SwiftUI `Toggle`); a tap at the row's center does not toggle it, so the row takes
+/// application): its keys and its Emoji and Dictate buttons are the keyboard, and typing is `type`. A scroll view
+/// has no scroll actions in XCUI, but its indicator says where it is, so the indicator becomes `scroll_up` and
+/// `scroll_down` (or left and right) on its owner and `N pages` as its value. A toggle row is a labeled switch the
+/// width of the row holding an unlabeled switch, the control itself (Settings and SwiftUI `Toggle`); a tap at the row's center does not toggle it, so the row takes
 /// the inner switch's bounds and the inner switch goes.
 fn tidy(reply: &mut Value) {
     let Some(nodes) = reply["nodes"].as_array_mut() else {
@@ -72,6 +83,30 @@ fn tidy(reply: &mut Value) {
     let is_switch = |n: &Value| n["cls"] == "XCUIElementTypeSwitch";
     let mut drop: Vec<bool> = nodes.iter().map(scroll_indicator).collect();
     for i in 0..nodes.len() {
+        if drop[i]
+            && let Some(p) = parent(&nodes[i])
+            && let Some((vertical, pages, percent)) = scroll_position(&nodes[i])
+            && pages > 1
+        {
+            let (back, forward) = if vertical {
+                ("scroll_up", "scroll_down")
+            } else {
+                ("scroll_left", "scroll_right")
+            };
+            let owner = &mut nodes[p];
+            if !owner["a"].is_array() {
+                owner["a"] = json!([]);
+            }
+            let actions = owner["a"].as_array_mut().expect("set above");
+            for (wanted, name) in [(percent > 0.0, back), (percent < 100.0, forward)] {
+                if wanted && !actions.iter().any(|a| a == name) {
+                    actions.push(name.into());
+                }
+            }
+            if vertical && owner["sd"].is_null() {
+                owner["sd"] = format!("{pages} pages").into();
+            }
+        }
         if let Some(p) = parent(&nodes[i])
             && is_switch(&nodes[i])
             && is_switch(&nodes[p])
@@ -389,6 +424,34 @@ mod tests {
             hide_keyboard_plan(&with_key, SCREEN),
             Some(HidePlan::Tap(Point { x: 370.0, y: 785.0 }))
         );
+    }
+
+    fn scrolled(bar: &str, percent: &str) -> Vec<phone_use_core::prune::Node> {
+        let reply = json!({"app": {"bundle_id": "x", "pid": 1}, "nodes": [
+            {"p": -1, "cls": "XCUIElementTypeApplication", "b": [0, 0, 402, 874], "f": "vVe"},
+            {"p": 0, "cls": "XCUIElementTypeTable", "b": [0, 0, 402, 874], "f": "vVeS"},
+            {"p": 1, "cls": "XCUIElementTypeCell", "text": "Row", "a": ["tap"], "b": [0, 100, 402, 150], "f": "vVe"},
+            {"p": 1, "cls": "XCUIElementTypeOther", "text": bar, "sd": percent, "b": [369, 62, 399, 791], "f": "vVe"}
+        ]});
+        phone_use_core::prune::prune(&raw_tree(&reply, SCREEN).unwrap())
+    }
+
+    #[test]
+    fn a_list_scroll_bar_says_which_way_the_list_scrolls_and_how_many_pages_it_has() {
+        use phone_use_core::element::Actions;
+        let list = |bar, pct| scrolled(bar, pct).remove(0);
+        let top = list("Vertical scroll bar, 2 pages", "0%");
+        assert_eq!(top.actions, Actions::SCROLL_DOWN);
+        assert_eq!(top.value.as_deref(), Some("2 pages"));
+        let middle = list("Vertical scroll bar, 3 pages", "48%");
+        assert_eq!(middle.actions, Actions::SCROLL_UP | Actions::SCROLL_DOWN);
+        let bottom = list("Vertical scroll bar, 2 pages", "100%");
+        assert_eq!(bottom.actions, Actions::SCROLL_UP);
+        let one_page = list("Vertical scroll bar, 1 page", "0%");
+        assert_eq!(one_page.actions, Actions::empty());
+        assert_eq!(one_page.value, None);
+        let sideways = list("Horizontal scroll bar, 2 pages", "0%");
+        assert_eq!(sideways.actions, Actions::SCROLL_RIGHT);
     }
 
     #[test]

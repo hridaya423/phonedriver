@@ -93,7 +93,7 @@ JSON-RPC `error` with `code` from the table, `message`, and `data: {code_name, h
 | -32006 | stale_ref |
 | -32007 | not_found |
 | -32008 | ambiguous |
-| -32009 | off_screen (`data.behind_keyboard` is true when the keyboard covers the element) |
+| -32009 | off_screen (`data.behind_keyboard` is true when the keyboard covers the element; `data.covered_by` names a floating toolbar that covers it) |
 | -32010 | version_mismatch |
 | -32011 | unsupported |
 | -32012 | not_settled |
