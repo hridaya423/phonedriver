@@ -325,3 +325,14 @@ async fn doctor_says_which_step_failed_when_the_agent_cannot_start() {
     assert!(!out.contains("video android:emulator-5554"), "{out}");
     assert_eq!(code, Some(1));
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn the_trace_options_can_come_from_the_environment_as_1() {
+    let env = Env::new(DEVICES).await;
+    env.cmd()
+        .env("PHONE_USE_TRACE_FULL", "1")
+        .env("PHONE_USE_TRACE_SCREENS", "1")
+        .arg("devices")
+        .assert()
+        .success();
+}

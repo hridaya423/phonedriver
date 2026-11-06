@@ -40,9 +40,9 @@ Test: with the emulator, all `ok`. With the adb tunnel down, `fail` on the adb l
 
 ### Task 4.4: Traces
 
-**Files:** Modify `crates/cli/src/daemon/session.rs`; create `crates/cli/tests/trace.rs`.
+**Files:** Modify `crates/cli/src/daemon/{trace,mod}.rs` (the trace code is in `trace.rs`, not `session.rs`); create `crates/cli/tests/trace.rs`.
 
-**Tests:** after a session with a `type --secret`, the trace file has one JSON line per request with `method`, `params` (secret replaced by `{"secret_len":7}`), the reply's summary line, `ms`. No line contains the secret (property test over random secrets), including when typed into a `SecureField` without the flag. Observation text appears only with `--trace-full`. `--trace-screens` writes PNGs next to the trace. Trace directory mode 0700. A trace file dated 8 days ago is deleted on daemon start.
+**Tests:** after a session with a `type --secret`, the trace file has one JSON line per request with `method`, `params` (typed text replaced by `{"secret_len":7}` with `--secret`, `{"text_len":n}` otherwise; see D16), the reply's summary line, `ms`. No line contains the secret (property test over random secrets), including when typed into a `SecureField` without the flag. Observation text appears only with `--trace-full`. `--trace-screens` writes PNGs next to the trace. Trace directory mode 0700. A trace file dated 8 days ago is deleted on daemon start.
 
 ### Task 4.5: Agent evaluation (M3)
 

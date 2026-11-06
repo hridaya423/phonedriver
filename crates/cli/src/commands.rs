@@ -5,6 +5,7 @@ use std::path::PathBuf;
 use std::process::ExitCode;
 use std::sync::Arc;
 
+use clap::builder::BoolishValueParser;
 use clap::error::ErrorKind;
 use clap::{CommandFactory, Parser, Subcommand};
 use serde_json::{Value, json};
@@ -13,6 +14,7 @@ use crate::client::{Client, Failure};
 use crate::daemon::android::AdbSource;
 use crate::daemon::ios::SimSource;
 use crate::daemon::sources::Sources;
+use crate::daemon::trace::TraceOptions;
 use crate::daemon::{Config, Daemon, socket};
 use crate::wire::{ActionResult, DeviceEntry, Kind, Observation, ScreenshotResult, VERSION};
 
@@ -156,6 +158,12 @@ pub(crate) enum Verb {
     Daemon {
         #[arg(long)]
         detach: bool,
+        /// Keep observation text and text targets in the trace files.
+        #[arg(long, env = "PHONE_USE_TRACE_FULL", value_parser = BoolishValueParser::new())]
+        trace_full: bool,
+        /// Keep a copy of every screenshot next to the trace file.
+        #[arg(long, env = "PHONE_USE_TRACE_SCREENS", value_parser = BoolishValueParser::new())]
+        trace_screens: bool,
     },
     /// Check Xcode, booted simulators and their runners; each line says ok, warn or fail, with a fix.
     Doctor,
@@ -177,7 +185,14 @@ pub fn run(cli: Cli) -> ExitCode {
             println!("phone-use {VERSION}");
             ExitCode::SUCCESS
         }
-        Verb::Daemon { .. } => run_daemon(),
+        Verb::Daemon {
+            trace_full,
+            trace_screens,
+            ..
+        } => run_daemon(TraceOptions {
+            full: trace_full,
+            screens: trace_screens,
+        }),
         Verb::Mcp => crate::mcp::run(),
         Verb::Skill => {
             print!("{}", include_str!("../../../SKILL.md"));
@@ -695,7 +710,7 @@ async fn save_fixture_files(
     Ok(())
 }
 
-fn run_daemon() -> ExitCode {
+fn run_daemon(trace: TraceOptions) -> ExitCode {
     let Ok(rt) = tokio::runtime::Builder::new_multi_thread()
         .enable_all()
         .build()
@@ -708,11 +723,12 @@ fn run_daemon() -> ExitCode {
             ("android:", Arc::new(AdbSource::from_env())),
             ("sim:", Arc::new(SimSource::new(socket::home()))),
         ]);
-        let daemon = Daemon::new(
+        let daemon = Daemon::with_trace(
             Arc::new(sources),
             Config {
                 home: socket::home(),
             },
+            trace,
         );
         let listener = match socket::listen(&socket::socket_path()).await {
             Ok(l) => l,
