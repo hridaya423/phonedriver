@@ -438,7 +438,7 @@ impl Error {
             Error::NotReached {
                 end: ScrollEnd::Stuck,
                 ..
-            } => "Use `--in <list ref>` to name the list that should scroll, or run `phone-use snapshot`.".into(),
+            } => "Use `--within <list ref>` to name the list that should scroll, or run `phone-use snapshot`.".into(),
             Error::NotReached {
                 end: ScrollEnd::Limit,
                 ..

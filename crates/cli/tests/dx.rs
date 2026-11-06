@@ -99,3 +99,60 @@ fn daemon_stop_ends_a_running_daemon_and_succeeds_when_there_is_none() {
     assert!(reaper.join().unwrap() < Duration::from_secs(3));
     assert_eq!(stop(&home), "no daemon is running\n");
 }
+
+fn walk(cmd: &clap::Command, path: &str, problems: &mut Vec<String>) {
+    for sub in cmd.get_subcommands() {
+        let name = format!("{path} {}", sub.get_name());
+        if sub.get_about().is_none() && sub.get_name() != "help" {
+            problems.push(format!("{name} has no description"));
+        }
+        for arg in sub.get_arguments() {
+            if !arg.is_hide_set() && arg.get_help().is_none() && arg.get_id() != "help" {
+                problems.push(format!("{name} {} has no description", arg.get_id()));
+            }
+        }
+        walk(sub, &name, problems);
+    }
+}
+
+#[test]
+fn every_visible_flag_and_argument_has_a_description() {
+    let mut problems = Vec::new();
+    let mut cmd = phone_use::commands::command();
+    cmd.build();
+    walk(&cmd, "phone-use", &mut problems);
+    assert!(problems.is_empty(), "{problems:#?}");
+}
+
+#[test]
+fn global_options_are_left_out_of_the_help_of_commands_that_ignore_them() {
+    let home = tempfile::tempdir().unwrap();
+    let help = |args: &[&str]| {
+        let out = phone_use(&home).args(args).assert().success();
+        String::from_utf8(out.get_output().stdout.clone()).unwrap()
+    };
+    assert!(!help(&["doctor", "--help"]).contains("--session"));
+    assert!(!help(&["daemon", "--help"]).contains("--timeout"));
+    let tap = help(&["tap", "--help"]);
+    assert!(tap.contains("--timeout") && tap.contains("--expect-change"));
+    assert!(!help(&["snapshot", "--help"]).contains("--expect-change"));
+    assert!(help(&["--help"]).contains("Exit codes:"));
+}
+
+#[test]
+fn within_is_one_name_and_in_still_works() {
+    let home = tempfile::tempdir().unwrap();
+    let help = phone_use(&home)
+        .args(["scroll", "--help"])
+        .assert()
+        .success();
+    let text = String::from_utf8(help.get_output().stdout.clone()).unwrap();
+    assert!(
+        text.contains("--within") && !text.contains("--in "),
+        "{text}"
+    );
+    let mut c = phone_use(&home);
+    c.args(["scroll", "down", "--in", "@e1", "--device", "nope"]);
+    let stderr = stderr_of(c, 4);
+    assert!(!stderr.contains("unexpected argument"), "{stderr}");
+}

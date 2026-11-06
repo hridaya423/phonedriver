@@ -1,8 +1,9 @@
 use std::process::ExitCode;
 
-use clap::Parser;
-use phone_use::commands::{Cli, run};
+use clap::FromArgMatches;
+use phone_use::commands::{Cli, command, run};
 
 fn main() -> ExitCode {
-    run(Cli::parse())
+    let matches = command().get_matches();
+    run(Cli::from_arg_matches(&matches).unwrap_or_else(|e| e.exit()))
 }
