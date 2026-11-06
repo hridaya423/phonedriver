@@ -549,6 +549,7 @@ impl Actor {
                 },
                 element: None,
                 line: None,
+                under_keyboard: false,
             });
         }
         let now = self.fresh(s).await?;
@@ -665,8 +666,18 @@ impl Actor {
                     "this device cannot inject touches",
                 )?;
                 let Resolved {
-                    at, line: element, ..
+                    at,
+                    line: element,
+                    element: found,
+                    under_keyboard,
                 } = self.resolve_target(s, &target).await?;
+                if let (true, Some(e)) = (under_keyboard, &found) {
+                    return Err(Error::OffScreen {
+                        r#ref: e.r#ref,
+                        scroll_hint: Direction::Down,
+                        behind_keyboard: true,
+                    });
+                }
                 let started = self.begin_action();
                 device
                     .gesture(gesture::tap(at, count.unwrap_or(1), long))

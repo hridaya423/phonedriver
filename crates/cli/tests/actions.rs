@@ -667,3 +667,60 @@ async fn after_a_paste_type_the_device_clipboard_is_what_it_was_before() {
     assert_eq!(r["verified"], true, "{r}");
     assert_eq!(rig.ok(&["clipboard"]).trim(), "before-clip");
 }
+
+#[tokio::test]
+#[ignore = "needs PHONE_USE_TEST_DEVICE"]
+async fn a_shown_keyboard_marks_the_button_under_it_and_tapping_that_button_says_how_to_get_out() {
+    let rig = Rig::new().await;
+    rig.tab("text").await;
+    let before = rig.ok(&["snapshot"]);
+    assert!(before.contains("keyboard hidden"), "{before}");
+    assert!(
+        !before
+            .lines()
+            .any(|l| l.contains("\"Send\"") && l.contains("under-keyboard")),
+        "{before}"
+    );
+    rig.ok(&["tap", "plain"]);
+    let mut shown = String::new();
+    for _ in 0..30 {
+        shown = rig.ok(&["snapshot"]);
+        if shown.contains("keyboard shown") {
+            break;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+    }
+    assert!(shown.contains("keyboard shown"), "{shown}");
+    let send = shown
+        .lines()
+        .find(|l| l.contains("\"Send\""))
+        .unwrap_or_else(|| panic!("no Send button: {shown}"));
+    assert!(send.ends_with("under-keyboard"), "{send}");
+
+    testbed::clear_log(&rig.adb, &rig.serial).await;
+    let out = rig.cli(&["tap", "Send"]);
+    let err = failure(&out);
+    assert_eq!(out.status.code(), Some(1), "{err}");
+    assert!(err.contains("under the keyboard"), "{err}");
+    assert!(err.contains("press back"), "{err}");
+    tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+    let log = testbed::read_log(&rig.adb, &rig.serial).await;
+    assert!(log.iter().all(|e| e["id"] != "send"), "{log:?}");
+
+    rig.ok(&["press", "back"]);
+    let mut hidden = String::new();
+    for _ in 0..30 {
+        hidden = rig.ok(&["snapshot"]);
+        if hidden.contains("keyboard hidden") {
+            break;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+    }
+    assert!(hidden.contains("keyboard hidden"), "{hidden}");
+    rig.ok(&["tap", "Send"]);
+    let log = testbed::wait_for_log(&rig.adb, &rig.serial, 3000, |l| {
+        l.iter().any(|e| e["id"] == "send")
+    })
+    .await;
+    assert!(log.iter().any(|e| e["id"] == "send"), "{log:?}");
+}

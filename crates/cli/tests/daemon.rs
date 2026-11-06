@@ -1115,3 +1115,55 @@ async fn pressing_lock_does_not_wake_the_screen_first() {
         vec![Call::Button(phone_use_core::device::Button::Lock)]
     );
 }
+
+fn keyboard_tree() -> RawTree {
+    let json = r#"{"windows":[
+        {"id":1,"type":"application","package":"com.example","bounds":[0,0,360,800]},
+        {"id":2,"type":"input_method","package":"com.google.ime","bounds":[0,500,360,800]}],
+      "nodes":[
+        {"p":-1,"w":1,"cls":"android.widget.FrameLayout","b":[0,0,360,800],"f":"vVe"},
+        {"p":0,"w":1,"cls":"android.widget.EditText","desc":"Field","b":[0,100,360,160],"f":"vVeEF","a":["tap","set_text"]},
+        {"p":0,"w":1,"cls":"android.widget.Button","text":"Send","b":[0,600,360,660],"f":"vVe","a":["tap"]},
+        {"p":0,"w":1,"cls":"android.widget.Button","text":"Cancel","b":[0,300,360,360],"f":"vVe","a":["tap"]},
+        {"p":-1,"w":2,"cls":"android.inputmethodservice.SoftInputWindow","b":[0,500,360,800],"f":"vVe"}]}"#;
+    RawTree::from_android_json(json, Scale { density: 1.0 }).unwrap()
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_button_under_the_keyboard_is_marked_and_a_tap_on_it_fails_off_screen_with_a_way_out() {
+    let (source, fake) = FakeSource::with(vec![keyboard_tree()]);
+    let (d, _home) = daemon(source);
+    let snap = ok(&d, "default", "snapshot", json!({})).await;
+    let text = snap["text"].as_str().unwrap();
+    assert!(text.contains("keyboard shown"), "{text}");
+    let send = text.lines().find(|l| l.contains("\"Send\"")).unwrap();
+    assert!(send.ends_with("under-keyboard"), "{send}");
+    let cancel = text.lines().find(|l| l.contains("\"Cancel\"")).unwrap();
+    assert!(!cancel.contains("under-keyboard"), "{cancel}");
+
+    let e = err(
+        &d,
+        "default",
+        "act",
+        json!({"action": {"kind": "tap", "target": {"text": "Send"}}}),
+    )
+    .await;
+    assert_eq!(e.code, -32009, "{e:?}");
+    assert_eq!(e.data["behind_keyboard"], true, "{e:?}");
+    assert!(e.message.contains("under the keyboard"), "{e:?}");
+    let hint = e.data["hint"].as_str().unwrap();
+    assert!(
+        hint.contains("press back") && hint.contains("scroll"),
+        "{hint}"
+    );
+    assert!(fake.calls().is_empty(), "{:?}", fake.calls());
+
+    ok(
+        &d,
+        "default",
+        "act",
+        json!({"action": {"kind": "tap", "target": {"text": "Cancel"}}}),
+    )
+    .await;
+    assert_eq!(fake.calls().len(), 1);
+}

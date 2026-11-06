@@ -39,12 +39,21 @@ pub fn prune(tree: &RawTree) -> Vec<Node> {
             children[p].push(i);
         }
     }
+    let keyboard = tree
+        .windows
+        .iter()
+        .find(|w| w.kind == "input_method")
+        .map(|w| w.bounds);
     let clipped: Vec<Option<Rect>> = tree
         .nodes
         .iter()
         .map(|node| {
-            let visible =
-                node.flags.contains(NodeFlags::VISIBLE_TO_USER) && node.bounds.area() > 0.0;
+            // The platform calls a view covered by the keyboard invisible to the user; the agent still needs to
+            // know it exists (and that the keyboard hides it).
+            let covered = node.flags.contains(NodeFlags::VISIBLE)
+                && keyboard.is_some_and(|k| k.contains(node.bounds));
+            let visible = (node.flags.contains(NodeFlags::VISIBLE_TO_USER) || covered)
+                && node.bounds.area() > 0.0;
             let bounds = match screen {
                 Some(s) => node.bounds.clip(s),
                 None => Some(node.bounds),
@@ -335,6 +344,21 @@ mod tests {
         assert_eq!(nodes.len(), 2);
         assert_eq!(nodes[1].role, Role::Keyboard);
         assert_eq!(nodes[1].bounds.y, 200.0);
+    }
+
+    #[test]
+    fn a_node_the_platform_calls_invisible_only_because_the_keyboard_covers_it_is_kept() {
+        let json = r#"{"windows":[
+            {"id":2,"type":"input_method","bounds":[0,200,100,300]},
+            {"id":1,"type":"application","bounds":[0,0,100,300]}],"nodes":[
+            {"p":-1,"w":2,"cls":"android.widget.FrameLayout","b":[0,200,100,300],"f":"vVe"},
+            {"p":-1,"w":1,"cls":"android.widget.FrameLayout","b":[0,0,100,300],"f":"vVe"},
+            {"p":1,"w":1,"cls":"android.widget.Button","text":"Send","b":[0,230,100,260],"f":"ve","a":["tap"]},
+            {"p":1,"w":1,"cls":"android.widget.Button","text":"Hidden","b":[0,100,100,130],"f":"ve","a":["tap"]}
+        ]}"#;
+        let nodes = prune(&RawTree::from_android_json(json, Scale { density: 1.0 }).unwrap());
+        let labels: Vec<_> = nodes.iter().filter_map(|n| n.label.as_deref()).collect();
+        assert_eq!(labels, ["Send"]);
     }
 
     #[test]

@@ -309,7 +309,7 @@ Components (one Java file each where possible):
 | Rotation | Agent restarts the encoder; session maps coordinates with the new size |
 | `wm size` change | Same as rotation |
 | `wm density` change | The agent's `display_changed` event carries the density; a different density becomes `DeviceEvent::DensityChanged`, the actor drops the connection and the next call starts a new agent with the new density (a few seconds). Not testable on the API 26 emulator: `wm density` restarts its system server and drops adb |
-| IME shown | Header `keyboard shown`; elements under it get `under-keyboard` |
+| IME shown | Header `keyboard shown`; elements under it get `under-keyboard`. The platform calls a view the keyboard covers invisible to the user, so `prune` keeps an on-screen node that lies inside the keyboard window's bounds (flag `v` without `V`). `tap` on an element marked `under-keyboard` fails `OffScreen` with `behind_keyboard: true` and the hint to `press back` (hides the IME) or `scroll`, and sends no input |
 
 Only display 0 is supported in v1.
 

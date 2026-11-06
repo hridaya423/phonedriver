@@ -121,7 +121,18 @@ final class Screens {
                 InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_MULTI_LINE, true));
         root.addView(field(a, "password",
                 InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD, false));
-        return root;
+        Button send = new Button(a);
+        send.setId(id(a, "send"));
+        send.setText("Send");
+        send.setAllCaps(false);
+        send.setOnClickListener(
+                v -> Events.emit(Events.put(Events.event("click"), "id", "send")));
+        android.widget.FrameLayout frame = new android.widget.FrameLayout(a);
+        frame.addView(root);
+        frame.addView(send, new android.widget.FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT,
+                Gravity.BOTTOM));
+        return frame;
     }
 
     @SuppressLint("ClickableViewAccessibility")
