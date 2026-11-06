@@ -69,6 +69,9 @@ pub enum Action {
         secret: bool,
         #[serde(default)]
         submit: bool,
+        /// Add to what the field holds instead of replacing it (only with `into`).
+        #[serde(default)]
+        append: bool,
     },
     Press {
         key: String,
@@ -185,6 +188,9 @@ pub struct ActionResult {
     pub via: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none", default)]
     pub verified: Option<bool>,
+    /// Set with `verified: false`: what the field shows and why that is.
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub unverified: Option<crate::daemon::verify::Unverified>,
     pub settled: bool,
     pub settle_ms: u32,
     pub changed: bool,
@@ -382,6 +388,8 @@ pub struct StepResult {
     pub summary: String,
     #[serde(skip_serializing_if = "Option::is_none", default)]
     pub verified: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub unverified: Option<crate::daemon::verify::Unverified>,
 }
 
 /// The step that failed: its 1-based position and the error as `Error::to_rpc` builds it.

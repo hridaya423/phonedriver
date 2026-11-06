@@ -94,7 +94,7 @@ final class TextInput {
     }
 
     private static void set(String text) throws Exception {
-        AccessibilityNodeInfo n = Accessibility.focusedInput();
+        AccessibilityNodeInfo n = awaitFocusedInput();
         if (n == null) {
             throw new IllegalStateException("no focused input field");
         }

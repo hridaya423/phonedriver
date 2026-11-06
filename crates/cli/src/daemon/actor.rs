@@ -31,6 +31,7 @@ use tokio::time::Instant;
 use super::DeviceSource;
 use super::session::{Resolved, Session};
 use super::shell;
+use super::verify::{Expect, Verdict, Verify};
 use crate::wire::{
     ActParams, Action, ActionResult, AppParams, BatchParams, BatchResult, ClipboardParams,
     FindParams, Kind, Observation, PinchDirection, ScreenshotParams, ScreenshotResult, ShellParams,
@@ -1291,9 +1292,9 @@ impl Actor {
                     .unwrap_or_default();
                 let verify = Verify {
                     field: r.element.map(|e| e.r#ref),
-                    clear: true,
-                    text: String::new(),
+                    expect: Expect::Exactly(String::new()),
                     secure,
+                    mode: Some("set"),
                     submitted: false,
                 };
                 self.finish(
@@ -1314,6 +1315,7 @@ impl Actor {
                 mode,
                 secret,
                 submit,
+                append,
             } => {
                 let mode = mode.unwrap_or(TypeMode::Paste);
                 let (cap, reason) = match mode {
@@ -1344,9 +1346,34 @@ impl Actor {
                     ),
                 };
                 let secure = secret || field.as_ref().is_some_and(is_secure);
+                let replace = into.is_some() && !append;
+                let held = field
+                    .as_ref()
+                    .and_then(|f| f.value.clone())
+                    .filter(|v| !v.is_empty());
+                let wipe = replace && held.is_some() && mode != TypeMode::Set;
+                let can_set = device.info().capabilities.contains(Capabilities::TEXT_SET);
                 let started = self.begin_action();
                 if let Some(at) = tap_at {
+                    let at = match (&field, wipe && !can_set) {
+                        (Some(f), true) => Point {
+                            x: f.bounds.x + f.bounds.w - 4.0,
+                            y: at.y,
+                        },
+                        _ => at,
+                    };
                     device.gesture(gesture::tap(at, 1, None)).await?;
+                }
+                if let Some(held) = held.filter(|_| wipe) {
+                    let emptied = if can_set {
+                        TextInput::SetValue(String::new())
+                    } else {
+                        TextInput::Keystrokes("\u{8}".repeat(held.chars().count()))
+                    };
+                    device
+                        .text(emptied)
+                        .await
+                        .map_err(|e| withhold(e, secure))?;
                 }
                 let input = match (mode, secure) {
                     (TypeMode::Paste, true) => TextInput::PasteSecret(text.clone()),
@@ -1354,7 +1381,9 @@ impl Actor {
                     (TypeMode::Set, _) => TextInput::SetValue(text.clone()),
                     (TypeMode::Keys, _) => TextInput::Keystrokes(text.clone()),
                 };
-                device.text(input).await.map_err(|e| withhold(e, secure))?;
+                if !(replace && text.is_empty()) {
+                    device.text(input).await.map_err(|e| withhold(e, secure))?;
+                }
                 if submit {
                     device.key(Key::Enter).await?;
                 }
@@ -1364,11 +1393,22 @@ impl Actor {
                     .map(|f| format!(" into @{}", f.r#ref))
                     .unwrap_or_default();
                 let summary = format!("typed {n} chars{label}");
+                let expect = if replace {
+                    Expect::Exactly(text.clone())
+                } else {
+                    Expect::Appended {
+                        before: field
+                            .as_ref()
+                            .and_then(|f| f.value.clone())
+                            .unwrap_or_default(),
+                        text: text.clone(),
+                    }
+                };
                 let verify = Verify {
-                    clear: false,
                     field: field.map(|f| f.r#ref),
-                    text: text.clone(),
+                    expect,
                     secure,
+                    mode: Some(mode_name(mode)),
                     submitted: submit,
                 };
                 let mask = secret.then_some(text);
@@ -1565,7 +1605,12 @@ impl Actor {
         let st = Some(st);
         let tree = self.device()?.tree().await?;
         let rendered = self.build(s, &tree, st.map(settle_line));
-        let verified = verify.and_then(|v| v.check(&rendered));
+        let verdict = verify.as_ref().map(|v| v.check(&rendered));
+        let verified = verdict.as_ref().and_then(Verdict::verified);
+        let unverified = match verdict {
+            Some(Verdict::Failed(u)) => Some(u),
+            _ => None,
+        };
         let (kind, mut text) = match s.last.as_ref().map(|prev| diff(prev, &rendered)) {
             Some(DiffOrFull::Diff(changes)) => {
                 (Kind::Diff, DiffOrFull::Diff(changes).text(&rendered))
@@ -1608,6 +1653,7 @@ impl Actor {
             summary,
             via: via.map(str::to_string),
             verified,
+            unverified,
             settled,
             settle_ms: ms,
             changed,
@@ -1656,6 +1702,7 @@ impl Actor {
                     done.push(StepResult {
                         summary: r.summary.clone(),
                         verified: r.verified,
+                        unverified: r.unverified.clone(),
                     });
                     last = Some(r);
                 }
@@ -1692,6 +1739,7 @@ impl Actor {
                     summary: String::new(),
                     via: None,
                     verified: None,
+                    unverified: None,
                     settled: false,
                     settle_ms: 0,
                     changed: true,
@@ -1795,6 +1843,7 @@ impl Actor {
                     summary,
                     via: None,
                     verified: None,
+                    unverified: None,
                     settled: false,
                     settle_ms: started.elapsed().as_millis() as u32,
                     changed: true,
@@ -1891,6 +1940,7 @@ impl Actor {
             summary: "screen settled".into(),
             via: None,
             verified: None,
+            unverified: None,
             settled: true,
             settle_ms: ms,
             changed: true,
@@ -1990,6 +2040,7 @@ fn delivered(s: &Session, summary: String, via: Option<&'static str>) -> ActionR
         summary,
         via: via.map(str::to_string),
         verified: None,
+        unverified: None,
         settled: false,
         settle_ms: 0,
         changed: false,
@@ -2011,47 +2062,6 @@ fn delivered(s: &Session, summary: String, via: Option<&'static str>) -> ActionR
             elements: None,
             capture: None,
         },
-    }
-}
-
-struct Verify {
-    field: Option<Ref>,
-    /// The field should now be empty.
-    clear: bool,
-    text: String,
-    secure: bool,
-    /// Enter followed the text.
-    submitted: bool,
-}
-
-impl Verify {
-    /// The field now holds the text; a secure field exposes only masked text, so only lengths are compared.
-    /// `None` when Enter was sent and the field is gone: a form that submits or a search overlay that closes (Safari
-    /// on en.wikipedia.org, iOS 26.5) leaves nothing to read back, so the text can be neither confirmed nor refuted.
-    fn check(&self, now: &Rendered) -> Option<bool> {
-        let named = self
-            .field
-            .and_then(|r| now.index_of(r))
-            .map(|i| &now.elements[i])
-            .filter(|e| e.role.is_text_entry());
-        let Some(e) = named.or_else(|| {
-            now.elements
-                .iter()
-                .find(|e| e.state.contains(ElementState::FOCUSED) && e.role.is_text_entry())
-        }) else {
-            return if self.submitted { None } else { Some(false) };
-        };
-        let Some(value) = e.value.as_deref() else {
-            return Some(self.clear);
-        };
-        if self.clear {
-            return Some(value.is_empty());
-        }
-        Some(if self.secure || is_secure(e) {
-            value.chars().count() >= self.text.chars().count()
-        } else {
-            value.contains(&self.text)
-        })
     }
 }
 
