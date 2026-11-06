@@ -102,3 +102,49 @@ fn a_gap_across_the_sequence_number_wrap_is_still_a_gap() {
         [Event::Unit(u)] if u.keyframe
     ));
 }
+
+#[test]
+fn a_decoder_that_falls_behind_publishes_only_the_newest_picture_and_still_acknowledges_every_unit()
+{
+    use phone_use_video::image::encode_png;
+    use phone_use_video::receive::{Signal, decode_stream};
+
+    let (tx, rx) = tokio::sync::mpsc::channel(256);
+    for p in packets() {
+        tx.try_send(p.to_vec()).unwrap();
+    }
+    drop(tx);
+    let (mut published, mut decoded) = (Vec::new(), 0);
+    decode_stream(
+        rx,
+        |frame| published.push(frame),
+        |s| {
+            if matches!(s, Signal::Decoded(_)) {
+                decoded += 1;
+            }
+        },
+    );
+
+    let mut depacketizer = Depacketizer::new();
+    let mut reference = Decoder::new().unwrap();
+    let (mut units, mut last) = (0, None);
+    for p in packets() {
+        for event in depacketizer.push(p) {
+            if let Event::Unit(unit) = event {
+                units += 1;
+                last = reference.decode(&unit.data).unwrap();
+            }
+        }
+    }
+    assert_eq!(decoded, units, "every unit is acknowledged");
+    assert_eq!(
+        published.len(),
+        1,
+        "one picture was published after the queue drained"
+    );
+    assert_eq!(
+        encode_png(&published[0], 1.0).unwrap(),
+        encode_png(&last.unwrap(), 1.0).unwrap(),
+        "and it is the newest"
+    );
+}
