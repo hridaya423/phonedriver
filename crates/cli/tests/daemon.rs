@@ -2065,3 +2065,90 @@ async fn pinch_needs_multi_touch() {
     .await;
     assert_eq!(e.code, -32011);
 }
+
+fn app_call(action: &str, app: &str) -> Value {
+    json!({"action": action, "app": app})
+}
+
+#[tokio::test]
+async fn stop_clear_and_uninstall_on_an_emulator_reach_the_device_by_name() {
+    let (source, fake) = installed();
+    let (d, _home) = daemon(source);
+    let r = ok(&d, "default", "app", app_call("stop", "settings")).await;
+    assert!(r["summary"].as_str().unwrap().starts_with("stopped"), "{r}");
+    ok(&d, "default", "app", app_call("clear", "settings")).await;
+    ok(&d, "default", "app", app_call("uninstall", "settings")).await;
+    let ops: Vec<Call> = fake
+        .calls()
+        .into_iter()
+        .filter(|c| matches!(c, Call::AppOp(..)))
+        .collect();
+    use phone_use_core::device::AppOp;
+    let id = AppId("com.android.settings".into());
+    assert_eq!(
+        ops,
+        [
+            Call::AppOp(AppOp::Stop, id.clone()),
+            Call::AppOp(AppOp::ClearData, id.clone()),
+            Call::AppOp(AppOp::Uninstall, id)
+        ]
+    );
+    let e = err(&d, "default", "app", app_call("stop", "nonexistent app")).await;
+    assert_eq!(e.code, -32017);
+    let e = err(&d, "default", "app", json!({"action": "install"})).await;
+    assert_eq!(e.code, -32011);
+}
+
+fn physical() -> (Arc<FakeSource>, Arc<FakeDevice>) {
+    let fake = Arc::new(FakeDevice::new(vec![tree(&["One"])]));
+    fake.install(&[
+        ("com.example.installed", "Mine"),
+        ("com.example.theirs", "Theirs"),
+    ]);
+    let source = Arc::new(FakeSource {
+        devices: Mutex::new(vec![(
+            Listed {
+                id: "android:R5CT123".into(),
+                model: "Pixel".into(),
+                os: None,
+                tier: "fake".into(),
+                capabilities: fake.info().capabilities,
+            },
+            fake.clone(),
+        )]),
+    });
+    (source, fake)
+}
+
+#[tokio::test]
+async fn on_a_physical_device_only_apps_phone_use_installed_can_be_cleared_or_removed() {
+    let (source, fake) = physical();
+    let (d, home) = daemon(source);
+    for action in ["clear", "uninstall"] {
+        let e = err(&d, "default", "app", app_call(action, "Theirs")).await;
+        assert_eq!(e.code, -32011, "{action}");
+        assert!(e.message.contains("did not install"), "{}", e.message);
+        let e = err(&d, "default", "app", app_call(action, "Mine")).await;
+        assert_eq!(e.code, -32011, "{action} before install");
+    }
+    ok(&d, "default", "app", app_call("stop", "Theirs")).await;
+    let r = ok(
+        &d,
+        "default",
+        "app",
+        json!({"action": "install", "path": "/tmp/a.apk"}),
+    )
+    .await;
+    assert_eq!(r["summary"], "installed com.example.installed");
+    ok(&d, "default", "app", app_call("clear", "Mine")).await;
+    ok(&d, "default", "app", app_call("uninstall", "Mine")).await;
+    let e = err(&d, "default", "app", app_call("uninstall", "Mine")).await;
+    assert_eq!(e.code, -32011, "the record ends with the uninstall");
+    let removed = fake
+        .calls()
+        .iter()
+        .filter(|c| matches!(c, Call::AppOp(phone_use_core::device::AppOp::Uninstall, _)))
+        .count();
+    assert_eq!(removed, 1);
+    assert!(home.path().join("installed.json").exists());
+}

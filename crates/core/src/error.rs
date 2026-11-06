@@ -117,6 +117,7 @@ pub enum Op {
     Launch,
     Foreground,
     Ocr,
+    App,
 }
 
 impl Op {
@@ -134,6 +135,7 @@ impl Op {
             Op::Launch => "launch",
             Op::Foreground => "foreground",
             Op::Ocr => "ocr",
+            Op::App => "app",
         }
     }
 }

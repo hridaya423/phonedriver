@@ -162,6 +162,16 @@ Each decision records the choice, the alternatives it beat, and the evidence tha
 
 **Reopen if.** An agent run shows models failing to find `drag` under `swipe`.
 
+## D19. App lifecycle is one `app` method, folded into `apps` on MCP, with a ledger on physical devices
+
+**Choice.** `install`, `stop`, `clear` and `uninstall` are one daemon method and arguments of the existing `apps` tool. On a physical device phone-use clears or removes only what it installed (a per-device record in its home); everywhere else it acts on any app.
+
+**Why.** An agent that can uninstall can lose a person's data; an emulator or Simulator is disposable, a phone is not. A record of our own installs is the narrowest rule that still lets an agent test the app it just installed.
+
+**Rejected.** Allowing uninstall on a phone after a prompt (no way to ask a person from a tool call). Four MCP tools (+300 tokens every session).
+
+**Reopen if.** An agent needs to clear the data of an app it did not install on a phone; that is a decision for the person, per app.
+
 ## D16. Traces keep typed text only as a length, and text from the screen only with `--trace-full`
 
 **Choice.** A trace line holds the request's params, the reply's summary, `ms` and the settle time. A `type` action's text, secret or not, becomes `{"secret_len": n}` (flag set) or `{"text_len": n}`; so does the text of `clipboard set`. Text targets (`tap "Save"`, `wait gone:"Loading"`, `find`) become `{"text_len": n}` unless the daemon runs with `--trace-full` (env `PHONE_USE_TRACE_FULL`), which also adds the observation text. An `open` URL loses its query and fragment. `--trace-screens` (env `PHONE_USE_TRACE_SCREENS`) copies each `screenshot` next to the trace file. The trace directory is mode 0700 and its files 0600.

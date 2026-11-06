@@ -5,7 +5,7 @@ use bitflags::bitflags;
 use serde::{Deserialize, Serialize};
 use tokio::sync::{broadcast, watch};
 
-use crate::error::{DeviceId, Error};
+use crate::error::{DeviceId, Error, Op};
 use crate::geometry::{Point, Rect, Size};
 use crate::raw::RawTree;
 
@@ -187,6 +187,14 @@ pub struct App {
     pub system: bool,
 }
 
+/// What `Device::app_op` does to an installed app.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AppOp {
+    Stop,
+    ClearData,
+    Uninstall,
+}
+
 /// Whether the screen is on and whether the keyguard is up (architecture 6.3).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ScreenState {
@@ -216,6 +224,19 @@ pub trait Device: Send + Sync {
     async fn apps(&self) -> Result<Vec<App>>;
     async fn launch(&self, app: &AppId) -> Result<()>;
     async fn foreground(&self) -> Result<Option<AppId>>;
+    /// Installs the app file at `path` (on the daemon's machine). Returns the new app's id when it can tell.
+    async fn install(&self, _path: &std::path::Path) -> Result<Option<AppId>> {
+        Err(Error::Unsupported {
+            op: Op::App,
+            reason: "this device cannot install apps",
+        })
+    }
+    async fn app_op(&self, _op: AppOp, _app: &AppId) -> Result<()> {
+        Err(Error::Unsupported {
+            op: Op::App,
+            reason: "this device cannot stop, clear or remove apps",
+        })
+    }
     /// A device with no screen power or lock state reports an awake, unlocked screen.
     async fn screen_state(&self) -> Result<ScreenState> {
         Ok(ScreenState {

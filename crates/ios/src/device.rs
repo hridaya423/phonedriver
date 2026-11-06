@@ -8,8 +8,8 @@ use std::time::Duration;
 use async_trait::async_trait;
 use base64::Engine;
 use phone_use_core::device::{
-    App, AppId, Button, Capabilities, ClipboardOp, Device, DeviceEvent, DeviceInfo, FrameRef,
-    Gesture, Image, ImageFormat, Key, Quality, Result, TextInput, Url,
+    App, AppId, AppOp, Button, Capabilities, ClipboardOp, Device, DeviceEvent, DeviceInfo,
+    FrameRef, Gesture, Image, ImageFormat, Key, Quality, Result, TextInput, Url,
 };
 use phone_use_core::element::Role;
 use phone_use_core::error::{Error, Op};
@@ -219,6 +219,16 @@ impl IosDevice {
             });
         }
         now
+    }
+
+    fn simulator_only(&self) -> Result<()> {
+        match self.host {
+            Host::Simulator => Ok(()),
+            Host::Physical(_) => Err(Error::Unsupported {
+                op: Op::App,
+                reason: "installing, stopping or removing apps on a physical iPhone is not implemented",
+            }),
+        }
     }
 
     fn client(&self) -> &Client {
@@ -531,6 +541,47 @@ impl Device for IosDevice {
         let deadline = Instant::now() + APP_START_WAIT;
         while Instant::now() < deadline && self.foreground().await?.as_ref() != Some(app) {
             tokio::time::sleep(APP_START_RETRY).await;
+        }
+        Ok(())
+    }
+
+    async fn install(&self, path: &Path) -> Result<Option<AppId>> {
+        self.simulator_only()?;
+        let app = path.to_string_lossy().into_owned();
+        if !path.is_dir() || path.extension().is_none_or(|e| e != "app") {
+            return Err(Error::Unsupported {
+                op: Op::App,
+                reason: "the Simulator installs an .app folder",
+            });
+        }
+        simctl(&["install", &self.udid, &app]).await?;
+        let plist = format!("{app}/Info.plist");
+        let id = crate::simulator::plutil_extract(&plist, "CFBundleIdentifier").await?;
+        Ok(Some(AppId(id)))
+    }
+
+    async fn app_op(&self, op: AppOp, app: &AppId) -> Result<()> {
+        self.simulator_only()?;
+        match op {
+            AppOp::Stop => {
+                simctl(&["terminate", &self.udid, &app.0]).await?;
+            }
+            AppOp::ClearData => {
+                let _ = simctl(&["terminate", &self.udid, &app.0]).await;
+                let dir = simctl(&["get_app_container", &self.udid, &app.0, "data"]).await?;
+                let dir = std::path::PathBuf::from(dir.trim());
+                for entry in std::fs::read_dir(&dir).into_iter().flatten().flatten() {
+                    let p = entry.path();
+                    let _ = if p.is_dir() {
+                        std::fs::remove_dir_all(&p)
+                    } else {
+                        std::fs::remove_file(&p)
+                    };
+                }
+            }
+            AppOp::Uninstall => {
+                simctl(&["uninstall", &self.udid, &app.0]).await?;
+            }
         }
         Ok(())
     }

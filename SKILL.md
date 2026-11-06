@@ -23,6 +23,10 @@ Every action waits for the screen to settle. Do not add delays.
 - Use a point (`tap 206,488`) only from a screenshot. Points are in the same units as the screenshot size.
 - If a tap fails with "is no longer on screen", the screen changed. Call `snapshot` and use the closest match the error names.
 
+## Apps
+
+`apps` lists what can be launched. With `action` it also manages one app: `stop`, `clear` (its data, for a known starting state), `uninstall`, or `install` with the path of an `.apk` or Simulator `.app`. On a physical phone `clear` and `uninstall` only work on apps phone-use installed.
+
 ## Waiting
 
 Use `wait` when the screen needs time: `wait "Row 640"`, `wait gone:"Loading"`, `wait settled`. It returns the moment the condition is true. It fails with a timeout that names the condition. Never sleep.

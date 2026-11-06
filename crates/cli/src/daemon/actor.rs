@@ -8,8 +8,8 @@ use std::time::Duration;
 
 use base64::Engine;
 use phone_use_core::device::{
-    App, Button, Capabilities, ClipboardOp, Device, DeviceEvent, FrameRef, Gesture, Key, Quality,
-    ScreenState, TextInput, TimedPoint, Url,
+    App, AppOp, Button, Capabilities, ClipboardOp, Device, DeviceEvent, FrameRef, Gesture, Key,
+    Quality, ScreenState, TextInput, TimedPoint, Url,
 };
 use phone_use_core::diff::{DiffOrFull, diff};
 use phone_use_core::element::{Actions, Element, ElementState, Ref, Role, Source};
@@ -31,9 +31,9 @@ use tokio::time::Instant;
 use super::DeviceSource;
 use super::session::{Resolved, Session};
 use crate::wire::{
-    ActParams, Action, ActionResult, BatchParams, BatchResult, ClipboardParams, FindParams, Kind,
-    Observation, PinchDirection, ScreenshotParams, ScreenshotResult, SnapshotParams, Step,
-    StepFailure, StepResult, Target, TypeMode, WaitCondition, WaitParams,
+    ActParams, Action, ActionResult, AppParams, BatchParams, BatchResult, ClipboardParams,
+    FindParams, Kind, Observation, PinchDirection, ScreenshotParams, ScreenshotResult,
+    SnapshotParams, Step, StepFailure, StepResult, Target, TypeMode, WaitCondition, WaitParams,
 };
 
 pub const LEASE_TTL: Duration = Duration::from_secs(600);
@@ -51,6 +51,7 @@ pub enum Call {
     Batch(BatchParams),
     Find(FindParams),
     Apps,
+    App(AppParams),
     Clipboard(ClipboardParams),
     /// What `doctor` needs: the device answers a tree read, and a frame arrives.
     Health,
@@ -351,6 +352,7 @@ impl Actor {
                 self.need(Capabilities::APPS, Op::Apps, "this device cannot list apps")?;
                 to_value(self.device()?.apps().await?)
             }
+            Call::App(p) => self.app(s, p).await?,
             Call::Clipboard(p) => {
                 self.need(
                     Capabilities::CLIPBOARD,
@@ -370,6 +372,98 @@ impl Actor {
             Call::Release | Call::Leased => json!({}),
         };
         Ok(value)
+    }
+
+    /// Install, stop, clear data or uninstall. On a physical device only an app phone-use installed (recorded in
+    /// `installed.json` under the daemon's home) can be cleared or removed.
+    async fn app(&mut self, s: &mut Session, p: AppParams) -> Result<Value, Error> {
+        let device = self.device()?;
+        if p.action == "install" {
+            let path = p.path.ok_or(Error::Unsupported {
+                op: Op::App,
+                reason: "install needs the path of an app file",
+            })?;
+            let id = device.install(std::path::Path::new(&path)).await?;
+            if let Some(id) = &id {
+                self.ledger(|l| {
+                    if !l.contains(&id.0) {
+                        l.push(id.0.clone());
+                    }
+                });
+            }
+            let summary = match id {
+                Some(id) => format!("installed {}", id.0),
+                None => "installed (it replaced an app already there)".to_string(),
+            };
+            return Ok(json!({"ok": true, "summary": summary}));
+        }
+        let op = match p.action.as_str() {
+            "stop" => AppOp::Stop,
+            "clear" => AppOp::ClearData,
+            "uninstall" => AppOp::Uninstall,
+            _ => {
+                return Err(Error::Unsupported {
+                    op: Op::App,
+                    reason: "the app action is install, stop, clear or uninstall",
+                });
+            }
+        };
+        let query = p.app.ok_or(Error::Unsupported {
+            op: Op::App,
+            reason: "this action needs the app's name or id",
+        })?;
+        let installed = device.apps().await?;
+        let found = find_app(&installed, &query)?.clone();
+        if op != AppOp::Stop && self.physical() {
+            let mut mine = false;
+            self.ledger(|l| mine = l.contains(&found.id.0));
+            if !mine {
+                return Err(Error::Unsupported {
+                    op: Op::App,
+                    reason: "phone-use did not install this app on this physical device, so it will not clear or remove it",
+                });
+            }
+        }
+        device.app_op(op, &found.id).await?;
+        if op == AppOp::Uninstall {
+            self.ledger(|l| l.retain(|a| *a != found.id.0));
+        }
+        s.last = None;
+        let word = match op {
+            AppOp::Stop => "stopped",
+            AppOp::ClearData => "cleared the data of",
+            AppOp::Uninstall => "uninstalled",
+        };
+        Ok(json!({"ok": true, "summary": format!("{word} {}", found.name)}))
+    }
+
+    /// Everything but an emulator or a Simulator belongs to a person.
+    fn physical(&self) -> bool {
+        match self.id.split_once(':') {
+            Some(("android", serial)) => !serial.starts_with("emulator-"),
+            Some(("sim" | "fake", _)) => false,
+            _ => true,
+        }
+    }
+
+    /// Reads, lets `f` change, and writes back the apps phone-use installed on this device.
+    fn ledger(&self, f: impl FnOnce(&mut Vec<String>)) {
+        let path = self.home.join("installed.json");
+        let mut all: serde_json::Map<String, Value> = std::fs::read(&path)
+            .ok()
+            .and_then(|b| serde_json::from_slice(&b).ok())
+            .unwrap_or_default();
+        let mut mine: Vec<String> = all
+            .get(&self.id)
+            .and_then(|v| serde_json::from_value(v.clone()).ok())
+            .unwrap_or_default();
+        let before = mine.clone();
+        f(&mut mine);
+        if mine != before {
+            all.insert(self.id.clone(), json!(mine));
+            let _ = std::fs::create_dir_all(&self.home)
+                .and_then(|()| std::fs::write(&path, Value::Object(all).to_string()));
+        }
     }
 
     async fn health(&mut self) -> Result<Value, Error> {

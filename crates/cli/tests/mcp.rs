@@ -619,3 +619,14 @@ async fn a_screenshot_with_marks_boxes_every_tappable_element_and_says_how_many(
     assert_eq!(&bytes[..8], b"\x89PNG\r\n\x1a\n");
     assert_ne!(bytes, PNG, "the picture was redrawn");
 }
+
+#[tokio::test]
+async fn apps_with_an_action_stops_an_app_and_refuses_a_missing_path() {
+    let rig = rig(vec![tree(&["One"])]).await;
+    let r = rig
+        .call("apps", json!({"action": "stop", "app": "nothing"}))
+        .await;
+    assert_eq!(r.is_error, Some(true), "{r:?}");
+    let r = rig.call("apps", json!({"action": "install"})).await;
+    assert_eq!(r.is_error, Some(true), "{r:?}");
+}

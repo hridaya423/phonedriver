@@ -143,7 +143,7 @@ impl Daemon {
             }
             "devices" => Ok(self.devices().await?),
             "release" | "snapshot" | "screenshot" | "act" | "wait" | "batch" | "find" | "apps"
-            | "clipboard" | "health" => {
+            | "app" | "clipboard" | "health" => {
                 let common: Common = rpc::params(params)?;
                 let call = match method {
                     "release" => Call::Release,
@@ -151,6 +151,7 @@ impl Daemon {
                     "screenshot" => Call::Screenshot(rpc::params(params)?),
                     "find" => Call::Find(rpc::params(params)?),
                     "apps" => Call::Apps,
+                    "app" => Call::App(rpc::params(params)?),
                     "health" => Call::Health,
                     "clipboard" => Call::Clipboard(rpc::params(params)?),
                     "act" => {

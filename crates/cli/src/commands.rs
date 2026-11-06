@@ -221,8 +221,14 @@ pub(crate) enum Verb {
         /// The link, such as `https://example.com` or `myapp://item/3`.
         url: String,
     },
-    /// List the apps that can be launched.
-    Apps,
+    /// List the apps that can be launched, or `install <path>`, `stop`, `clear` (data) or `uninstall` one by name or id.
+    /// On a physical device `clear` and `uninstall` only touch apps phone-use installed.
+    Apps {
+        #[arg(value_parser = ["install", "stop", "clear", "uninstall"])]
+        action: Option<String>,
+        /// The app file to install (on the daemon's machine), or the app to stop, clear or uninstall.
+        target: Option<String>,
+    },
     /// Drag from the middle of the screen, or of `--from`, the way a finger does.
     Swipe {
         /// Where the finger moves.
@@ -633,7 +639,24 @@ pub(crate) async fn execute_with(
                 .collect::<Result<Vec<_>, _>>()?;
             run_batch(client, steps, g).await
         }
-        Verb::Apps => {
+        Verb::Apps {
+            action: Some(action),
+            target,
+        } => {
+            let target = target
+                .ok_or_else(|| Failure::Local(format!("apps {action} needs an app or a path")))?;
+            let p = if action == "install" {
+                json!({"action": action, "path": target})
+            } else {
+                json!({"action": action, "app": target})
+            };
+            let r = client.call("app", with(p)).await?;
+            if g.json {
+                return Ok(r.to_string());
+            }
+            Ok(format!("ok {}", r["summary"].as_str().unwrap_or_default()))
+        }
+        Verb::Apps { .. } => {
             let r = client.call("apps", with(json!({}))).await?;
             if g.json {
                 return Ok(r.to_string());

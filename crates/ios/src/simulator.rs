@@ -108,6 +108,24 @@ pub async fn simctl_with_input(args: &[&str], input: Option<&str>) -> Result<Str
     Ok(String::from_utf8_lossy(&out.stdout).into_owned())
 }
 
+/// One key of a property list file, through `plutil`.
+pub async fn plutil_extract(file: &str, key: &str) -> Result<String> {
+    let out = Command::new("plutil")
+        .args(["-extract", key, "raw", "-o", "-", "--", file])
+        .stdin(std::process::Stdio::null())
+        .output()
+        .await
+        .map_err(|e| Error::Transport {
+            detail: format!("cannot run plutil: {e}"),
+        })?;
+    if !out.status.success() {
+        return Err(Error::Transport {
+            detail: format!("{file} has no {key}"),
+        });
+    }
+    Ok(String::from_utf8_lossy(&out.stdout).trim().to_string())
+}
+
 /// Converts the old-style property list `simctl listapps` prints into JSON with `plutil`.
 pub async fn plist_to_json(plist: &str) -> Result<Value> {
     let mut child = Command::new("plutil")
