@@ -176,6 +176,15 @@ enum Platform {
 }
 
 impl RawTree {
+    /// A progress indicator is visible, or a web view has no children yet.
+    pub fn loading(&self) -> bool {
+        self.nodes.iter().enumerate().any(|(i, n)| match n.role {
+            Role::ProgressIndicator => n.flags.contains(NodeFlags::VISIBLE_TO_USER),
+            Role::WebView => !self.nodes.iter().any(|c| c.parent == Some(i)),
+            _ => false,
+        })
+    }
+
     /// Parses an Android agent `tree` reply. Bounds arrive in pixels and leave in points.
     pub fn from_android_json(json: &str, scale: Scale) -> Result<RawTree, ParseError> {
         let wire: WireTree = serde_json::from_str(json)?;

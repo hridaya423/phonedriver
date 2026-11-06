@@ -358,6 +358,83 @@ async fn act_returns_a_diff_after_the_tree_changes_and_the_screen_goes_quiet() {
     );
 }
 
+fn progress_tree(labels: &[&str]) -> RawTree {
+    let mut nodes = vec![
+        r#"{"p":-1,"w":1,"cls":"android.widget.FrameLayout","b":[0,0,360,800],"f":"vVe"}"#
+            .to_string(),
+        r#"{"p":0,"w":1,"cls":"android.widget.ProgressBar","b":[0,0,360,10],"f":"vVe"}"#
+            .to_string(),
+    ];
+    for (i, l) in labels.iter().enumerate() {
+        let top = 100 + 100 * i as i32;
+        nodes.push(format!(
+            r#"{{"p":0,"w":1,"cls":"android.widget.Button","text":"{l}","b":[0,{top},360,{}],"f":"vVe","a":["tap"]}}"#,
+            top + 60
+        ));
+    }
+    let json = format!(
+        r#"{{"windows":[{{"id":1,"type":"application","package":"com.example","bounds":[0,0,360,800]}}],"nodes":[{}]}}"#,
+        nodes.join(",")
+    );
+    RawTree::from_android_json(&json, Scale { density: 1.0 }).unwrap()
+}
+
+#[tokio::test(start_paused = true)]
+async fn an_action_replies_with_the_tree_that_stopped_changing_not_the_one_caught_mid_transition() {
+    let (source, fake) = FakeSource::with(vec![
+        tree(&["One", "Two"]),
+        tree(&["One"]),
+        tree(&["Dialog", "Cancel", "OK"]),
+    ]);
+    let (d, _home) = daemon(source);
+    ok(&d, "default", "snapshot", json!({})).await;
+    tokio::spawn(async move {
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        fake.push_frame(big_frame(1));
+    });
+    let r = ok(&d, "default", "act", tap_point(10.0, 10.0)).await;
+    let text = r["observation"]["text"].as_str().unwrap();
+    assert!(text.contains("\"Dialog\""), "{text}");
+    assert!(text.contains("\"OK\""), "{text}");
+}
+
+#[tokio::test(start_paused = true)]
+async fn an_action_that_leaves_a_progress_bar_showing_waits_for_the_page_up_to_four_seconds() {
+    let (source, fake) = FakeSource::with(vec![
+        tree(&["Search"]),
+        progress_tree(&["Loading"]),
+        progress_tree(&["Loading"]),
+        progress_tree(&["Loading"]),
+        tree(&["Born December 9, 1906"]),
+    ]);
+    let (d, _home) = daemon(source);
+    ok(&d, "default", "snapshot", json!({})).await;
+    tokio::spawn(async move {
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        fake.push_frame(big_frame(1));
+    });
+    let r = ok(&d, "default", "act", tap_point(10.0, 10.0)).await;
+    let text = r["observation"]["text"].as_str().unwrap();
+    assert!(text.contains("Born December 9, 1906"), "{text}");
+    assert_eq!(r["observation"]["loading"], false, "{r}");
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_progress_bar_that_never_goes_away_costs_at_most_four_seconds_of_waiting() {
+    let (source, fake) = FakeSource::with(vec![tree(&["Search"]), progress_tree(&["Spinning"])]);
+    let (d, _home) = daemon(source);
+    ok(&d, "default", "snapshot", json!({})).await;
+    tokio::spawn(async move {
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        fake.push_frame(big_frame(1));
+    });
+    let started = tokio::time::Instant::now();
+    let r = ok(&d, "default", "act", tap_point(10.0, 10.0)).await;
+    assert_eq!(r["ok"], true);
+    assert_eq!(r["observation"]["loading"], true, "{r}");
+    assert!(started.elapsed() < Duration::from_secs(5), "{:?}", started.elapsed());
+}
+
 #[tokio::test(start_paused = true)]
 async fn act_on_a_screen_that_never_stops_changing_is_ok_unsettled_and_wait_settled_fails() {
     let (source, fake) = FakeSource::with(vec![tree(&["One"])]);
