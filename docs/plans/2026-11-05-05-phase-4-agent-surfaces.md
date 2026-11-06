@@ -26,7 +26,7 @@
 
 **Files:** Create `SKILL.md` (frontmatter `name: phone-use`, description that triggers on "phone", "iPhone", "Android", "tap", "mobile app"). `phone-use skill` prints it (embedded with `include_str!`).
 
-Content, under 150 lines, in this order: the loop (snapshot, act on refs, read the diff, act again); targets (prefer refs; text targets for known labels; points only from screenshots); waiting (`wait` for a condition, never sleep); when to use `--pixels` and `screenshot`; handling `needs_user` (stop and tell the user exactly what the error says); safety (never type passwords, codes or payment details unless the user gave them for this task; never confirm purchases or send messages to people without the user's explicit instruction).
+Content, under 150 lines, in this order: the loop (snapshot, act on refs, read the diff, act again); targets (prefer refs; text targets for known labels; points only from screenshots); waiting (`wait` for a condition, never sleep); when to use `screenshot` (`snapshot --pixels` is not built, so the skill does not mention it); handling `needs_user` (stop and tell the user exactly what the error says); safety (never type passwords, codes or payment details unless the user gave them for this task; never confirm purchases or send messages to people without the user's explicit instruction).
 
 Test: `phone-use skill` output equals the file (CLI test). Review the text with the `prose` skill.
 
