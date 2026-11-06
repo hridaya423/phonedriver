@@ -95,3 +95,15 @@ Listing is not availability. Starting the display stream on the iPhone (iOS 26.1
 ## I3: which codec the device sends (2026-11-06, task 6.2)
 
 On the iPad (iOS 27.0), with idevice's default offer, the device sends **HEVC on payload type 100** (NAL header test of the task plan): idevice is right, go-ios's labels are wrong. With an offer that lists only the H.264 bank, the device accepts and sends **H.264 on payload type 123** at 2736 x 2064 (High profile, level 5.2), and `openh264` decodes it. Decision (D3, architecture 7.2 and 8): offer H.264 only, so one decoder (`openh264`) serves every OS and VideoToolbox is not needed.
+
+## I1: HID on the iPad (2026-11-06, iOS 27.0), as far as it was measured
+
+- Touch: normalized 16-bit touchscreen reports land where aimed. A tap at (895, 540) of the stream's 1032 x 1368 frame reached the testbed as `touch began x 895 y 543` (the real screen is 1376 pt high, so y is 0.6% further down than the frame suggests) and as `tap b3`. Without a display stream HID input does nothing (idevice `hid.rs`); the stream is always started first.
+- Buttons: Home (consumer usage page 0x0C, usage 0x40) sent the testbed to the background.
+- Keyboard: creating the HID keyboard makes iOS treat a hardware keyboard as attached, so the software keyboard does not appear (the runner's snapshot said "keyboard hidden" with the Plain field focused). Modifiers in the same report as the key are ignored; one report per key, modifiers first, 25 ms apart typed `Ab1!` exactly (10 ms dropped the character after a Shift).
+- Paste: Cmd+V raises "Testbed would like to paste from dtpasteboardd" every time; after "Allow Paste" the field received `héllo 😀 世界` intact.
+- Tap latency and glass-to-frame latency were not measured: the frame stream stops showing app changes after the first seconds (architecture 7.2), so there is no trustworthy frame to time against.
+
+## I5: signing-free tree from the audit service (not run)
+
+Not attempted. The CoreDevice tier returns an empty tree for the session to read with OCR (Phase 7), and the runner provides the tree where it is installed. `axAuditDaemon.remoteAXService` is listed on both devices (I2); walking it remains open.
