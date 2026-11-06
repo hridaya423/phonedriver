@@ -27,6 +27,7 @@ pub struct Frame {
     pub(crate) y: Vec<u8>,
     pub(crate) u: Vec<u8>,
     pub(crate) v: Vec<u8>,
+    pub(crate) turned: bool,
 }
 
 impl Frame {
@@ -43,6 +44,34 @@ impl Frame {
             y,
             u,
             v,
+            turned: false,
+        }
+    }
+
+    /// Marks the planes as a picture that is shown a quarter turn clockwise, without moving a pixel: the turn
+    /// costs 115 ms for an iPad picture in an unoptimized build, and only a screenshot needs it.
+    pub fn turned_cw(mut self) -> Frame {
+        self.turned = !self.turned;
+        self
+    }
+
+    /// Width and height as shown, after any pending quarter turn.
+    pub fn display_size(&self) -> (u32, u32) {
+        if self.turned {
+            (self.height, self.width)
+        } else {
+            (self.width, self.height)
+        }
+    }
+
+    /// The picture with any pending quarter turn applied.
+    pub fn upright(&self) -> std::borrow::Cow<'_, Frame> {
+        if self.turned {
+            let mut out = self.rotated_cw();
+            out.seq = self.seq;
+            std::borrow::Cow::Owned(out)
+        } else {
+            std::borrow::Cow::Borrowed(self)
         }
     }
 
@@ -100,6 +129,7 @@ pub struct FrameStore {
     inner: Mutex<Inner>,
     tx: watch::Sender<FrameRef>,
     decode_errors: AtomicU64,
+    publishes_skipped: AtomicU64,
 }
 
 impl FrameStore {
@@ -116,24 +146,35 @@ impl FrameStore {
             }),
             tx: watch::Sender::new(FrameRef::default()),
             decode_errors: AtomicU64::new(0),
+            publishes_skipped: AtomicU64::new(0),
         }
     }
 
     fn thumb(&self, frame: &Frame) -> Thumb {
         let (w, h) = (frame.width as usize, frame.height as usize);
         let b = self.block;
-        let (cols, rows) = (w / b, h / b);
+        let (shown_w, shown_h) = if frame.turned { (h, w) } else { (w, h) };
+        let (cols, rows) = (shown_w / b, shown_h / b);
         let mut samples = vec![0u8; cols * rows];
         let area = (b * b) as u32;
+        let row_sum = |row: usize, col: usize| {
+            let start = row * w + col;
+            frame.y[start..start + b]
+                .iter()
+                .map(|&p| p as u32)
+                .sum::<u32>()
+        };
         for ty in 0..rows {
             for tx in 0..cols {
                 let mut sum = 0u32;
-                for dy in 0..b {
-                    let start = (ty * b + dy) * w + tx * b;
-                    sum += frame.y[start..start + b]
-                        .iter()
-                        .map(|&p| p as u32)
-                        .sum::<u32>();
+                if frame.turned {
+                    for dx in 0..b {
+                        sum += row_sum(h - 1 - (tx * b + dx), ty * b);
+                    }
+                } else {
+                    for dy in 0..b {
+                        sum += row_sum(ty * b + dy, tx * b);
+                    }
                 }
                 samples[ty * cols + tx] = (sum / area) as u8;
             }
@@ -151,10 +192,8 @@ impl FrameStore {
 
     fn change(&self, previous: &Thumb, now: &Thumb, frame: &Frame) -> (f32, Option<Rect>) {
         if previous.cols != now.cols || previous.rows != now.rows {
-            let (w, h) = (
-                frame.width as f32 / self.density,
-                frame.height as f32 / self.density,
-            );
+            let (shown_w, shown_h) = frame.display_size();
+            let (w, h) = (shown_w as f32 / self.density, shown_h as f32 / self.density);
             return (
                 w * h,
                 Some(Rect {
@@ -262,6 +301,15 @@ impl FrameStore {
         (r0..r1).all(|r| (c0..c1).all(|c| thumb.samples[r * thumb.cols + c] <= BLACK_LEVEL))
     }
 
+    pub fn record_skipped_publish(&self) {
+        self.publishes_skipped.fetch_add(1, Ordering::Relaxed);
+    }
+
+    /// Pictures decoded but not shown because the receiver was far behind (see `receive::Pacing`).
+    pub fn publishes_skipped(&self) -> u64 {
+        self.publishes_skipped.load(Ordering::Relaxed)
+    }
+
     pub fn record_decode_error(&self) {
         self.decode_errors.fetch_add(1, Ordering::Relaxed);
     }
@@ -289,5 +337,28 @@ mod tests {
         assert_eq!(turned.y, [5, 1, 6, 2, 7, 3, 8, 4]);
         assert_eq!(turned.u, [10, 20]);
         assert_eq!(turned.v, [30, 40]);
+    }
+
+    #[test]
+    fn a_turned_frame_has_the_thumbnail_and_size_of_its_upright_picture() {
+        let (w, h) = (24u32, 16u32);
+        let y: Vec<u8> = (0..w * h).map(|i| ((i * 7) % 251) as u8).collect();
+        let (u, v) = (
+            vec![90; (w * h / 4) as usize],
+            vec![140; (w * h / 4) as usize],
+        );
+        let stored = Frame::from_i420(w, h, y, u, v);
+        let lazy = stored.clone().turned_cw();
+        let eager = stored.rotated_cw();
+        assert_eq!(lazy.display_size(), (h, w));
+        let store = FrameStore::new(1.0);
+        let (a, b) = (store.thumb(&lazy), store.thumb(&eager));
+        assert_eq!((a.cols, a.rows), (b.cols, b.rows));
+        assert_eq!(a.samples, b.samples);
+        let up = lazy.upright();
+        assert_eq!(
+            (up.width, up.height, &up.y),
+            (eager.width, eager.height, &eager.y)
+        );
     }
 }

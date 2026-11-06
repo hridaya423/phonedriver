@@ -26,7 +26,7 @@ use phone_use_core::geometry::{Rect, Size};
 use phone_use_core::raw::{RawTree, RawWindow};
 use phone_use_video::frame_store::FrameStore;
 use phone_use_video::image::{encode_png, scaled_size};
-use phone_use_video::receive::{Signal, decode_stream};
+use phone_use_video::receive::{Pacing, Signal, decode_stream};
 use tokio::sync::{Mutex, broadcast, mpsc, watch};
 use tokio::task::JoinHandle;
 use tokio::time::Instant;
@@ -277,9 +277,10 @@ impl CoreDevice {
         let frame = store
             .latest()
             .ok_or_else(|| Error::DeviceGone { id: id.clone() })?;
+        let (shown_w, shown_h) = frame.display_size();
         let screen = Size {
-            w: frame.width as f32 / density,
-            h: frame.height as f32 / density,
+            w: shown_w as f32 / density,
+            h: shown_h as f32 / density,
         };
         Ok(CoreDevice {
             info: DeviceInfo {
@@ -348,7 +349,7 @@ fn decode(
     decode_stream(
         queue,
         |frame| {
-            store.publish(frame.rotated_cw());
+            store.publish(frame.turned_cw());
         },
         |signal| match signal {
             Signal::Keyframe => {
@@ -357,11 +358,13 @@ fn decode(
             Signal::Decoded(timestamp) => {
                 let _ = feedback.send(Feedback::FrameDecoded(timestamp));
             }
+            Signal::PublishSkipped { .. } => store.record_skipped_publish(),
             Signal::DecodeFailed => {
                 store.record_decode_error();
                 let _ = feedback.send(Feedback::Keyframe);
             }
         },
+        Pacing::default(),
     );
 }
 
@@ -468,7 +471,8 @@ impl Device for CoreDevice {
             detail: "no video frame".into(),
         })?;
         let scale = 1.0 / self.density;
-        let (width, height) = scaled_size(frame.width, frame.height, scale);
+        let (shown_w, shown_h) = frame.display_size();
+        let (width, height) = scaled_size(shown_w, shown_h, scale);
         let bytes = tokio::task::spawn_blocking(move || encode_png(&frame, scale))
             .await
             .map_err(|e| self.lost(e))?

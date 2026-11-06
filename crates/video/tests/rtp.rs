@@ -107,7 +107,8 @@ fn a_gap_across_the_sequence_number_wrap_is_still_a_gap() {
 fn a_decoder_that_falls_behind_publishes_only_the_newest_picture_and_still_acknowledges_every_unit()
 {
     use phone_use_video::image::encode_png;
-    use phone_use_video::receive::{Signal, decode_stream};
+    use phone_use_video::receive::{Pacing, Signal, decode_stream};
+    use std::time::Duration;
 
     let (tx, rx) = tokio::sync::mpsc::channel(256);
     for p in packets() {
@@ -122,6 +123,10 @@ fn a_decoder_that_falls_behind_publishes_only_the_newest_picture_and_still_ackno
             if matches!(s, Signal::Decoded(_)) {
                 decoded += 1;
             }
+        },
+        Pacing {
+            at_least_every: Duration::from_secs(3600),
+            give_up_above: usize::MAX,
         },
     );
 
@@ -147,4 +152,41 @@ fn a_decoder_that_falls_behind_publishes_only_the_newest_picture_and_still_ackno
         encode_png(&last.unwrap(), 1.0).unwrap(),
         "and it is the newest"
     );
+}
+
+#[test]
+fn a_backlog_still_shows_a_picture_every_interval_until_it_passes_the_bound() {
+    use phone_use_video::receive::{Pacing, Signal, decode_stream};
+    use std::time::Duration;
+
+    let run = |pacing: Pacing| {
+        let (tx, rx) = tokio::sync::mpsc::channel(256);
+        for p in packets() {
+            tx.try_send(p.to_vec()).unwrap();
+        }
+        drop(tx);
+        let (mut published, mut skipped) = (0, 0);
+        decode_stream(
+            rx,
+            |_| published += 1,
+            |s| {
+                if matches!(s, Signal::PublishSkipped { .. }) {
+                    skipped += 1;
+                }
+            },
+            pacing,
+        );
+        (published, skipped)
+    };
+    let (published, skipped) = run(Pacing {
+        at_least_every: Duration::ZERO,
+        give_up_above: usize::MAX,
+    });
+    assert!(published > 1 && skipped == 0, "{published} {skipped}");
+    let (published, skipped) = run(Pacing {
+        at_least_every: Duration::ZERO,
+        give_up_above: 0,
+    });
+    assert!(skipped > 0, "{skipped} skipped");
+    assert_eq!(published, 1, "only the drained queue publishes");
 }
