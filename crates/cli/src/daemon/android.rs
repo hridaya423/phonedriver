@@ -1,9 +1,9 @@
 //! Android devices through the adb server.
 
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use async_trait::async_trait;
-use phone_use_android::adb::{Adb, DeviceState};
+use phone_use_android::adb::{Adb, AdbDevice, DeviceState};
 use phone_use_android::device::AndroidDevice;
 use phone_use_core::device::{Capabilities, Device};
 use phone_use_core::error::Error;
@@ -11,15 +11,54 @@ use phone_use_core::error::Error;
 use super::progress::after_a_second;
 use super::{DeviceSource, Listed};
 
+#[derive(Default)]
+struct Tracked {
+    devices: Option<Vec<AdbDevice>>,
+    running: bool,
+}
+
 pub struct AdbSource {
     adb: Adb,
+    tracked: Arc<Mutex<Tracked>>,
 }
 
 impl AdbSource {
     pub fn from_env() -> AdbSource {
+        AdbSource::new(Adb::from_env())
+    }
+
+    pub fn new(adb: Adb) -> AdbSource {
         AdbSource {
-            adb: Adb::from_env(),
+            adb,
+            tracked: Arc::default(),
         }
+    }
+
+    /// The daemon resolves a device on every request, and a `host:devices-l` round trip each time is part of the
+    /// bare tap's latency, so the list is kept current from adb's `track-devices` stream; until the stream is up
+    /// (and after it drops) a request asks the server directly.
+    async fn devices(&self) -> Result<Vec<AdbDevice>, Error> {
+        let start = {
+            let mut t = self.tracked.lock().unwrap_or_else(|e| e.into_inner());
+            if let Some(d) = &t.devices {
+                return Ok(d.clone());
+            }
+            !std::mem::replace(&mut t.running, true)
+        };
+        if start {
+            let (adb, tracked) = (self.adb.clone(), self.tracked.clone());
+            tokio::spawn(async move {
+                if let Ok(mut tracker) = adb.track_devices().await {
+                    while let Ok(list) = tracker.next().await {
+                        tracked.lock().unwrap_or_else(|e| e.into_inner()).devices = Some(list);
+                    }
+                }
+                let mut t = tracked.lock().unwrap_or_else(|e| e.into_inner());
+                t.devices = None;
+                t.running = false;
+            });
+        }
+        Ok(self.adb.devices().await?)
     }
 }
 
@@ -27,7 +66,6 @@ impl AdbSource {
 impl DeviceSource for AdbSource {
     async fn list(&self) -> Result<Vec<Listed>, Error> {
         Ok(self
-            .adb
             .devices()
             .await?
             .into_iter()
