@@ -123,6 +123,63 @@ pub fn tap(at: Point, count: u32, long_ms: Option<u32>) -> Gesture {
     Gesture { fingers }
 }
 
+const PICK_UP_MS: u32 = 400;
+const DRAG_MS: u32 = 400;
+const DROP_MS: u32 = 100;
+const PINCH_MS: u32 = 400;
+const PINCH_STEPS: u32 = 10;
+const PINCH_NEAR: f32 = 0.04;
+
+/// Presses at `from` and holds so the app starts a drag (a list reorder, a drag and drop), moves to `to`, holds
+/// there, then lifts.
+pub fn press_drag(from: Point, to: Point) -> Gesture {
+    let mut path: Vec<TimedPoint> = (0..PICK_UP_MS / HOLD_SAMPLE_MS)
+        .map(|i| TimedPoint {
+            at: from,
+            t_ms: i * HOLD_SAMPLE_MS,
+        })
+        .collect();
+    let moved = drag(from, to, STEPS, DRAG_MS, DROP_MS);
+    path.extend(moved.fingers[0].iter().map(|p| TimedPoint {
+        at: p.at,
+        t_ms: p.t_ms + PICK_UP_MS,
+    }));
+    Gesture {
+        fingers: vec![path],
+    }
+}
+
+/// Two fingers on a horizontal line through `center`. `out` spreads them from close together to `distance` (0 to 1)
+/// of the screen's shorter side apart, zooming in; otherwise they pinch from there to close together.
+pub fn pinch(center: Point, screen: Rect, out: bool, distance: f32) -> Gesture {
+    let side = screen.w.min(screen.h);
+    let room = (center.x - screen.x)
+        .min(screen.x + screen.w - center.x)
+        .max(0.0);
+    let near = side * PINCH_NEAR;
+    let far = (side * distance.clamp(0.1, 0.9) / 2.0)
+        .min((room - 4.0).max(near))
+        .max(near);
+    let (r0, r1) = if out { (near, far) } else { (far, near) };
+    let finger = |sign: f32| -> Vec<TimedPoint> {
+        (0..=PINCH_STEPS)
+            .map(|i| {
+                let f = i as f32 / PINCH_STEPS as f32;
+                TimedPoint {
+                    at: Point {
+                        x: center.x + sign * (r0 + (r1 - r0) * f),
+                        y: center.y,
+                    },
+                    t_ms: PINCH_MS * i / PINCH_STEPS,
+                }
+            })
+            .collect()
+    };
+    Gesture {
+        fingers: vec![finger(-1.0), finger(1.0)],
+    }
+}
+
 /// A drag that ends moving fast enough to fling the list, for crossing long distances.
 pub fn fling(area: Rect, direction: Direction) -> Gesture {
     swipe(area, direction.opposite(), 0.8, true)
@@ -160,6 +217,40 @@ mod tests {
         );
         assert!(p.windows(2).all(|w| w[1].at.y <= w[0].at.y));
         assert!(p.windows(2).all(|w| w[1].t_ms >= w[0].t_ms));
+    }
+
+    #[test]
+    fn a_drag_and_drop_holds_before_it_moves_and_after_it_arrives() {
+        let g = press_drag(Point { x: 50.0, y: 200.0 }, Point { x: 300.0, y: 600.0 });
+        let p = path(&g);
+        assert_eq!(g.fingers.len(), 1);
+        let first_move = p.iter().find(|t| t.at != p[0].at).unwrap();
+        assert!(first_move.t_ms >= 400, "{first_move:?}");
+        assert!(p[..16].iter().all(|t| t.at == p[0].at));
+        let last = p.last().unwrap();
+        assert_eq!((last.at.x, last.at.y), (300.0, 600.0));
+        assert!(last.t_ms >= 400 + 400 + 100);
+        assert!(p.windows(2).all(|w| w[1].t_ms >= w[0].t_ms));
+    }
+
+    #[test]
+    fn a_pinch_out_spreads_two_fingers_apart_and_a_pinch_in_closes_them() {
+        let screen = Rect {
+            x: 0.0,
+            y: 0.0,
+            w: 400.0,
+            h: 800.0,
+        };
+        let c = Point { x: 200.0, y: 400.0 };
+        let out = pinch(c, screen, true, 0.5);
+        assert_eq!(out.fingers.len(), 2);
+        let gap = |g: &Gesture, i: usize| g.fingers[1][i].at.x - g.fingers[0][i].at.x;
+        assert!(gap(&out, 0) < 40.0 && (gap(&out, 10) - 200.0).abs() < 0.01);
+        let inn = pinch(c, screen, false, 0.5);
+        assert!((gap(&inn, 0) - 200.0).abs() < 0.01 && gap(&inn, 10) < 40.0);
+        assert!(out.fingers[0].iter().all(|t| t.at.y == 400.0));
+        let edge = pinch(Point { x: 20.0, y: 400.0 }, screen, true, 0.9);
+        assert!(edge.fingers[0].iter().all(|t| t.at.x >= 0.0));
     }
 
     #[test]

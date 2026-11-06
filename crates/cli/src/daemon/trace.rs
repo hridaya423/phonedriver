@@ -161,7 +161,7 @@ fn hide_action(action: &mut Value, full: bool) {
         let end = url.find(['?', '#']).unwrap_or(url.len());
         action["url"] = json!(&url[..end]);
     }
-    for key in ["target", "into", "from", "in", "until"] {
+    for key in ["target", "into", "from", "to", "at", "in", "until"] {
         hide_text(&mut action[key], full);
     }
 }
