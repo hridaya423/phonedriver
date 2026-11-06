@@ -101,7 +101,7 @@ def device_install(udid, team):
 def device_launch(udid, tab=None):
     run(
         "xcrun", "devicectl", "device", "process", "launch", "--device", udid, "--terminate-existing",
-        BUNDLE_ID, *(["-tab", tab] if tab else []),
+        BUNDLE_ID, *(["--", "-tab", tab] if tab else []),
     )
 
 
