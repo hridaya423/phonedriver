@@ -13,9 +13,7 @@ Task 8.3. This list is prepared and not executed. Nothing here has been publishe
 
 Facts. `NOTICE` credits scrcpy, which is Apache-2.0, as the source of the code we adapted. `idevice` is MIT. `openh264` (the Rust crate) is BSD-2-Clause.
 
-Recommendation. Apache-2.0. It matches scrcpy, it carries an explicit patent grant, and it allows the commercial use you will probably want.
-
-Decision needed. Write one of: "Apache-2.0", "MIT", "Apache-2.0 or MIT", or another license. After your answer I add `LICENSE`, the `license` field in each `Cargo.toml`, and the license text to the `dist` archive.
+Decided 2026-11-06: MIT. `LICENSE` exists, every crate sets `license = "MIT"`, and `dist-workspace.toml` should add `LICENSE` to `include` next to `NOTICE`.
 
 ### 1a. The H.264 patent question
 

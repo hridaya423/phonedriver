@@ -5,5 +5,5 @@ members = ["cargo:."]
 cargo-dist-version = "0.34.0"
 ci = []
 installers = []
-include = ["NOTICE"]
+include = ["LICENSE", "NOTICE"]
 targets = ["aarch64-apple-darwin", "x86_64-apple-darwin", "x86_64-unknown-linux-gnu", "aarch64-unknown-linux-gnu", "x86_64-pc-windows-msvc"]

@@ -111,7 +111,9 @@ Each decision records the choice, the alternatives it beat, and the evidence tha
 
 ## D13. License
 
-**Recommendation.** Apache-2.0, which matches scrcpy (the code we borrow wrappers from) and includes a patent grant. **Needs the user's decision before any public release.** Development proceeds without a LICENSE file until then.
+**Choice.** MIT, decided by the user on 2026-11-06 ("license do MIT"). `LICENSE` holds the text and every crate sets `license = "MIT"` through the workspace. Code copied from scrcpy (Apache-2.0) and the WebDriverAgent headers (BSD) keep their own licenses and attribution in `NOTICE`; MIT is compatible with distributing both.
+
+**Rejected.** Apache-2.0 (the earlier recommendation, for its patent grant): the user chose MIT.
 
 **Also before release.** `openh264` built from source (the crate's default) does not carry Cisco's H.264 patent license, which covers only Cisco's prebuilt binaries. Decide with the user whether release builds load Cisco's binary at runtime or ship the source build.
 
