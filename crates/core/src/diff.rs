@@ -38,7 +38,10 @@ fn is_secure(e: &Element) -> bool {
 }
 
 fn words(e: &Element) -> String {
-    let w = state_words(e);
+    let mut w = state_words(e);
+    if !e.role.is_text_entry() {
+        w.retain(|word| *word != "focused");
+    }
     if w.is_empty() {
         "(none)".into()
     } else {
@@ -310,6 +313,42 @@ mod tests {
         let d = diff(&a, &b);
         assert_eq!(d.text(&b), "~ @e1 secure field changed");
         assert!(!format!("{d:?}").contains("hunter"));
+    }
+
+    #[test]
+    fn focus_moving_on_a_non_input_group_is_not_a_change_but_on_a_textbox_it_is() {
+        let mut t = RefTable::default();
+        let group = |focused: bool| {
+            node(
+                1,
+                "g",
+                "android.view.ViewGroup",
+                &format!(
+                    r#""desc":"Section","f":"{}","a":["tap"]"#,
+                    if focused { "vVeF" } else { "vVe" }
+                ),
+            )
+        };
+        let a = screen(&mut t, &[group(true)]);
+        let b = screen(&mut t, &[group(false)]);
+        assert_eq!(diff(&a, &b), DiffOrFull::Diff(vec![]));
+        let field = |focused: bool| {
+            node(
+                1,
+                "f",
+                "android.widget.EditText",
+                &format!(
+                    r#""desc":"Name","f":"{}","a":["set_text"]"#,
+                    if focused { "vVeEF" } else { "vVeE" }
+                ),
+            )
+        };
+        let c = screen(&mut t, &[field(true)]);
+        let e = screen(&mut t, &[field(false)]);
+        assert_eq!(
+            diff(&c, &e).text(&e),
+            "~ @e2 textbox \"Name\" focused → (none)"
+        );
     }
 
     #[test]

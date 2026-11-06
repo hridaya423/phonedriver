@@ -326,7 +326,10 @@ pub fn shown_value(e: &Element) -> Option<String> {
 }
 
 fn second_text(e: &Element) -> Option<String> {
-    shown_value(e).or_else(|| e.hint.clone()).map(|t| quote(&t))
+    shown_value(e)
+        .or_else(|| e.hint.clone())
+        .filter(|t| e.label.as_deref() != Some(t.as_str()))
+        .map(|t| quote(&t))
 }
 
 pub fn quote(s: &str) -> String {
@@ -881,5 +884,32 @@ mod tests {
             r#",{"p":1,"cls":"XCUIElementTypeStaticText","text":"Example Domain","b":[0,100,400,140],"f":"vVe"}"#,
         );
         assert!(!page.loading());
+    }
+
+    #[test]
+    fn a_value_or_hint_that_repeats_the_label_is_printed_once() {
+        let ios = |extra: &str| {
+            let json = format!(
+                r#"{{"app":{{"bundle_id":"x","pid":1}},"nodes":[
+                {{"p":-1,"cls":"XCUIElementTypeOther","b":[0,0,400,800],"f":"vVe"}},
+                {{"p":0,"cls":"XCUIElementTypeSearchField","text":"Search","a":["tap"],"b":[0,10,400,50],"f":"vVe"{extra}}},
+                {{"p":0,"cls":"XCUIElementTypeStaticText","text":"Example Domain","b":[0,100,400,140],"f":"vVe"{extra2}}}]}}"#,
+                extra2 = ",\"sd\":\"Example Domain\""
+            );
+            let tree = RawTree::from_ios_json(&json).unwrap();
+            let nodes = prune(&tree);
+            let refs = RefTable::default().assign(&tree, &nodes);
+            Rendered::build(nodes, &refs, header())
+                .text(&Filters::default())
+                .unwrap()
+        };
+        let text = ios(r#","hint":"Search""#);
+        assert!(text.contains("@e1 searchbox \"Search\"\n"), "{text}");
+        assert!(text.ends_with("@e2 text \"Example Domain\""), "{text}");
+        let text = ios(r#","hint":"Type here""#);
+        assert!(
+            text.contains("searchbox \"Search\" \"Type here\""),
+            "{text}"
+        );
     }
 }
