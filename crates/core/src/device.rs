@@ -258,6 +258,13 @@ pub trait Device: Send + Sync {
     async fn apps(&self) -> Result<Vec<App>>;
     async fn launch(&self, app: &AppId) -> Result<()>;
     async fn foreground(&self) -> Result<Option<AppId>>;
+    /// Grants runtime permissions to an installed app, before it is launched.
+    async fn grant(&self, _app: &AppId, _permissions: &[String]) -> Result<()> {
+        Err(Error::Unsupported {
+            op: Op::Launch,
+            reason: "this device cannot grant permissions",
+        })
+    }
     /// Installs the app file at `path` (on the daemon's machine). Returns the new app's id when it can tell.
     async fn install(&self, _path: &std::path::Path) -> Result<Option<AppId>> {
         Err(Error::Unsupported {

@@ -23,6 +23,7 @@ pub enum Call {
     OpenUrl(Url),
     Text(TextInput),
     Launch(AppId),
+    Grant(AppId, Vec<String>),
     Install(std::path::PathBuf),
     AppOp(AppOp, AppId),
     Wake,
@@ -213,6 +214,10 @@ impl Device for FakeDevice {
     async fn launch(&self, app: &AppId) -> Result<()> {
         *lock(&self.foreground) = Some(app.clone());
         self.record(Call::Launch(app.clone()))
+    }
+
+    async fn grant(&self, app: &AppId, permissions: &[String]) -> Result<()> {
+        self.record(Call::Grant(app.clone(), permissions.to_vec()))
     }
 
     async fn foreground(&self) -> Result<Option<AppId>> {

@@ -249,6 +249,38 @@ impl Device for AndroidDevice {
         Ok(())
     }
 
+    async fn grant(&self, app: &AppId, permissions: &[String]) -> Result<()> {
+        let package_ok = !app.0.is_empty()
+            && app
+                .0
+                .chars()
+                .all(|c| c.is_ascii_alphanumeric() || c == '.' || c == '_');
+        if !package_ok {
+            return Err(Error::Transport {
+                detail: format!("{:?} is not a package name", app.0),
+            });
+        }
+        for name in permissions {
+            let permission = permission_name(name)?;
+            let out = self
+                .adb
+                .shell(&self.serial, &format!("pm grant {} {permission}", app.0))
+                .await?;
+            let text = format!(
+                "{}{}",
+                out.stdout_text(),
+                String::from_utf8_lossy(&out.stderr)
+            );
+            if out.exit_code != 0 || text.contains("Exception") || text.contains("Error") {
+                let first = text.lines().find(|l| !l.trim().is_empty()).unwrap_or("");
+                return Err(Error::Transport {
+                    detail: format!("`pm grant {} {permission}` said: {}", app.0, first.trim()),
+                });
+            }
+        }
+        Ok(())
+    }
+
     async fn foreground(&self) -> Result<Option<AppId>> {
         let reply = self.simple(Op::Foreground, json!({"op": "state"})).await?;
         Ok(reply["foreground"].as_str().map(|p| AppId(p.to_string())))
@@ -354,5 +386,48 @@ impl Device for AndroidDevice {
             map.insert("density".into(), self.density.into());
         }
         Ok(Some(reply.to_string()))
+    }
+}
+
+/// `notifications`, `camera`, `location`... become `android.permission.POST_NOTIFICATIONS` and so on; a name with a
+/// dot is taken as written.
+fn permission_name(name: &str) -> Result<String> {
+    let full = match name {
+        "notifications" => "android.permission.POST_NOTIFICATIONS".to_string(),
+        "location" => "android.permission.ACCESS_FINE_LOCATION".to_string(),
+        n if n.contains('.') => n.to_string(),
+        n => format!("android.permission.{}", n.to_ascii_uppercase()),
+    };
+    if full
+        .chars()
+        .all(|c| c.is_ascii_alphanumeric() || c == '.' || c == '_')
+    {
+        Ok(full)
+    } else {
+        Err(Error::Transport {
+            detail: format!("{name:?} is not a permission name"),
+        })
+    }
+}
+
+#[cfg(test)]
+mod permission_tests {
+    use super::permission_name;
+
+    #[test]
+    fn short_names_expand_and_full_names_pass() {
+        assert_eq!(
+            permission_name("notifications").unwrap(),
+            "android.permission.POST_NOTIFICATIONS"
+        );
+        assert_eq!(
+            permission_name("camera").unwrap(),
+            "android.permission.CAMERA"
+        );
+        assert_eq!(
+            permission_name("android.permission.READ_CONTACTS").unwrap(),
+            "android.permission.READ_CONTACTS"
+        );
+        assert!(permission_name("camera; rm -rf /").is_err());
     }
 }

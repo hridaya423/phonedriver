@@ -1,6 +1,6 @@
 //! Booted iOS simulators through `xcrun simctl`.
 
-use phone_use_core::error::Error;
+use phone_use_core::error::{Error, Op};
 use serde_json::Value;
 use tokio::io::AsyncWriteExt;
 use tokio::process::Command;
@@ -270,8 +270,48 @@ pub async fn plist_to_json(plist: &str) -> Result<Value> {
     })
 }
 
+/// The `simctl privacy` service for a permission name; `notifications` has none (Simulator apps ask on launch).
+pub fn privacy_service(name: &str) -> Result<&'static str> {
+    const SERVICES: &[&str] = &[
+        "all",
+        "calendar",
+        "contacts-limited",
+        "contacts",
+        "location",
+        "location-always",
+        "photos-add",
+        "photos",
+        "media-library",
+        "microphone",
+        "motion",
+        "reminders",
+        "siri",
+    ];
+    SERVICES
+        .iter()
+        .copied()
+        .find(|s| *s == name)
+        .ok_or_else(|| Error::Unsupported {
+            op: Op::Launch,
+            reason: "the Simulator can grant all, calendar, contacts, contacts-limited, location, location-always, photos, photos-add, media-library, microphone, motion, reminders and siri; notifications and the camera cannot be pre-granted",
+        })
+}
+
 #[cfg(test)]
 mod tests {
+    use super::privacy_service;
+
+    #[test]
+    fn a_privacy_service_maps_and_notifications_and_camera_do_not() {
+        assert_eq!(privacy_service("photos").unwrap(), "photos");
+        assert_eq!(
+            privacy_service("location-always").unwrap(),
+            "location-always"
+        );
+        assert!(privacy_service("notifications").is_err());
+        assert!(privacy_service("camera").is_err());
+    }
+
     use super::*;
 
     const LIST: &str = r#"{"devices":{

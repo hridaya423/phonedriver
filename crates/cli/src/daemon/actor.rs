@@ -665,9 +665,11 @@ impl Actor {
         };
         let nodes = prune(tree);
         let refs = s.refs.assign(tree, &nodes);
+        let alerts = phone_use_core::alert::find(tree, screen);
         let app = tree
             .windows
             .iter()
+            .filter(|w| !alerts.iter().any(|(id, _)| *id == w.id))
             .find(|w| w.kind == "application" && w.package.is_some())
             .and_then(|w| w.package.clone())
             .map(|id| {
@@ -700,6 +702,7 @@ impl Actor {
             keyboard,
             settle,
             secure_hidden,
+            alerts: alerts.into_iter().map(|(_, a)| a).collect(),
         };
         Rendered::build(nodes, &refs, header)
     }
@@ -1181,7 +1184,7 @@ impl Actor {
                 self.finish(s, p.settle, cfg, started, summary, None, None, None)
                     .await
             }
-            Action::Launch { app } => {
+            Action::Launch { app, grant } => {
                 self.need(
                     Capabilities::LAUNCH,
                     Op::Launch,
@@ -1189,6 +1192,19 @@ impl Actor {
                 )?;
                 let installed = device.apps().await?;
                 let found = find_app(&installed, &app)?;
+                if !grant.is_empty() {
+                    if self.physical() {
+                        let mut mine = false;
+                        self.ledger(|l| mine = l.contains(&found.id.0));
+                        if !mine {
+                            return Err(Error::Unsupported {
+                                op: Op::Launch,
+                                reason: "phone-use did not install this app on this physical device, so it will not grant it permissions",
+                            });
+                        }
+                    }
+                    device.grant(&found.id, &grant).await?;
+                }
                 cfg.expect_change = p
                     .expect_change_ms
                     .map(Duration::from_millis)
@@ -1197,7 +1213,11 @@ impl Actor {
                 device.launch(&found.id).await?;
                 self.until_app_content().await?;
                 s.last = None;
-                let summary = format!("launched {}", found.name);
+                let summary = if grant.is_empty() {
+                    format!("launched {}", found.name)
+                } else {
+                    format!("launched {} (granted {})", found.name, grant.join(", "))
+                };
                 self.finish(s, p.settle, cfg, started, summary, None, None, None)
                     .await
             }
