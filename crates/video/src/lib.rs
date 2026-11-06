@@ -3,5 +3,6 @@
 pub mod frame_store;
 pub mod h264;
 pub mod image;
+pub mod marks;
 pub mod rtp;
 pub mod stream;

@@ -411,7 +411,7 @@ For canvases, games, WebViews without accessibility, and CoreDevice devices with
 ```
 phone-use devices                          list devices, tier, capabilities, leases
 phone-use snapshot [--diff] [--interactive] [--within @eN] [--pixels] [--max-lines N]
-phone-use screenshot [-o file] [--native] [--quality N]
+phone-use screenshot [-o file] [--marks]
 phone-use find <text> [--role R]           refs matching text
 phone-use tap <@ref|x,y|"text"> [--role R] [--long [ms]] [--count N]
 phone-use type <text> [--into <target>] [--mode paste|set|keys] [--submit]
@@ -440,6 +440,8 @@ Scroll mechanics: `scroll` drags 60% of the largest scrollable container (or `--
 `clear <target>` taps the field to focus it, then sets its value to nothing with `ACTION_SET_TEXT` and reports `verified` when the field then shows no text (`via: set`). `clipboard set <text>` takes the text on the command line (it is not a secret; use `type --secret` for secrets), and `clipboard` prints the device clipboard; the daemon does not trace either.
 
 `wait "text"`, `wait @ref` and `wait gone:"text"` read the tree once at the start and then once after each window change or frame with more than 128 pt² of change (100 ms after the burst's first signal), never on a timer; the reply's summary says how many tree reads it took. They resolve targets like `tap` does (substring match included), return a full snapshot, and fail `Timeout` naming the condition (default timeout 5 s). `snapshot --within @eN` prints only that element's subtree under the usual header, and a ref the screen no longer has is `StaleRef`.
+
+`screenshot --marks` (MCP `screenshot` with `marks`) draws a 2 px box and the `eN` label on every element that takes a tap, a long press or text, using the same fresh tree read a tap would use, so the label in the picture is the ref of the next `tap @eN`. Screenshots are one pixel per point, so element bounds are pixel coordinates. The reply says how many elements were boxed. The drawing is in `phone-use-video::marks` (a 3x5 bitmap font, no font dependency).
 
 `batch` runs a short sequence in one call: `phone-use batch "tap @e3" "type hello --submit" "press enter"`. Each step is the command line of tap, type (not `--secret`), clear, swipe, scroll, gesture, press, launch, open or wait, parsed by the same parser. The daemon (`batch` method) runs the steps one after another in one lease, each acted on and settled like a single call (so a later step resolves its target on the screen the earlier one produced), and answers once: the numbered one-line summaries of the steps that ran, and the diff from what the session last observed before step 1 to the screen after the last step. The first step that fails ends the batch: the reply names the step (`step 2 of 3 failed: ...`), keeps the error's code and hint, lists the steps that did run, and shows the diff so far, so the agent knows the screen it now has. Steps after a failure never run. A malformed step is refused before any step runs. Typed text in a batch is traced by length like any `type` (D16); secret text is refused, because it must come from stdin or the `secret` flag of a single call. The MCP `batch` tool takes `steps`, objects of `tool` plus that tool's arguments (`{"tool":"tap","target":"@e3"}`), converted to the same wire steps.
 

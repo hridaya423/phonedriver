@@ -205,12 +205,17 @@ pub struct ScreenshotResult {
     pub scale: f32,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub data_b64: Option<String>,
+    /// How many elements were boxed, when the screenshot asked for marks.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub marks: Option<u32>,
 }
 
 #[derive(Debug, Default, Deserialize)]
 pub struct ScreenshotParams {
     #[serde(default)]
     pub inline: bool,
+    #[serde(default)]
+    pub marks: bool,
 }
 
 #[derive(Debug, Default, Deserialize)]

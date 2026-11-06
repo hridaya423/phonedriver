@@ -604,3 +604,18 @@ async fn clipboard_find_release_clear_and_drag_are_reachable_from_existing_tools
     assert_eq!(texts(&r), ["released"]);
     assert_eq!(leased_by(&rig.socket).await, Value::Null);
 }
+
+#[tokio::test]
+async fn a_screenshot_with_marks_boxes_every_tappable_element_and_says_how_many() {
+    let rig = rig(vec![tree(&["One", "Two"])]).await;
+    let r = rig.call("screenshot", json!({"marks": true})).await;
+    assert_ne!(r.is_error, Some(true), "{r:?}");
+    assert_eq!(texts(&r), ["360x800 at scale 1, 2 marked elements"]);
+    let image = r.content.iter().find_map(|c| c.as_image()).expect("image");
+    use base64::Engine;
+    let bytes = base64::engine::general_purpose::STANDARD
+        .decode(&image.data)
+        .unwrap();
+    assert_eq!(&bytes[..8], b"\x89PNG\r\n\x1a\n");
+    assert_ne!(bytes, PNG, "the picture was redrawn");
+}

@@ -22,6 +22,7 @@ clap = { version = "4.6.7", features = ["derive", "env"] }
 interprocess = { version = "2.4.7", features = ["tokio"] }
 phone-use-android = { version = "0.1.0", path = "../android", optional = true }
 phone-use-core = { version = "0.1.0", path = "../core" }
+phone-use-video = { version = "0.1.0", path = "../video" }
 phone-use-ios = { version = "0.1.0", path = "../ios" }
 rmcp = { version = "3.9.0", features = ["server", "macros", "transport-io"] }
 schemars = "1.2.3"

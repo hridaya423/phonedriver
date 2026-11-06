@@ -339,7 +339,7 @@ impl Actor {
     async fn dispatch(&mut self, s: &mut Session, call: Call) -> Result<Value, Error> {
         let value = match call {
             Call::Snapshot(p) => to_value(self.snapshot(s, p).await?),
-            Call::Screenshot(p) => to_value(self.screenshot(p.inline).await?),
+            Call::Screenshot(p) => to_value(self.screenshot(s, p).await?),
             Call::Act(p) => to_value(self.act(s, p).await?),
             Call::Wait(p) => to_value(self.wait(s, p).await?),
             Call::Batch(p) => to_value(self.batch(s, p).await?),
@@ -390,14 +390,55 @@ impl Actor {
         Ok(json!({"id": info.id, "model": info.model, "os": info.os, "frames_ms": frames_ms}))
     }
 
-    async fn screenshot(&mut self, inline: bool) -> Result<ScreenshotResult, Error> {
+    /// With `marks`, boxes every element that takes a tap, a long press or text, labelled with the ref a tap on it
+    /// would use. Screenshots are one pixel per point, so element bounds are pixel coordinates.
+    async fn screenshot(
+        &mut self,
+        s: &mut Session,
+        p: ScreenshotParams,
+    ) -> Result<ScreenshotResult, Error> {
+        let inline = p.inline;
         self.need(
             Capabilities::SCREENSHOT,
             Op::Screenshot,
             "this device has no screen capture",
         )?;
         let device = self.device()?;
-        let image = device.screenshot(Quality(100)).await?;
+        let mut image = device.screenshot(Quality(100)).await?;
+        let mut marked = None;
+        if p.marks {
+            let now = self.fresh(s).await?;
+            let marks: Vec<phone_use_video::marks::Mark> = now
+                .elements
+                .iter()
+                .filter(|e| {
+                    e.actions
+                        .intersects(Actions::TAP | Actions::LONG_PRESS | Actions::EDIT)
+                        && e.bounds.w > 0.0
+                        && e.bounds.h > 0.0
+                })
+                .map(|e| phone_use_video::marks::Mark {
+                    label: e.r#ref.to_string(),
+                    x: e.bounds.x,
+                    y: e.bounds.y,
+                    w: e.bounds.w,
+                    h: e.bounds.h,
+                })
+                .collect();
+            let png = image.bytes.clone();
+            let drawn = tokio::task::spawn_blocking(move || {
+                phone_use_video::marks::draw_marks(&png, &marks).map(|b| (b, marks.len()))
+            })
+            .await
+            .map_err(|e| Error::Transport {
+                detail: format!("the marks task failed: {e}"),
+            })?
+            .map_err(|detail| Error::Transport {
+                detail: format!("cannot draw marks: {detail}"),
+            })?;
+            image.bytes = drawn.0;
+            marked = Some(drawn.1 as u32);
+        }
         let dir = self
             .home
             .join("tmp")
@@ -415,6 +456,7 @@ impl Actor {
             scale: 1.0,
             data_b64: inline
                 .then(|| base64::engine::general_purpose::STANDARD.encode(&image.bytes)),
+            marks: marked,
         })
     }
 

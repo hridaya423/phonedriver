@@ -1399,6 +1399,7 @@ dependencies = [
  "phone-use-android",
  "phone-use-core",
  "phone-use-ios",
+ "phone-use-video",
  "proptest",
  "rmcp",
  "schemars",
