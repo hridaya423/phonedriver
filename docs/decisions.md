@@ -131,3 +131,13 @@ Each decision records the choice, the alternatives it beat, and the evidence tha
 
 **Reopen if.** A newer Xcode removes the completion delay, the CoreDevice tier (which injects HID directly) shows taps are needed faster on Simulators too, or an agent workload is dominated by Simulator taps.
 
+
+## D16. Traces keep typed text only as a length, and text from the screen only with `--trace-full`
+
+**Choice.** A trace line holds the request's params, the reply's summary, `ms` and the settle time. A `type` action's text, secret or not, becomes `{"secret_len": n}` (flag set) or `{"text_len": n}`; so does the text of `clipboard set`. Text targets (`tap "Save"`, `wait gone:"Loading"`, `find`) become `{"text_len": n}` unless the daemon runs with `--trace-full` (env `PHONE_USE_TRACE_FULL`), which also adds the observation text. An `open` URL loses its query and fragment. `--trace-screens` (env `PHONE_USE_TRACE_SCREENS`) copies each `screenshot` next to the trace file. The trace directory is mode 0700 and its files 0600.
+
+**Why not keep unflagged typed text (architecture 5 said to).** Whether a field is a `SecureField` is known only inside the actor, and a typing error never reaches the point where it is known; a rule that depends on it can leak on exactly the failing path. Typed text is also what a person says in a message. Lengths still show that typing happened and how much.
+
+**Rejected.** Recording typed text unless the actor reports `secure`: needs a new reply field and still cannot cover errors.
+
+**Reopen if.** Tuning agents (task 4.5) shows that traces without typed text cannot explain failures; then add the text under `--trace-full` only.

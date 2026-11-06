@@ -11,15 +11,30 @@ use serde_json::{Value, json};
 
 use super::rpc::RpcError;
 
+/// What a trace may hold beyond the defaults: observation text and text targets (`full`), and screenshots (`screens`).
+#[derive(Debug, Clone, Copy, Default)]
+pub struct TraceOptions {
+    pub full: bool,
+    pub screens: bool,
+}
+
+struct Open {
+    file: File,
+    stem: String,
+    shots: u32,
+}
+
 pub struct Traces {
     dir: PathBuf,
-    files: Mutex<HashMap<String, File>>,
+    options: TraceOptions,
+    files: Mutex<HashMap<String, Open>>,
 }
 
 impl Traces {
-    pub fn new(dir: PathBuf) -> Traces {
+    pub fn new(dir: PathBuf, options: TraceOptions) -> Traces {
         Traces {
             dir,
+            options,
             files: Mutex::default(),
         }
     }
@@ -28,7 +43,7 @@ impl Traces {
         &self,
         session: &str,
         method: &str,
-        request: &str,
+        params: &Value,
         result: &Result<Value, RpcError>,
         took: Duration,
     ) {
@@ -43,61 +58,128 @@ impl Traces {
         let at = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .map_or(0, |d| d.as_millis() as u64);
-        let line = json!({
-            "t": at, "session": session, "method": method, "request": request,
+        let mut line = json!({
+            "t": at, "session": session, "method": method,
+            "params": sanitize(method, params, self.options.full),
             "ok": ok, "reply": reply, "ms": took.as_millis() as u64, "settle_ms": settle_ms,
         });
+        if self.options.full
+            && let Ok(v) = result
+            && let Some(text) = v["text"]
+                .as_str()
+                .or_else(|| v["observation"]["text"].as_str())
+                .filter(|t| !t.is_empty())
+        {
+            line["observation"] = json!(text);
+        }
         let mut files = self.files.lock().unwrap_or_else(|e| e.into_inner());
         if !files.contains_key(session) {
-            let opened = match std::fs::create_dir_all(&self.dir) {
-                Ok(()) => File::create(self.dir.join(format!("{}.jsonl", ulid::Ulid::generate()))),
-                Err(e) => Err(e),
-            };
-            match opened {
-                Ok(f) => {
-                    files.insert(session.to_string(), f);
+            let stem = ulid::Ulid::generate().to_string();
+            match self.create(&format!("{stem}.jsonl")) {
+                Ok(file) => {
+                    files.insert(
+                        session.to_string(),
+                        Open {
+                            file,
+                            stem,
+                            shots: 0,
+                        },
+                    );
                 }
                 Err(_) => return,
             }
         }
-        if let Some(f) = files.get_mut(session) {
-            let _ = writeln!(f, "{line}");
+        let Some(open) = files.get_mut(session) else {
+            return;
+        };
+        if self.options.screens
+            && let Ok(v) = result
+            && let Some(path) = v["path"].as_str().filter(|_| method == "screenshot")
+        {
+            open.shots += 1;
+            let name = format!("{}-{}.png", open.stem, open.shots);
+            if std::fs::read(path)
+                .and_then(|bytes| self.create(&name)?.write_all(&bytes))
+                .is_ok()
+            {
+                line["screen"] = json!(name);
+            }
+        }
+        let _ = writeln!(open.file, "{line}");
+    }
+
+    fn create(&self, name: &str) -> std::io::Result<File> {
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::{DirBuilderExt, OpenOptionsExt, PermissionsExt};
+            std::fs::DirBuilder::new()
+                .recursive(true)
+                .mode(0o700)
+                .create(&self.dir)?;
+            std::fs::set_permissions(&self.dir, std::fs::Permissions::from_mode(0o700))?;
+            std::fs::OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .mode(0o600)
+                .open(self.dir.join(name))
+        }
+        #[cfg(not(unix))]
+        {
+            std::fs::create_dir_all(&self.dir)?;
+            File::create(self.dir.join(name))
         }
     }
 }
 
-/// A one-line description of a request that never contains typed text or text targets.
-pub fn describe(method: &str, params: &Value) -> String {
-    if method != "act" {
-        return method.to_string();
-    }
-    let action = &params["action"];
-    let target = |t: &Value| {
-        if let Some(r) = t.get("ref").and_then(Value::as_str) {
-            format!("ref {r}")
-        } else if t.get("point").is_some() {
-            format!("point {},{}", t["point"]["x"], t["point"]["y"])
-        } else if let Some(s) = t.get("text").and_then(Value::as_str) {
-            format!("text of {} chars", s.chars().count())
-        } else {
-            "target".into()
+/// The request as the trace keeps it. Typed text and the clipboard text become their lengths whatever the flags say,
+/// because a `SecureField` is only known to the actor and not on every error path. Text targets are copies of what
+/// the screen shows, so they follow `full`. A URL loses its query and fragment, where tokens live.
+fn sanitize(method: &str, params: &Value, full: bool) -> Value {
+    let mut p = params.clone();
+    let length = |key: &str, v: &Value| json!({ key: v.as_str().map_or(0, |s| s.chars().count()) });
+    let hide_text = |t: &mut Value| {
+        if !full && let Some(s) = t.get("text") {
+            t["text"] = length("text_len", s);
         }
     };
-    match action["kind"].as_str() {
-        Some("tap") => format!("act tap {}", target(&action["target"])),
-        Some("type") => format!(
-            "act type {} chars{} mode {}",
-            action["text"].as_str().map_or(0, |s| s.chars().count()),
-            action
-                .get("into")
-                .filter(|t| !t.is_null())
-                .map(|t| format!(" into {}", target(t)))
-                .unwrap_or_default(),
-            action["mode"].as_str().unwrap_or("paste")
-        ),
-        Some("press") => format!("act press {}", action["key"].as_str().unwrap_or("?")),
-        _ => "act".into(),
+    if let Some(o) = p.as_object_mut() {
+        o.remove("session");
     }
+    match method {
+        "act" => {
+            let action = &mut p["action"];
+            let secret = action["secret"].as_bool().unwrap_or(false);
+            if action["kind"] == "type"
+                && let Some(text) = action.get("text").cloned()
+            {
+                action["text"] = length(if secret { "secret_len" } else { "text_len" }, &text);
+            }
+            if let Some(url) = action["url"].as_str() {
+                let end = url.find(['?', '#']).unwrap_or(url.len());
+                action["url"] = json!(&url[..end]);
+            }
+            for key in ["target", "into", "from", "in", "until"] {
+                hide_text(&mut action[key]);
+            }
+        }
+        "wait" => {
+            for key in ["appears", "gone"] {
+                hide_text(&mut p["condition"][key]);
+            }
+        }
+        "find" if !full => {
+            if let Some(s) = p.get("text").cloned() {
+                p["text"] = length("text_len", &s);
+            }
+        }
+        "clipboard" => {
+            if let Some(s) = p.get("set").cloned() {
+                p["set"] = length("text_len", &s);
+            }
+        }
+        _ => {}
+    }
+    p
 }
 
 pub fn clean_older_than(dir: &std::path::Path, age: Duration) {

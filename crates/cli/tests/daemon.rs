@@ -482,7 +482,7 @@ async fn secret_text_never_reaches_the_trace_the_reply_or_the_debug_output() {
     );
     assert!(!format!("{:?}", fake.calls()).contains("hunter2"));
     let trace = trace_text(home.path());
-    assert!(trace.contains("act type 7 chars"), "{trace}");
+    assert!(trace.contains("\"secret_len\":7"), "{trace}");
     assert!(!trace.contains("hunter2"), "{trace}");
 }
 

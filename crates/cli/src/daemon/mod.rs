@@ -29,7 +29,7 @@ use tokio::time::Instant;
 
 use self::actor::{Call, Job};
 use self::rpc::RpcError;
-use self::trace::Traces;
+use self::trace::{TraceOptions, Traces};
 use crate::wire::{ActParams, Action, Common, DeviceEntry, VERSION};
 
 const IDLE_EXIT: Duration = Duration::from_secs(15 * 60);
@@ -70,11 +70,19 @@ pub struct Daemon {
 
 impl Daemon {
     pub fn new(source: Arc<dyn DeviceSource>, config: Config) -> Arc<Daemon> {
+        Self::with_trace(source, config, TraceOptions::default())
+    }
+
+    pub fn with_trace(
+        source: Arc<dyn DeviceSource>,
+        config: Config,
+        trace: TraceOptions,
+    ) -> Arc<Daemon> {
         trace::clean_older_than(&config.home.join("tmp"), TMP_MAX_AGE);
         trace::clean_older_than(&config.home.join("traces"), TRACE_MAX_AGE);
         Arc::new(Daemon {
             source,
-            traces: Traces::new(config.home.join("traces")),
+            traces: Traces::new(config.home.join("traces"), trace),
             home: config.home,
             actors: Mutex::default(),
             connections: AtomicUsize::new(0),
@@ -100,10 +108,9 @@ impl Daemon {
     ) -> Result<Value, RpcError> {
         self.touch();
         let started = Instant::now();
-        let request = trace::describe(method, &params);
         let result = self.route(session, method, &params).await;
         self.traces
-            .record(session, method, &request, &result, started.elapsed());
+            .record(session, method, &params, &result, started.elapsed());
         self.touch();
         result
     }
