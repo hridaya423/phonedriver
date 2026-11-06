@@ -4,7 +4,6 @@
 use std::path::PathBuf;
 use std::process::ExitCode;
 
-use base64::Engine;
 use rmcp::handler::server::wrapper::Parameters;
 use rmcp::model::{CallToolResult, ContentBlock};
 use rmcp::schemars::{self, JsonSchema};
@@ -217,7 +216,7 @@ impl Mcp {
         let globals = Self::globals(a.device);
         let shot = async {
             let mut client = self.connect().await?;
-            let mut params = json!({});
+            let mut params = json!({"inline": true});
             if let Some(d) = &globals.device {
                 params["device"] = json!(d);
             }
@@ -230,19 +229,16 @@ impl Mcp {
             Ok(s) => s,
             Err(f) => return failure(&f),
         };
-        match std::fs::read(&shot.path) {
-            Ok(bytes) => CallToolResult::success(vec![
-                ContentBlock::image(
-                    base64::engine::general_purpose::STANDARD.encode(bytes),
-                    "image/png",
-                ),
-                ContentBlock::text(format!(
-                    "{}x{} at scale {}",
-                    shot.width, shot.height, shot.scale
-                )),
-            ]),
-            Err(e) => bad(&format!("cannot read the screenshot at {}: {e}", shot.path)),
-        }
+        let Some(data) = shot.data_b64 else {
+            return bad("the daemon sent no image data");
+        };
+        CallToolResult::success(vec![
+            ContentBlock::image(data, "image/png"),
+            ContentBlock::text(format!(
+                "{}x{} at scale {}",
+                shot.width, shot.height, shot.scale
+            )),
+        ])
     }
 
     #[tool(

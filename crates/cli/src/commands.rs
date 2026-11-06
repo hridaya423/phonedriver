@@ -5,6 +5,7 @@ use std::path::PathBuf;
 use std::process::ExitCode;
 use std::sync::Arc;
 
+use base64::Engine;
 use clap::builder::BoolishValueParser;
 use clap::error::ErrorKind;
 use clap::{CommandFactory, Parser, Subcommand};
@@ -405,16 +406,25 @@ pub(crate) async fn execute_with(
             })
         }
         Verb::Screenshot { output } => {
-            let result = client.call("screenshot", with(json!({}))).await?;
+            let mut params = json!({});
+            if output.is_some() {
+                params["inline"] = json!(true);
+            }
+            let result = client.call("screenshot", with(params)).await?;
             let shot: ScreenshotResult = decode(&result)?;
-            let path = match output {
-                Some(out) => {
-                    std::fs::copy(&shot.path, &out).map_err(|e| {
+            let path = match (output, &shot.data_b64) {
+                (Some(out), Some(data)) => {
+                    let bytes = base64::engine::general_purpose::STANDARD
+                        .decode(data)
+                        .map_err(|e| {
+                            Failure::Local(format!("the daemon sent bad image data: {e}"))
+                        })?;
+                    std::fs::write(&out, bytes).map_err(|e| {
                         Failure::Local(format!("cannot write {}: {e}", out.display()))
                     })?;
                     out.display().to_string()
                 }
-                None => shot.path.clone(),
+                _ => shot.path.clone(),
             };
             if g.json {
                 return Ok(result.to_string());

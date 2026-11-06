@@ -140,7 +140,7 @@ impl Daemon {
                 let call = match method {
                     "release" => Call::Release,
                     "snapshot" => Call::Snapshot(rpc::params(params)?),
-                    "screenshot" => Call::Screenshot,
+                    "screenshot" => Call::Screenshot(rpc::params(params)?),
                     "find" => Call::Find(rpc::params(params)?),
                     "apps" => Call::Apps,
                     "health" => Call::Health,

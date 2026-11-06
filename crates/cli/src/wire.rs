@@ -181,6 +181,14 @@ pub struct ScreenshotResult {
     pub width: u32,
     pub height: u32,
     pub scale: f32,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub data_b64: Option<String>,
+}
+
+#[derive(Debug, Default, Deserialize)]
+pub struct ScreenshotParams {
+    #[serde(default)]
+    pub inline: bool,
 }
 
 #[derive(Debug, Default, Deserialize)]
