@@ -8,7 +8,9 @@
 
 ---
 
-### Task 8.1: AndroidWorld adapter
+### Task 8.1: AndroidWorld adapter (dropped)
+
+**Dropped by the user on 2026-11-06:** "we dont care about doing androidworld. let's just make it the best harness." The top AndroidWorld scores measure whole agent systems, not the tool layer, and a fair run costs paid model calls. Proof of quality comes instead from the M1 to M5 benchmarks, the adb baseline, the agent-experience audit and its replays. The original task text stays below for the record.
 
 **Files:** Create `bench/androidworld/` with a README and an adapter.
 

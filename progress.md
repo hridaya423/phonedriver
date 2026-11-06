@@ -150,3 +150,7 @@ Phase 6 is stopped at the "No device is approved" outcome (2026-11-06). Three an
 - The user asked for a restrictive license instead of MIT ("so phone harness can't just steal everything") and chose AGPL-3.0 from FSL-1.1, AGPL-3.0, BSL-1.1 and PolyForm Strict.
 - `LICENSE` is the GNU AGPL v3 text from gnu.org; the workspace sets `license = "AGPL-3.0-only"`; README badge and License section, D13 and the release checklist updated. NOTICE keeps scrcpy (Apache-2.0), WebDriverAgent (BSD) and Sodium (MIT) notices.
 - Evidence: `cargo metadata --no-deps` lists all six packages as `AGPL-3.0-only`; every dependency license is permissive (MIT, Apache-2.0, BSD, ISC, Zlib, 0BSD, Unlicense), so all are AGPL-compatible.
+
+## Phase 8.1 AndroidWorld dropped (2026-11-06)
+
+- The user: "we dont care about doing androidworld. let's just make it the best harness." Task 8.1 is marked dropped in the Phase 8 plan and the master plan. Nothing was built for it.
