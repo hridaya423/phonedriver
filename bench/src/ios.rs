@@ -314,7 +314,6 @@ async fn daemon_rows(args: &Args, home: &std::path::Path, rows: &mut Vec<Row>) {
     fresh((&args.udid, args.physical), TESTBED, &["-tab", "taps"]).await;
     rig.call("snapshot", json!({})).await;
     let point = rig.center("taps.b5").await;
-    let b17 = rig.element("taps.b17").await["ref"].clone();
     let toggle = rig.center("taps.dark").await;
     measure(&mut rig, rows, counts,
         ("tap at a point, settle off (Taps tab)", Some(80.0), "`act tap`, settle off; XCTest confirms each event about 230 ms after the app has it (D15)"),
