@@ -350,3 +350,57 @@ async fn state_reports_the_screen_off_after_sleep_and_on_after_wake() {
             && on["secure_keyguard"].is_boolean()
     );
 }
+
+async fn focused_window(raw: &agent::RawAgent) -> String {
+    let out = raw
+        .adb
+        .shell(&raw.serial, "dumpsys window | grep mCurrentFocus")
+        .await
+        .unwrap();
+    out.stdout_text().trim().to_string()
+}
+
+fn is_shade(focus: &str) -> bool {
+    focus.contains("NotificationShade") || focus.contains("StatusBar")
+}
+
+#[tokio::test]
+#[ignore = "needs PHONE_USE_TEST_DEVICE with su"]
+async fn the_shade_kick_leaves_the_shade_closed_when_system_ui_stalls() {
+    let (raw, mut c, _g) = start().await;
+    let sh = |cmd: String| {
+        let adb = raw.adb.clone();
+        let serial = raw.serial.clone();
+        async move { adb.shell(&serial, &cmd).await.unwrap().stdout_text() }
+    };
+    testbed::open_tab(&raw.adb, &raw.serial, "hollow").await;
+    tokio::time::sleep(Duration::from_millis(1500)).await;
+    sh("logcat -b events -c".into()).await;
+    c.ok(json!({"op":"wake"})).await;
+    let pid = sh("pidof com.android.systemui".into())
+        .await
+        .trim()
+        .to_string();
+    sh(format!("su 0 kill -STOP {pid}")).await;
+    let resume = async {
+        tokio::time::sleep(Duration::from_millis(1500)).await;
+        sh(format!("su 0 kill -CONT {pid}")).await;
+    };
+    let (tree, ()) = tokio::join!(c.ok(json!({"op":"tree"})), resume);
+    let mut seen = Vec::new();
+    for _ in 0..10 {
+        tokio::time::sleep(Duration::from_millis(500)).await;
+        seen.push(focused_window(&raw).await);
+    }
+    let revealed = sh("logcat -b events -d -s notification_panel_revealed".into()).await;
+    sh("cmd statusbar collapse".into()).await;
+    assert!(
+        revealed.contains("notification_panel_revealed"),
+        "the hollow tab did not trigger the kick; tree: {}",
+        tree
+    );
+    assert!(
+        !is_shade(seen.last().unwrap()),
+        "the shade was left open: {seen:#?}"
+    );
+}

@@ -7,7 +7,7 @@ steps:
       at_least: 29
       otherwise:
         - tap: "Help make Chrome better"
-  - dismiss: ["ACCEPT & CONTINUE", "Stay signed out", "NO THANKS", "No thanks", "Got it", "GOT IT"]
+  - dismiss: ["ACCEPT & CONTINUE", "Stay signed out", "Use without an account", "NO THANKS", "No thanks", "Got it", "GOT IT"]
   - expect: {text: "Example Domain"}
 cleanup:
   - shell: "am force-stop com.android.chrome"

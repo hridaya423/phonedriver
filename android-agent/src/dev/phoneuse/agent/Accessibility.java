@@ -21,7 +21,7 @@ import org.json.JSONObject;
 final class Accessibility {
     private static final int FIRST_WINDOWS_RETRIES = 10;
     private static final int EMPTY_TREE_RETRIES = 40;
-    private static final int KICK_MS = 600;
+    private static final int SHADE_WAIT_MS = 5000;
     // Without UNINTERRUPTIBLE the next getChild cancels the prefetch in flight, so every node past the root's
     // first batch costs its own IPC: Settings main (155 nodes) took 78 to 103 ms in getChild alone, 41 to 46 ms with it.
     private static final int PREFETCH = AccessibilityNodeInfo.FLAG_PREFETCH_DESCENDANTS_DEPTH_FIRST
@@ -131,10 +131,7 @@ final class Accessibility {
             tree = read();
             if (i == EMPTY_TREE_RETRIES / 2 && !kicked) {
                 kicked = true;
-                ServiceManager.getStatusBarManager().expandNotificationsPanel();
-                SystemClock.sleep(KICK_MS);
-                ServiceManager.getStatusBarManager().collapsePanels();
-                SystemClock.sleep(KICK_MS);
+                kick();
             }
         }
         afterWake = false;
@@ -146,6 +143,35 @@ final class Accessibility {
         }
         waitedWebViews.addAll(pending);
         return tree;
+    }
+
+    // A collapse sent on a timer was lost when System UI was stalled (a cold boot, M2 trial t16): the expand and the
+    // collapse reached it back to back and the shade stayed open over the next fourteen scenarios. So the collapse
+    // waits until the shade is seen open, and the kick returns once it is seen closed.
+    private static void kick() {
+        ServiceManager.getStatusBarManager().expandNotificationsPanel();
+        waitForShade(true);
+        ServiceManager.getStatusBarManager().collapsePanels();
+        waitForShade(false);
+    }
+
+    private static void waitForShade(boolean open) {
+        for (int waited = 0; shadeOpen() != open && waited < SHADE_WAIT_MS; waited += 50) {
+            SystemClock.sleep(50);
+        }
+    }
+
+    // The open shade is a system window larger than an edge bar: NotificationShade on API 37, the status bar window
+    // grown to full height on API 26. Its root is not read, because that call blocks while System UI is stalled.
+    private static boolean shadeOpen() {
+        for (AccessibilityWindowInfo w : automation.getWindows()) {
+            Rect b = new Rect();
+            w.getBoundsInScreen(b);
+            if (w.getType() == AccessibilityWindowInfo.TYPE_SYSTEM && !isEdgeBar(w, b)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     // Chromium builds a WebView's accessibility tree on the first query, which takes about a second (a page is a

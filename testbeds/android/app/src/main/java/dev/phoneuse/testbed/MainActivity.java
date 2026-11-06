@@ -23,6 +23,7 @@ public final class MainActivity extends androidx.activity.ComponentActivity {
 
     private FrameLayout content;
     private String current;
+    private View panel;
 
     @Override
     protected void onCreate(Bundle state) {
@@ -114,6 +115,12 @@ public final class MainActivity extends androidx.activity.ComponentActivity {
             return;
         }
         current = tab;
+        if (panel != null) {
+            if (panel.isAttachedToWindow()) {
+                getWindowManager().removeView(panel);
+            }
+            panel = null;
+        }
         getWindow().clearFlags(WindowManager.LayoutParams.FLAG_SECURE);
         content.removeAllViews();
         View screen;
@@ -133,6 +140,10 @@ public final class MainActivity extends androidx.activity.ComponentActivity {
             case "settle": screen = Screens.settle(this); break;
             case "wait": screen = Screens.waiting(this); break;
             case "compose": screen = ComposeScreen.create(this); break;
+            case "hollow":
+                screen = new View(this);
+                panel = Screens.hollow(this, content);
+                break;
             default: screen = Screens.taps(this); break;
         }
         content.addView(screen, new FrameLayout.LayoutParams(
