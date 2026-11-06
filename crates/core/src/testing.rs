@@ -6,8 +6,8 @@ use async_trait::async_trait;
 use tokio::sync::{broadcast, watch};
 
 use crate::device::{
-    App, AppId, Button, Capabilities, ClipboardOp, Device, DeviceEvent, DeviceInfo, FrameRef,
-    Gesture, Image, Key, Quality, Result, ScreenState, TextInput, Url,
+    App, AppId, AppOp, Button, Capabilities, ClipboardOp, Device, DeviceEvent, DeviceInfo,
+    FrameRef, Gesture, Image, Key, Quality, Result, ScreenState, TextInput, Url,
 };
 use crate::error::{Error, Op};
 use crate::geometry::Size;
@@ -22,6 +22,8 @@ pub enum Call {
     OpenUrl(Url),
     Text(TextInput),
     Launch(AppId),
+    Install(std::path::PathBuf),
+    AppOp(AppOp, AppId),
     Wake,
 }
 
@@ -200,6 +202,15 @@ impl Device for FakeDevice {
 
     async fn foreground(&self) -> Result<Option<AppId>> {
         Ok(lock(&self.foreground).clone())
+    }
+
+    async fn install(&self, path: &std::path::Path) -> Result<Option<AppId>> {
+        self.record(Call::Install(path.to_path_buf()))?;
+        Ok(Some(AppId("com.example.installed".into())))
+    }
+
+    async fn app_op(&self, op: AppOp, app: &AppId) -> Result<()> {
+        self.record(Call::AppOp(op, app.clone()))
     }
 
     async fn screen_state(&self) -> Result<ScreenState> {

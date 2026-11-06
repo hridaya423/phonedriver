@@ -32,6 +32,7 @@ Progress: a client that sends `"progress": true` in `hello` may receive notifica
 | `wait` | `device?, condition: WaitCondition, timeout_ms?, expect_change_ms?` | `ActionResult` |
 | `batch` | `device?, steps: Step[], timeout_ms?, expect_change_ms?` | `BatchResult` |
 | `apps` | `device?` | `[App]` (launchable apps: `{id, name, system}`) |
+| `app` | `device?, action: "install"|"stop"|"clear"|"uninstall", app?, path?` | `{ok, summary}` (`path` is for install, on the daemon's machine; `app` is a name or id; refused with `unsupported` on a physical device for an app phone-use did not install) |
 | `clipboard` | `device?, set?: string` | `{text?: string}` (`{}` after a set; `text` is null when the clipboard is empty) |
 | `health` | `device?` | `{id, model, os, frames_ms}` (what `doctor` needs: connects, reads the tree once, then waits up to 1 s for the next frame; `frames_ms` is null when none came or the device has no frame stream) |
 

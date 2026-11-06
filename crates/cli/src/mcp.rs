@@ -34,9 +34,12 @@ struct BatchArgs {
 }
 
 #[derive(Deserialize, JsonSchema)]
-struct DeviceArgs {
-    /// Device id or serial, such as `android:emulator-5554`. Omit it when one device is connected.
+struct AppsArgs {
     device: Option<String>,
+    /// `install` (an app file at `app`: an .apk or .app path on the machine running the daemon), `stop`, `clear` (its data) or `uninstall`. Omit it to list apps.
+    action: Option<String>,
+    /// The app's name or id, or for `install` the file path.
+    app: Option<String>,
 }
 
 #[derive(Deserialize, JsonSchema)]
@@ -459,10 +462,14 @@ impl Mcp {
     }
 
     #[tool(
-        description = "List the apps that can be launched, one `name  id` per line. Use it when `launch` says there is no app with the name you gave."
+        description = "List the apps that can be launched, one `name  id` per line (use it when `launch` says there is no app with the name you gave), or with `action` install, stop, clear data of or uninstall one. On a physical device, clear and uninstall only work on apps phone-use installed."
     )]
-    async fn apps(&self, Parameters(a): Parameters<DeviceArgs>) -> CallToolResult {
-        self.run(a.device, Verb::Apps, None).await
+    async fn apps(&self, Parameters(a): Parameters<AppsArgs>) -> CallToolResult {
+        let verb = Verb::Apps {
+            action: a.action,
+            target: a.app,
+        };
+        self.run(a.device, verb, None).await
     }
 
     #[tool(

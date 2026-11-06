@@ -253,6 +253,13 @@ pub struct ClipboardParams {
 }
 
 #[derive(Debug, Deserialize)]
+pub struct AppParams {
+    pub action: String,
+    pub app: Option<String>,
+    pub path: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
 pub struct FindParams {
     pub text: String,
     pub role: Option<Role>,

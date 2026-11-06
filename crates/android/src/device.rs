@@ -2,8 +2,8 @@
 
 use async_trait::async_trait;
 use phone_use_core::device::{
-    App, AppId, Button, Capabilities, ClipboardOp, Device, DeviceEvent, DeviceInfo, FrameRef,
-    Gesture, Image, ImageFormat, Key, Quality, Result, ScreenState, TextInput, Url,
+    App, AppId, AppOp, Button, Capabilities, ClipboardOp, Device, DeviceEvent, DeviceInfo,
+    FrameRef, Gesture, Image, ImageFormat, Key, Quality, Result, ScreenState, TextInput, Url,
 };
 use phone_use_core::error::{Error, Op};
 use phone_use_core::geometry::{Rect, Size};
@@ -22,6 +22,8 @@ const FIRST_FRAME_WAIT: std::time::Duration = std::time::Duration::from_secs(2);
 const EVENT_BACKLOG: usize = 64;
 
 pub struct AndroidDevice {
+    adb: Adb,
+    serial: String,
     info: DeviceInfo,
     density: f32,
     control: Control,
@@ -51,6 +53,8 @@ impl AndroidDevice {
         let mut first = video.store.subscribe();
         let _ = tokio::time::timeout(FIRST_FRAME_WAIT, first.wait_for(|f| f.seq > 0)).await;
         Ok(AndroidDevice {
+            adb: adb.clone(),
+            serial: serial.to_string(),
             info: DeviceInfo {
                 id: id.clone(),
                 model: hello.model,
@@ -74,6 +78,31 @@ impl AndroidDevice {
     /// The last lines the agent printed, for the daemon's log.
     pub fn agent_log(&self) -> Vec<String> {
         self.log.recent()
+    }
+
+    async fn pm(&self, cmd: &str) -> Result<String> {
+        let out = self.adb.shell(&self.serial, cmd).await?.stdout_text();
+        let last = out
+            .lines()
+            .rev()
+            .find(|l| !l.trim().is_empty())
+            .unwrap_or("");
+        if last.trim() == "Success" {
+            Ok(out)
+        } else {
+            Err(Error::Transport {
+                detail: format!("`{cmd}` said: {}", last.trim()),
+            })
+        }
+    }
+
+    async fn packages(&self) -> Result<Vec<String>> {
+        let out = self.adb.shell(&self.serial, "pm list packages").await?;
+        Ok(out
+            .stdout_text()
+            .lines()
+            .filter_map(|l| l.strip_prefix("package:").map(|p| p.trim().to_string()))
+            .collect())
     }
 
     async fn simple(&self, op: Op, req: Value) -> Result<Value> {
@@ -232,6 +261,47 @@ impl Device for AndroidDevice {
             secure: reply["secure_keyguard"].as_bool().unwrap_or(false),
             focused: reply["focused"].as_bool().unwrap_or(true),
         })
+    }
+
+    async fn install(&self, path: &std::path::Path) -> Result<Option<AppId>> {
+        let bytes = std::fs::read(path).map_err(|e| Error::Transport {
+            detail: format!("cannot read {}: {e}", path.display()),
+        })?;
+        let before = self.packages().await?;
+        let remote = "/data/local/tmp/phone-use-install.apk";
+        self.adb.push(&self.serial, &bytes, remote, 0o644).await?;
+        let installed = self.pm(&format!("pm install -r {remote}")).await;
+        let _ = self.adb.shell(&self.serial, &format!("rm {remote}")).await;
+        installed?;
+        let after = self.packages().await?;
+        Ok(after.into_iter().find(|p| !before.contains(p)).map(AppId))
+    }
+
+    async fn app_op(&self, op: AppOp, app: &AppId) -> Result<()> {
+        let id = &app.0;
+        if id.is_empty()
+            || !id
+                .chars()
+                .all(|c| c.is_ascii_alphanumeric() || c == '.' || c == '_')
+        {
+            return Err(Error::Transport {
+                detail: format!("{id:?} is not a package name"),
+            });
+        }
+        match op {
+            AppOp::Stop => {
+                self.adb
+                    .shell(&self.serial, &format!("am force-stop {id}"))
+                    .await?;
+            }
+            AppOp::ClearData => {
+                self.pm(&format!("pm clear {id}")).await?;
+            }
+            AppOp::Uninstall => {
+                self.pm(&format!("pm uninstall {id}")).await?;
+            }
+        }
+        Ok(())
     }
 
     async fn wake(&self) -> Result<()> {
