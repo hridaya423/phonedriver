@@ -266,6 +266,17 @@ fn device_state(d: &AdbDevice) -> Check {
             "unauthorized",
             "Unlock the phone and accept the USB debugging prompt on the phone; tick \"Always allow\" to keep it.",
         ),
+        DeviceState::Offline if d.serial.contains(':') && !d.serial.starts_with("emulator-") => {
+            Check::bad(
+                Status::Fail,
+                name,
+                "offline (Wi-Fi)",
+                format!(
+                    "The phone left the network or its wireless debugging port changed. Check that Wireless debugging is on and both are on the same Wi-Fi, then run `adb connect <ip>:<port>` with the address on the Wireless debugging screen. If it keeps going offline, run `adb disconnect {}` first.",
+                    d.serial
+                ),
+            )
+        }
         DeviceState::Offline => Check::bad(
             Status::Fail,
             name,
@@ -643,6 +654,23 @@ mod tests {
              warn  simulators    none booted\n      fix: Boot one.\n\
              fail  runner build  xcodebuild failed\n      fix: Open Xcode once.\n"
         );
+    }
+
+    #[test]
+    fn an_offline_device_over_tcp_gets_the_wifi_hint_and_a_cable_one_does_not() {
+        let dev = |serial: &str| AdbDevice {
+            serial: serial.into(),
+            state: DeviceState::Offline,
+            model: None,
+            transport_id: None,
+        };
+        let wifi = device_state(&dev("192.168.1.20:37041"));
+        assert_eq!(wifi.detail, "offline (Wi-Fi)");
+        assert!(wifi.fix.as_deref().unwrap().contains("adb connect"));
+        let cable = device_state(&dev("R5CT1234ABC"));
+        assert!(cable.fix.as_deref().unwrap().contains("cable"));
+        let emulator = device_state(&dev("emulator-5554"));
+        assert!(emulator.fix.as_deref().unwrap().contains("cable"));
     }
 
     #[test]
