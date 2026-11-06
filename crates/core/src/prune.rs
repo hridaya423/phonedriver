@@ -88,6 +88,39 @@ pub fn prune(tree: &RawTree) -> Vec<Node> {
         }
     }
 
+    let mut dissolved = vec![false; n];
+    for i in 0..n {
+        let node = &tree.nodes[i];
+        let pressable = node.actions.intersects(Actions::TAP | Actions::LONG_PRESS);
+        let Some(label) = node.label.as_deref() else {
+            continue;
+        };
+        if clipped[i].is_none() || !pressable || absorbed_by[i].is_some() {
+            continue;
+        }
+        let mut stack: Vec<usize> = children[i].clone();
+        let mut twin = None;
+        while let Some(d) = stack.pop() {
+            let child = &tree.nodes[d];
+            if child.role == Role::Button
+                && child.actions.intersects(Actions::TAP | Actions::LONG_PRESS)
+                && child.label.as_deref() == Some(label)
+                && clipped[d].is_some()
+                && absorbed_by[d].is_none()
+            {
+                twin = Some(d);
+                break;
+            }
+            stack.extend(&children[d]);
+        }
+        let Some(d) = twin else { continue };
+        if matches!(node.role, Role::Cell | Role::Other) {
+            dissolved[i] = true;
+        } else {
+            absorbed_by[d] = Some(i);
+        }
+    }
+
     let in_keyboard = |i: usize| {
         let w = tree.nodes[i].window;
         tree.windows
@@ -99,7 +132,7 @@ pub fn prune(tree: &RawTree) -> Vec<Node> {
     for i in reading_order(tree, &children) {
         let node = &tree.nodes[i];
         let Some(bounds) = clipped[i] else { continue };
-        if absorbed_by[i].is_some() {
+        if absorbed_by[i].is_some() || dissolved[i] {
             continue;
         }
         if in_keyboard(i) {
@@ -461,5 +494,74 @@ mod tests {
         assert_eq!(nodes.len(), 1);
         assert_eq!(nodes[0].label.as_deref(), Some("half"));
         assert_eq!(nodes[0].bounds.h, 10.0, "clipped to the screen");
+    }
+
+    fn labels_and_roles(nodes: &[Node]) -> Vec<(Role, String)> {
+        nodes
+            .iter()
+            .map(|n| (n.role, n.label.clone().unwrap_or_default()))
+            .collect()
+    }
+
+    #[test]
+    fn an_ios_cell_and_its_same_label_button_are_one_button() {
+        let json = r#"{"app":{"bundle_id":"x","pid":1},"nodes":[
+            {"p":-1,"cls":"XCUIElementTypeOther","b":[0,0,400,800],"f":"vVe"},
+            {"p":0,"cls":"XCUIElementTypeTable","b":[0,0,400,800],"f":"vVeS","a":["scroll_down"]},
+            {"p":1,"cls":"XCUIElementTypeCell","text":"Display & Text Size","a":["tap"],"b":[0,100,400,150],"f":"vVe"},
+            {"p":2,"cls":"XCUIElementTypeButton","text":"Display & Text Size","a":["tap"],"b":[16,100,350,150],"f":"vVe"}
+        ]}"#;
+        let nodes = prune(&RawTree::from_ios_json(json).unwrap());
+        assert_eq!(
+            labels_and_roles(&nodes),
+            [
+                (Role::List, String::new()),
+                (Role::Button, "Display & Text Size".to_string())
+            ]
+        );
+        assert_eq!(nodes[1].parent, Some(0));
+        assert_eq!(
+            nodes[1].bounds.w, 334.0,
+            "the inner button is what is tapped"
+        );
+    }
+
+    #[test]
+    fn an_android_clickable_row_and_its_same_label_button_are_one_button() {
+        let json = r#"{"windows":[{"id":1,"type":"application","bounds":[0,0,400,800]}],"nodes":[
+            {"p":-1,"w":1,"cls":"android.widget.FrameLayout","b":[0,0,400,800],"f":"vVe"},
+            {"p":0,"w":1,"cls":"android.view.ViewGroup","desc":"Wi-Fi","b":[0,100,400,150],"f":"vVe","a":["tap"]},
+            {"p":1,"w":1,"cls":"android.widget.Button","text":"Wi-Fi","b":[16,100,350,150],"f":"vVe","a":["tap"]}
+        ]}"#;
+        let nodes = prune(&RawTree::from_android_json(json, Scale { density: 1.0 }).unwrap());
+        assert_eq!(
+            labels_and_roles(&nodes),
+            [(Role::Button, "Wi-Fi".to_string())]
+        );
+    }
+
+    #[test]
+    fn a_switch_keeps_its_state_and_absorbs_the_same_label_button_inside_it() {
+        let json = r#"{"app":{"bundle_id":"x","pid":1},"nodes":[
+            {"p":-1,"cls":"XCUIElementTypeOther","b":[0,0,400,800],"f":"vVe"},
+            {"p":0,"cls":"XCUIElementTypeSwitch","text":"Dark Appearance","a":["tap"],"b":[0,100,400,150],"f":"vVeC"},
+            {"p":1,"cls":"XCUIElementTypeButton","text":"Dark Appearance","a":["tap"],"b":[0,100,400,150],"f":"vVe"}
+        ]}"#;
+        let nodes = prune(&RawTree::from_ios_json(json).unwrap());
+        assert_eq!(
+            labels_and_roles(&nodes),
+            [(Role::Switch, "Dark Appearance".to_string())]
+        );
+    }
+
+    #[test]
+    fn two_different_buttons_that_share_a_label_stay_two() {
+        let json = r#"{"windows":[{"id":1,"type":"application","bounds":[0,0,400,800]}],"nodes":[
+            {"p":-1,"w":1,"cls":"android.widget.FrameLayout","b":[0,0,400,800],"f":"vVe"},
+            {"p":0,"w":1,"cls":"android.widget.Button","text":"Edit","b":[0,100,100,150],"f":"vVe","a":["tap"]},
+            {"p":0,"w":1,"cls":"android.widget.Button","text":"Edit","b":[0,200,100,250],"f":"vVe","a":["tap"]}
+        ]}"#;
+        let nodes = prune(&RawTree::from_android_json(json, Scale { density: 1.0 }).unwrap());
+        assert_eq!(nodes.len(), 2);
     }
 }
