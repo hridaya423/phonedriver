@@ -30,13 +30,14 @@ use super::DeviceSource;
 use super::session::{Resolved, Session};
 use crate::wire::{
     ActParams, Action, ActionResult, ClipboardParams, FindParams, Kind, Observation,
-    ScreenshotResult, SnapshotParams, Target, TypeMode, WaitParams,
+    ScreenshotResult, SnapshotParams, Target, TypeMode, WaitCondition, WaitParams,
 };
 
 pub const LEASE_TTL: Duration = Duration::from_secs(600);
 const TICK: Duration = Duration::from_millis(5);
 const SCREEN_WAIT: Duration = Duration::from_secs(3);
 const KEYGUARD_WAIT: Duration = Duration::from_millis(1000);
+const WAIT_DEBOUNCE: Duration = Duration::from_millis(100);
 const MASK: &str = "•••";
 
 pub enum Call {
@@ -1140,6 +1141,122 @@ impl Actor {
     }
 
     async fn wait(&mut self, s: &mut Session, p: WaitParams) -> Result<ActionResult, Error> {
+        match p.condition {
+            WaitCondition::Settled(_) => self.wait_settled(s, p).await,
+            WaitCondition::Appears(ref t) => {
+                let t = t.clone();
+                self.wait_for(s, &t, true, p.timeout_ms).await
+            }
+            WaitCondition::Gone(ref t) => {
+                let t = t.clone();
+                self.wait_for(s, &t, false, p.timeout_ms).await
+            }
+        }
+    }
+
+    /// Waits until the target is on screen (or gone). The tree is read once at the start and then once after each
+    /// window change or frame that moved enough pixels, never on a timer: apps' own content-change events are not
+    /// subscribed (architecture 4.6), pixels are the signal.
+    async fn wait_for(
+        &mut self,
+        s: &mut Session,
+        target: &Target,
+        present: bool,
+        timeout_ms: Option<u64>,
+    ) -> Result<ActionResult, Error> {
+        let device = self.device()?;
+        self.unobserved = None;
+        let timeout = timeout_ms.map_or(Config::action().timeout, Duration::from_millis);
+        let started = Instant::now();
+        let deadline = started + timeout;
+        let mut reads = 0u32;
+        let mut last_read = false;
+        loop {
+            let tree = device.tree().await?;
+            reads += 1;
+            let rendered = self.build(s, &tree, None);
+            let found = matches!(
+                s.resolve(target, &rendered),
+                Ok(_) | Err(Error::Ambiguous { .. })
+            );
+            if found == present {
+                let text = rendered.text(&Filters::default()).unwrap_or_default();
+                let what = describe(target);
+                let summary = format!(
+                    "{what} {} after {reads} tree read{}",
+                    if present { "appeared" } else { "is gone" },
+                    if reads == 1 { "" } else { "s" }
+                );
+                let observation = Observation {
+                    header: rendered.header.clone(),
+                    text,
+                    kind: Kind::Full,
+                    changed: true,
+                    settled: false,
+                    settle_ms: 0,
+                    still_changing: None,
+                    loading: rendered.loading(),
+                    elements: None,
+                    capture: None,
+                };
+                s.last = Some(rendered);
+                return Ok(ActionResult {
+                    ok: true,
+                    summary,
+                    via: None,
+                    verified: None,
+                    settled: false,
+                    settle_ms: started.elapsed().as_millis() as u32,
+                    changed: true,
+                    woke: false,
+                    unlocked: false,
+                    observation,
+                });
+            }
+            if last_read {
+                return Err(Error::Timeout {
+                    waited_ms: started.elapsed().as_millis() as u32,
+                    condition: format!(
+                        "{} to {}",
+                        describe(target),
+                        if present { "appear" } else { "be gone" }
+                    ),
+                });
+            }
+            let left = deadline.saturating_duration_since(Instant::now());
+            if tokio::time::timeout(left, self.next_change())
+                .await
+                .is_err()
+            {
+                last_read = true;
+            }
+        }
+    }
+
+    /// Returns after a window change or a frame with a real change, once the burst that carried it has paused.
+    async fn next_change(&mut self) {
+        loop {
+            let sig = next_signal(&mut self.live).await;
+            let at = self.now();
+            let significant = match self.absorb(sig, at) {
+                Some(Input::WindowChanged) => true,
+                Some(Input::Frame {
+                    changed_area_pt2, ..
+                }) => changed_area_pt2 > Config::action().first_change_area,
+                None => false,
+            };
+            if significant {
+                tokio::time::sleep(WAIT_DEBOUNCE).await;
+                return;
+            }
+        }
+    }
+
+    async fn wait_settled(
+        &mut self,
+        s: &mut Session,
+        p: WaitParams,
+    ) -> Result<ActionResult, Error> {
         let mut cfg = Config::snapshot();
         let timeout = p
             .timeout_ms
@@ -1387,6 +1504,14 @@ fn find_app<'a>(installed: &'a [App], query: &str) -> Result<&'a App, Error> {
             .map(|(_, a)| a.name.clone())
             .collect(),
     })
+}
+
+fn describe(target: &Target) -> String {
+    match target {
+        Target::Text { text, .. } => format!("\"{text}\""),
+        Target::Ref { r#ref } => format!("@{}", r#ref),
+        Target::Point { point } => format!("{},{}", point.x, point.y),
+    }
 }
 
 /// `@e6 button "Display & touch" "Dark theme, font size"` becomes `@e6 "Display & touch"`.
