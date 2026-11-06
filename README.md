@@ -167,6 +167,18 @@ On the other machine, run any `phone-use` command once, or `phone-use daemon`, s
 
 Two things differ from a local run. `phone-use screenshot` prints a path on the machine that has the device; `phone-use screenshot -o shot.png` writes the file on your machine instead. The MCP `screenshot` tool returns the image itself, so it works unchanged.
 
+### Android over Wi-Fi
+
+An Android 11 or later phone on the same network needs no cable. On the phone, turn on Developer options, then Wireless debugging, and choose Pair device with pairing code. Then:
+
+```sh
+adb pair 192.168.1.20:37099
+adb connect 192.168.1.20:41233
+phone-use devices
+```
+
+The first address and the six-digit code are on the pairing screen; the second address is on the Wireless debugging screen (the port changes each time wireless debugging is switched on). The phone then appears as `android:192.168.1.20:41233`. If it shows `offline`, `phone-use doctor` says what to check.
+
 ## Use with other MCP clients
 
 Any client that starts a stdio server can use this entry.
