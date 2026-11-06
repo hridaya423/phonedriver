@@ -1738,6 +1738,74 @@ fn ime_tree(shown: bool) -> RawTree {
     RawTree::from_android_json(&json, Scale { density: 1.0 }).unwrap()
 }
 
+fn covered_tree() -> RawTree {
+    let json = r#"{"windows":[{"id":1,"type":"application","package":"com.example","bounds":[0,0,360,800]}],"nodes":[
+        {"p":-1,"w":1,"cls":"android.widget.FrameLayout","b":[0,0,360,800],"f":"vVe"},
+        {"p":0,"w":1,"cls":"android.widget.Button","text":"Developer","b":[0,760,360,820],"f":"vVe","a":["tap"]},
+        {"p":0,"w":1,"cls":"android.widget.Button","text":"Privacy","b":[0,100,360,160],"f":"vVe","a":["tap"]},
+        {"p":0,"w":1,"cls":"androidx.appcompat.widget.Toolbar","desc":"Toolbar","b":[0,700,360,800],"f":"vVe"},
+        {"p":3,"w":1,"cls":"android.widget.EditText","text":"","desc":"Search","b":[10,720,350,780],"f":"vVeE","a":["tap","set_text"]}]}"#;
+    RawTree::from_android_json(json, Scale { density: 1.0 }).unwrap()
+}
+
+#[tokio::test(start_paused = true)]
+async fn tapping_a_row_whose_center_is_under_a_floating_toolbar_is_off_screen_with_a_scroll_hint() {
+    let (source, fake) = FakeSource::with(vec![covered_tree()]);
+    let (d, _home) = daemon(source);
+    ok(&d, "default", "snapshot", json!({})).await;
+    let e = err(&d, "default", "act", tap_text("Developer")).await;
+    assert_eq!(e.code, -32009, "{e:?}");
+    assert!(e.message.contains("under the Toolbar"), "{}", e.message);
+    assert!(
+        e.data["hint"].as_str().unwrap().contains("scroll down"),
+        "{}",
+        e.data["hint"]
+    );
+    assert!(fake.calls().is_empty(), "{:?}", fake.calls());
+    ok(&d, "default", "act", tap_text("Privacy")).await;
+    ok(&d, "default", "act", tap_text("Search")).await;
+    assert_eq!(
+        fake.calls().len(),
+        2,
+        "an element inside the toolbar is tappable"
+    );
+}
+
+fn toolbar_list(row_top: i32) -> RawTree {
+    let json = format!(
+        r#"{{"windows":[{{"id":1,"type":"application","package":"com.example","bounds":[0,0,360,800]}}],"nodes":[
+        {{"p":-1,"w":1,"cls":"android.widget.FrameLayout","b":[0,0,360,800],"f":"vVe"}},
+        {{"p":0,"w":1,"cls":"androidx.recyclerview.widget.RecyclerView","b":[0,100,360,800],"f":"vVeS","a":["scroll_down"]}},
+        {{"p":1,"w":1,"cls":"android.widget.Button","text":"Developer","b":[0,{row_top},360,{}],"f":"vVe","a":["tap"]}},
+        {{"p":0,"w":1,"cls":"androidx.appcompat.widget.Toolbar","desc":"Toolbar","b":[0,700,360,800],"f":"vVe"}}]}}"#,
+        row_top + 40
+    );
+    RawTree::from_android_json(&json, Scale { density: 1.0 }).unwrap()
+}
+
+#[tokio::test(start_paused = true)]
+async fn scroll_until_keeps_going_while_the_target_is_under_the_toolbar() {
+    let (source, fake) = FakeSource::with(vec![toolbar_list(750), toolbar_list(400)]);
+    let (d, _home) = daemon(source);
+    let r = ok(
+        &d,
+        "default",
+        "act",
+        scroll(json!({"until": {"text": "Developer"}})),
+    )
+    .await;
+    assert!(
+        r["summary"].as_str().unwrap().contains("1 times"),
+        "{}",
+        r["summary"]
+    );
+    assert_eq!(fake.calls().len(), 1);
+}
+
+fn tap_text(text: &str) -> Value {
+    json!({"action": {"kind": "tap", "target": {"text": text}}})
+}
+
 fn press_key(key: &str) -> Value {
     json!({"action": {"kind": "press", "key": key}})
 }

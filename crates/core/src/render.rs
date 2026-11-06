@@ -3,6 +3,7 @@ use std::fmt::Write;
 use serde::{Deserialize, Serialize};
 
 use crate::element::{Actions, Element, ElementState, Ref, Role, Source};
+use crate::error::Direction;
 use crate::geometry::{Point, Rect, Size};
 use crate::prune::Node;
 
@@ -125,6 +126,29 @@ impl Rendered {
     }
 
     /// A progress indicator is visible, or a web view has not shown its page yet (it has no children).
+    /// The floating `Toolbar` that covers the center of element `i` without containing it, and which way to scroll to
+    /// move the element out from under it: down for a bar on the lower half of the screen, up for one on the upper.
+    pub fn covered_by(&self, i: usize) -> Option<(&Element, Direction)> {
+        let e = &self.elements[i];
+        let c = e.bounds.center();
+        let bar = self.elements.iter().enumerate().find(|(j, b)| {
+            *j != i
+                && b.role == Role::Other
+                && b.label.as_deref() == Some("Toolbar")
+                && (b.bounds.x..=b.bounds.x + b.bounds.w).contains(&c.x)
+                && (b.bounds.y..=b.bounds.y + b.bounds.h).contains(&c.y)
+                && !self.ancestors(i).any(|a| a == *j)
+                && !self.ancestors(*j).any(|a| a == i)
+        })?;
+        let screen_h = self.header.device.as_ref().map_or(0.0, |d| d.screen.h);
+        let toward = if bar.1.bounds.center().y > screen_h / 2.0 {
+            Direction::Down
+        } else {
+            Direction::Up
+        };
+        Some((bar.1, toward))
+    }
+
     pub fn loading(&self) -> bool {
         self.elements.iter().any(|e| {
             e.role == Role::ProgressIndicator || (e.role == Role::WebView && e.children.is_empty())

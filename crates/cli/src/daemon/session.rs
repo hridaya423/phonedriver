@@ -1,7 +1,7 @@
 //! What one named session remembers about one device: its refs and the last screen it was shown.
 
 use phone_use_core::element::{Element, Role};
-use phone_use_core::error::Error;
+use phone_use_core::error::{Direction, Error};
 use phone_use_core::geometry::Point;
 use phone_use_core::refs::RefTable;
 use phone_use_core::render::{Rendered, TextMatch};
@@ -24,6 +24,8 @@ pub struct Resolved {
     pub line: Option<String>,
     /// The keyboard covers the element's bounds.
     pub under_keyboard: bool,
+    /// A floating toolbar covers the element's center: its label and the way to scroll the element clear.
+    pub covered: Option<(String, Direction)>,
 }
 
 impl Session {
@@ -37,6 +39,7 @@ impl Session {
                 element: None,
                 line: None,
                 under_keyboard: false,
+                covered: None,
             }),
             Target::Ref { r#ref } => match now.index_of(*r#ref) {
                 Some(i) => Ok(element_at(now, i)),
@@ -109,6 +112,9 @@ fn element_at(now: &Rendered, i: usize) -> Resolved {
         line: Some(now.line(e)),
         under_keyboard: e.role != Role::Keyboard
             && now.header.keyboard.is_some_and(|k| k.contains(e.bounds)),
+        covered: now
+            .covered_by(i)
+            .map(|(bar, toward)| (bar.label.clone().unwrap_or_default(), toward)),
     }
 }
 
