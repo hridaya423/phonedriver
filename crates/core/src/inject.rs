@@ -1,4 +1,4 @@
-//! Screen text that reads like an instruction to an AI (decision D23). A hint for the agent, never a filter: the text
+//! Screen text that reads like an instruction to an AI (decision D24). A hint for the agent, never a filter: the text
 //! stays in the snapshot and a miss proves nothing.
 
 const QUALIFIERS: &[&str] = &[
