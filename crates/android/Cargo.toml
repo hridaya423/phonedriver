@@ -16,3 +16,6 @@ phone-use-video = { version = "0.1.0", path = "../video" }
 
 [lints]
 workspace = true
+
+[dev-dependencies]
+tempfile = "3.27.0"

@@ -12,6 +12,7 @@ use clap::{CommandFactory, Parser, Subcommand};
 use serde_json::{Value, json};
 
 use crate::client::{Client, Failure};
+#[cfg(feature = "android")]
 use crate::daemon::android::AdbSource;
 use crate::daemon::ios::{PhysicalSource, SimSource};
 use crate::daemon::sources::Sources;
@@ -776,6 +777,7 @@ fn run_daemon(trace: TraceOptions) -> ExitCode {
     };
     rt.block_on(async {
         let sources = Sources(vec![
+            #[cfg(feature = "android")]
             ("android:", Arc::new(AdbSource::from_env())),
             ("sim:", Arc::new(SimSource::new(socket::home()))),
             ("ios:", Arc::new(PhysicalSource::new(socket::home()))),

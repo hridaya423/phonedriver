@@ -11,12 +11,16 @@ description.workspace = true
 name = "phone-use"
 path = "src/main.rs"
 
+[features]
+default = ["android"]
+android = ["dep:phone-use-android"]
+
 [dependencies]
 async-trait = "0.1.92"
 base64 = "0.23.1"
 clap = { version = "4.6.7", features = ["derive", "env"] }
 interprocess = { version = "2.4.7", features = ["tokio"] }
-phone-use-android = { version = "0.1.0", path = "../android" }
+phone-use-android = { version = "0.1.0", path = "../android", optional = true }
 phone-use-core = { version = "0.1.0", path = "../core" }
 phone-use-ios = { version = "0.1.0", path = "../ios" }
 rmcp = { version = "3.9.0", features = ["server", "macros", "transport-io"] }
@@ -36,6 +40,7 @@ windows-sys = { version = "0.61.2", features = ["Win32_Foundation", "Win32_Secur
 
 [dev-dependencies]
 assert_cmd = "2.2.2"
+phone-use-android = { path = "../android" }
 phone-use-core = { path = "../core", features = ["testing"] }
 phone-use-ios = { path = "../ios", features = ["testing"] }
 proptest = "1.12.0"

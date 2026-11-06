@@ -4,6 +4,7 @@
 //! `actor.rs`, and a route in `Daemon::route`. The CLI side is a clap variant in `commands.rs`.
 
 pub mod actor;
+#[cfg(feature = "android")]
 pub mod android;
 pub mod ios;
 pub mod rpc;

@@ -151,3 +151,13 @@ Each decision records the choice, the alternatives it beat, and the evidence tha
 **Rejected.** Recording typed text unless the actor reports `secure`: needs a new reply field and still cannot cover errors.
 
 **Reopen if.** Tuning agents (task 4.5) shows that traces without typed text cannot explain failures; then add the text under `--trace-full` only.
+
+## D17. Android support is a cargo feature of the CLI, on by default
+
+**Choice.** `phone-use` has a feature `android` (default) that pulls in `phone-use-android`, whose build script packs the on-device agent jar. `cargo build --release -p phone-use --no-default-features` builds an iOS-only binary that needs no Android SDK, `d8` or JDK; it has no adb source and `phone-use doctor` skips the Android checks. The default build is unchanged and still packs the jar. `android-agent/build.sh` checks its tools first and, in one message, names each one that is missing, what it found, and the four ways out (install, `ANDROID_HOME`/`ANDROID_BUILD_TOOLS`, `PHONE_USE_AGENT_JAR`, `--no-default-features`).
+
+**Why.** A newcomer who wants the iOS Simulator on a Mac without Android build-tools 37.0.0 could not build at all (dx-ux audit, finding 1 and 2), and the jar the build asked for is not published anywhere. There is no `ios` feature: iOS code builds on every host already, so a second switch would have nothing to turn off.
+
+**Rejected.** Accepting any build-tools at or above 34: the jar is compiled against `android-37.0` and nothing has verified an older toolchain; `ANDROID_BUILD_TOOLS` and `ANDROID_PLATFORM` already let a user try. Downloading a prebuilt jar in the build script: sends a request nobody asked for (D9 spirit) and no release exists to download from.
+
+**Reopen if.** Releases attach `phone-use-agent.jar`, which would let a source build skip the SDK without losing Android.

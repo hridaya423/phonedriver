@@ -5,6 +5,7 @@
 use std::path::Path;
 use std::time::Instant;
 
+#[cfg(feature = "android")]
 use phone_use_android::adb::{Adb, AdbDevice, DeviceState};
 use serde_json::json;
 
@@ -82,7 +83,10 @@ pub fn run(home: &Path) -> bool {
         return false;
     };
     let checks = rt.block_on(async {
+        #[cfg(feature = "android")]
         let mut checks = android(&Adb::from_env()).await;
+        #[cfg(not(feature = "android"))]
+        let mut checks = Vec::new();
         checks.extend(ios(home).await);
         checks.extend(physical(home).await);
         checks.extend(socket_permissions(&socket::socket_path()));
@@ -196,6 +200,7 @@ pub async fn ios(home: &Path) -> Vec<Check> {
 
 /// The adb server at `Adb::from_env()`, then every device it lists. A device in the `device` state is probed through
 /// the daemon, which deploys the agent and holds UiAutomation, so the probe must not start a second agent.
+#[cfg(feature = "android")]
 pub async fn android(adb: &Adb) -> Vec<Check> {
     let configured = std::env::var("ADB_SERVER_SOCKET").ok();
     let version = adb.version().await;
@@ -234,6 +239,7 @@ pub async fn android(adb: &Adb) -> Vec<Check> {
     checks
 }
 
+#[cfg(feature = "android")]
 fn adb_server(
     addr: &str,
     configured: Option<&str>,
@@ -256,6 +262,7 @@ fn adb_server(
     }
 }
 
+#[cfg(feature = "android")]
 fn device_state(d: &AdbDevice) -> Check {
     let name = format!("android:{}", d.serial);
     match d.state {
@@ -292,6 +299,7 @@ fn device_state(d: &AdbDevice) -> Check {
     }
 }
 
+#[cfg(feature = "android")]
 async fn agent_checks(id: &str) -> Vec<Check> {
     let mut client = match Client::connect("doctor".into()).await {
         Ok(c) => c,
@@ -657,6 +665,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "android")]
     fn an_offline_device_over_tcp_gets_the_wifi_hint_and_a_cable_one_does_not() {
         let dev = |serial: &str| AdbDevice {
             serial: serial.into(),
@@ -674,6 +683,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "android")]
     fn without_a_configured_adb_server_a_missing_one_is_a_warning() {
         let down = Err(phone_use_core::error::Error::Transport {
             detail: "refused".into(),
