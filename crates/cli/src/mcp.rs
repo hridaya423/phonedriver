@@ -27,9 +27,9 @@ pub struct Mcp {
 #[derive(Deserialize, JsonSchema)]
 struct BatchArgs {
     device: Option<String>,
-    /// Run in order. Each step is an object: `tool` (tap, type, swipe, scroll, press, launch or wait) plus that tool's arguments, such as {"tool":"tap","target":"@e3"}.
+    /// Objects of `tool` (tap, type, swipe, scroll, press, launch, wait) plus that tool's arguments, such as {"tool":"tap","target":"@e3"}.
     steps: Vec<serde_json::Value>,
-    /// Give up on a step's settle or wait after this many milliseconds. Default 5000.
+    /// Give up on a step's settle or wait after this many ms. Default 5000.
     timeout_ms: Option<u64>,
 }
 
@@ -101,7 +101,7 @@ struct SnapshotArgs {
 #[serde(deny_unknown_fields)]
 struct TapArgs {
     device: Option<String>,
-    /// `@e5` (a ref from the last snapshot), `x,y` in points, or the text of an element, such as `Dark theme`.
+    /// `@e5`, `x,y` in points, or an element's text such as `Dark theme`.
     target: String,
     /// With a text target: only an element of this role, such as button, cell, textbox or switch.
     role: Option<String>,
@@ -119,13 +119,13 @@ struct TypeArgs {
     text: String,
     /// The field: an @ref, `x,y` or the field's text. Omit it to type into the focused field.
     into: Option<String>,
-    /// `paste` (default), `set` (replace the field's value) or `keys` (one key at a time, ASCII only on Android).
+    /// `paste` (default), `set` (Android: set the field's value) or `keys` (one key at a time, ASCII only on Android).
     mode: Option<String>,
     /// Press enter afterwards.
     submit: Option<bool>,
     /// With `into`, add to the field's text instead of replacing it.
     append: Option<bool>,
-    /// The text is a password, code or other secret: it is never shown back, logged or traced.
+    /// A password, code or other secret: never shown back, logged or traced.
     secret: Option<bool>,
 }
 
@@ -463,7 +463,7 @@ fn bad(message: &str) -> CallToolResult {
 #[tool_router]
 impl Mcp {
     #[tool(
-        description = "List connected devices with their id, model, OS, tier and which session holds each. Call it first when unsure which device to use. With `release`, give up this session's hold on a device."
+        description = "List devices with id, model, OS, tier and the session holding each; with several connected, pass one's id as `device` to the other tools. With `release`, give up this session's hold on a device."
     )]
     async fn devices(&self, Parameters(a): Parameters<DevicesArgs>) -> CallToolResult {
         if a.release.unwrap_or(false) {
@@ -473,7 +473,7 @@ impl Mcp {
     }
 
     #[tool(
-        description = "Run a shell command on the device: one call returns exit code, trimmed output and the screen change, faster than adb. Prefer it to UI taps for settings and intents: `cmd uimode night yes`, `settings put system screen_brightness 20`, `am start -a android.intent.action.VIEW -d <url>`, `dumpsys window | grep mCurrentFocus`, `input keyevent 3`. Simulator: `simctl ui appearance dark`. Physical devices refuse wipes and removing others' apps."
+        description = "Settings and system actions: run a command; one call returns exit code, trimmed output and the screen change. Examples: `cmd uimode night yes`, `settings put system screen_brightness 20`, `am start -a android.intent.action.VIEW -d <url>`, `dumpsys window | grep mCurrentFocus`. Simulator: `simctl ui appearance dark`, `simctl openurl <url>`. Physical devices refuse wipes; a physical iPhone has no shell."
     )]
     async fn shell(&self, Parameters(a): Parameters<ShellArgs>) -> CallToolResult {
         let secret = a.secret.unwrap_or(false);
@@ -505,7 +505,7 @@ impl Mcp {
     }
 
     #[tool(
-        description = "List the apps that can be launched, one `name  id` per line (use it when `launch` says there is no app with the name you gave), or with `action` install, stop, clear data of or uninstall one. On a physical device, clear and uninstall only work on apps phone-use installed."
+        description = "List launchable apps, one `name  id` per line, or with `action` install, stop, clear or uninstall one. On a physical device clear and uninstall only reach apps phone-use installed."
     )]
     async fn apps(&self, Parameters(a): Parameters<AppsArgs>) -> CallToolResult {
         let verb = Verb::Apps {
@@ -516,7 +516,7 @@ impl Mcp {
     }
 
     #[tool(
-        description = "Show what is on screen as lines like `@e4 button \"Save\"`, or only what changed with diff. Refs name elements for tap, type, swipe and scroll."
+        description = "The screen as lines like `@e4 button \"Save\"`; refs name elements for the other tools. A line ending `under-keyboard` is hidden by the keyboard (`press` hide-keyboard first)."
     )]
     async fn snapshot(&self, Parameters(a): Parameters<SnapshotArgs>) -> CallToolResult {
         if let Some(text) = a.find {
@@ -537,7 +537,7 @@ impl Mcp {
     }
 
     #[tool(
-        description = "Take a screenshot and return it as an image, one pixel per point. Use it when the snapshot does not show what you need, such as a canvas, a map or an image. With `marks`, elements are boxed with their @refs."
+        description = "Image of the screen, one pixel per point, for what the snapshot cannot show: a canvas, map, photo or game. With `marks`, every tappable element is boxed with its @ref, so `tap @e12` works from the picture."
     )]
     async fn screenshot(&self, Parameters(a): Parameters<ScreenshotArgs>) -> CallToolResult {
         let marks = a.marks.unwrap_or(false);
@@ -574,7 +574,7 @@ impl Mcp {
     }
 
     #[tool(
-        description = "Tap an element by @ref, by its text, or at x,y points. Returns what changed once the screen settled. Prefer refs; use points only from a screenshot. One call at a time."
+        description = "Tap by @ref (from the last snapshot), by text, or at x,y points (only from a screenshot). Returns what changed. A ref the screen no longer has fails with the closest match. One call at a time."
     )]
     async fn tap(&self, Parameters(a): Parameters<TapArgs>) -> CallToolResult {
         let device = a.device.clone();
@@ -583,7 +583,7 @@ impl Mcp {
 
     #[tool(
         name = "type",
-        description = "Type text into a field and report whether the field now holds it. Empty text with `into` clears the field. Set secret for passwords and codes; only type those when the user gave them for this task. One call at a time."
+        description = "Put text in a field and report whether it shows it. With `into` the text replaces the field's content (`append` keeps it); empty text clears the field. A mismatch says what the field shows and why. `secret` is for a password or code the user gave for this task. One call at a time."
     )]
     async fn r#type(&self, Parameters(a): Parameters<TypeArgs>) -> CallToolResult {
         let secret = a.secret.unwrap_or(false);
@@ -605,7 +605,7 @@ impl Mcp {
     }
 
     #[tool(
-        description = "Drag one finger across the screen the way a user swipes: to flip pages, pull down, dismiss. With `to`, drag an item to a target; with `pinch`, zoom with two fingers. To read more of a list use scroll instead. One call at a time."
+        description = "A finger gesture: flip pages, pull a sheet down, dismiss. With `to`, drag an item from `from` to a target; with `pinch`, zoom with two fingers. To read more of a list use `scroll`. One call at a time."
     )]
     async fn swipe(&self, Parameters(a): Parameters<SwipeArgs>) -> CallToolResult {
         let device = a.device.clone();
@@ -616,7 +616,7 @@ impl Mcp {
     }
 
     #[tool(
-        description = "Scroll a list so more content shows in the direction, or until the text or @ref in `until` is on screen. It never flings past a target. One call at a time."
+        description = "Scroll toward more content in `direction`, or until the text or @ref in `until` is on screen. One drag at a time, so it stops on the target; says when the list ends. One call at a time."
     )]
     async fn scroll(&self, Parameters(a): Parameters<ScrollArgs>) -> CallToolResult {
         let device = a.device.clone();
@@ -624,14 +624,14 @@ impl Mcp {
     }
 
     #[tool(
-        description = "Press a button: home, back, recents, notifications, lock, volume-up, volume-down, enter, or hide-keyboard to close the on-screen keyboard. Returns what changed once the screen settled. One call at a time."
+        description = "Press a system key and return what changed. `key`: home, back, recents, notifications, lock, volume-up, volume-down, enter, or hide-keyboard. One call at a time."
     )]
     async fn press(&self, Parameters(a): Parameters<PressArgs>) -> CallToolResult {
         self.run(a.device, Verb::Press { key: a.key }, None).await
     }
 
     #[tool(
-        description = "Open an app by name, package or bundle id (`app`), or open a web link or deep link (`url`) in the app that handles it. Returns the first screen. One call at a time."
+        description = "Open an app (`app`: name, package or bundle id) or a web or deep link (`url`) and return its first screen. When no app has the name, `apps` lists names. An app reopens where it was left. One call at a time."
     )]
     async fn launch(&self, Parameters(a): Parameters<LaunchArgs>) -> CallToolResult {
         let device = a.device.clone();
@@ -642,7 +642,7 @@ impl Mcp {
     }
 
     #[tool(
-        description = "Run several actions in order in one call, such as tap a field, type, press enter. Stops at the first failure and says which step failed. Returns one diff for the whole batch, so use it instead of sending calls together."
+        description = "Run steps in order in one call and get one diff: tap a field, type, press enter. Stops at the first failing step and names it."
     )]
     async fn batch(&self, Parameters(a): Parameters<BatchArgs>) -> CallToolResult {
         let mut steps = Vec::new();
@@ -669,7 +669,7 @@ impl Mcp {
     }
 
     #[tool(
-        description = "Wait until the screen settles, a text or @ref appears, or `gone:<text>` leaves. Use it instead of sleeping. Fails with a timeout that names the condition."
+        description = "Wait for `settled`, a text or @ref to appear, or `gone:<text>` to leave. Returns the moment it holds; a timeout names the condition."
     )]
     async fn wait(&self, Parameters(a): Parameters<WaitArgs>) -> CallToolResult {
         let mut globals = Self::globals(a.device);
@@ -683,9 +683,58 @@ impl Mcp {
 
 #[tool_handler(
     name = "phone-use",
-    instructions = "Operate a phone or tablet. Start with `snapshot`, act on the @refs it prints, and read the lines each action returns: they say what changed once the screen settled. Calls act on one shared screen: send one at a time and read each reply before the next. Use `wait` instead of sleeping. Use `screenshot` only when the snapshot lacks what you need."
+    instructions = "Operate an Android or iOS device. Settings and system actions: `shell`, one call with no screens to tap through. App UI: `snapshot` once, act on the @refs it prints with `tap`, `type` and `scroll`, and read the lines each action returns, which say what changed once the screen settled; `batch` runs several steps in one call. Send calls one at a time on the shared screen. `wait` covers loading, `screenshot` covers what the snapshot lacks. When an error asks the user to act on the device, tell them and continue after they say it is done. Passwords, payments, sending and deleting need the user's word for this task."
 )]
-impl ServerHandler for Mcp {}
+impl ServerHandler for Mcp {
+    async fn list_tools(
+        &self,
+        _request: Option<rmcp::model::PaginatedRequestParams>,
+        _context: rmcp::service::RequestContext<rmcp::RoleServer>,
+    ) -> Result<rmcp::model::ListToolsResult, rmcp::ErrorData> {
+        let mut tools = Self::tool_router().list_all();
+        for t in &mut tools {
+            let mut schema = (*t.input_schema).clone();
+            slim_schema(&mut schema);
+            t.input_schema = Arc::new(schema);
+        }
+        Ok(rmcp::model::ListToolsResult {
+            result_type: Some(rmcp::model::ResultType::COMPLETE),
+            tools,
+            meta: None,
+            next_cursor: None,
+            ttl_ms: None,
+            cache_scope: None,
+        })
+    }
+}
+
+/// An argument schema without what a model gets nothing from: the `$schema` URL, integer `format` and `minimum`
+/// boilerplate, and `null` in the type of an optional argument (an argument left out is already none).
+fn slim_schema(schema: &mut serde_json::Map<String, serde_json::Value>) {
+    schema.remove("$schema");
+    slim_value(schema);
+}
+
+fn slim_value(m: &mut serde_json::Map<String, serde_json::Value>) {
+    m.remove("format");
+    if m.get("minimum") == Some(&json!(0)) {
+        m.remove("minimum");
+    }
+    if let Some(serde_json::Value::Array(types)) = m.get("type")
+        && let [only, serde_json::Value::String(null)] = types.as_slice()
+        && null == "null"
+    {
+        let only = only.clone();
+        m.insert("type".into(), only);
+    }
+    if let Some(serde_json::Value::Object(props)) = m.get_mut("properties") {
+        for v in props.values_mut() {
+            if let serde_json::Value::Object(p) = v {
+                slim_value(p);
+            }
+        }
+    }
+}
 
 /// The runtime the server runs on. rmcp starts one task per request in the order requests arrive; on one thread the
 /// tasks take the call lock in that order, so calls an agent sends together act in the order it sent them.
