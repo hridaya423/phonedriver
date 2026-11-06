@@ -349,6 +349,8 @@ Not available on iOS in v1: `press recents` (no API; returns `Unsupported`).
 
 ### 7.2 CoreDevice tier
 
+*Update 2026-11-06:* the receiver defers the quarter turn to screenshots (`Frame::turned_cw`), derives the settle thumbnail from the unturned luma, and `receive::Pacing` shows the newest picture every 100 ms during a backlog and skips publishing above 400 waiting datagrams. A release build followed 95 alternating taps over 135 s with no missed change (docs/spikes/ios.md I6 follow-up). Open: no accessibility tree and no orientation handling, so Runner stays the default.
+
 - Start the display media stream first. HID input is silently discarded without it (idevice `hid.rs:1-11`). The stream stays up for the life of the lease.
 - Codec: the offer lists only the H.264 bank (RTP payload type 123). Spike I3 (iPad, iOS 27.0) showed the device accepts it and sends H.264 (High, level 5.2, 2736 x 2064). With idevice's default two-bank offer the device sends HEVC on payload type 100, so idevice's labels are right and go-ios `ios/display/offer.go:35-38` is wrong. The video crate depacketizes RFC 6184 (single NAL, STAP-A, FU-A) and the device's parameter packet (a 4-byte header, then an `avc1` sample entry whose `avcC` holds SPS and PPS).
 - Touch: points → normalized 0..65535 per axis. Multitouch up to 5 contacts.
