@@ -35,6 +35,8 @@ Each decision records the choice, the alternatives it beat, and the evidence tha
 
 **Reopen if.** Spike I1 shows the CoreDevice HID path fails on a real iOS 27 device, or Apple gates it behind Xcode-only entitlements.
 
+**Pin (2026-11-06, task 6.1).** crates.io `idevice` 0.1.68 has all four features the plan lists (`display_stream`, `core_device`, `xctest`, `tunnel_tcp_stack`; read from the crate's `Cargo.toml` after `cargo info idevice@0.1.68`), so the dependency is the registry crate, not the git rev `8970209`: `idevice = { version = "=0.1.68", default-features = false, features = ["ring", "usbmuxd", "pair", "core_device", "display_stream", "xctest", "tunnel_tcp_stack"] }` in `crates/ios`. `default-features = false` drops `aws-lc` (a C++ build); `ring` is the TLS backend lockdown needs, `pair` adds the pairing error variants and `usbmuxd` discovery. The exact `=` matters: `IdeviceError` is `#[non_exhaustive]` and the README says every release breaks the API. Features for later tasks (`amfi`, `mobile_image_mounter`, `installation_proxy` comes in through `xctest`) are added when their task needs them. The CoreDevice service names `phone-use` checks (`com.apple.coredevice.hid.universalhidservice`, `com.apple.coredevice.displayservice`) were read from idevice's `hid.rs` and `display_stream/client.rs`.
+
 ## D4. Our own XCTest runner, not WebDriverAgent
 
 **Choice.** A small XCTest bundle that serves our framing and uses WDA's techniques (private headers, bounded snapshots, event synthesis).

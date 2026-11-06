@@ -6,6 +6,7 @@ edition.workspace = true
 [dependencies]
 async-trait = "0.1.92"
 base64 = "0.22"
+idevice = { version = "=0.1.68", default-features = false, features = ["ring", "usbmuxd", "pair", "core_device", "display_stream", "xctest", "tunnel_tcp_stack"] }
 phone-use-core = { version = "0.1.0", path = "../core" }
 phone-use-video = { version = "0.1.0", path = "../video" }
 serde = { version = "1.0.229", features = ["derive"] }
