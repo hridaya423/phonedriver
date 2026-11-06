@@ -10,7 +10,7 @@ use phone_use_core::error::{Error, Op};
 use serde::Deserialize;
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use tokio::net::TcpStream;
 use tokio::process::{Child, Command};
 use tokio::time::{Instant, timeout};
@@ -135,9 +135,13 @@ pub struct Hello {
 }
 
 /// One connection to a runner. Requests run one at a time, as the runner serves them.
+/// What the runner's socket is made of: TCP to a simulator's loopback, or a usbmuxd connection to a device.
+pub trait Io: AsyncRead + AsyncWrite + Unpin + Send {}
+impl<T: AsyncRead + AsyncWrite + Unpin + Send> Io for T {}
+
 pub struct Client {
     device: String,
-    stream: tokio::sync::Mutex<TcpStream>,
+    stream: tokio::sync::Mutex<Box<dyn Io>>,
     next_id: AtomicU64,
 }
 
@@ -147,11 +151,15 @@ impl Client {
             .await
             .map_err(|_| std::io::Error::from(std::io::ErrorKind::TimedOut))??;
         stream.set_nodelay(true)?;
-        Ok(Client {
+        Ok(Client::over(stream, device))
+    }
+
+    pub fn over(stream: impl Io + 'static, device: &str) -> Client {
+        Client {
             device: device.to_string(),
-            stream: tokio::sync::Mutex::new(stream),
+            stream: tokio::sync::Mutex::new(Box::new(stream)),
             next_id: AtomicU64::new(1),
-        })
+        }
     }
 
     /// Sends `req` (an object with an `op`) and returns the reply's fields. `op` names the operation in errors.
@@ -162,9 +170,9 @@ impl Client {
             id: self.device.clone(),
         };
         let mut stream = self.stream.lock().await;
-        write_frame(&mut stream, &req).await.map_err(gone)?;
+        write_frame(&mut *stream, &req).await.map_err(gone)?;
         let reply = loop {
-            let reply = read_frame(&mut stream).await.map_err(gone)?;
+            let reply = read_frame(&mut *stream).await.map_err(gone)?;
             if reply["id"] == id {
                 break reply;
             }
@@ -202,7 +210,7 @@ fn reply_error(op: Op, error: &Value) -> Error {
     }
 }
 
-async fn write_frame(stream: &mut TcpStream, v: &Value) -> std::io::Result<()> {
+async fn write_frame(stream: &mut (impl AsyncWrite + Unpin), v: &Value) -> std::io::Result<()> {
     let body = v.to_string();
     let mut buf = Vec::with_capacity(4 + body.len());
     buf.extend_from_slice(&(body.len() as u32).to_be_bytes());
@@ -210,7 +218,7 @@ async fn write_frame(stream: &mut TcpStream, v: &Value) -> std::io::Result<()> {
     stream.write_all(&buf).await
 }
 
-async fn read_frame(stream: &mut TcpStream) -> std::io::Result<Value> {
+async fn read_frame(stream: &mut (impl AsyncRead + Unpin)) -> std::io::Result<Value> {
     let mut len = [0u8; 4];
     stream.read_exact(&mut len).await?;
     let len = u32::from_be_bytes(len) as usize;
@@ -233,10 +241,18 @@ static BUILDING: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
 
 /// Builds the runner for the Simulator once per source hash, under `<home>/runner/<hash>`, and removes older builds.
 pub async fn build(home: &Path) -> Result<Build> {
+    build_for(home, None).await
+}
+
+/// With `team`, builds for physical devices signed with that Apple developer team, under `<home>/runner/<hash>-device`.
+pub async fn build_for(home: &Path, team: Option<&str>) -> Result<Build> {
     let _one_at_a_time = BUILDING.lock().await;
     let hash = build_hash();
     let root = home.join("runner");
-    let dir = root.join(&hash);
+    let dir = root.join(match team {
+        Some(_) => format!("{hash}-device"),
+        None => hash.clone(),
+    });
     let products = dir.join("dd").join("Build").join("Products");
     if let Some(xctestrun) = find_xctestrun(&products) {
         return Ok(Build {
@@ -274,20 +290,39 @@ pub async fn build(home: &Path) -> Result<Build> {
     } else {
         "x86_64"
     };
+    let mut xcodebuild = Command::new("xcodebuild");
+    xcodebuild.args([
+        "-project",
+        "PhoneUseRunner.xcodeproj",
+        "-scheme",
+        "PhoneUseRunner",
+    ]);
+    match team {
+        None => {
+            xcodebuild
+                .args(["-destination", "generic/platform=iOS Simulator"])
+                .arg(format!("ARCHS={arch}"))
+                .arg("ONLY_ACTIVE_ARCH=NO");
+        }
+        Some(team) => {
+            xcodebuild
+                .args([
+                    "-destination",
+                    "generic/platform=iOS",
+                    "-allowProvisioningUpdates",
+                ])
+                .arg(format!("DEVELOPMENT_TEAM={team}"))
+                .args([
+                    "CODE_SIGN_STYLE=Automatic",
+                    "CODE_SIGN_IDENTITY=Apple Development",
+                ]);
+        }
+    }
     run_logged(
-        Command::new("xcodebuild")
-            .args([
-                "-project",
-                "PhoneUseRunner.xcodeproj",
-                "-scheme",
-                "PhoneUseRunner",
-                "-destination",
-                "generic/platform=iOS Simulator",
-                "-derivedDataPath",
-            ])
+        xcodebuild
+            .arg("-derivedDataPath")
             .arg(dir.join("dd"))
-            .arg(format!("ARCHS={arch}"))
-            .args(["ONLY_ACTIVE_ARCH=NO", "-quiet", "build-for-testing"])
+            .args(["-quiet", "build-for-testing"])
             .current_dir(&src),
         &log,
         "xcodebuild build-for-testing",
@@ -401,7 +436,7 @@ pub struct Runner {
     pub hello: Hello,
     pub port: u16,
     child: Option<Child>,
-    _claim: PortClaim,
+    _claim: Option<PortClaim>,
 }
 
 impl Runner {
@@ -435,7 +470,7 @@ impl Runner {
                             hello,
                             port,
                             child: None,
-                            _claim: claim,
+                            _claim: Some(claim),
                         });
                     }
                 }
@@ -490,7 +525,7 @@ impl Runner {
                     hello,
                     port,
                     child: Some(child),
-                    _claim: claim,
+                    _claim: Some(claim),
                 });
             }
             if let Ok(Some(status)) = child.try_wait() {
@@ -508,6 +543,98 @@ impl Runner {
                         "the runner to answer on port {port}; see {}",
                         log.display()
                     ),
+                });
+            }
+            tokio::time::sleep(POLL).await;
+        }
+    }
+}
+
+/// The runner's fixed port on a device; the host reaches it through usbmuxd, so nothing is claimed on the Mac.
+pub const DEVICE_PORT: u16 = PORT_BASE;
+
+impl Runner {
+    /// Starts the runner on a wired device with `xcodebuild test-without-building` (signed build from
+    /// `build_for(home, Some(team))`) or reuses one that answers `hello` with this udid and build.
+    pub async fn start_device(
+        provider: &dyn idevice::provider::IdeviceProvider,
+        udid: &str,
+        team: &str,
+        home: &Path,
+    ) -> Result<Runner> {
+        let device = format!("ios:{udid}");
+        let hash = build_hash();
+        let connect = || async {
+            let socket = provider
+                .connect(DEVICE_PORT)
+                .await
+                .ok()
+                .and_then(idevice::Idevice::get_socket)?;
+            let client = Client::over(socket, &device);
+            let hello = timeout(HELLO_WAIT, client.hello()).await.ok()?.ok()?;
+            Some((client, hello))
+        };
+        if let Some((client, hello)) = connect().await
+            && hello.udid.as_deref() == Some(udid)
+            && hello.build.as_deref() == Some(hash.as_str())
+        {
+            return Ok(Runner {
+                client,
+                hello,
+                port: DEVICE_PORT,
+                child: None,
+                _claim: None,
+            });
+        }
+        let build = build_for(home, Some(team)).await?;
+        let log = home.join("runner").join(format!("{udid}.log"));
+        let io = |e: std::io::Error| Error::Transport {
+            detail: format!("cannot write {}: {e}", log.display()),
+        };
+        let file = std::fs::File::create(&log).map_err(io)?;
+        let err = file.try_clone().map_err(io)?;
+        let mut child = Command::new("xcodebuild")
+            .arg("test-without-building")
+            .arg("-xctestrun")
+            .arg(&build.xctestrun)
+            .args(["-destination", &format!("id={udid}")])
+            .args(["-test-timeouts-enabled", "NO"])
+            .env("TEST_RUNNER_PHONE_USE_PORT", DEVICE_PORT.to_string())
+            .env("TEST_RUNNER_PHONE_USE_BUILD", &build.hash)
+            .env("TEST_RUNNER_PHONE_USE_UDID", udid)
+            .stdin(std::process::Stdio::null())
+            .stdout(file)
+            .stderr(err)
+            .kill_on_drop(true)
+            .spawn()
+            .map_err(|e| Error::Transport {
+                detail: format!("cannot run xcodebuild: {e}"),
+            })?;
+        let deadline = Instant::now() + READY_WAIT;
+        loop {
+            if let Some((client, hello)) = connect().await
+                && hello.udid.as_deref() == Some(udid)
+            {
+                return Ok(Runner {
+                    client,
+                    hello,
+                    port: DEVICE_PORT,
+                    child: Some(child),
+                    _claim: None,
+                });
+            }
+            if let Ok(Some(status)) = child.try_wait() {
+                return Err(Error::Transport {
+                    detail: format!(
+                        "the runner exited ({status}) before answering; see {}",
+                        log.display()
+                    ),
+                });
+            }
+            if Instant::now() >= deadline {
+                return Err(Error::Timeout {
+                    waited_ms: READY_WAIT.as_millis() as u32,
+                    condition: format!("the runner to answer on {udid}; see {}", log.display()),
                 });
             }
             tokio::time::sleep(POLL).await;
