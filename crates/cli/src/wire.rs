@@ -7,6 +7,19 @@ use phone_use_core::geometry::Rect;
 use phone_use_core::render::Header;
 use serde::{Deserialize, Serialize};
 
+/// What a serde error says about the action, without any value it echoes: a field name or a type, never the text typed.
+pub fn malformed_reason(e: &serde_json::Error) -> String {
+    let m = e.to_string();
+    let m = m.split(" at line ").next().unwrap_or_default();
+    if m.starts_with("missing field") || m.starts_with("unknown field") {
+        return m.to_string();
+    }
+    match m.split_once(", expected ") {
+        Some((_, want)) => format!("a field has the wrong type or value, expected {want}"),
+        None => "a field is missing or has the wrong type".to_string(),
+    }
+}
+
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -351,7 +364,7 @@ impl Step {
                             .collect::<String>()
                     )
                 } else {
-                    "the action is malformed".to_string()
+                    format!("the action is malformed: {}", malformed_reason(&e))
                 }
             })
     }
