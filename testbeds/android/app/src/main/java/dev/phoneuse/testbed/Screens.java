@@ -367,6 +367,18 @@ final class Screens {
         return root;
     }
 
+    static View hollow(Activity a, View anchor) {
+        View panel = new View(a);
+        anchor.post(() -> {
+            android.view.WindowManager.LayoutParams lp = new android.view.WindowManager.LayoutParams(
+                    200, 200, android.view.WindowManager.LayoutParams.TYPE_APPLICATION_PANEL,
+                    android.view.WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE, android.graphics.PixelFormat.TRANSLUCENT);
+            lp.token = anchor.getWindowToken();
+            a.getWindowManager().addView(panel, lp);
+        });
+        return panel;
+    }
+
     static View waiting(Activity a) {
         LinearLayout root = column(a);
         TextView loading = new TextView(a);

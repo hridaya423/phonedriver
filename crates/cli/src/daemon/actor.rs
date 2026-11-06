@@ -994,6 +994,7 @@ impl Actor {
         };
         let mut gestures = 0u32;
         let mut idle = 0u32;
+        let mut last = None;
         loop {
             match s.resolve(&until, &now) {
                 Ok(found) => {
@@ -1003,11 +1004,24 @@ impl Actor {
                         direction.name(),
                         short(&line)
                     );
-                    let st = State::Done {
-                        settled: true,
-                        changed: gestures > 0,
-                        still_changing: None,
-                        elapsed: Duration::ZERO,
+                    let st = match last {
+                        Some(State::Done {
+                            settled,
+                            still_changing,
+                            elapsed,
+                            ..
+                        }) => State::Done {
+                            settled,
+                            changed: true,
+                            still_changing,
+                            elapsed,
+                        },
+                        _ => State::Done {
+                            settled: true,
+                            changed: false,
+                            still_changing: None,
+                            elapsed: Duration::ZERO,
+                        },
                     };
                     return self.report(s, st, summary, None, None, None).await;
                 }
@@ -1050,7 +1064,7 @@ impl Actor {
             };
             device.gesture(g).await?;
             gestures += 1;
-            self.settle(cfg, started).await;
+            last = Some(self.settle(cfg, started).await);
             let next = self.fresh(s).await?;
             let moved = !matches!(diff(&now, &next), DiffOrFull::Diff(c) if c.is_empty());
             idle = if moved { 0 } else { idle + 1 };
