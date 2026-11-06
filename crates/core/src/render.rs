@@ -124,10 +124,11 @@ impl Rendered {
         false
     }
 
+    /// A progress indicator is visible, or a web view has not shown its page yet (it has no children).
     pub fn loading(&self) -> bool {
-        self.elements
-            .iter()
-            .any(|e| e.role == Role::ProgressIndicator)
+        self.elements.iter().any(|e| {
+            e.role == Role::ProgressIndicator || (e.role == Role::WebView && e.children.is_empty())
+        })
     }
 
     fn ancestors(&self, i: usize) -> impl Iterator<Item = usize> + '_ {
@@ -829,5 +830,32 @@ mod tests {
         ));
         let text = r.text(&Filters::default()).unwrap();
         assert_eq!(text.matches("Display & Text Size").count(), 1, "{text}");
+    }
+
+    #[test]
+    fn a_webview_without_children_marks_the_header_loading_until_its_page_shows() {
+        let ios = |page: &str| {
+            let json = format!(
+                r#"{{"app":{{"bundle_id":"x","pid":1}},"nodes":[
+                {{"p":-1,"cls":"XCUIElementTypeOther","b":[0,0,400,800],"f":"vVe"}},
+                {{"p":0,"cls":"XCUIElementTypeWebView","b":[0,100,400,700],"f":"vVe"}}{page}]}}"#
+            );
+            let tree = RawTree::from_ios_json(&json).unwrap();
+            let nodes = prune(&tree);
+            let refs = RefTable::default().assign(&tree, &nodes);
+            Rendered::build(nodes, &refs, header())
+        };
+        let empty = ios("");
+        assert!(empty.loading());
+        assert!(
+            empty
+                .text(&Filters::default())
+                .unwrap()
+                .contains(" · loading")
+        );
+        let page = ios(
+            r#",{"p":1,"cls":"XCUIElementTypeStaticText","text":"Example Domain","b":[0,100,400,140],"f":"vVe"}"#,
+        );
+        assert!(!page.loading());
     }
 }

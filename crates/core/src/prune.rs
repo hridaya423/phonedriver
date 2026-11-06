@@ -89,35 +89,40 @@ pub fn prune(tree: &RawTree) -> Vec<Node> {
     }
 
     let mut dissolved = vec![false; n];
+    let tappable = |i: usize| {
+        tree.nodes[i]
+            .actions
+            .intersects(Actions::TAP | Actions::LONG_PRESS)
+    };
     for i in 0..n {
         let node = &tree.nodes[i];
-        let pressable = node.actions.intersects(Actions::TAP | Actions::LONG_PRESS);
-        let Some(label) = node.label.as_deref() else {
-            continue;
-        };
-        if clipped[i].is_none() || !pressable || absorbed_by[i].is_some() {
+        if clipped[i].is_none() || !tappable(i) || absorbed_by[i].is_some() {
             continue;
         }
+        let wrapper = matches!(node.role, Role::Cell | Role::Other);
         let mut stack: Vec<usize> = children[i].clone();
-        let mut twin = None;
+        let mut twins = Vec::new();
         while let Some(d) = stack.pop() {
             let child = &tree.nodes[d];
+            let same = match &node.label {
+                Some(label) => child.label.as_ref() == Some(label),
+                None => child.label.is_some() && child.flags.contains(NodeFlags::ENABLED),
+            };
             if child.role == Role::Button
-                && child.actions.intersects(Actions::TAP | Actions::LONG_PRESS)
-                && child.label.as_deref() == Some(label)
+                && tappable(d)
+                && same
                 && clipped[d].is_some()
                 && absorbed_by[d].is_none()
             {
-                twin = Some(d);
-                break;
+                twins.push(d);
             }
             stack.extend(&children[d]);
         }
-        let Some(d) = twin else { continue };
-        if matches!(node.role, Role::Cell | Role::Other) {
-            dissolved[i] = true;
-        } else {
-            absorbed_by[d] = Some(i);
+        let plain_wrapper = node.label.is_some() || merged[i].is_empty();
+        match twins.as_slice() {
+            [_] if wrapper && plain_wrapper => dissolved[i] = true,
+            [d] if node.label.is_some() => absorbed_by[*d] = Some(i),
+            _ => {}
         }
     }
 
@@ -182,6 +187,7 @@ pub fn prune(tree: &RawTree) -> Vec<Node> {
             || node.role.is_text_entry()
             || node.role == Role::ProgressIndicator
             || node.role == Role::Keyboard
+            || (node.role == Role::WebView && children[i].is_empty())
             || scrollable;
         if !keep {
             continue;
@@ -563,5 +569,58 @@ mod tests {
         ]}"#;
         let nodes = prune(&RawTree::from_android_json(json, Scale { density: 1.0 }).unwrap());
         assert_eq!(nodes.len(), 2);
+    }
+
+    #[test]
+    fn an_unlabeled_ios_cell_around_one_enabled_button_is_that_button() {
+        let json = r#"{"app":{"bundle_id":"x","pid":1},"nodes":[
+            {"p":-1,"cls":"XCUIElementTypeOther","b":[0,0,400,800],"f":"vVe"},
+            {"p":0,"cls":"XCUIElementTypeTable","b":[0,0,400,800],"f":"vVeS","a":["scroll_down"]},
+            {"p":1,"cls":"XCUIElementTypeCell","a":["tap"],"b":[0,100,400,150],"f":"vVe"},
+            {"p":2,"cls":"XCUIElementTypeButton","text":"General","a":["tap"],"b":[0,100,350,150],"f":"vVe"},
+            {"p":3,"cls":"XCUIElementTypeStaticText","text":"General","b":[16,110,100,140],"f":"vVe"},
+            {"p":2,"cls":"XCUIElementTypeButton","text":"chevron","a":["tap"],"b":[360,110,380,140],"f":"vV"}
+        ]}"#;
+        let nodes = prune(&RawTree::from_ios_json(json).unwrap());
+        let shown = labels_and_roles(&nodes);
+        assert!(!shown.iter().any(|(r, _)| *r == Role::Cell), "{shown:?}");
+        assert_eq!(
+            shown.iter().filter(|(_, l)| l == "General").count(),
+            1,
+            "{shown:?}"
+        );
+    }
+
+    #[test]
+    fn a_cell_with_two_enabled_buttons_or_with_its_own_text_stays() {
+        let two = r#"{"app":{"bundle_id":"x","pid":1},"nodes":[
+            {"p":-1,"cls":"XCUIElementTypeTable","b":[0,0,400,800],"f":"vVeS","a":["scroll_down"]},
+            {"p":0,"cls":"XCUIElementTypeCell","a":["tap"],"b":[0,100,400,150],"f":"vVe"},
+            {"p":1,"cls":"XCUIElementTypeButton","text":"Reply","a":["tap"],"b":[0,100,100,150],"f":"vVe"},
+            {"p":1,"cls":"XCUIElementTypeButton","text":"Delete","a":["tap"],"b":[200,100,300,150],"f":"vVe"}
+        ]}"#;
+        let nodes = prune(&RawTree::from_ios_json(two).unwrap());
+        assert!(nodes.iter().any(|n| n.role == Role::Cell));
+        let text = r#"{"windows":[{"id":1,"type":"application","bounds":[0,0,400,800]}],"nodes":[
+            {"p":-1,"w":1,"cls":"android.view.ViewGroup","b":[0,100,400,150],"f":"vVe","a":["tap"]},
+            {"p":0,"w":1,"cls":"android.widget.TextView","text":"Backup is on","b":[0,100,200,150],"f":"vVe"},
+            {"p":0,"w":1,"cls":"android.widget.Button","text":"Turn off","b":[200,100,300,150],"f":"vVe","a":["tap"]}
+        ]}"#;
+        let nodes = prune(&RawTree::from_android_json(text, Scale { density: 1.0 }).unwrap());
+        assert_eq!(nodes.len(), 2, "{:?}", labels_and_roles(&nodes));
+        assert_eq!(nodes[0].label.as_deref(), Some("Backup is on"));
+    }
+
+    #[test]
+    fn an_unlabeled_android_wrapper_around_one_button_is_that_button() {
+        let json = r#"{"windows":[{"id":1,"type":"application","bounds":[0,0,400,800]}],"nodes":[
+            {"p":-1,"w":1,"cls":"android.view.ViewGroup","b":[0,100,400,150],"f":"vVe","a":["tap"]},
+            {"p":0,"w":1,"cls":"android.widget.Button","text":"Buy","b":[0,100,400,150],"f":"vVe","a":["tap"]}
+        ]}"#;
+        let nodes = prune(&RawTree::from_android_json(json, Scale { density: 1.0 }).unwrap());
+        assert_eq!(
+            labels_and_roles(&nodes),
+            [(Role::Button, "Buy".to_string())]
+        );
     }
 }

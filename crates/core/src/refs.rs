@@ -111,6 +111,32 @@ impl RefTable {
             }
         }
 
+        for (i, n) in nodes.iter().enumerate() {
+            if out[i].is_some() {
+                continue;
+            }
+            let center = n.bounds.center();
+            let best = self
+                .last
+                .iter()
+                .enumerate()
+                .filter(|(j, s)| {
+                    !claimed.contains(j)
+                        && (s.key.role, &s.key.id, &s.key.label)
+                            == (keys[i].role, &keys[i].id, &keys[i].label)
+                })
+                .min_by(|(_, a), (_, b)| {
+                    a.center
+                        .distance(center)
+                        .total_cmp(&b.center.distance(center))
+                })
+                .map(|(j, _)| j);
+            if let Some(j) = best {
+                claimed.insert(j);
+                out[i] = Some(self.last[j].r);
+            }
+        }
+
         let unique = |ids: &mut dyn Iterator<Item = Option<&String>>| {
             let mut count: HashMap<String, usize> = HashMap::new();
             for id in ids.flatten() {
@@ -416,5 +442,64 @@ mod tests {
                 prev = next_prev;
             }
         }
+    }
+
+    #[test]
+    fn an_element_keeps_its_ref_when_a_wrapper_group_appears_around_it() {
+        let screen = |wrapped: bool| {
+            let (field_parent, group) = if wrapped {
+                (
+                    1,
+                    r#",{"p":0,"cls":"XCUIElementTypeOther","text":"Toolbar","b":[0,700,400,800],"f":"vVe"}"#,
+                )
+            } else {
+                (0, "")
+            };
+            RawTree::from_ios_json(&format!(
+                r#"{{"app":{{"bundle_id":"x","pid":1}},"nodes":[
+                {{"p":-1,"cls":"XCUIElementTypeOther","b":[0,0,400,800],"f":"vVe"}}{group},
+                {{"p":{field_parent},"cls":"XCUIElementTypeSearchField","text":"Search","a":["tap"],"b":[10,730,390,780],"f":"vVe"}},
+                {{"p":0,"cls":"XCUIElementTypeButton","text":"Settings","a":["tap"],"b":[0,0,100,40],"f":"vVe"}}]}}"#
+            ))
+            .unwrap()
+        };
+        let mut t = RefTable::default();
+        let before = assign_labels(&mut t, &screen(false));
+        let after = assign_labels(&mut t, &screen(true));
+        let of = |v: &[(String, Ref)], label: &str| v.iter().find(|(l, _)| l == label).unwrap().1;
+        assert_eq!(of(&after, "Search"), of(&before, "Search"));
+        assert_eq!(of(&after, "Settings"), of(&before, "Settings"));
+        assert!(before.iter().all(|(_, r)| *r != of(&after, "Toolbar")));
+    }
+
+    #[test]
+    fn two_same_label_elements_do_not_trade_refs_when_a_wrapper_appears() {
+        let screen = |wrapped: bool| {
+            let (parent, group) = if wrapped {
+                (
+                    1,
+                    r#",{"p":0,"cls":"XCUIElementTypeOther","text":"Box","b":[0,0,400,800],"f":"vVe"}"#,
+                )
+            } else {
+                (0, "")
+            };
+            RawTree::from_ios_json(&format!(
+                r#"{{"app":{{"bundle_id":"x","pid":1}},"nodes":[
+                {{"p":-1,"cls":"XCUIElementTypeOther","b":[0,0,400,800],"f":"vVe"}}{group},
+                {{"p":{parent},"cls":"XCUIElementTypeButton","text":"Edit","a":["tap"],"b":[0,100,100,140],"f":"vVe"}},
+                {{"p":{parent},"cls":"XCUIElementTypeButton","text":"Edit","a":["tap"],"b":[0,300,100,340],"f":"vVe"}}]}}"#
+            ))
+            .unwrap()
+        };
+        let mut t = RefTable::default();
+        let before = assign_labels(&mut t, &screen(false));
+        let after = assign_labels(&mut t, &screen(true));
+        let edits = |v: &[(String, Ref)]| -> Vec<Ref> {
+            v.iter()
+                .filter(|(l, _)| l == "Edit")
+                .map(|(_, r)| *r)
+                .collect()
+        };
+        assert_eq!(edits(&after), edits(&before));
     }
 }
