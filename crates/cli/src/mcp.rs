@@ -266,7 +266,7 @@ impl Mcp {
     }
 
     #[tool(
-        description = "Tap an element by @ref, by its text, or at x,y points. Returns what changed once the screen settled. Prefer refs; use points only from a screenshot."
+        description = "Tap an element by @ref, by its text, or at x,y points. Returns what changed once the screen settled. Prefer refs; use points only from a screenshot. One call at a time."
     )]
     async fn tap(&self, Parameters(a): Parameters<TapArgs>) -> CallToolResult {
         let verb = Verb::Tap {
@@ -280,7 +280,7 @@ impl Mcp {
 
     #[tool(
         name = "type",
-        description = "Type text into a field and report whether the field now holds it. Set secret for passwords and codes; only type those when the user gave them for this task."
+        description = "Type text into a field and report whether the field now holds it. Set secret for passwords and codes; only type those when the user gave them for this task. One call at a time."
     )]
     async fn r#type(&self, Parameters(a): Parameters<TypeArgs>) -> CallToolResult {
         let secret = a.secret.unwrap_or(false);
@@ -295,7 +295,7 @@ impl Mcp {
     }
 
     #[tool(
-        description = "Drag one finger across the screen the way a user swipes: to flip pages, pull down, dismiss. To read more of a list use scroll instead."
+        description = "Drag one finger across the screen the way a user swipes: to flip pages, pull down, dismiss. To read more of a list use scroll instead. One call at a time."
     )]
     async fn swipe(&self, Parameters(a): Parameters<SwipeArgs>) -> CallToolResult {
         let verb = Verb::Swipe {
@@ -308,7 +308,7 @@ impl Mcp {
     }
 
     #[tool(
-        description = "Scroll a list so more content shows in the direction, or until the text or @ref in `until` is on screen. It never flings past a target."
+        description = "Scroll a list so more content shows in the direction, or until the text or @ref in `until` is on screen. It never flings past a target. One call at a time."
     )]
     async fn scroll(&self, Parameters(a): Parameters<ScrollArgs>) -> CallToolResult {
         let verb = Verb::Scroll {
@@ -321,14 +321,14 @@ impl Mcp {
     }
 
     #[tool(
-        description = "Press a button: home, back, recents, notifications, lock, volume-up, volume-down or enter. Returns what changed once the screen settled."
+        description = "Press a button: home, back, recents, notifications, lock, volume-up, volume-down or enter. Returns what changed once the screen settled. One call at a time."
     )]
     async fn press(&self, Parameters(a): Parameters<PressArgs>) -> CallToolResult {
         self.run(a.device, Verb::Press { key: a.key }, None).await
     }
 
     #[tool(
-        description = "Open an app by name, package or bundle id (`app`), or open a web link or deep link (`url`) in the app that handles it. Returns the first screen."
+        description = "Open an app by name, package or bundle id (`app`), or open a web link or deep link (`url`) in the app that handles it. Returns the first screen. One call at a time."
     )]
     async fn launch(&self, Parameters(a): Parameters<LaunchArgs>) -> CallToolResult {
         let verb = match (a.app, a.url) {
@@ -354,15 +354,20 @@ impl Mcp {
 
 #[tool_handler(
     name = "phone-use",
-    instructions = "Operate a phone or tablet. Start with `snapshot`, act on the @refs it prints, and read the lines each action returns: they say what changed once the screen settled. Use `wait` instead of sleeping. Use `screenshot` only when the snapshot lacks what you need."
+    instructions = "Operate a phone or tablet. Start with `snapshot`, act on the @refs it prints, and read the lines each action returns: they say what changed once the screen settled. Calls act on one shared screen: send one at a time and read each reply before the next. Use `wait` instead of sleeping. Use `screenshot` only when the snapshot lacks what you need."
 )]
 impl ServerHandler for Mcp {}
 
-pub fn run() -> ExitCode {
-    let Ok(rt) = tokio::runtime::Builder::new_multi_thread()
+/// The runtime the server runs on. rmcp starts one task per request in the order requests arrive; on one thread the
+/// tasks take the call lock in that order, so calls an agent sends together act in the order it sent them.
+pub fn server_runtime() -> std::io::Result<tokio::runtime::Runtime> {
+    tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
-    else {
+}
+
+pub fn run() -> ExitCode {
+    let Ok(rt) = server_runtime() else {
         eprintln!("error: cannot start the async runtime");
         return ExitCode::from(1);
     };

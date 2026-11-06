@@ -21,9 +21,13 @@ struct Rig {
 }
 
 async fn rig(trees: Vec<RawTree>) -> Rig {
+    rig_with(pixel_device(trees)).await
+}
+
+async fn rig_with(device: Arc<dyn phone_use_core::device::Device>) -> Rig {
     let home = tempfile::tempdir().unwrap();
     let daemon = Daemon::new(
-        Arc::new(OneDevice(pixel_device(trees))),
+        Arc::new(OneDevice(device)),
         Config {
             home: home.path().to_path_buf(),
         },
@@ -361,4 +365,55 @@ async fn a_cli_connection_closing_keeps_its_lease_because_every_cli_call_is_a_ne
     drop(c);
     tokio::time::sleep(std::time::Duration::from_millis(200)).await;
     assert_eq!(leased_by(&rig.socket).await, "keeper");
+}
+
+fn travel(call: &phone_use_core::testing::Call) -> f32 {
+    let phone_use_core::testing::Call::Gesture(g) = call else {
+        panic!("{call:?}")
+    };
+    let path = &g.fingers[0];
+    (path[0].at.y - path[path.len() - 1].at.y).abs()
+}
+
+#[test]
+fn calls_sent_together_run_one_at_a_time_in_the_order_they_were_sent() {
+    for _ in 0..5 {
+        let rt = phone_use::mcp::server_runtime().unwrap();
+        rt.block_on(async {
+            let fake = Arc::new(phone_use_core::testing::FakeDevice::new(vec![tree(&[
+                "One",
+            ])]));
+            let rig = rig_with(fake.clone()).await;
+            let swipe = |d: f64| rig.call("swipe", json!({"direction": "up", "distance": d}));
+            let (a, b, c, d) = tokio::join!(swipe(0.1), swipe(0.2), swipe(0.3), swipe(0.4));
+            for r in [a, b, c, d] {
+                assert_ne!(r.is_error, Some(true), "{r:?}");
+            }
+            let spans: Vec<f32> = fake.calls().iter().map(travel).collect();
+            assert_eq!(spans.len(), 4);
+            assert!(spans.windows(2).all(|w| w[0] < w[1]), "{spans:?}");
+        });
+    }
+}
+
+#[tokio::test]
+async fn the_server_tells_the_agent_that_calls_share_one_screen() {
+    let rig = rig(vec![tree(&["One"])]).await;
+    let info = rig.client.peer_info().unwrap();
+    let text = info.instructions.clone().unwrap_or_default();
+    assert!(
+        text.contains("one at a time") && text.contains("shared screen"),
+        "{text}"
+    );
+    let tools = rig.client.list_all_tools().await.unwrap();
+    for name in ["tap", "type", "swipe", "scroll", "press", "launch"] {
+        let t = tools.iter().find(|t| t.name == name).unwrap();
+        assert!(
+            t.description
+                .as_deref()
+                .unwrap_or_default()
+                .contains("One call at a time"),
+            "{name}"
+        );
+    }
 }
