@@ -8,21 +8,16 @@
 <p align="center"><b>One Rust binary. Your agent reads an Android or iOS screen as text, taps a ref, and gets back what changed.</b></p>
 
 <p align="center">
-  <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-FFD400?style=flat-square&labelColor=0B0B0C"></a>
-  <img alt="Rust 1.99 or later" src="https://img.shields.io/badge/rust-1.99%2B-FFD400?style=flat-square&labelColor=0B0B0C">
-  <img alt="Tested on Android emulators and the iOS Simulator" src="https://img.shields.io/badge/tested-android%20%7C%20ios%20simulator-FFD400?style=flat-square&labelColor=0B0B0C">
+  <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-6b675e?style=flat-square&labelColor=161512"></a>
+  <img alt="Rust 1.99 or later" src="https://img.shields.io/badge/rust-1.99%2B-6b675e?style=flat-square&labelColor=161512">
+  <img alt="Tested on Android emulators and the iOS Simulator" src="https://img.shields.io/badge/tested-android%20%7C%20ios%20simulator-6b675e?style=flat-square&labelColor=161512">
 </p>
 
 <p align="center">
   <a href="docs/architecture.md">Architecture</a> · <a href="docs/decisions.md">Decisions</a> · <a href="docs/protocol.md">Protocol</a> · <a href="docs/bench">Benchmarks</a> · <a href="progress.md">Progress</a>
 </p>
 
-<p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset=".github/assets/divider-dark.svg">
-    <img alt="" src=".github/assets/divider-light.svg" width="100%">
-  </picture>
-</p>
+<hr>
 
 phone-use lets an AI agent see and operate Android and iOS devices through a CLI or an MCP server. A daemon keeps the device connection open, so each call costs milliseconds. Every action waits for the screen to settle and returns the lines that changed. The agent does not poll or sleep.
 
@@ -189,11 +184,11 @@ Tests that need a device are ignored by default. Set `PHONE_USE_TEST_DEVICE` (fo
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset=".github/assets/brand-dark.svg">
-    <img alt="Brand sheet: the lockups, the mark, the colours ink, bone and contact yellow, and the two typefaces Big Shoulders Display and JetBrains Mono." src=".github/assets/brand-light.svg" width="100%">
+    <img alt="Brand sheet: the lockup, the mark at 16, 32, 64 and 128 pixels, ten Sodium colour tokens, and the two typefaces Inter Display and Commit Mono." src=".github/assets/brand-light.svg" width="100%">
   </picture>
 </p>
 
-The mark is a phone slab with a square punched through it. The punch is the tap, and it is the only yellow on a surface. Corners are cut at 45 degrees, top right and bottom left, never rounded. Headings are Big Shoulders Display Black in capitals; code and labels are JetBrains Mono. [`.github/assets/mark.svg`](.github/assets/mark.svg) is the app icon. [`design/brand/`](design/brand) holds the logo files and [`design/brand.md`](design/brand.md) the rules. [`design/logo-variants.md`](design/logo-variants.md) shows the eight directions that were explored and why this one won. Text in the images is converted to outlines; both fonts are under the SIL Open Font License 1.1 (see [`NOTICE`](NOTICE)).
+The brand is built on the [Sodium](https://design.how/systems/sodium) design system: square corners, 1px rules, one weight, and one yellow. The mark is a phone frame drawn in rule weight with one row on the selection yellow, the ref that was tapped. Names and sentences are Inter Display 400; refs, code and labels in capitals are Commit Mono 400. [`design/logo/`](design/logo) holds the logo and favicon files, [`design/brand.md`](design/brand.md) the rules, and `python3 design/build/build.py` rebuilds every image. Text in the images is converted to outlines; both fonts are under the SIL Open Font License 1.1, and Sodium is MIT licensed (see [`NOTICE`](NOTICE)).
 
 </details>
 
