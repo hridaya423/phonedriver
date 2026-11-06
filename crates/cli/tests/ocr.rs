@@ -148,3 +148,19 @@ fn a_frame_of_412_by_915_takes_under_120_ms_at_the_median() {
     );
     assert!(ms[15] < 120.0, "p50 {:.1} ms", ms[15]);
 }
+
+#[test]
+fn a_screenshot_vision_cannot_read_is_unsupported_and_points_to_screenshot() {
+    let e = recognize(b"not a png", Size { w: 100.0, h: 100.0 }).unwrap_err();
+    assert!(
+        matches!(
+            e,
+            phone_use_core::error::Error::Unsupported {
+                op: phone_use_core::error::Op::Ocr,
+                ..
+            }
+        ),
+        "{e:?}"
+    );
+    assert!(e.hint().contains("screenshot"), "{}", e.hint());
+}

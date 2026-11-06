@@ -1198,12 +1198,34 @@ async fn launching_a_misspelled_app_is_not_found_and_names_the_close_app() {
         act_with(json!({"kind": "launch", "app": "Calculatr"})),
     )
     .await;
-    assert_eq!(e.code, -32007, "{e:?}");
+    assert_eq!(e.code, -32017, "{e:?}");
     assert!(
         e.data["similar"].to_string().contains("Calculator"),
         "{e:?}"
     );
     assert!(fake.calls().is_empty());
+}
+
+#[tokio::test(start_paused = true)]
+async fn launching_an_unknown_app_says_no_app_and_lists_apps_that_share_a_word() {
+    let (source, fake) = FakeSource::with(vec![tree(&["One"])]);
+    fake.install(&[
+        ("dev.phoneuse.testbed", "Testbed"),
+        ("com.apple.Preferences", "Settings"),
+    ]);
+    let (d, _home) = daemon(source);
+    let e = err(
+        &d,
+        "default",
+        "act",
+        act_with(json!({"kind": "launch", "app": "phone-use testbed"})),
+    )
+    .await;
+    assert_eq!(e.code, -32017, "{e:?}");
+    assert_eq!(e.message, "no app named \"phone-use testbed\"");
+    let hint = e.data["hint"].as_str().unwrap();
+    assert!(hint.contains("Testbed (dev.phoneuse.testbed)"), "{hint}");
+    assert!(!hint.contains("snapshot"), "{hint}");
 }
 
 #[tokio::test(start_paused = true)]

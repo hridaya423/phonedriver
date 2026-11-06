@@ -90,7 +90,7 @@ fn files(dir: &Path) -> Vec<PathBuf> {
 }
 
 #[tokio::test]
-async fn tools_list_is_the_ten_tools_with_short_descriptions_and_the_cli_required_arguments() {
+async fn tools_list_is_the_eleven_tools_with_short_descriptions_and_the_cli_required_arguments() {
     let rig = rig(vec![tree(&["One"])]).await;
     let tools = rig.client.list_all_tools().await.unwrap();
     let mut required: BTreeMap<String, Vec<String>> = BTreeMap::new();
@@ -111,6 +111,7 @@ async fn tools_list_is_the_ten_tools_with_short_descriptions_and_the_cli_require
         required.insert(t.name.to_string(), r);
     }
     let want: BTreeMap<String, Vec<String>> = [
+        ("apps", vec![]),
         ("devices", vec![]),
         ("snapshot", vec![]),
         ("screenshot", vec![]),
@@ -257,7 +258,14 @@ async fn an_error_is_is_error_with_the_message_and_the_hint() {
         .await
         .unwrap_err();
     let hint = want.hint().expect("stale_ref has a hint");
-    assert_eq!(texts(&r), vec![format!("{}\nhint: {hint}", want.message())]);
+    assert!(hint.contains("phone-use snapshot"));
+    assert_eq!(
+        texts(&r),
+        vec![format!(
+            "{}\nhint: Call `snapshot` for fresh refs.",
+            want.message()
+        )]
+    );
     assert!(texts(&r)[0].contains("e99"));
 }
 
@@ -415,5 +423,43 @@ async fn the_server_tells_the_agent_that_calls_share_one_screen() {
                 .contains("One call at a time"),
             "{name}"
         );
+    }
+}
+
+#[tokio::test]
+async fn apps_over_mcp_lists_the_launchable_apps_with_their_ids() {
+    let rig = rig(vec![tree(&["One"])]).await;
+    let r = rig.call("apps", json!({})).await;
+    assert_ne!(r.is_error, Some(true), "{r:?}");
+    assert!(
+        texts(&r)[0].is_empty() || texts(&r)[0].contains("  "),
+        "{r:?}"
+    );
+}
+
+#[tokio::test]
+async fn failures_and_hints_over_mcp_name_tools_and_arguments_not_cli_commands() {
+    let rig = rig(vec![tree(&["One"])]).await;
+    rig.call("snapshot", json!({})).await;
+    let mut seen = Vec::new();
+    seen.push(rig.call("tap", json!({"target": "@e99"})).await);
+    seen.push(rig.call("tap", json!({"target": "Nope"})).await);
+    seen.push(rig.call("press", json!({"key": "nope"})).await);
+    seen.push(
+        rig.call("scroll", json!({"direction": "down", "until": "Zebra"}))
+            .await,
+    );
+    seen.push(
+        rig.call("wait", json!({"condition": "Zebra", "timeout_ms": 100}))
+            .await,
+    );
+    for r in seen {
+        assert_eq!(r.is_error, Some(true), "{r:?}");
+        let text = texts(&r).join("\n");
+        assert!(
+            !text.contains("phone-use") && !text.contains(" --"),
+            "{text}"
+        );
+        assert!(text.contains("hint:"), "{text}");
     }
 }

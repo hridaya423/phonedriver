@@ -6,7 +6,6 @@
 #![cfg_attr(target_os = "macos", allow(unsafe_code))]
 
 use phone_use_core::error::Error;
-#[cfg(not(target_os = "macos"))]
 use phone_use_core::error::Op;
 use phone_use_core::geometry::Size;
 use phone_use_core::ocr::TextBox;
@@ -40,8 +39,9 @@ pub fn recognize(png: &[u8], screen: Size) -> Result<Vec<TextBox>, Error> {
         let requests = NSArray::from_retained_slice(&[request.clone().into_super().into_super()]);
         handler
             .performRequests_error(&requests)
-            .map_err(|e| Error::Transport {
-                detail: format!("Vision failed: {}", e.localizedDescription()),
+            .map_err(|_| Error::Unsupported {
+                op: Op::Ocr,
+                reason: "Apple Vision could not read this screenshot",
             })?;
         let Some(results) = request.results() else {
             return Ok(Vec::new());
