@@ -21,7 +21,7 @@ struct Tracked {
 pub struct AdbSource {
     adb: Adb,
     tracked: Arc<Mutex<Tracked>>,
-    os: Mutex<HashMap<(String, Option<u32>), String>>,
+    os: Mutex<HashMap<(String, Option<u32>), Option<String>>>,
 }
 
 impl AdbSource {
@@ -83,17 +83,15 @@ impl DeviceSource for AdbSource {
                 .get(&key)
                 .cloned();
             let os = match known {
-                Some(os) => Some(os),
-                None => match self.adb.os_label(&d.serial).await {
-                    Ok(os) => {
-                        self.os
-                            .lock()
-                            .unwrap_or_else(|e| e.into_inner())
-                            .insert(key, os.clone());
-                        Some(os)
-                    }
-                    Err(_) => None,
-                },
+                Some(os) => os,
+                None => {
+                    let os = self.adb.os_label(&d.serial).await.ok();
+                    self.os
+                        .lock()
+                        .unwrap_or_else(|e| e.into_inner())
+                        .insert(key, os.clone());
+                    os
+                }
             };
             listed.push(Listed {
                 id: format!("android:{}", d.serial),
