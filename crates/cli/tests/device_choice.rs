@@ -113,10 +113,11 @@ async fn a_bad_scroll_direction_says_the_valid_ones_not_that_the_daemon_is_old()
         )
         .await
         .unwrap_err();
-    for needle in ["scroll", "sideways", "up", "down", "left", "right"] {
+    for needle in ["scroll", "up", "down", "left", "right"] {
         assert!(e.message.contains(needle), "{needle} not in {}", e.message);
     }
     assert!(!e.message.contains("older"), "{}", e.message);
+    assert!(!e.message.contains("sideways"), "{}", e.message);
 }
 
 #[tokio::test]

@@ -393,8 +393,11 @@ fn act_error(e: &serde_json::Error, params: &Value) -> RpcError {
         && message.contains("expected one of")
         && kind.len() <= 32
     {
-        let detail = message.split(" at line").next().unwrap_or_default();
-        return RpcError::invalid_params(format!("the {kind} action is invalid: {detail}"));
+        let expected = message.split("expected one of").nth(1).unwrap_or_default();
+        return RpcError::invalid_params(format!(
+            "the {kind} action has a value that is not allowed; expected one of{}",
+            expected.split(" at line").next().unwrap_or_default()
+        ));
     }
     RpcError::invalid_params("the action is malformed")
 }
