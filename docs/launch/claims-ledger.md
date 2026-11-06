@@ -1,5 +1,7 @@
 # Claims ledger
 
+**Round 2 status.** Rows below that name the old demo are superseded: the demo is being re-recorded, and no draft now leads with or mentions how the old clip went. Rows about "no shell tool" are superseded by D21 (see Round 2 additions). Paths marked "on `main`" exist at `main` commit `c2297a1`, not in this worktree branch.
+
 Every factual claim in `show-hn.md`, `x.md` and `linkedin.md`, with the repo file that backs it. Paths are relative to the repo root. "Verify" marks a claim the repo supports only partly or that came through a summarizing fetch. Check each row against the repo at the launch commit before posting. Web claims are in `research.md`, with their URLs.
 
 ## Product
@@ -105,3 +107,27 @@ Every factual claim in `show-hn.md`, `x.md` and `linkedin.md`, with the repo fil
 | [TBD: re-run on a quiet machine] | `docs/bench/adb.md` "Not done". | HN, X |
 | [TBD: iOS hybrid tier] | CoreDevice is experimental and off by default. | HN, plan |
 | [TBD: shell tool] | D6 says none. The user named a shell tool as open. | HN, answer 5, plan |
+
+## Round 2 additions (paths on `main` at `c2297a1` unless noted)
+
+| Claim | Where used | Backing file |
+|---|---|---|
+| A `shell` verb and MCP tool exist. On Android it runs in the on-device agent over the open control stream. After a state-changing command it settles and returns the screen diff. A Simulator runs it through `simctl spawn`. A physical iPhone has no shell. | HN, X, Reddit | `docs/decisions.md` D21; `README.md` ("Shell"); `docs/bench/shell.md` |
+| A physical Android device refuses wipes and removing apps phone-use did not install unless `--force`. The guard is "a guard against slips, not a sandbox". Emulators and Simulators have no guard. | HN answer 5, Reddit variant 1 | `docs/decisions.md` D21 ("Safety") |
+| D6 says "never execute agent-written code" and D21 ships `shell` | HN decision 4, plan | `docs/decisions.md` D6 against D21 |
+| Fourteen MCP tools with `shell` | (not used in drafts) | `README.md` (on `main`) |
+| Token benchmark: phone-use 3 of 3 passed, 413,534 tokens, 45 calls; mobile-mcp 0 of 3 (environment failure), 537,300; phone-harness 3 of 3, 337,059; raw adb 2 of 3, 240,389. One run per cell, tablet emulator, shell tool not in the run. | HN, X reply 3, Reddit, LinkedIn | `docs/bench/tokens.md` (on `main`) |
+| Tap p50 33.7 to 35.9 ms on the API 37 emulator after the track-devices change, three interleaved runs of 100; the previous commit was 50.6 to 52.7 ms | HN, X, LinkedIn | `progress.md` ("Speedup 4", on `main`) |
+| Tap budget is 15 ms and is missed | HN, X | `docs/bench/m1.md`; `docs/decisions.md` D14 |
+| Hybrid iOS tier (CoreDevice input and frames, runner tree) is opt-in, unfinished and unproven on device | HN block 3 | `progress.md` on this branch (2026-11-06 hybrid entries); `README.md` (`PHONE_USE_IOS_TIER` row) |
+| `screenshot` can draw `@eN` marks for vision models | Reddit variant 2 | commit `3d52a9a` ("feat(screenshot): draw @eN marks on the screenshot for vision models") |
+| A `getChild` prefetch is cancelled unless `FLAG_PREFETCH_UNINTERRUPTIBLE` is also set; the fix cut a tree read from 78 to 103 ms to 41 to 46 ms | Reddit variant 3 | `docs/bench/m1.md` ("What limits each phone-use number") |
+| One `unsafe` module for a Windows handle list | Reddit variant 3 | `docs/bench/m1.md` ("Windows fixes", item 1) |
+| Internal wires are length-prefixed JSON; adb protocol spoken directly; resident daemon | Reddit variant 3 | `docs/decisions.md` D7, D11, D1 |
+| `claude mcp add phone-use -- <path> mcp` | Reddit variant 1 | `README.md` (Try it) |
+| Any client that starts a stdio MCP server can use it | Reddit variant 2 | `README.md` ("Use with other MCP clients"). No local-model run is in the repo. |
+| Snapshots are 183 to 822 tokens on measured screens; schemas about 2.6k tokens | HN, Reddit | `docs/audits/ax-audit.md`; `progress.md` (tools/list entries) |
+| mobile-mcp has 10.4k stars | HN answer 4 | `docs/research/competitors.md` section 1a (stars as displayed 2026-11-06) |
+| Name check: `phone-use` is taken on npm and as the GitHub organization `phone-use`; `tapdiff`, `phonewright`, `diffphone` are free on crates.io, npm, PyPI and as GitHub accounts | plan | Not in the repo. Registry and GitHub API checks of 2026-11-06 (`research.md`). |
+
+New number slots in round 2: [TBD: paired quiet-machine re-run including tap]; [TBD: token rerun with the shell tool and mobile-mcp on a local emulator]; [TBD: re-recorded demo]; [TBD: local-model result]; [TBD: iOS hybrid tier]. The old [TBD: shell tool] slot is closed: it shipped.

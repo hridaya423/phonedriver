@@ -169,3 +169,222 @@ Tone: "thrilled to announce" reads as a template (https://www.teamblind.com/post
 - No verified X alt-text rules or GIF autoplay behavior.
 - No primary data on posting time for X or LinkedIn.
 - Competitor facts used in `show-hn.md` come from `docs/research/competitors.md`, which says its fetches went through a summarizing tool. Re-open each competitor page before quoting it.
+
+---
+
+# Round 2: ranking mechanics per platform (2026-11-06)
+
+Round 1 above stays as the evidence for tone, examples and objections. This part reads each platform's ranking rules from the primary source where one exists. "Code" means a file the research read. "dang" means a Hacker News moderator comment. Anything marked unverified came from one secondary source.
+
+## Hacker News
+
+### Ranking
+
+| Fact | Source | Quality |
+|---|---|---|
+| Old Arc code: rank is `(points-1)^0.8 / (age_hours + 2)^1.8`. A story with no URL is multiplied by 0.4. "Lightweight" stories (image posts, listed domains) by 0.3. A story with more than 20 comments is scaled by `min(1, (points / comments)^2)`. Votes from suspected sockpuppets are subtracted. | https://github.com/wting/hackernews/blob/master/news.arc | Code, circa 2008. Shape of the formula, not today's constants. |
+| The current formula and constants are not public. The FAQ lists other factors: "user flags, anti-abuse software, software which demotes overheated discussions, account or site weighting, and moderator action." Karma does not raise rank. | https://news.ycombinator.com/newsfaq.html | Primary |
+| dang names three reasons a story drops: "user flags, the flamewar detector (a software penalty for discussions that usually aren't substantive), and a moderation downweight for not containing new information." | https://news.ycombinator.com/item?id=9965574 | Primary |
+| In 2013 a crawl saw the comment penalty active "for any post with more comments than upvotes and at least 40 comments". | https://www.righto.com/2013/11/how-hacker-news-ranking-really-works.html | Secondary |
+| Nobody has published a dataset that links first-hour votes to final rank. The numbers in marketing guides ("15 to 20 upvotes by 9:30", "30 to 50 in the first hour") show no data. | https://github.com/social-protocols/quality-news and the guides | Gap, unverified |
+| The #1 slot gets about 10.2% of all upvotes, rank 40 about 0.4%. | https://github.com/social-protocols/quality-news | Secondary |
+
+What this means: the age term is steep. A post loses value fast, so the first hours decide the result. A discussion with many more comments than points trips the flamewar penalty. A thread of questions and calm answers does not.
+
+### Flags and the voting-ring detector
+
+| Fact | Source |
+|---|---|
+| Old code: a story is killed at more than 7 flags. The flag link needs karma above 30 (dang today: "a small karma threshold (31)"). The flag weights and ratio rule today are not public. | news.arc; https://news.ycombinator.com/item?id=11040183 |
+| "It's a cumulative effect of individual user flags. When this happens to an active discussion, we typically unkill the post so the discussion can continue." | https://news.ycombinator.com/item?id=9742055 |
+| dang, 2026-03-20: "Obviously we don't publish how HN's voting ring detector works... it's a software penalty that has nothing to do with the content of a story." | https://news.ycombinator.com/item?id=47458525 |
+| Moderators learn about vote requests from tips: "if someone is asking for HN upvotes on Twitter, we sometimes get links from eagle-eyed HNers." | https://news.ycombinator.com/item?id=24789805 |
+| dang, 2025-10-26: friends who create new accounts to upvote are "naive", and software already catches them. An organized hidden ring is "an obvious ban". | https://news.ycombinator.com/item?id=45709215 |
+| "Don't ask for upvotes. Our software ignores most promo-votes." | https://news.ycombinator.com/item?id=14841231 |
+| The FAQ: "We penalize or ban submissions, accounts, and sites that break this rule." | https://news.ycombinator.com/newsfaq.html |
+
+The research found no dang quote on IP clustering or on direct `item?id=` links. Both are plausible and undocumented. The safe rule: never post the HN thread link anywhere, and never ask a person to vote.
+
+### /shownew, the Show HN limit, the second-chance pool
+
+| Fact | Source |
+|---|---|
+| "All Show HNs appear on newest and shownew, but there is a small points threshold before a post makes it to ask or show." The threshold is not published. On 2026-11-06 the research counted about 5 new Show HNs per hour on `/shownew`. | https://news.ycombinator.com/newsfaq.html ; own fetch |
+| 2026: "We're temporarily restricting Show HNs because of a massive influx, mostly by users who aren't yet familiar with the site or its culture." dang: "we want people to be genuine community members, which is not a checklist process." A new account should expect this. | https://news.ycombinator.com/showlim ; https://news.ycombinator.com/item?id=47389960 |
+| Second-chance pool: moderators and reviewers pick old submissions, and software "randomly picks one every so often and lobs it randomly onto the lower part of the front page." To ask for it, email hn@ycombinator.com. Put an email in your profile for repost invites. | https://news.ycombinator.com/item?id=26998308 ; https://news.ycombinator.com/item?id=43824814 |
+| Reposts: "Please don't delete and repost the same story." Repost only if "significantly different", once or twice a year. | https://news.ycombinator.com/newsfaq.html ; https://news.ycombinator.com/item?id=22336638 |
+
+### Timing, from data
+
+Own computation: 11,542 Show HNs from 2026-08-06 to 2026-11-04 (Algolia, 3-hour windows, deduplicated). Overall 4.6% reached 20 points and 1.5% reached 100. Points are final scores, so these rates say nothing about speed of climb.
+
+| UTC hour | Posts | % reaching 20+ | Note |
+|---|---|---|---|
+| 00 | 242 | 9.1 | Sunday 7 pm ET in winter. Few posts, best rate. |
+| 23 | 294 | 8.2 | |
+| 13 to 17 | 700 to 950 each | 5.5 to 6.1 | Peak volume, middling rate. |
+| 08 | 369 | 1.9 | Worst. |
+
+By weekday (UTC): Monday 5.6%, Friday 5.0%, Thursday 4.8%, Tuesday 4.7%, Sunday 4.5%, Wednesday 4.0%, Saturday 3.4%. The weekday differences are small. Hour buckets with 100+ points hold 3 to 25 posts, so they are noisy.
+
+Published studies agree on the low-competition window: Dan King (188k posts) finds Monday 00:00 UTC best (10.8% reach 50+ points) and Thursday 06:00 UTC worst (2.6%); Myriade finds Sunday best (11.75% reach 30+ votes) and 12:00 UTC the best hour; Chanind (2019) found Sunday 06:00 UTC about 2.5 times likelier than Wednesday 09:00 UTC. Sources in round 1, plus https://chanind.github.io/2019/05/07/best-time-to-submit-to-hacker-news.html.
+
+Reading: three datasets and the own computation point to Monday 00:00 UTC (Sunday 7 pm ET, 4 pm PT). Midday weekday posts have the most readers and the most competition.
+
+### Titles, first comment, AI text
+
+Own cut of the same 11,542 posts (correlation only, no controls). Share reaching 20+ points, with the feature and without:
+
+| Title feature | With | Without |
+|---|---|---|
+| Contains a digit | 5.9% | 4.4% |
+| "open source" or "OSS" | 7.0% | 4.5% |
+| AI, LLM, agent, GPT or Claude | 3.5% | 5.1% |
+| "Rust" | 6.7% | 4.6% |
+| Length over 70 characters | 3.9% | 4.7% |
+| Length 40 or under | 5.5% | 4.5% |
+
+AI and agent titles do worse than average in this sample, and "Rust" and "open source" do better. A roughly 100k-post analysis found no link between title length and score (https://hn-ph.vercel.app/analysis). Treat all of these as weak.
+
+dang on titles: "accurate and neutral"; baity titles get rewritten (https://news.ycombinator.com/item?id=8489914). On the first comment: "Include text giving the backstory of how you came to work on this, and explaining what's different about it" and "Don't say nice things about yourself or your work. It invites comeuppance" (https://news.ycombinator.com/item?id=22336638 and https://news.ycombinator.com/item?id=14841231). No dataset shows the first comment moves rank.
+
+AI text, exact wording (https://news.ycombinator.com/newsguidelines.html): "Please don't put generated text in HN posts. Write your text yourself" and "Don't post generated text or AI-edited text." dang, 2026-03-11: "we're banning accounts that break it" (https://news.ycombinator.com/item?id=47331381). Detection is by user reports and moderator judgment (https://news.ycombinator.com/item?id=48228318). Readers name "Claude-speak", em-dash chains and generic headings as tells (replies on https://news.ycombinator.com/genai-pushback). The README the post links to counts too, in the community's eyes (https://news.ycombinator.com/item?id=47213630).
+
+## X
+
+All code citations are from the 2026-11-06 clone of https://github.com/xai-org/x-algorithm and the 2023 repo https://github.com/twitter/the-algorithm.
+
+### Scoring
+
+Final score is the sum of weight times predicted probability of each action (README, "Scoring and Ranking"; `xai-value-model/scoring.rs`). The weights are published in `home-mixer/params/param.rs`.
+
+| Action | Weight (2026 default) | Line |
+|---|---|---|
+| Reply | 5.0 (plus 15.0 on an original post by a mutual follow) | 410, 412 to 416 |
+| Quote | 5.0 | 459 |
+| Share via copy link | 20.0 | 453 |
+| Share via DM | 5.0 | 447 |
+| Follow author | 4.0 | 473 |
+| Repost | 1.0 | 423 |
+| Like | 0.708 | about 404 |
+| Click dwell time | 0.385 | 503 |
+| Click | 0.274 | 436 |
+| Open link | 0.2 | 437 |
+| Profile click, video open, video quality view | 0.0 | 439, 431, 444 |
+| Not interested, block, mute, report | -53.07, -31.2, -58.8, -234.0 | 510 to 527 |
+
+- The 2023 weights (like 0.5, retweet 1.0, reply 13.5, reply the author answers 75.0, negative feedback -74.0, report -369.0) are in https://github.com/twitter/the-algorithm-ml/blob/main/projects/home/recap/README.md. The "reply the author answers" head is gone from the 2026 list.
+- The mutual-follow boost is documented in `docs/BIDIRECTIONAL_BOOST_CHANGE.md` (A/B test 2026-07-10, rolled out at 20 on 2026-07-13, cut to 15 on 2026-07-24). Nikita Bier announced it: "We're rolling out a small tweak to boost visibility of your posts to your mutuals" (https://x.com/nikitabier/status/2076747704248758617).
+- Video quality view counts only for videos over 10 seconds and has weight 0 (`MinVideoDurationMs` = 10,000). Video value flows through dwell and continuation signals, whose weights the research did not find.
+- Premium: the 2023 code had a 4x in-network and 2x out-of-network multiplier for blue-verified authors (`HomeGlobalParams.scala:89-103`). The 2026 release has none the research could find.
+
+### Reach
+
+- Cold start (`home-mixer/scorers/author_cold_start.rs`, `param.rs` about 609 to 640): an original post from an author with 50,000 followers or fewer, at most 2 hours old, with fewer than 200 home impressions, can be lifted to about rank 15 in a feed. The pick uses Thompson sampling on likes per home view.
+- Out-of-network posts are scaled by 0.75 (`vm-ranker/params.rs` about 218 to 222). Replies and reposts from accounts the viewer does not follow are dropped (`OONRetweetReplyFilter`).
+- Author diversity: the second-ranked post from the same author in one batch keeps 0.625 of its score, the third 0.4375, the floor is 0.25 (`vm-ranker/params.rs:176-193`).
+- Age: posts older than 48 hours are dropped (`filters/age_filter.rs`). The research found no half-life constant. "6-hour half-life" claims are unverified.
+- Quality: the 2026 repo labels and drops posts from `EngagementSpammer` authors for non-followers and has an `llm_slop_post` label (`visibility-filtering/rules/author_rules.rs:260-265`). The size of any penalty on a single question post is not in the code.
+
+### Links
+
+- The 2026 scoring code has no link multiplier. `has_url` is only an input feature, and open-link has a small positive weight.
+- Bier, 2026-04-12: "Fake news. Link clicks are higher than they've ever been. Just post the link in the body of the post and provide sufficient context about what the user will see before they click it." (https://x.com/nikitabier/status/2043428612108644848, read through the syndication endpoint.)
+- Bier 2026-07-28 and Musk 2026-07-29 ("We haven't for over a year") are verified only through https://ppc.land/x-drops-year-old-link-penalty-musk-tells-zuckerberg-on-platform/. The status IDs were not found.
+
+### What the research could not find
+
+No effect for tagging, pinned posts, delete and repost, aspect ratio, caption or first frame, or posting time exists in the 2026 code. All advice on them is unverified.
+
+### Dev-tool launch posts, read through the syndication endpoint
+
+| Post | Media | Likes / replies | Link |
+|---|---|---|---|
+| @vercel_dev, 2026-08-18: "Introducing fx, a tiny, open, native coding agent from Vercel Labs... Today, we're open sourcing it." | 11 s video | 2,830 / 187 | https://x.com/vercel_dev/status/2089828083415355806 |
+| @cursor_ai, 2025-09-29: "Cursor can now control your browser." | 30 s video | 6,162 / 241 | https://x.com/cursor_ai/status/1972778817854067188 |
+| @charliermarsh, 2025-05-13: "...the preview release of ty, an extremely fast type checker... written in Rust... 10x, 50x, even 100x faster" | image | 4,845 / 120 | https://x.com/charliermarsh/status/1922333022658978089 |
+| @mitchellh, 2026-10-27: "Ghostty 1.4 is now out!" with link in the body | none | 4,956 / 132 | https://x.com/mitchellh/status/2115124583170974193 |
+| @jarredsumner, 2026-05-09: "99.8% of bun's pre-existing test suite passes on Linux x64 glibc in the rust rewrite" | image | 3,411 / 126 | https://x.com/jarredsumner/status/2053047748191232310 |
+| @badlogicgames, 2026-02-02: "Tired: mac mini + clawdbot / Wired: anfroid + termux + pi" (an adb-driven phone agent) | 37 s portrait phone video | 378 / 28 | https://x.com/badlogicgames/status/2018200939979526335 |
+| @JPoehnelt, 2026-06-23: "Two months ago I was fired by Google for creating the Google Workspace CLI. It went viral, hit #1 on Hacker News..." | image | 14,718 / 600 | https://x.com/JPoehnelt/status/2069482265953087602 |
+
+Most are large accounts. The adb phone agent post is the nearest match in size and subject. Posts with the link in the body (Ghostty) show no sign of a penalty.
+
+## Reddit
+
+The research could not read live Reddit pages. It used mirrors and news coverage. Verify every rule in a browser before posting.
+
+### Ranking and spam rules
+
+- Hot rank (archived code, https://github.com/reddit-archive/reddit/blob/master/r2/r2/lib/db/_sorts.pyx): `sign * log10(max(|ups - downs|, 1)) + (post_time - 1134028003) / 45000`. 45,000 seconds is 12.5 hours. Ten times the net score equals 12.5 hours of age. The first 10 net votes weigh as much as the next 90. The live system may differ.
+- Comments sort by the Wilson lower bound at 80% confidence (same file).
+- Vote fuzzing exists (https://techcrunch.com/2016/12/06/reddit-overhauls-upvote-algorithm-to-thwart-cheaters-and-show-the-sites-true-scale/amp/).
+- The old "10% self-promotion" guideline is disputed as official, and many subreddits copy it (https://redship.io/blog/reddit-self-promotion-rules-2026). Subreddit rules are stricter than site rules.
+- Filters: brand-new accounts that post repository links, the same link in many subreddits, and coordinated voting get removed (secondary guides, unverified).
+- r/LocalLLaMA added minimum-karma AutoModerator rules around April 2026 (https://reddit.sentinel-team.org/posts/1t1a3j7/snapshots/2026-05-02T03%3A06%3A21.60641Z). The thresholds were not retrieved.
+
+### Subreddits
+
+| Subreddit | What the research found | Fit |
+|---|---|---|
+| r/opensource | Moderators announced on about 2026-10-24 that projects that "use AI, are made by AI, or are intended for AI" are barred. They also require a project at least a year old, 3 or more contributors, and an account at least a year old. Asking for an exception is a permanent ban. (https://helpnetsecurity.com/2026/10/26/reddit-r-opensource-ai-ban) | Do not post |
+| r/programming | An LLM-content ban trial began 2026-04-01. Current rule not read. (https://dev.to/pickuma/rprogramming-banned-ai-content-for-a-month-heres-what-the-trial-actually-showed-44k0) | Do not post |
+| r/MachineLearning, r/Android, r/ios | Research or consumer audiences, not tooling. | Do not post |
+| r/ClaudeAI | A mod bot comments on project posts without the project flair and warns of removal. The best audience: Claude Code users. | Post |
+| r/LocalLLaMA | Highest-reach audience for phone agents (DroidRun's post showed about 777 upvotes in a search snippet, unverified). Karma gates. Expect "why not a local model" comments. | Post, with a local-model angle |
+| r/rust | Extra scrutiny for commercial promotion. Open source passes. AI-assisted projects are accepted if the work is good. (rules page not read) | Post, if the Rust substance is the subject |
+| r/androiddev | Self-promotion is generally limited to a monthly Showcase thread. | Showcase thread only |
+| r/iOSProgramming | "App Saturday" limits promotion. | Optional, Saturday only |
+| r/selfhosted | Projects under 3 months old only on "New Project Friday". Weak fit. | Skip |
+| r/mcp, r/ClaudeCode | Exist. Phone MCP posts in r/mcp got 7 to 28 points. Rules not read. | Optional, low reach |
+| r/SideProject | Low developer density. | Skip |
+
+### Comparable posts
+
+| Post | Result | What the comments asked |
+|---|---|---|
+| r/ClaudeAI, "Built a MCP server that lets Claude use your iPhone" (2026-03) | 180 points, 55 comments. Short body, a GitHub link, a linked demo video. | The demo was sped up 3 to 5 times (30 points). Safety of unattended use. Speed. "Does Apple allow this?" (https://reddit.sentinel-team.org/posts/1riryys/snapshots/2026-03-04T15%3A12%3A56.583662Z) |
+| r/LocalLLaMA, "[PokeClaw] First working app that uses Gemma 4 to autonomously control an Android phone. Fully on-device, no cloud." | 332 points, 173 comments. Feature list and changelog. | Safety, "vibecoded" distrust, install bugs. (https://reddit.sentinel-team.org/posts/1sdv3lo/snapshots/2026-04-09T16%3A11%3A00.655487Z) |
+| r/LocalLLaMA, "DroidRun: Enable AI agents to control Android" (2025-04) | About 777 upvotes (snippet). 900+ waitlist signups reported. | ADB-only? Local vision models? (search snippets only) |
+| r/mcp, "Allowing Claude Code to interact with Android Devices/Emulators through mcp" | 28 points, 6 comments. A results table with an honest failure, plus a video. | Speed, token cost. (https://reddit.sentinel-team.org/posts/1rxgg2y/snapshots/2026-03-19T14%3A17%3A04.930232Z) |
+| r/androiddev, "Control your Android phone with AI agents (Claude, Codex, Gemini, etc.)" | 0 points, 4 comments, a dead repo link. | "Anti-AI sentiment". (https://reddit.sentinel-team.org/posts/1r0irv7/snapshots/2026-02-10T01%3A19%3A44.439852Z) |
+| r/FlutterDev, "Open-sourced today: flutter-dev-agents" | 5 points. The author asked for stars. | Single maintainers get abandoned. (https://reddit.sentinel-team.org/posts/1tijsyw/snapshots/2026-05-21T16%3A25%3A18.436398Z) |
+
+The research found 3 posts that did well, not 12, and no confirmed removals. Patterns: a concrete first-person title naming the audience's tool ("Built a... that lets Claude..."), "no cloud" or "no ADB" qualifiers in the better ones, and a generic title ("Control your Android phone with AI agents") at 0 points. Recurring objections: safety and permissions, speed and tokens, "why not X", single maintainer, demo speed, "vibecoded". r/golang requires disclosure of AI use in linked projects (https://engineered.at/articles/r-golang-draws-a-line-on-ai-generated-projects, secondhand). Timing data per subreddit is weak; one vendor snippet puts the busiest developer-subreddit window at 14:00 to 17:00 UTC on Tuesday (https://mentionme.appspot.com/blog/best-time-to-post-on-reddit/, not opened).
+
+## LinkedIn
+
+### What LinkedIn says
+
+| Fact | Source |
+|---|---|
+| Retrieval is one LLM-embedding system. "LLM embeddings generalize beyond observed behavior", which helps "sparse content niches". Ranking reads more than 1,000 of a member's past interactions and predicts "long dwells, likes, comments, shares". No weights are published. New posts get embeddings in near real time, so fresh content can appear "within minutes, not hours". | https://www.linkedin.com/blog/engineering/feed/engineering-the-next-generation-of-linkedins-feed |
+| Dwell counts when "at least half of a feed update is visible". A skip-probability model lowers a post's score in proportion to the predicted chance of a skip. | https://www.linkedin.com/blog/engineering/feed/understanding-feed-dwell-time |
+| Engagement bait is demoted: "comment to agree" prompts, "videos that don't match the text", comment automation, engagement pods. "We want the Feed to be relevant to your interests, not a popularity contest." | https://news.linkedin.com/2026/ImprovingTheFeed |
+| "It's ok to ask for thoughts and feedback to encourage meaningful conversation." Asking for likes, shares or follows is discouraged. Posts that "solely attempt to promote or sell" are discouraged. | https://www.linkedin.com/blog/content-recommendations-avoid |
+| Hashtags: "between 1-3 hashtags per post". "Do not tack unnecessary hashtags to the end of posts, it may actually hurt your reach potential." | https://buffer.com/resources/what-really-works-on-linkedin-answers-from-the-linkedin-team/ |
+| The "golden hour" has no official definition. | https://contentin.io/glossary/golden-hour/ |
+| LinkedIn builds classifiers for generic AI posts and comments and reduces their reach; it does not delete them. | https://www.entrepreneur.com/business-news/linkedin-is-fighting-back-against-ai-slop-and-ai-comments |
+| Links: no official penalty statement. | https://www.tryordinal.com/blog/linkedin-link-penalty-study |
+
+Not found in any official source: weights for comments, saves or sends, how edits or reposts are treated, any rule for video length, captions or autoplay.
+
+### What the data says (third-party)
+
+- Length: in 248,275 posts (Ordinal), engagement rate was highest at 2,000 to 3,000 characters (1.33%), near that under 150 characters (1.22%), and weakest from 600 to 1,500 (0.81% to 1.06%). https://www.tryordinal.com/blog/linkedin-post-size
+- Format: in 1.3M business-page posts (Socialinsider), document 7.00%, multi-image 6.45%, video 6.00%, image 5.30%, text 4.50%, link 3.25%. Company pages, not personal profiles. https://www.socialinsider.io/blog/linkedin-content-strategy/
+- Links: Ordinal reports 26.5% less reach for posts with links, concentrated on company pages. LinkPost (358k posts, via Ordinal): median 448 impressions with a link against 705 without. First-comment links "stopped being free somewhere around 2024" and draw fewer clicks. https://www.tryordinal.com/blog/linkedin-link-penalty-study
+- Replies: Buffer says replying to comments can raise engagement by 30% (Buffer's own data, sample not shown). https://buffer.com/resources/linkedin-algorithm/
+- Time: weekday mornings, Tuesday to Thursday, with a weak effect (Buffer 4.8M posts, Sprout). A 1,836-post study found "no reliable best hour". https://postfa.st/blog/best-time-to-post-on-linkedin
+- Launch posts by engineers: the research found only modest examples. "We just open sourced X" posts drew 7 to 157 reactions. https://www.linkedin.com/in/edward-moscardini-50974439/
+
+## Name availability (checked 2026-11-06)
+
+| Name | crates.io | npm | PyPI | GitHub account | GitHub repos with this name |
+|---|---|---|---|---|---|
+| phone-use | free | taken | free | taken (organization `phone-use`) | 794 results, including `sauravtom/phone-use` (6 stars, MIT) |
+| tapdiff | free | free | free | free | 2, both under 2 stars |
+| phonewright | free | free | free | free | 1, 0 stars |
+| diffphone | free | free | free | free | 0 |
+
+Also checked and free on all four registries and accounts: deviceuse, glanceuse. Taken or crowded: fingertip, handset, thumbs, nudge, tactile, palmtop, tapline, tapwise.
