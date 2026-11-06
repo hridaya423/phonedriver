@@ -161,3 +161,13 @@ Each decision records the choice, the alternatives it beat, and the evidence tha
 **Rejected.** Accepting any build-tools at or above 34: the jar is compiled against `android-37.0` and nothing has verified an older toolchain; `ANDROID_BUILD_TOOLS` and `ANDROID_PLATFORM` already let a user try. Downloading a prebuilt jar in the build script: sends a request nobody asked for (D9 spirit) and no release exists to download from.
 
 **Reopen if.** Releases attach `phone-use-agent.jar`, which would let a source build skip the SDK without losing Android.
+
+## D18. A device that cannot be driven yet is not the default; a missing signing team is a user action
+
+**Choice.** With several devices connected and none named, the daemon picks the one device that has no blocker. Only the physical iOS source reports a blocker: a Runner-tier iPhone or iPad while `PHONE_USE_TEAM` is unset. So a paired iPhone with no team no longer makes a booted Simulator "ambiguous", and a Simulator is chosen over it. With one device connected it is still the default, because the error that follows (`NeedsUser(SetSigningTeam)`, exit 3) is the useful answer. With two ready devices, or none ready, the answer stays `AmbiguousDevice`.
+
+**Why.** The audit (dx-ux finding 3) showed a newcomer with one paired iPhone and a README written for the Simulator getting a failure about a signing team. Choosing the device that works costs nothing when the user has said nothing; naming a device is still how to pick the iPhone. The missing team was a `Transport` error ("connection error", hint `doctor`) and quoted a team id that looked real; it is now `NeedsUser(SetSigningTeam)` with no example id, where to find the id, and the `ios setup` and `daemon stop` steps.
+
+**Rejected.** Picking a physical device over a Simulator when both are ready: a person who plugged in a phone and has a Simulator booted may mean either. Hiding blocked devices from `devices`: the table should show everything the daemon sees.
+
+**Reopen if.** Another source gains a blocker (an Android device that needs a setting only a person can change), which would make the rule matter more.

@@ -57,6 +57,12 @@ pub struct Listed {
 pub trait DeviceSource: Send + Sync {
     async fn list(&self) -> Result<Vec<Listed>, Error>;
     async fn connect(&self, id: &str) -> Result<Arc<dyn Device>, Error>;
+
+    /// Why this device cannot be driven yet, when that is known without connecting (an iPhone with no signing
+    /// team). With several devices and none named, only devices without a blocker are candidates for the default.
+    fn blocker(&self, _id: &str) -> Option<&'static str> {
+        None
+    }
 }
 
 pub struct Daemon {
@@ -188,14 +194,27 @@ impl Daemon {
                 .find(|l| l.id == r || l.id.ends_with(&format!(":{r}")))
                 .map(|l| l.id.clone())
                 .ok_or_else(|| Error::NoDevice {
+                    requested: Some(r.to_string()),
                     connected: summaries(),
                 }),
             None => match list.as_slice() {
-                [] => Err(Error::NoDevice { connected: vec![] }),
-                [one] => Ok(one.id.clone()),
-                _ => Err(Error::AmbiguousDevice {
-                    connected: summaries(),
+                [] => Err(Error::NoDevice {
+                    requested: None,
+                    connected: vec![],
                 }),
+                [one] => Ok(one.id.clone()),
+                _ => {
+                    let ready: Vec<&Listed> = list
+                        .iter()
+                        .filter(|l| self.source.blocker(&l.id).is_none())
+                        .collect();
+                    match ready.as_slice() {
+                        [one] => Ok(one.id.clone()),
+                        _ => Err(Error::AmbiguousDevice {
+                            connected: summaries(),
+                        }),
+                    }
+                }
             },
         }
     }
@@ -345,10 +364,18 @@ impl Daemon {
 
 fn act_error(e: &serde_json::Error, params: &Value) -> RpcError {
     let kind = params["action"]["kind"].as_str().unwrap_or_default();
-    if e.to_string().starts_with("unknown variant") && kind.len() <= 32 {
+    let message = e.to_string();
+    if message.starts_with(&format!("unknown variant `{kind}`")) && kind.len() <= 32 {
         return RpcError::invalid_params(format!(
-            "this daemon does not know the action `{kind}`: it is older than the client, so stop it and run the command again to start a new one"
+            "this daemon does not know the action `{kind}`: it is older than the client, so run `phone-use daemon stop` and repeat the command to start a new one"
         ));
+    }
+    if message.starts_with("unknown variant")
+        && message.contains("expected one of")
+        && kind.len() <= 32
+    {
+        let detail = message.split(" at line").next().unwrap_or_default();
+        return RpcError::invalid_params(format!("the {kind} action is invalid: {detail}"));
     }
     RpcError::invalid_params("the action is malformed")
 }

@@ -32,7 +32,10 @@ impl DeviceSource for Fixed {
     async fn connect(&self, id: &str) -> Result<Arc<dyn Device>, Error> {
         match &self.0 {
             Ok(ids) if ids.contains(&id) => Ok(Arc::new(FakeDevice::new(vec![]))),
-            _ => Err(Error::NoDevice { connected: vec![] }),
+            _ => Err(Error::NoDevice {
+                requested: None,
+                connected: vec![],
+            }),
         }
     }
 }

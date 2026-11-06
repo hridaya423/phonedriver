@@ -45,4 +45,11 @@ impl DeviceSource for Sources {
             .ok_or_else(|| Error::DeviceGone { id: id.to_string() })?;
         source.connect(id).await
     }
+
+    fn blocker(&self, id: &str) -> Option<&'static str> {
+        self.0
+            .iter()
+            .find(|(prefix, _)| id.starts_with(prefix))
+            .and_then(|(_, s)| s.blocker(id))
+    }
 }

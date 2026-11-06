@@ -92,7 +92,10 @@ impl DeviceSource for FakeSource {
             .iter()
             .find(|(l, _)| l.id == id)
             .map(|(_, d)| d.clone() as Arc<dyn Device>)
-            .ok_or(Error::NoDevice { connected: vec![] })
+            .ok_or(Error::NoDevice {
+                requested: None,
+                connected: vec![],
+            })
     }
 }
 

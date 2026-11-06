@@ -150,6 +150,7 @@ pub enum UserAction {
     EnableDeveloperMode,
     MountDeveloperImage,
     ResignRunner,
+    SetSigningTeam,
     ApproveSystemPrompt { text: String },
 }
 
@@ -175,6 +176,10 @@ impl UserAction {
             UserAction::ResignRunner => {
                 "The PhoneUseRunner on the device has an expired or missing signature.".into()
             }
+            UserAction::SetSigningTeam => {
+                "Running on an iPhone or iPad needs an Apple developer team to sign the runner, and PHONE_USE_TEAM is not set."
+                    .into()
+            }
             UserAction::ApproveSystemPrompt { text } => {
                 format!("The device shows a prompt only a person may answer: \"{text}\".")
             }
@@ -199,6 +204,9 @@ impl UserAction {
             UserAction::ResignRunner => {
                 "Run `phone-use doctor` to re-sign and reinstall the runner."
             }
+            UserAction::SetSigningTeam => {
+                "Set PHONE_USE_TEAM to your team ID: ten letters and digits, shown in Xcode > Settings > Accounts, or in parentheses after your name in `security find-identity -v -p codesigning`. Export it in the shell that starts the daemon and run `phone-use daemon stop` if one is already running. `phone-use ios setup` checks pairing and Developer Mode first."
+            }
             UserAction::ApproveSystemPrompt { .. } => {
                 "Answer the prompt on the device, then retry."
             }
@@ -211,8 +219,12 @@ impl UserAction {
 #[derive(Debug, Clone, PartialEq, thiserror::Error, Serialize)]
 #[serde(tag = "code_name", rename_all = "snake_case")]
 pub enum Error {
-    #[error("no device is connected")]
-    NoDevice { connected: Vec<DeviceSummary> },
+    #[error("{}", no_device(requested.as_deref(), connected))]
+    NoDevice {
+        /// The id passed with `--device` or `PHONE_USE_DEVICE` that matches no connected device.
+        requested: Option<String>,
+        connected: Vec<DeviceSummary>,
+    },
     #[error("{} devices are connected; pick one", connected.len())]
     AmbiguousDevice { connected: Vec<DeviceSummary> },
     #[error("device {id} disconnected")]
@@ -239,6 +251,8 @@ pub enum Error {
         query: String,
         similar: Vec<ElementLine>,
     },
+    #[error("unknown key \"{key}\"")]
+    UnknownKey { key: String, valid: Vec<String> },
     #[error("no app named \"{query}\"")]
     NoApp {
         query: String,
@@ -283,6 +297,21 @@ pub enum Error {
     Transport { detail: String },
 }
 
+fn no_device(requested: Option<&str>, connected: &[DeviceSummary]) -> String {
+    let Some(requested) = requested else {
+        return "no device is connected".into();
+    };
+    if connected.is_empty() {
+        return format!("no device \"{requested}\"; none is connected");
+    }
+    let list = connected
+        .iter()
+        .map(|d| format!("{} ({})", d.id, d.model))
+        .collect::<Vec<_>>()
+        .join(", ");
+    format!("no device \"{requested}\"; connected: {list}")
+}
+
 fn ids(devices: &[DeviceSummary]) -> String {
     devices
         .iter()
@@ -311,12 +340,20 @@ impl Error {
             Error::Transport { .. } => -32015,
             Error::NotReached { .. } => -32016,
             Error::NoApp { .. } => -32017,
+            Error::UnknownKey { .. } => -32018,
         }
     }
 
     /// The next thing to do, starting with a verb.
     pub fn hint(&self) -> String {
         match self {
+            Error::NoDevice {
+                requested: Some(_),
+                connected,
+            } if !connected.is_empty() => format!(
+                "Pass `--device <id>` (or set PHONE_USE_DEVICE) to one of: {}.",
+                ids(connected)
+            ),
             Error::NoDevice { .. } => {
                 "Connect a device or start an emulator, then run `phone-use devices`.".into()
             }
@@ -347,6 +384,9 @@ impl Error {
                 format!("Use one of these instead: {}", similar.join("; "))
             }
             Error::NotFound { .. } => "Run `phone-use snapshot` to see what is on screen.".into(),
+            Error::UnknownKey { valid, .. } => {
+                format!("Use one of these keys: {}.", valid.join("; "))
+            }
             Error::NoApp { similar, .. } if !similar.is_empty() => {
                 format!("Use one of these installed apps: {}.", similar.join("; "))
             }
@@ -446,6 +486,7 @@ mod tests {
             UserAction::EnableDeveloperMode,
             UserAction::MountDeveloperImage,
             UserAction::ResignRunner,
+            UserAction::SetSigningTeam,
             UserAction::ApproveSystemPrompt {
                 text: "Use Face ID?".into(),
             },
@@ -454,7 +495,14 @@ mod tests {
 
     fn all_errors() -> Vec<Error> {
         let mut v = vec![
-            Error::NoDevice { connected: vec![] },
+            Error::NoDevice {
+                requested: None,
+                connected: vec![],
+            },
+            Error::NoDevice {
+                requested: Some("sim:BAD".into()),
+                connected: vec![summary()],
+            },
             Error::AmbiguousDevice {
                 connected: vec![
                     summary(),
@@ -532,6 +580,10 @@ mod tests {
                 query: "Zork".into(),
                 similar: vec![],
             },
+            Error::UnknownKey {
+                key: "bogus".into(),
+                valid: vec!["home".into(), "back".into()],
+            },
             Error::NotReached {
                 query: "Safari".into(),
                 scrolls: 3,
@@ -583,6 +635,7 @@ mod tests {
             Error::Transport { .. } => (-32015, "transport"),
             Error::NotReached { .. } => (-32016, "not_reached"),
             Error::NoApp { .. } => (-32017, "no_app"),
+            Error::UnknownKey { .. } => (-32018, "unknown_key"),
         }
     }
 
@@ -603,6 +656,7 @@ mod tests {
         "Answer",
         "Check",
         "Hide",
+        "Set",
     ];
 
     #[test]
@@ -680,5 +734,71 @@ mod tests {
         let keys: Vec<&String> = v.as_object().unwrap().keys().collect();
         assert_eq!(keys, ["code", "data", "message"]);
         assert!(matches!(v["data"], Value::Object(_)));
+    }
+
+    #[test]
+    fn a_device_id_that_matches_nothing_is_named_and_the_connected_ones_listed() {
+        let e = Error::NoDevice {
+            requested: Some("sim:BAD".into()),
+            connected: vec![summary()],
+        };
+        assert_eq!(
+            e.to_string(),
+            "no device \"sim:BAD\"; connected: android:emulator-5554 (Pixel 9)"
+        );
+        assert_eq!(
+            e.hint(),
+            "Pass `--device <id>` (or set PHONE_USE_DEVICE) to one of: android:emulator-5554."
+        );
+        let none = Error::NoDevice {
+            requested: Some("sim:BAD".into()),
+            connected: vec![],
+        };
+        assert_eq!(none.to_string(), "no device \"sim:BAD\"; none is connected");
+        assert!(none.hint().starts_with("Connect a device"));
+        assert_eq!(
+            Error::NoDevice {
+                requested: None,
+                connected: vec![]
+            }
+            .to_string(),
+            "no device is connected"
+        );
+    }
+
+    #[test]
+    fn the_missing_signing_team_says_where_to_find_it_and_shows_no_example_id() {
+        let e = Error::NeedsUser {
+            action: UserAction::SetSigningTeam,
+        };
+        let hint = e.hint();
+        for needle in [
+            "PHONE_USE_TEAM",
+            "Xcode > Settings > Accounts",
+            "security find-identity -v -p codesigning",
+            "phone-use ios setup",
+            "phone-use daemon stop",
+        ] {
+            assert!(hint.contains(needle), "{needle} not in {hint}");
+        }
+        assert!(!hint.contains("doctor"), "{hint}");
+        let message = e.to_string();
+        assert!(!message.contains("connection"), "{message}");
+        assert!(
+            !hint.chars().any(|c| c.is_ascii_digit())
+                && !message.chars().any(|c| c.is_ascii_digit()),
+            "no example id: {hint} / {message}"
+        );
+        assert_eq!(e.rpc_code(), -32005);
+    }
+
+    #[test]
+    fn an_unknown_key_is_called_a_key_and_lists_the_valid_ones() {
+        let e = Error::UnknownKey {
+            key: "bogus".into(),
+            valid: vec!["home".into(), "back".into()],
+        };
+        assert_eq!(e.to_string(), "unknown key \"bogus\"");
+        assert_eq!(e.hint(), "Use one of these keys: home; back.");
     }
 }

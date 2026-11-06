@@ -198,7 +198,7 @@ One enum, every variant written for an agent to act on:
 
 ```rust
 pub enum Error {
-    NoDevice { connected: Vec<DeviceSummary> },
+    NoDevice { requested: Option<String>, connected: Vec<DeviceSummary> }, // `requested` is a --device id that matches nothing
     AmbiguousDevice { connected: Vec<DeviceSummary> },
     DeviceGone { id: DeviceId },
     DeviceBusy { id: DeviceId, held_by: SessionName },
@@ -210,6 +210,7 @@ pub enum Error {
     Unsupported { op: Op, reason: &'static str },
     NotSettled { waited_ms: u32, still_changing: Rect },
     Timeout { waited_ms: u32, condition: String },
+    UnknownKey { key: String, valid: Vec<String> },           // `press` with a key no device has
     NoApp { query: String, similar: Vec<String> },            // launch by a name no installed app has; similar = `Name (id)`
     NotReached { query: String, scrolls: u32, end: ScrollEnd, last: Option<String> }, // a scroll search stopped: Ended, Stuck or Limit
     AutomationConflict { holder: String },     // another UiAutomation client owns the bridge
@@ -217,7 +218,7 @@ pub enum Error {
 }
 ```
 
-`UserAction` is closed: `UnlockDevice`, `AcceptUsbDebugging`, `EnableUsbDebugging`, `AllowXiaomiInjection`, `TrustComputer`, `EnableDeveloperMode`, `MountDeveloperImage`, `ResignRunner`, `ApproveSystemPrompt { text }` (a biometric or OS prompt only a person may answer). Each has one message that tells the user exactly what to do on which device.
+`UserAction` is closed: `UnlockDevice`, `AcceptUsbDebugging`, `EnableUsbDebugging`, `AllowXiaomiInjection`, `TrustComputer`, `EnableDeveloperMode`, `MountDeveloperImage`, `ResignRunner`, `SetSigningTeam`, `ApproveSystemPrompt { text }` (a biometric or OS prompt only a person may answer). Each has one message that tells the user exactly what to do on which device.
 
 Every variant serializes as `{ code, message, hint }`. `hint` names the next command to run.
 
@@ -261,7 +262,7 @@ pub trait Device: Send + Sync {
 - **Sessions outlive connections.** Every CLI call is a new process and a new socket connection, so session state cannot belong to the connection. Each request names a session: `--session <name>`, else `PHONE_USE_SESSION`, else `default`. The session holds the ref table, the last rendered observation (the diff baseline), and the settle detector. An MCP server process uses one session named `mcp-<pid>` over one connection that it keeps for its whole life, and says `client: "mcp"` in `hello`. The daemon releases every session an `mcp` connection used on every device when that connection closes, so a client that exits or is killed before it can send `release` (observed with `claude -p`: the next agent was locked out for ten minutes) frees the device at once. CLI sessions are not released on close, since every CLI call is its own connection.
 - **Leases belong to sessions.** A session acquires a device on its first device call. Another session gets `DeviceBusy` unless it passes `--share`. A lease ends on `release`, when an `mcp` connection closes, or after 10 minutes without calls. `DeviceBusy` and `devices` say how long the holder has been idle (`idle 3m, lease expires in 7m`); an agent cannot take a lease over, it waits or asks the user. Two agents on one machine should use different `--session` names; the default session is for one agent at a time.
 - **Discovery.** Android: adb `host:track-devices-l` push stream. iOS: usbmuxd listen. Simulators: `xcrun simctl list devices -j booted` on demand.
-- **Device ids.** `android:<serial>`, `ios:<udid>`, `sim:<udid>`, plus aliases in `~/.phone-use/config.toml`. With exactly one device connected, it is the default. Otherwise `AmbiguousDevice` lists them.
+- **Device ids.** `android:<serial>`, `ios:<udid>`, `sim:<udid>`, plus aliases in `~/.phone-use/config.toml`. With exactly one device connected, it is the default. With several, the default is the one that can be driven when only one can: a physical iPhone or iPad on the Runner tier counts as blocked while `PHONE_USE_TEAM` is unset (D18). Otherwise `AmbiguousDevice` lists them. A `--device` id that matches nothing fails `NoDevice` naming the id and the connected ids.
 - **Artifacts.** Screenshots go to `~/.phone-use/tmp/<device>/<ulid>.png`. Unique names. Cleared on daemon start when older than 24 h.
 - **Traces.** Per session, `~/.phone-use/traces/<ulid>.jsonl` (directory mode 0700, files 0600): one line per request with `method`, `params`, the reply's summary line, `ms` and the settle time. Typed text is replaced by its length, `{"secret_len": n}` with `--secret` and `{"text_len": n}` otherwise (D16). Text targets are replaced by their length, and observation text (which can hold messages or balances) is added, only when the daemon runs with `--trace-full` or `PHONE_USE_TRACE_FULL=1`. Each `screenshot` is copied next to the trace as `<ulid>-<n>.png` only with `--trace-screens` or `PHONE_USE_TRACE_SCREENS=1`. A running daemon keeps the options it started with, so a harness that wants them starts its own daemon under its own `PHONE_USE_HOME`. Traces older than 7 days are deleted on daemon start. Local only; nothing is uploaded.
 
