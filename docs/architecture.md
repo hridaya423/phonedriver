@@ -300,14 +300,15 @@ Components (one Java file each where possible):
 
 | State | Behavior |
 |---|---|
-| Screen off | Inject `KEYCODE_WAKEUP` before any action; report `woke: true` |
+| Screen off | Before any `act` (except `press lock`) the daemon reads the screen state (agent op `power`), injects `KEYCODE_WAKEUP`, and reports `woke: true`. After a wake or unlock it waits up to 3 s for the keyguard flag to settle and for an application window with input focus and a tree with content, because input sent earlier is rejected ("the system rejected an input event", API 26 and 37) and API 26 lists the app's window with an empty root until the next window change (the agent treats that as a hollow tree and kicks the shade once per wake) |
 | Keyguard with PIN/pattern | `NeedsUser(UnlockDevice)`. Never enter credentials |
-| Keyguard swipe-only | Swipe up, then continue |
+| Keyguard swipe-only | Swipe up from 90% of the screen height (a drag that starts on API 26's notification card does not unlock), wait for `locked` to clear, continue; the reply says `unlocked: true` |
 | `FLAG_SECURE` window | Frames are black in that window; tree still works. Detected when the window's region in the frame is uniformly black (luma < 4) while the tree shows visible text in it; spike A3 confirmed it on API 26 and 37: the secure activity's whole window area was black (luma 16, the limited-range black level, mean 16.00 and max 16 over 115,584 samples) while the tree still listed its text and the status and navigation bars still rendered. Header shows `secure content hidden` |
 | Another UiAutomation client | `AutomationConflict { holder }` with how to stop it |
 | Xiaomi/HyperOS | Injection fails until "USB debugging (Security settings)" is on: `NeedsUser(AllowXiaomiInjection)`. Unverified until tested on Xiaomi hardware |
 | Rotation | Agent restarts the encoder; session maps coordinates with the new size |
-| `wm size` / density change | Same as rotation |
+| `wm size` change | Same as rotation |
+| `wm density` change | The agent's `display_changed` event carries the density; a different density becomes `DeviceEvent::DensityChanged`, the actor drops the connection and the next call starts a new agent with the new density (a few seconds). Not testable on the API 26 emulator: `wm density` restarts its system server and drops adb |
 | IME shown | Header `keyboard shown`; elements under it get `under-keyboard` |
 
 Only display 0 is supported in v1.

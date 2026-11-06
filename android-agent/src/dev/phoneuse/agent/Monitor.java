@@ -29,11 +29,13 @@ final class Monitor {
         while (true) {
             try {
                 DisplayInfo now = ServiceManager.getDisplayManager().getDisplayInfo(0);
-                if (last != null && (!now.getSize().equals(last.getSize()) || now.getRotation() != last.getRotation())) {
+                if (last != null && (!now.getSize().equals(last.getSize()) || now.getRotation() != last.getRotation()
+                        || now.getDpi() != last.getDpi())) {
                     JSONObject e = Json.put(new JSONObject(), "ev", "display_changed");
                     Json.put(e, "w", now.getSize().getWidth());
                     Json.put(e, "h", now.getSize().getHeight());
                     Json.put(e, "rotation", now.getRotation());
+                    Json.put(e, "density", now.getDpi() / 160.0);
                     emit(e);
                 }
                 last = now;

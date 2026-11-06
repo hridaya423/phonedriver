@@ -154,6 +154,12 @@ pub struct ActionResult {
     pub settled: bool,
     pub settle_ms: u32,
     pub changed: bool,
+    /// The screen was off and the action woke it first.
+    #[serde(skip_serializing_if = "std::ops::Not::not", default)]
+    pub woke: bool,
+    /// A swipe-only lock screen was up and the action swiped it away first.
+    #[serde(skip_serializing_if = "std::ops::Not::not", default)]
+    pub unlocked: bool,
     pub observation: Observation,
 }
 

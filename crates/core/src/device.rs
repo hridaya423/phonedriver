@@ -87,8 +87,15 @@ impl fmt::Debug for Image {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum DeviceEvent {
-    WindowChanged { package: Option<String> },
-    DisplayChanged { screen: Size, rotation: u8 },
+    WindowChanged {
+        package: Option<String>,
+    },
+    DisplayChanged {
+        screen: Size,
+        rotation: u8,
+    },
+    /// Pixels per point changed, so every coordinate the device was built with is stale: reconnect.
+    DensityChanged,
     Locked(bool),
     Gone,
 }
@@ -180,6 +187,17 @@ pub struct App {
     pub system: bool,
 }
 
+/// Whether the screen is on and whether the keyguard is up (architecture 6.3).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ScreenState {
+    pub on: bool,
+    pub locked: bool,
+    /// The keyguard needs a PIN, pattern or password, not just a swipe.
+    pub secure: bool,
+    /// A window has input focus; input sent before that is rejected right after a wake or an unlock.
+    pub focused: bool,
+}
+
 /// The seam between the domain and each platform (architecture 4.8).
 #[async_trait]
 pub trait Device: Send + Sync {
@@ -198,6 +216,18 @@ pub trait Device: Send + Sync {
     async fn apps(&self) -> Result<Vec<App>>;
     async fn launch(&self, app: &AppId) -> Result<()>;
     async fn foreground(&self) -> Result<Option<AppId>>;
+    /// A device with no screen power or lock state reports an awake, unlocked screen.
+    async fn screen_state(&self) -> Result<ScreenState> {
+        Ok(ScreenState {
+            on: true,
+            locked: false,
+            secure: false,
+            focused: true,
+        })
+    }
+    async fn wake(&self) -> Result<()> {
+        Ok(())
+    }
     /// The platform's own tree JSON with a `density` key, for saving fixtures; `None` when the platform has none.
     /// True when a window of `tree` is secure (`FLAG_SECURE`): its pixels are black while its tree reads.
     fn secure_content_hidden(&self, _tree: &RawTree) -> bool {
