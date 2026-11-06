@@ -96,7 +96,12 @@ async fn tools_list_is_the_tools_with_short_descriptions_and_the_cli_required_ar
     let mut required: BTreeMap<String, Vec<String>> = BTreeMap::new();
     for t in &tools {
         let d = t.description.as_deref().unwrap_or_default();
-        assert!(!d.is_empty() && d.chars().count() < 300, "{}: {d}", t.name);
+        let limit = if t.name == "shell" { 450 } else { 300 };
+        assert!(
+            !d.is_empty() && d.chars().count() < limit,
+            "{}: {d}",
+            t.name
+        );
         let mut r: Vec<String> = t
             .input_schema
             .get("required")
@@ -124,6 +129,7 @@ async fn tools_list_is_the_tools_with_short_descriptions_and_the_cli_required_ar
         ("wait", vec!["condition"]),
         ("batch", vec!["steps"]),
         ("clipboard", vec![]),
+        ("shell", vec!["command"]),
     ]
     .into_iter()
     .map(|(n, r)| (n.to_string(), r.into_iter().map(String::from).collect()))

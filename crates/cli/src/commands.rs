@@ -20,10 +20,11 @@ use crate::daemon::{Config, Daemon, socket};
 use phone_use_core::error::span;
 
 use crate::wire::{
-    ActionResult, BatchResult, DeviceEntry, Kind, Observation, ScreenshotResult, VERSION,
+    ActionResult, BatchResult, DeviceEntry, Kind, Observation, ScreenshotResult, ShellResult,
+    VERSION,
 };
 
-const USAGE: &str = "usage: phone-use <command>\n\nrun `phone-use --help` for the options and exit codes\n\ncommands:\n  devices\n  snapshot\n  screenshot\n  find\n  launch\n  open\n  apps\n  swipe\n  drag\n  pinch\n  scroll\n  gesture\n  tap\n  type\n  clear\n  clipboard\n  press\n  wait\n  batch\n  release\n  daemon\n  doctor\n  ios\n  mcp\n  skill\n  version";
+const USAGE: &str = "usage: phone-use <command>\n\nrun `phone-use --help` for the options and exit codes\n\ncommands:\n  devices\n  snapshot\n  screenshot\n  find\n  launch\n  open\n  apps\n  swipe\n  drag\n  pinch\n  scroll\n  gesture\n  tap\n  type\n  clear\n  clipboard\n  shell\n  press\n  wait\n  batch\n  release\n  daemon\n  doctor\n  ios\n  mcp\n  skill\n  version";
 
 const AFTER_HELP: &str = "Examples:
   phone-use devices
@@ -297,6 +298,28 @@ pub(crate) enum Verb {
         /// `@ref`, `x,y` or the field's text.
         target: String,
     },
+    /// Run a command in the device's shell (Android: the agent's shell, no `adb` spawn; Simulator: `simctl spawn`, or
+    /// `simctl <subcommand> ...` with the device filled in). Prints the exit code, trimmed output, and what changed on
+    /// screen. Secrets come from stdin or PHONE_USE_SECRET.
+    Shell {
+        /// The command, such as `cmd uimode night yes`. Leave it out with `--secret`.
+        command: Option<String>,
+        /// Keep only output lines containing one of these words, separated by `|`, ignoring case.
+        #[arg(long)]
+        grep: Option<String>,
+        /// Keep this many lines of output (default 40, 0 keeps all).
+        #[arg(long)]
+        head: Option<usize>,
+        /// Run a command that is refused on a physical device (wipes, `rm -r` of storage, removing apps phone-use did not install).
+        #[arg(long)]
+        force: bool,
+        /// Kill the command after this many seconds (default 30).
+        #[arg(long)]
+        time_limit: Option<u64>,
+        /// Read the command from stdin or PHONE_USE_SECRET and keep it out of logs and traces.
+        #[arg(long)]
+        secret: bool,
+    },
     /// Print the device clipboard, or set it with `clipboard set <text>`.
     Clipboard {
         /// `get` (the default) or `set`.
@@ -459,13 +482,18 @@ pub(crate) struct Globals {
 
 /// The text of a `type --secret`, read before any connection is made so a usage error types nothing.
 fn secret_text(verb: &Verb) -> Result<Option<String>, String> {
-    let Verb::Type { text, secret, .. } = verb else {
-        return Ok(None);
+    let (text, secret) = match verb {
+        Verb::Type { text, secret, .. } => (text, secret),
+        Verb::Shell {
+            command, secret, ..
+        } => (command, secret),
+        _ => return Ok(None),
     };
     match (secret, text) {
         (true, Some(_)) => Err(
             "with --secret the text must come from stdin or PHONE_USE_SECRET, not from the command line (arguments show in `ps` and shell history)\nexample: echo -n \"$PW\" | phone-use type --secret --into @e3".into(),
         ),
+        (false, None) if matches!(verb, Verb::Shell { .. }) => Err("shell needs a command\nexample: phone-use shell \"cmd uimode night yes\"".into()),
         (false, None) => Err("type needs the text to type\nexample: phone-use type \"hello\" --into @e3".into()),
         (true, None) => {
             let text = match std::env::var("PHONE_USE_SECRET") {
@@ -638,6 +666,34 @@ pub(crate) async fn execute_with(
             let action = step_json(&verb, secret.as_deref())?;
             let r = client.call("act", act(action)).await?;
             show_action(&r, g.json)
+        }
+        Verb::Shell {
+            command,
+            grep,
+            head,
+            force,
+            time_limit,
+            secret: is_secret,
+        } => {
+            let command = secret.or(command).unwrap_or_default();
+            let mut p = json!({"command": command, "settle": !g.no_settle, "force": force, "secret": is_secret});
+            if let Some(v) = grep {
+                p["grep"] = json!(v);
+            }
+            if let Some(v) = head {
+                p["head"] = json!(v);
+            }
+            if let Some(v) = time_limit {
+                p["time_limit_s"] = json!(v);
+            }
+            if let Some(t) = g.timeout {
+                p["timeout_ms"] = json!(t);
+            }
+            if let Some(t) = g.expect_change {
+                p["expect_change_ms"] = json!(t);
+            }
+            let r = client.call("shell", with(p)).await?;
+            show_shell(&r, g.json)
         }
         Verb::Batch { steps } => {
             let steps = steps
@@ -1036,6 +1092,33 @@ fn device_table(result: &Value) -> String {
         })
         .collect::<Vec<_>>()
         .join("\n")
+}
+
+pub(crate) fn show_shell(result: &Value, json: bool) -> Result<String, Failure> {
+    if json {
+        return Ok(result.to_string());
+    }
+    let r: ShellResult = decode(result)?;
+    let mut out = if r.timed_out {
+        format!("exit {} · timed out after {}ms", r.exit, r.ms)
+    } else {
+        format!("exit {} · {}ms", r.exit, r.ms)
+    };
+    if !r.output.is_empty() {
+        out.push('\n');
+        out.push_str(&r.output);
+    }
+    if let Some(action) = &r.action {
+        let seen = show_action(&serde_json::to_value(action).unwrap_or_default(), false)?;
+        let seen = seen.strip_prefix("ok ").unwrap_or(&seen);
+        let seen = seen
+            .strip_prefix("ran")
+            .unwrap_or(seen)
+            .trim_start_matches(" · ");
+        out.push_str("\nscreen: ");
+        out.push_str(seen);
+    }
+    Ok(out)
 }
 
 fn show_action(result: &Value, json: bool) -> Result<String, Failure> {

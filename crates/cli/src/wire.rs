@@ -279,6 +279,43 @@ fn yes() -> bool {
     true
 }
 
+/// Run a command in the device's shell (`docs/protocol.md`, `shell`). The command may be a secret, so `Debug` omits it.
+#[derive(Deserialize)]
+pub struct ShellParams {
+    pub command: String,
+    #[serde(default = "yes")]
+    pub settle: bool,
+    pub timeout_ms: Option<u64>,
+    pub expect_change_ms: Option<u64>,
+    /// How long the command may run, in seconds; default 30.
+    pub time_limit_s: Option<u64>,
+    pub grep: Option<String>,
+    /// Lines of output to keep; default 40, 0 keeps all.
+    pub head: Option<usize>,
+    #[serde(default)]
+    pub force: bool,
+    #[serde(default)]
+    pub secret: bool,
+}
+
+impl std::fmt::Debug for ShellParams {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "ShellParams({} chars)", self.command.chars().count())
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ShellResult {
+    pub exit: i32,
+    pub output: String,
+    pub omitted: usize,
+    pub timed_out: bool,
+    pub ms: u32,
+    /// The settled screen change; absent when settling was skipped or the command only reads.
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub action: Option<ActionResult>,
+}
+
 #[derive(Debug, Deserialize)]
 pub struct WaitParams {
     pub condition: WaitCondition,

@@ -7,7 +7,8 @@ use tokio::sync::{broadcast, watch};
 
 use crate::device::{
     App, AppId, AppOp, Button, Capabilities, ClipboardOp, Device, DeviceEvent, DeviceInfo,
-    FrameRef, Gesture, Image, Key, Quality, Result, ScreenState, TextInput, Url,
+    FrameRef, Gesture, Image, Key, Quality, Result, ScreenState, ShellReply, ShellRequest,
+    TextInput, Url,
 };
 use crate::error::{Error, Op};
 use crate::geometry::Size;
@@ -25,6 +26,7 @@ pub enum Call {
     Install(std::path::PathBuf),
     AppOp(AppOp, AppId),
     Wake,
+    Shell(String),
 }
 
 pub struct FakeDevice {
@@ -39,6 +41,7 @@ pub struct FakeDevice {
     display: Mutex<Option<Size>>,
     events: broadcast::Sender<DeviceEvent>,
     frames: watch::Sender<FrameRef>,
+    shell: Mutex<ShellReply>,
 }
 
 impl FakeDevice {
@@ -68,6 +71,7 @@ impl FakeDevice {
             display: Mutex::new(None),
             events: broadcast::channel(64).0,
             frames: watch::channel(FrameRef::default()).0,
+            shell: Mutex::new(ShellReply::default()),
         }
     }
 
@@ -92,6 +96,11 @@ impl FakeDevice {
                 system: false,
             })
             .collect();
+    }
+
+    /// What `shell()` answers from now on.
+    pub fn answer_shell(&self, reply: ShellReply) {
+        *lock(&self.shell) = reply;
     }
 
     pub fn set_screen(&self, state: ScreenState) {
@@ -217,6 +226,11 @@ impl Device for FakeDevice {
 
     async fn app_op(&self, op: AppOp, app: &AppId) -> Result<()> {
         self.record(Call::AppOp(op, app.clone()))
+    }
+
+    async fn shell(&self, req: &ShellRequest) -> Result<ShellReply> {
+        self.record(Call::Shell(req.command.clone()))?;
+        Ok(lock(&self.shell).clone())
     }
 
     async fn screen_state(&self) -> Result<ScreenState> {

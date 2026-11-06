@@ -40,6 +40,8 @@ final class Ops {
                 return DeviceState.state();
             case "power":
                 return DeviceState.power();
+            case "shell":
+                return Shell.run(q.getString("command"), q.optLong("timeout_ms", 30000));
             case "sync_frame":
                 Video.requestSyncFrame();
                 return r;

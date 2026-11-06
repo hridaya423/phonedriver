@@ -64,6 +64,23 @@ struct ClipboardArgs {
 }
 
 #[derive(Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+struct ShellArgs {
+    device: Option<String>,
+    command: String,
+    /// Keep only output lines containing one of these words (`a|b`), in any case.
+    grep: Option<String>,
+    /// Lines of output to keep; default 40, 0 for all.
+    head: Option<u32>,
+    /// False skips waiting for the screen to settle.
+    settle: Option<bool>,
+    /// Run a command refused on a physical device; only when the user asked for exactly that.
+    force: Option<bool>,
+    /// The command holds a secret: it is never logged or traced.
+    secret: Option<bool>,
+}
+
+#[derive(Deserialize, JsonSchema)]
 struct SnapshotArgs {
     device: Option<String>,
     /// Print only what changed since the last observation.
@@ -450,6 +467,29 @@ impl Mcp {
             return self.run(a.device, Verb::Release, None).await;
         }
         self.run(None, Verb::Devices, None).await
+    }
+
+    #[tool(
+        description = "Run a shell command on the device: one call returns exit code, trimmed output and the screen change, faster than adb. Prefer it to UI taps for settings and intents: `cmd uimode night yes`, `settings put system screen_brightness 20`, `am start -a android.intent.action.VIEW -d <url>`, `dumpsys window | grep mCurrentFocus`, `input keyevent 3`. Simulator: `simctl ui appearance dark`. Physical devices refuse wipes and removing others' apps."
+    )]
+    async fn shell(&self, Parameters(a): Parameters<ShellArgs>) -> CallToolResult {
+        let secret = a.secret.unwrap_or(false);
+        let verb = Verb::Shell {
+            command: if secret {
+                None
+            } else {
+                Some(a.command.clone())
+            },
+            grep: a.grep,
+            head: a.head.map(|h| h as usize),
+            force: a.force.unwrap_or(false),
+            time_limit: None,
+            secret,
+        };
+        let mut globals = Self::globals(a.device);
+        globals.no_settle = a.settle == Some(false);
+        self.run_with(globals, verb, secret.then_some(a.command))
+            .await
     }
 
     #[tool(description = "Read the device clipboard, or set it with `set`.")]

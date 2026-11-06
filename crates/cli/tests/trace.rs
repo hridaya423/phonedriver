@@ -166,6 +166,36 @@ proptest! {
 }
 
 #[test]
+fn a_shell_command_is_traced_but_a_secret_one_is_only_a_length_and_output_is_only_a_length() {
+    run(async {
+        let home = tempfile::tempdir().unwrap();
+        let d = daemon(vec![tree(&["One"])], TraceOptions::default(), home.path());
+        d.call(
+            "s",
+            "shell",
+            json!({"command": "settings get system font_scale"}),
+        )
+        .await
+        .unwrap();
+        d.call(
+            "s",
+            "shell",
+            json!({"command": "cmd wifi connect-network x wpa2 hunter2hunter2", "secret": true}),
+        )
+        .await
+        .unwrap();
+        let all = lines(home.path());
+        assert_eq!(
+            all[0]["params"]["command"],
+            "settings get system font_scale"
+        );
+        assert_eq!(all[1]["params"]["command"], json!({"secret_len": 46}));
+        assert!(all[0]["reply"].as_str().unwrap().starts_with("exit 0, "));
+        every_file_is_free_of(home.path(), "hunter2hunter2");
+    });
+}
+
+#[test]
 fn observation_text_and_text_targets_appear_only_with_trace_full() {
     run(async {
         for full in [false, true] {

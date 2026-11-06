@@ -9,7 +9,8 @@ use async_trait::async_trait;
 use base64::Engine;
 use phone_use_core::device::{
     App, AppId, AppOp, Button, Capabilities, ClipboardOp, Device, DeviceEvent, DeviceInfo,
-    FrameRef, Gesture, Image, ImageFormat, Key, Quality, Result, TextInput, Url,
+    FrameRef, Gesture, Image, ImageFormat, Key, Quality, Result, ShellReply, ShellRequest,
+    TextInput, Url,
 };
 use phone_use_core::element::Role;
 use phone_use_core::error::{Error, Op};
@@ -27,7 +28,7 @@ use idevice::services::installation_proxy::InstallationProxyClient;
 
 use crate::map;
 use crate::runner::{Client, Runner};
-use crate::simulator::{Simulator, simctl, simctl_with_input};
+use crate::simulator::{Simulator, shell_args, simctl, simctl_shell, simctl_with_input};
 
 /// Luma pixels per point for settle polls: one sample per 4x4 points, as architecture 4.6 measures change.
 const POLL_SCALE: f32 = 0.25;
@@ -122,7 +123,8 @@ impl IosDevice {
         .union(Capabilities::CLIPBOARD)
         .union(Capabilities::APPS)
         .union(Capabilities::LAUNCH)
-        .union(Capabilities::FOREGROUND);
+        .union(Capabilities::FOREGROUND)
+        .union(Capabilities::SHELL);
 
     /// Starts or reuses the runner on `sim` (task 5.4) and starts settle polling. `home` holds the runner build.
     pub async fn connect(sim: &Simulator, home: &Path) -> Result<IosDevice> {
@@ -558,6 +560,24 @@ impl Device for IosDevice {
         let plist = format!("{app}/Info.plist");
         let id = crate::simulator::plutil_extract(&plist, "CFBundleIdentifier").await?;
         Ok(Some(AppId(id)))
+    }
+
+    async fn shell(&self, req: &ShellRequest) -> Result<ShellReply> {
+        if matches!(self.host, Host::Physical(_)) {
+            return Err(Error::Unsupported {
+                op: Op::Shell,
+                reason: "an iPhone or iPad has no shell for anyone to run commands in; use launch, open, type and the other verbs, or a Simulator",
+            });
+        }
+        let args =
+            shell_args(&self.udid, &req.command).map_err(|detail| Error::Transport { detail })?;
+        let (exit, stdout, stderr, timed_out) = simctl_shell(&args, req.timeout).await?;
+        Ok(ShellReply {
+            exit,
+            stdout,
+            stderr,
+            timed_out,
+        })
     }
 
     async fn app_op(&self, op: AppOp, app: &AppId) -> Result<()> {

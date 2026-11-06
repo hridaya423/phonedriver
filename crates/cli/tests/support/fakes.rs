@@ -101,6 +101,12 @@ impl Device for Pixels {
     async fn foreground(&self) -> Result<Option<AppId>, Error> {
         self.0.foreground().await
     }
+    async fn shell(
+        &self,
+        req: &phone_use_core::device::ShellRequest,
+    ) -> Result<phone_use_core::device::ShellReply, Error> {
+        self.0.shell(req).await
+    }
 }
 
 pub struct OneDevice(pub Arc<dyn Device>);

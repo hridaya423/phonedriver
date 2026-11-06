@@ -10,6 +10,7 @@ pub mod ios;
 pub mod progress;
 pub mod rpc;
 pub mod session;
+pub mod shell;
 pub mod socket;
 pub mod sources;
 pub mod trace;
@@ -154,7 +155,7 @@ impl Daemon {
             }
             "devices" => Ok(self.devices().await?),
             "release" | "snapshot" | "screenshot" | "act" | "wait" | "batch" | "find" | "apps"
-            | "app" | "clipboard" | "health" => {
+            | "app" | "clipboard" | "health" | "shell" => {
                 let common: Common = rpc::params(params)?;
                 let call = match method {
                     "release" => Call::Release,
@@ -165,6 +166,7 @@ impl Daemon {
                     "app" => Call::App(rpc::params(params)?),
                     "health" => Call::Health,
                     "clipboard" => Call::Clipboard(rpc::params(params)?),
+                    "shell" => Call::Shell(rpc::params(params)?),
                     "act" => {
                         let act: ActParams = serde_json::from_value(params.clone())
                             .map_err(|e| act_error(&e, params))?;

@@ -3,7 +3,8 @@
 use async_trait::async_trait;
 use phone_use_core::device::{
     App, AppId, AppOp, Button, Capabilities, ClipboardOp, Device, DeviceEvent, DeviceInfo,
-    FrameRef, Gesture, Image, ImageFormat, Key, Quality, Result, ScreenState, TextInput, Url,
+    FrameRef, Gesture, Image, ImageFormat, Key, Quality, Result, ScreenState, ShellReply,
+    ShellRequest, TextInput, Url,
 };
 use phone_use_core::error::{Error, Op};
 use phone_use_core::geometry::{Rect, Size};
@@ -302,6 +303,21 @@ impl Device for AndroidDevice {
             }
         }
         Ok(())
+    }
+
+    async fn shell(&self, req: &ShellRequest) -> Result<ShellReply> {
+        let reply = self
+            .simple(
+                Op::Shell,
+                json!({"op": "shell", "command": req.command, "timeout_ms": req.timeout.as_millis() as u64}),
+            )
+            .await?;
+        Ok(ShellReply {
+            exit: reply["exit"].as_i64().unwrap_or(-1) as i32,
+            stdout: reply["stdout"].as_str().unwrap_or_default().to_string(),
+            stderr: reply["stderr"].as_str().unwrap_or_default().to_string(),
+            timed_out: reply["timed_out"].as_bool().unwrap_or(false),
+        })
     }
 
     async fn wake(&self) -> Result<()> {
