@@ -1,7 +1,110 @@
-//! Mapping idevice failures to `core::Error` and the single reconnect (architecture 7.1).
+//! Reaching physical devices through usbmuxd, lockdown and the CoreDevice tunnel; mapping idevice failures to
+//! `core::Error` and the single reconnect (architecture 7.1).
 
-use idevice::IdeviceError;
+use idevice::core_device_proxy::CoreDeviceProxy;
+use idevice::provider::{IdeviceProvider, UsbmuxdProvider};
+use idevice::rsd::RsdHandshake;
+use idevice::services::lockdown::LockdownClient;
+use idevice::tcp::handle::AdapterHandle;
+use idevice::usbmuxd::{Connection, UsbmuxdAddr, UsbmuxdConnection};
+use idevice::{IdeviceError, IdeviceService};
 use phone_use_core::error::{DeviceId, Error, UserAction};
+
+const LABEL: &str = "phone-use";
+
+/// A device usbmuxd sees over USB. Network-only devices are left out: their pairing needs a separate approval
+/// on the device, which v1 does not ask for (`docs/spikes/ios.md`, "Device access probe").
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Wired {
+    pub udid: String,
+    pub mux_id: u32,
+}
+
+impl Wired {
+    pub fn provider(&self) -> UsbmuxdProvider {
+        idevice::usbmuxd::UsbmuxdDevice {
+            connection_type: Connection::Usb,
+            udid: self.udid.clone(),
+            device_id: self.mux_id,
+        }
+        .to_provider(UsbmuxdAddr::default(), LABEL)
+    }
+}
+
+pub async fn wired() -> Result<Vec<Wired>, IdeviceError> {
+    let mut mux = UsbmuxdConnection::default().await?;
+    let mut out: Vec<Wired> = Vec::new();
+    for d in mux.get_devices().await? {
+        if d.connection_type == Connection::Usb && !out.iter().any(|w| w.udid == d.udid) {
+            out.push(Wired {
+                udid: d.udid,
+                mux_id: d.device_id,
+            });
+        }
+    }
+    Ok(out)
+}
+
+/// What lockdown says about a device before any session: these keys need no pairing.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Identity {
+    pub name: String,
+    pub model: String,
+    pub os: String,
+}
+
+async fn text(lockdown: &mut LockdownClient, key: &str) -> Result<String, IdeviceError> {
+    Ok(lockdown
+        .get_value(Some(key), None)
+        .await?
+        .as_string()
+        .unwrap_or_default()
+        .to_string())
+}
+
+pub async fn identity(device: &Wired) -> Result<Identity, IdeviceError> {
+    let mut lockdown = LockdownClient::connect(&device.provider()).await?;
+    Ok(Identity {
+        name: text(&mut lockdown, "DeviceName").await?,
+        model: text(&mut lockdown, "ProductType").await?,
+        os: text(&mut lockdown, "ProductVersion").await?,
+    })
+}
+
+/// The CoreDevice tunnel over the userspace TCP stack, with its RSD service list. `IdeviceService::connect` is
+/// spelled out in `open` because blaze's frontend cannot lay out that trait's default method for this type.
+pub struct Tunnel {
+    pub adapter: AdapterHandle,
+    pub rsd: RsdHandshake,
+}
+
+impl Tunnel {
+    pub async fn open(device: &Wired) -> Result<Tunnel, IdeviceError> {
+        let provider = device.provider();
+        let mut lockdown = LockdownClient::connect(&provider).await?;
+        let pairing = provider.get_pairing_file().await?;
+        let legacy = lockdown.start_session(&pairing).await?;
+        let (port, ssl) = lockdown
+            .start_service(CoreDeviceProxy::service_name())
+            .await?;
+        let mut socket = provider.connect(port).await?;
+        if ssl {
+            socket.start_session(&pairing, legacy).await?;
+        }
+        let proxy = CoreDeviceProxy::new(socket).await?;
+        let rsd_port = proxy.tunnel_info().server_rsd_port;
+        let mut adapter = proxy.create_software_tunnel()?.to_async_handle();
+        let stream = adapter.connect(rsd_port).await?;
+        let rsd = RsdHandshake::new(stream).await?;
+        Ok(Tunnel { adapter, rsd })
+    }
+
+    pub fn services(&self) -> Vec<String> {
+        let mut names: Vec<String> = self.rsd.services.keys().cloned().collect();
+        names.sort();
+        names
+    }
+}
 
 fn is_lost(err: &IdeviceError) -> bool {
     matches!(

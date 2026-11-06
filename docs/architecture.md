@@ -325,7 +325,7 @@ Three tiers, chosen automatically per device and reported in `phone-use devices`
 
 | Tier | When | Screen | Input | Tree | Apps | Install on phone |
 |---|---|---|---|---|---|---|
-| **CoreDevice** | iOS 27+ physical device, Developer Mode on | RTP video stream (displayservice), codec chosen by the device | HID: multitouch, buttons, keyboard | Runner if installed; else OCR | app_service | Nothing (runner optional) |
+| **CoreDevice** | iOS 27+ physical device, Developer Mode on | RTP H.264 stream (displayservice) | HID: multitouch, buttons, keyboard | Runner if installed; else OCR | app_service | Nothing (runner optional) |
 | **Runner** | iOS 17 to 26 physical device | Runner screenshots, DVT screenshot | Runner (`XCSynthesizedEventRecord`) | Runner | app_service or runner | PhoneUseRunner (signed) |
 | **Simulator** | Booted simulator on a Mac | Runner screenshots | Runner | Runner | `simctl` | PhoneUseRunner (unsigned) |
 
@@ -340,7 +340,7 @@ Not available on iOS in v1: `press recents` (no API; returns `Unsupported`).
 ### 7.2 CoreDevice tier
 
 - Start the display media stream first. HID input is silently discarded without it (idevice `hid.rs:1-11`). The stream stays up for the life of the lease.
-- Codec: the offer advertises two codec banks (RTP payload types 123 and 100) and the device picks one. The two reference implementations disagree on which is which: go-ios `ios/display/offer.go:35-38` says 123 is HEVC, 100 is AVC, and "on iOS 27 it chooses AVC"; idevice `display_stream/negotiation.rs:166-186` labels 123 as H.264 and 100 as HEVC, and its depacketizer assumes HEVC on 100. Both agree the device answers with 100. Spike I3 settles it by reading the NAL unit headers of real packets (H.264: 1-byte header, types 1 to 23 plus 24 STAP-A and 28 FU-A; HEVC: 2-byte header, 49 for fragmentation units). The video crate gets an RTP depacketizer for whichever codec the device sends: RFC 6184 for H.264, RFC 7798 for HEVC (idevice's `hevc.rs` covers that one).
+- Codec: the offer lists only the H.264 bank (RTP payload type 123). Spike I3 (iPad, iOS 27.0) showed the device accepts it and sends H.264 (High, level 5.2, 2736 x 2064). With idevice's default two-bank offer the device sends HEVC on payload type 100, so idevice's labels are right and go-ios `ios/display/offer.go:35-38` is wrong. The video crate depacketizes RFC 6184 (single NAL, STAP-A, FU-A) and the device's parameter packet (a 4-byte header, then an `avc1` sample entry whose `avcC` holds SPS and PPS).
 - Touch: points → normalized 0..65535 per axis. Multitouch up to 5 contacts.
 - Buttons: Home, Lock, Volume via `send_button` (button usage codes confirmed in spike I1). `back` taps the navigation bar's back button when the tree shows one (`via: "nav-button"`), else performs a left-edge swipe (`via: "edge-swipe"`).
 - Text: pasteboard `set_text`, then HID keyboard Cmd+V. Keystrokes mode sends HID keyboard usages (US layout). Two effects to confirm in spike I1: creating the HID keyboard may make iOS treat a hardware keyboard as attached and hide the software keyboard (the layout changes); and a keyboard-shortcut paste should not raise the "Allow Paste" prompt. If it does, the reply reports `ApproveSystemPrompt`.
@@ -381,7 +381,7 @@ Signing: built with Xcode automatic signing for the user's team. A free Apple ID
 ## 8. Video (`phone-use-video`)
 
 - Input: H.264 Annex-B access units from the Android agent, or RTP packets from iOS depacketized into access units (section 7.2).
-- Decode: `openh264` for H.264 on every OS. HEVC, only if spike I3 shows the device sends it: VideoToolbox on macOS; on other OSes the CoreDevice tier falls back to `screencaptureservices` PNGs and polled settle until an HEVC decoder is added.
+- Decode: `openh264` for H.264 on every OS. The CoreDevice tier asks the device for H.264 only (spike I3), so no HEVC decoder is needed.
 - Output, `FrameStore`: the latest decoded frame (`Arc`, planar YUV 4:2:0), a luma thumbnail with one sample per 4×4 points (the settle measure of section 4.6), a sequence number, and the time of the last frame, with a `watch` channel carrying `FrameRef { seq, changed_area_pt2, changed_box }`. Every frame is decoded (inter-frame coding forbids skipping).
 - Screenshot = encode the latest frame (PNG or JPEG) on the host. A static screen can send no frames for seconds (observed in task 2.7 on the API 37 emulator through the tunnel: bursts at about 10 frames per second, then gaps of up to 5 s with nothing changing on screen), so a quiet stream is not a broken one and the last frame is a correct screenshot. The stream is broken only when its socket ends (`VideoStream::ended`, which `AndroidDevice::screenshot` reports as `DeviceGone`, and which makes the actor reconnect on the next call). The first frame after a connect is awaited for up to 2 s. Screenshots requested while an action is settling wait for settle, so encoder pipeline latency cannot return the pre-action frame.
 

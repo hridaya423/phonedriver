@@ -37,6 +37,10 @@ Each decision records the choice, the alternatives it beat, and the evidence tha
 
 **Pin (2026-11-06, task 6.1).** crates.io `idevice` 0.1.68 has all four features the plan lists (`display_stream`, `core_device`, `xctest`, `tunnel_tcp_stack`; read from the crate's `Cargo.toml` after `cargo info idevice@0.1.68`), so the dependency is the registry crate, not the git rev `8970209`: `idevice = { version = "=0.1.68", default-features = false, features = ["ring", "usbmuxd", "pair", "core_device", "display_stream", "xctest", "tunnel_tcp_stack"] }` in `crates/ios`. `default-features = false` drops `aws-lc` (a C++ build); `ring` is the TLS backend lockdown needs, `pair` adds the pairing error variants and `usbmuxd` discovery. The exact `=` matters: `IdeviceError` is `#[non_exhaustive]` and the README says every release breaks the API. Features for later tasks (`amfi`, `mobile_image_mounter`, `installation_proxy` comes in through `xctest`) are added when their task needs them. The CoreDevice service names `phone-use` checks (`com.apple.coredevice.hid.universalhidservice`, `com.apple.coredevice.displayservice`) were read from idevice's `hid.rs` and `display_stream/client.rs`.
 
+**Codec (2026-11-06, spike I3, iPad iOS 27.0).** The CoreDevice tier offers only the H.264 bank (RTP payload type 123). The device accepts it and sends H.264, High profile, level 5.2, 2736 x 2064, which `openh264` decodes. With idevice's default offer the device sends HEVC on payload type 100 (idevice's labels are right, go-ios's are wrong). One software decoder on every OS beats VideoToolbox plus a fallback. Reopen if a device refuses an H.264-only offer.
+
+**Floor (2026-11-06, spike I2).** The CoreDevice services are listed on an iPhone with iOS 26.1, but starting the display stream there fails with "Remote control requires iOS 27.0 or later on this device". The CoreDevice tier needs iOS 27; iOS 17 to 26 use the Runner tier.
+
 ## D4. Our own XCTest runner, not WebDriverAgent
 
 **Choice.** A small XCTest bundle that serves our framing and uses WDA's techniques (private headers, bounded snapshots, event synthesis).
