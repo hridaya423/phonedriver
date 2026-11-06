@@ -34,6 +34,7 @@ windows-sys = { version = "0.61.2", features = ["Win32_Foundation", "Win32_Secur
 [dev-dependencies]
 assert_cmd = "2.2.2"
 phone-use-core = { path = "../core", features = ["testing"] }
+phone-use-ios = { path = "../ios", features = ["testing"] }
 proptest = "1.12.0"
 rmcp = { version = "3.9.0", features = ["client"] }
 tempfile = "3.27.0"

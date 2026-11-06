@@ -3,8 +3,6 @@
 
 #![cfg(unix)]
 
-mod support;
-
 use std::path::PathBuf;
 use std::sync::{Arc, LazyLock, OnceLock};
 use std::time::Duration;
@@ -17,8 +15,8 @@ use phone_use_core::geometry::Point;
 use phone_use_core::raw::RawTree;
 use phone_use_ios::device::IosDevice;
 use phone_use_ios::simulator::Simulator;
+use phone_use_ios::testbed;
 use serde_json::Value;
-use support::testbed;
 use tokio::runtime::Runtime;
 
 static RT: LazyLock<Runtime> = LazyLock::new(|| Runtime::new().unwrap());
