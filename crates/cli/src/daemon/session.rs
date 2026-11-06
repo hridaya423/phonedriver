@@ -13,6 +13,8 @@ use crate::wire::{PointJson, Target};
 pub struct Session {
     pub refs: RefTable,
     pub last: Option<Rendered>,
+    /// The last snapshot merged text from pixels, so target resolution does too.
+    pub ocr: bool,
 }
 
 pub struct Resolved {

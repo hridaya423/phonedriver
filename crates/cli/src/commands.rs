@@ -67,6 +67,9 @@ pub(crate) enum Verb {
         within: Option<String>,
         #[arg(long)]
         max_lines: Option<usize>,
+        /// Read the screen's pixels with OCR and add the text the tree lacks. Done automatically when the tree is empty or a web view has no children.
+        #[arg(long)]
+        pixels: bool,
         /// Save the device's own tree and a screenshot as a test fixture.
         #[arg(long)]
         save_fixture: Option<String>,
@@ -352,11 +355,12 @@ pub(crate) async fn execute_with(
             interactive,
             within,
             max_lines,
+            pixels,
             save_fixture,
             fixture_dir,
         } => {
             let mut p = json!({
-                "diff": diff, "interactive": interactive, "max_lines": max_lines,
+                "diff": diff, "interactive": interactive, "max_lines": max_lines, "pixels": pixels,
                 "no_settle": g.no_settle, "elements": g.json, "capture": save_fixture.is_some(),
             });
             if let Some(w) = within {
