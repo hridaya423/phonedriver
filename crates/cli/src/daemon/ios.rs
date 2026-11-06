@@ -7,6 +7,7 @@ use std::time::Duration;
 use async_trait::async_trait;
 use phone_use_core::device::Device;
 use phone_use_core::error::Error;
+use phone_use_ios::coredevice::CoreDevice;
 use phone_use_ios::device::IosDevice;
 use phone_use_ios::simulator::Simulator;
 use phone_use_ios::{discovery, transport};
@@ -74,43 +75,86 @@ impl DeviceSource for SimSource {
     }
 }
 
+/// An iOS 27 device is driven through the runner unless `PHONE_USE_IOS_TIER=coredevice` asks for the CoreDevice
+/// services: that tier's screen stream stops showing app changes after the first seconds (progress.md, 2026-11-06).
+fn tier_of(found: discovery::Tier) -> discovery::Tier {
+    match (found, std::env::var("PHONE_USE_IOS_TIER").as_deref()) {
+        (discovery::Tier::CoreDevice, Ok("coredevice")) => discovery::Tier::CoreDevice,
+        _ => discovery::Tier::Runner,
+    }
+}
+
 /// Wired physical devices (ids `ios:<udid>`), driven through the PhoneUseRunner signed with the Apple developer
 /// team in `PHONE_USE_TEAM`.
 pub struct PhysicalSource {
     home: PathBuf,
+    described: Mutex<Vec<discovery::Found>>,
 }
 
 impl PhysicalSource {
     pub fn new(home: PathBuf) -> PhysicalSource {
-        PhysicalSource { home }
+        PhysicalSource {
+            home,
+            described: Mutex::new(Vec::new()),
+        }
+    }
+
+    /// Every wired device, described once per udid: describing an iOS 27 device opens a CoreDevice tunnel, and a
+    /// tunnel opened while the display stream runs stopped its frames (observed 2026-11-06 on the iPad: the
+    /// daemon listed devices on every request and the screenshot went stale).
+    async fn found(&self) -> Result<Vec<(transport::Wired, discovery::Found)>, Error> {
+        let mut described = self.described.lock().await;
+        let mut out = Vec::new();
+        for wired in transport::wired()
+            .await
+            .map_err(|e| transport::classify(&"ios".to_string(), &e))?
+        {
+            let known = described.iter().find(|f| f.udid == wired.udid).cloned();
+            let found = match known {
+                Some(f) => f,
+                None => {
+                    let f = discovery::describe(&wired).await?;
+                    described.push(f.clone());
+                    f
+                }
+            };
+            out.push((wired, found));
+        }
+        Ok(out)
     }
 }
 
 #[async_trait]
 impl DeviceSource for PhysicalSource {
     async fn list(&self) -> Result<Vec<Listed>, Error> {
-        Ok(discovery::list()
+        Ok(self
+            .found()
             .await?
             .into_iter()
-            .map(|d| Listed {
+            .map(|(_, d)| Listed {
                 id: format!("ios:{}", d.udid),
                 model: d.name,
                 os: Some(d.os),
-                tier: d.tier.name().into(),
-                capabilities: IosDevice::CAPABILITIES,
+                tier: tier_of(d.tier).name().into(),
+                capabilities: match tier_of(d.tier) {
+                    discovery::Tier::CoreDevice => CoreDevice::CAPABILITIES,
+                    discovery::Tier::Runner => IosDevice::CAPABILITIES,
+                },
             })
             .collect())
     }
 
     async fn connect(&self, id: &str) -> Result<Arc<dyn Device>, Error> {
         let udid = id.strip_prefix("ios:").unwrap_or(id);
-        let wired = transport::wired()
-            .await
-            .map_err(|e| transport::classify(&id.to_string(), &e))?
+        let (wired, found) = self
+            .found()
+            .await?
             .into_iter()
-            .find(|w| w.udid == udid)
+            .find(|(w, _)| w.udid == udid)
             .ok_or_else(|| Error::DeviceGone { id: id.to_string() })?;
-        let found = discovery::describe(&wired).await?;
+        if tier_of(found.tier) == discovery::Tier::CoreDevice {
+            return Ok(Arc::new(CoreDevice::connect(&wired, &found.model).await?));
+        }
         let team = std::env::var("PHONE_USE_TEAM").map_err(|_| Error::Transport {
             detail: "set PHONE_USE_TEAM to the Apple developer team that signs the runner (for example DV6NC6KRYL)"
                 .into(),

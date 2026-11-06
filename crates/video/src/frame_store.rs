@@ -45,6 +45,28 @@ impl Frame {
             v,
         }
     }
+
+    /// The picture turned a quarter turn clockwise: the left edge becomes the top. Width and height must be even so
+    /// the chroma planes turn with the luma.
+    pub fn rotated_cw(&self) -> Frame {
+        let turn = |src: &[u8], w: usize, h: usize| {
+            let mut out = vec![0; w * h];
+            for row in 0..h {
+                for col in 0..w {
+                    out[col * h + (h - 1 - row)] = src[row * w + col];
+                }
+            }
+            out
+        };
+        let (w, h) = (self.width as usize, self.height as usize);
+        Frame::from_i420(
+            self.height,
+            self.width,
+            turn(&self.y, w, h),
+            turn(&self.u, w / 2, h / 2),
+            turn(&self.v, w / 2, h / 2),
+        )
+    }
 }
 
 impl std::fmt::Debug for Frame {
@@ -240,11 +262,32 @@ impl FrameStore {
         (r0..r1).all(|r| (c0..c1).all(|c| thumb.samples[r * thumb.cols + c] <= BLACK_LEVEL))
     }
 
-    pub(crate) fn record_decode_error(&self) {
+    pub fn record_decode_error(&self) {
         self.decode_errors.fetch_add(1, Ordering::Relaxed);
     }
 
     pub fn decode_errors(&self) -> u64 {
         self.decode_errors.load(Ordering::Relaxed)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_quarter_turn_clockwise_moves_the_left_edge_to_the_top() {
+        let frame = Frame::from_i420(
+            4,
+            2,
+            vec![1, 2, 3, 4, 5, 6, 7, 8],
+            vec![10, 20],
+            vec![30, 40],
+        );
+        let turned = frame.rotated_cw();
+        assert_eq!((turned.width, turned.height), (2, 4));
+        assert_eq!(turned.y, [5, 1, 6, 2, 7, 3, 8, 4]);
+        assert_eq!(turned.u, [10, 20]);
+        assert_eq!(turned.v, [30, 40]);
     }
 }
