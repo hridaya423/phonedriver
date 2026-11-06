@@ -176,6 +176,9 @@ pub(crate) enum Verb {
         /// Write the PNG here, on this machine, instead of printing the path on the daemon's machine.
         #[arg(short, long)]
         output: Option<PathBuf>,
+        /// Draw a box and the `@eN` ref on every element that can be tapped or typed into.
+        #[arg(long)]
+        marks: bool,
     },
     /// Tap `@ref`, `x,y` in points, or the element with this text.
     Tap {
@@ -564,8 +567,8 @@ pub(crate) async fn execute_with(
                 obs.text
             })
         }
-        Verb::Screenshot { output } => {
-            let mut params = json!({});
+        Verb::Screenshot { output, marks } => {
+            let mut params = json!({"marks": marks});
             if output.is_some() {
                 params["inline"] = json!(true);
             }
@@ -588,7 +591,10 @@ pub(crate) async fn execute_with(
             if g.json {
                 return Ok(result.to_string());
             }
-            Ok(format!("{path} {}x{}", shot.width, shot.height))
+            Ok(match shot.marks {
+                Some(n) => format!("{path} {}x{} · {n} marks", shot.width, shot.height),
+                None => format!("{path} {}x{}", shot.width, shot.height),
+            })
         }
         Verb::Wait { condition } => {
             let mut p = json!({"condition": wait_condition(&condition)});

@@ -47,6 +47,13 @@ struct DevicesArgs {
 }
 
 #[derive(Deserialize, JsonSchema)]
+struct ScreenshotArgs {
+    device: Option<String>,
+    /// Draw a box and the `@eN` ref on every element that can be tapped or typed into, so you can say `tap @e12` from the picture.
+    marks: Option<bool>,
+}
+
+#[derive(Deserialize, JsonSchema)]
 struct ClipboardArgs {
     device: Option<String>,
     /// Put this text on the clipboard. Omit it to read the clipboard.
@@ -480,13 +487,14 @@ impl Mcp {
     }
 
     #[tool(
-        description = "Take a screenshot and return it as an image, one pixel per point. Use it when the snapshot does not show what you need, such as a canvas, a map or an image."
+        description = "Take a screenshot and return it as an image, one pixel per point. Use it when the snapshot does not show what you need, such as a canvas, a map or an image. With `marks`, elements are boxed with their @refs."
     )]
-    async fn screenshot(&self, Parameters(a): Parameters<DeviceArgs>) -> CallToolResult {
+    async fn screenshot(&self, Parameters(a): Parameters<ScreenshotArgs>) -> CallToolResult {
+        let marks = a.marks.unwrap_or(false);
         let globals = Self::globals(a.device);
         let shot = self
             .with_client(async |client| {
-                let mut params = json!({"inline": true});
+                let mut params = json!({"inline": true, "marks": marks});
                 if let Some(d) = &globals.device {
                     params["device"] = json!(d);
                 }
@@ -505,10 +513,13 @@ impl Mcp {
         };
         CallToolResult::success(vec![
             ContentBlock::image(data, "image/png"),
-            ContentBlock::text(format!(
-                "{}x{} at scale {}",
-                shot.width, shot.height, shot.scale
-            )),
+            ContentBlock::text(match shot.marks {
+                Some(n) => format!(
+                    "{}x{} at scale {}, {n} marked elements",
+                    shot.width, shot.height, shot.scale
+                ),
+                None => format!("{}x{} at scale {}", shot.width, shot.height, shot.scale),
+            }),
         ])
     }
 

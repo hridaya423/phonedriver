@@ -36,7 +36,7 @@ Use `wait` when the screen needs time: `wait "Row 640"`, `wait gone:"Loading"`, 
 
 ## Screenshots
 
-Call `screenshot` when the snapshot does not hold what you need: a map, a drawing, a photo, or a game. Look at the image before you tap a point on it. Do not use screenshots for text that the snapshot already shows.
+Call `screenshot` (with `marks` to see each tappable element boxed with its `@ref`) when the snapshot does not hold what you need: a map, a drawing, a photo, or a game. Look at the image before you tap a point on it. Do not use screenshots for text that the snapshot already shows.
 
 ## Typing
 
