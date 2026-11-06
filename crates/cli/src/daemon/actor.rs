@@ -6,6 +6,7 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
+use base64::Engine;
 use phone_use_core::device::{
     App, Button, Capabilities, ClipboardOp, Device, DeviceEvent, FrameRef, Gesture, Key, Quality,
     ScreenState, TextInput, TimedPoint, Url,
@@ -31,7 +32,8 @@ use super::DeviceSource;
 use super::session::{Resolved, Session};
 use crate::wire::{
     ActParams, Action, ActionResult, ClipboardParams, FindParams, Kind, Observation,
-    ScreenshotResult, SnapshotParams, Target, TypeMode, WaitCondition, WaitParams,
+    ScreenshotParams, ScreenshotResult, SnapshotParams, Target, TypeMode, WaitCondition,
+    WaitParams,
 };
 
 pub const LEASE_TTL: Duration = Duration::from_secs(600);
@@ -43,7 +45,7 @@ const MASK: &str = "•••";
 
 pub enum Call {
     Snapshot(SnapshotParams),
-    Screenshot,
+    Screenshot(ScreenshotParams),
     Act(ActParams),
     Wait(WaitParams),
     Find(FindParams),
@@ -333,7 +335,7 @@ impl Actor {
     async fn dispatch(&mut self, s: &mut Session, call: Call) -> Result<Value, Error> {
         let value = match call {
             Call::Snapshot(p) => to_value(self.snapshot(s, p).await?),
-            Call::Screenshot => to_value(self.screenshot().await?),
+            Call::Screenshot(p) => to_value(self.screenshot(p.inline).await?),
             Call::Act(p) => to_value(self.act(s, p).await?),
             Call::Wait(p) => to_value(self.wait(s, p).await?),
             Call::Find(p) => {
@@ -383,7 +385,7 @@ impl Actor {
         Ok(json!({"id": info.id, "model": info.model, "os": info.os, "frames_ms": frames_ms}))
     }
 
-    async fn screenshot(&mut self) -> Result<ScreenshotResult, Error> {
+    async fn screenshot(&mut self, inline: bool) -> Result<ScreenshotResult, Error> {
         self.need(
             Capabilities::SCREENSHOT,
             Op::Screenshot,
@@ -406,6 +408,8 @@ impl Actor {
             width: image.width,
             height: image.height,
             scale: 1.0,
+            data_b64: inline
+                .then(|| base64::engine::general_purpose::STANDARD.encode(&image.bytes)),
         })
     }
 

@@ -165,7 +165,7 @@ phone-use snapshot
 
 On the other machine, run any `phone-use` command once, or `phone-use daemon`, so that the socket exists. Both machines need the same `phone-use` version. If the forward is down, the error names `PHONE_USE_SOCKET`.
 
-Two things differ from a local run. `phone-use screenshot` prints a path on the machine that has the device; fetch the file with `ssh mini cat <path> > shot.png`. The MCP `screenshot` tool returns the image itself, so it works unchanged.
+Two things differ from a local run. `phone-use screenshot` prints a path on the machine that has the device; `phone-use screenshot -o shot.png` writes the file on your machine instead. The MCP `screenshot` tool returns the image itself, so it works unchanged.
 
 ## Use with other MCP clients
 

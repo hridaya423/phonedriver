@@ -157,6 +157,89 @@ async fn screenshot_is_one_png_image_block_and_one_text_block_with_size_and_scal
     assert_eq!(texts(&r), vec!["360x800 at scale 1".to_string()]);
 }
 
+async fn remote(rig: &Rig) -> PathBuf {
+    use interprocess::local_socket::traits::tokio::Listener as _;
+    use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader, split};
+    let proxy = rig.home.path().join("run").join("remote.sock");
+    let listener = socket::listen(&proxy).await.unwrap();
+    let daemon = rig.socket.clone();
+    tokio::spawn(async move {
+        loop {
+            let Ok(client) = listener.accept().await else {
+                return;
+            };
+            let upstream = socket::connect(&daemon).await.unwrap();
+            let (cr, mut cw) = split(client);
+            let (ur, mut uw) = split(upstream);
+            tokio::spawn(async move {
+                let mut lines = BufReader::new(cr).lines();
+                while let Ok(Some(line)) = lines.next_line().await {
+                    uw.write_all(format!("{line}\n").as_bytes()).await.unwrap();
+                }
+            });
+            tokio::spawn(async move {
+                let mut lines = BufReader::new(ur).lines();
+                while let Ok(Some(line)) = lines.next_line().await {
+                    let mut v: Value = serde_json::from_str(&line).unwrap();
+                    if v["result"]["path"].is_string() {
+                        v["result"]["path"] = json!("/the-daemons-host/shot.png");
+                    }
+                    cw.write_all(format!("{v}\n").as_bytes()).await.unwrap();
+                }
+            });
+        }
+    });
+    proxy
+}
+
+#[tokio::test]
+async fn screenshot_over_a_remote_socket_returns_the_image_without_reading_the_daemons_path() {
+    let rig = rig(vec![tree(&["One"])]).await;
+    let proxy = remote(&rig).await;
+    let mcp = Mcp::new(Some(proxy), "mcp-remote".into());
+    let (client_io, server_io) = tokio::io::duplex(1 << 20);
+    tokio::spawn(async move {
+        let running = mcp.serve(server_io).await.unwrap();
+        let _ = running.waiting().await;
+    });
+    let client = ().serve(client_io).await.unwrap();
+    let r = client
+        .call_tool(CallToolRequestParams::new("screenshot"))
+        .await
+        .unwrap();
+    assert_ne!(r.is_error, Some(true), "{r:?}");
+    let image = r.content.iter().find_map(|c| c.as_image()).expect("image");
+    use base64::Engine;
+    assert_eq!(
+        base64::engine::general_purpose::STANDARD
+            .decode(&image.data)
+            .unwrap(),
+        PNG
+    );
+}
+
+#[tokio::test]
+async fn the_screenshot_rpc_sends_bytes_only_when_asked() {
+    let rig = rig(vec![tree(&["One"])]).await;
+    let plain = rig.daemon("screenshot", json!({})).await.unwrap();
+    assert!(plain.get("data_b64").is_none(), "{plain}");
+    let inline = rig
+        .daemon("screenshot", json!({"inline": true}))
+        .await
+        .unwrap();
+    use base64::Engine;
+    assert_eq!(
+        base64::engine::general_purpose::STANDARD
+            .decode(inline["data_b64"].as_str().unwrap())
+            .unwrap(),
+        PNG
+    );
+    assert_eq!(
+        std::fs::read(inline["path"].as_str().unwrap()).unwrap(),
+        PNG
+    );
+}
+
 #[tokio::test]
 async fn an_error_is_is_error_with_the_message_and_the_hint() {
     let rig = rig(vec![tree(&["One"])]).await;
