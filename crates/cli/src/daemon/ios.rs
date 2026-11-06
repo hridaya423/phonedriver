@@ -21,6 +21,11 @@ use super::{DeviceSource, Listed};
 /// much to every iOS call; a listing this recent is reused.
 const LIST_TTL: Duration = Duration::from_secs(2);
 
+/// The usbmuxd listing of wired devices is reused for this long, failures included: on Windows a missing usbmuxd
+/// cost 2 s per request. usbmuxd attach and detach events are not exposed by the `idevice` client we use, so a
+/// device plugged in is seen within this time rather than at once.
+const WIRED_TTL: Duration = Duration::from_secs(5);
+
 fn starting_runner(name: &str, home: &std::path::Path) -> String {
     format!(
         "starting the iOS runner on {name} (the first run builds it; logs are in {})",
@@ -99,14 +104,32 @@ fn tier_of(found: discovery::Tier) -> discovery::Tier {
 pub struct PhysicalSource {
     home: PathBuf,
     described: Mutex<Vec<discovery::Found>>,
+    wired: Mutex<Option<Listing>>,
 }
+
+type Listing = (Instant, Result<Vec<transport::Wired>, Error>);
 
 impl PhysicalSource {
     pub fn new(home: PathBuf) -> PhysicalSource {
         PhysicalSource {
             home,
             described: Mutex::new(Vec::new()),
+            wired: Mutex::new(None),
         }
+    }
+
+    async fn wired(&self) -> Result<Vec<transport::Wired>, Error> {
+        let mut cached = self.wired.lock().await;
+        if let Some((at, answer)) = cached.as_ref()
+            && at.elapsed() < WIRED_TTL
+        {
+            return answer.clone();
+        }
+        let answer = transport::wired()
+            .await
+            .map_err(|e| transport::classify(&"ios".to_string(), &e));
+        *cached = Some((Instant::now(), answer.clone()));
+        answer
     }
 
     /// Every wired device, described once per udid: describing an iOS 27 device opens a CoreDevice tunnel, and a
@@ -115,10 +138,7 @@ impl PhysicalSource {
     async fn found(&self) -> Result<Vec<(transport::Wired, discovery::Found)>, Error> {
         let mut described = self.described.lock().await;
         let mut out = Vec::new();
-        for wired in transport::wired()
-            .await
-            .map_err(|e| transport::classify(&"ios".to_string(), &e))?
-        {
+        for wired in self.wired().await? {
             let known = described.iter().find(|f| f.udid == wired.udid).cloned();
             let found = match known {
                 Some(f) => f,
