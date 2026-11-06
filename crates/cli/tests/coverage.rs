@@ -122,6 +122,25 @@ async fn compose_controls_take_taps_and_text() {
 
 #[tokio::test]
 #[ignore = "needs PHONE_USE_TEST_DEVICE"]
+async fn the_compose_tab_has_three_switches_and_the_third_one_logs_its_own_id() {
+    let rig = Rig::new().await;
+    compose(&rig).await;
+    let els = elements(&rig);
+    let switches: Vec<&serde_json::Value> = els.iter().filter(|e| e["role"] == "switch").collect();
+    let ids: Vec<&str> = switches.iter().map(|e| e["id"].as_str().unwrap()).collect();
+    assert_eq!(
+        ids,
+        ["compose_switch", "compose_switch_2", "compose_switch_3"]
+    );
+    let third = switches[2]["ref"].as_str().unwrap().to_string();
+    rig.ok(&["tap", &format!("@{third}")]);
+    let log = events(&rig, "compose_toggle", 1).await;
+    assert_eq!(log[0]["id"], "compose_switch_3", "{log:?}");
+    assert_eq!(log[0]["on"], true, "{log:?}");
+}
+
+#[tokio::test]
+#[ignore = "needs PHONE_USE_TEST_DEVICE"]
 async fn a_compose_lazy_list_scrolls_to_item_300_and_the_tap_lands_on_it() {
     let rig = Rig::new().await;
     compose(&rig).await;

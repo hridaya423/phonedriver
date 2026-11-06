@@ -208,16 +208,28 @@ fn hide_repeats(
 /// Siblings whose vertical centers fall in the same band this tall, in points, read as one row.
 const ROW_BAND_PT: f32 = 8.0;
 
+/// Orders `(id, center y, x)` items top to bottom, then left to right inside a row. A row starts at the first item
+/// whose center is more than `ROW_BAND_PT` below the row's first center; fixed bands would split two controls
+/// whose centers straddle a band edge.
+fn rows_then_columns(mut items: Vec<(usize, f32, f32)>) -> Vec<usize> {
+    items.sort_by(|a, b| a.1.total_cmp(&b.1));
+    let mut ordered = Vec::with_capacity(items.len());
+    let mut row: Vec<(usize, f32, f32)> = Vec::new();
+    for item in items {
+        if row.first().is_some_and(|f| item.1 - f.1 > ROW_BAND_PT) {
+            row.sort_by(|a, b| a.2.total_cmp(&b.2));
+            ordered.extend(row.drain(..).map(|r| r.0));
+        }
+        row.push(item);
+    }
+    row.sort_by(|a, b| a.2.total_cmp(&b.2));
+    ordered.extend(row.into_iter().map(|r| r.0));
+    ordered
+}
+
 /// Preorder with siblings top to bottom by center, then left to right (the agent lists a window's views in z
 /// order, which puts an app bar after the list it overlaps), and the keyboard window last.
 fn reading_order(tree: &RawTree, children: &[Vec<usize>]) -> Vec<usize> {
-    let key = |&i: &usize| {
-        let b = tree.nodes[i].bounds;
-        (
-            ((b.y + b.h / 2.0) / ROW_BAND_PT).round() as i64,
-            b.x.round() as i64,
-        )
-    };
     let is_keyboard = |i: &usize| {
         let w = tree.nodes[*i].window;
         tree.windows
@@ -232,8 +244,15 @@ fn reading_order(tree: &RawTree, children: &[Vec<usize>]) -> Vec<usize> {
     let mut stack: Vec<usize> = roots.into_iter().rev().collect();
     while let Some(i) = stack.pop() {
         order.push(i);
-        let mut kids = children[i].clone();
-        kids.sort_by_key(key);
+        let kids = rows_then_columns(
+            children[i]
+                .iter()
+                .map(|&k| {
+                    let b = tree.nodes[k].bounds;
+                    (k, b.y + b.h / 2.0, b.x)
+                })
+                .collect(),
+        );
         stack.extend(kids.into_iter().rev());
     }
     order
@@ -267,6 +286,14 @@ mod tests {
 
     fn settings() -> Vec<Node> {
         prune(&RawTree::from_android_json(FIXTURE, Scale { density: 3.0 }).unwrap())
+    }
+
+    #[test]
+    fn controls_whose_centers_straddle_a_band_edge_still_read_left_to_right() {
+        let row = vec![(7, 186.7, 104.4), (5, 190.5, 0.0), (6, 186.7, 52.2)];
+        assert_eq!(rows_then_columns(row), [5, 6, 7]);
+        let two_rows = vec![(1, 300.0, 0.0), (2, 100.0, 200.0), (3, 100.0, 10.0)];
+        assert_eq!(rows_then_columns(two_rows), [3, 2, 1]);
     }
 
     #[test]
