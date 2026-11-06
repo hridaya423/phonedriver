@@ -25,9 +25,8 @@ use phone_use_core::error::{Error, Op};
 use phone_use_core::geometry::{Rect, Size};
 use phone_use_core::raw::{RawTree, RawWindow};
 use phone_use_video::frame_store::FrameStore;
-use phone_use_video::h264::Decoder;
 use phone_use_video::image::{encode_png, scaled_size};
-use phone_use_video::rtp::{Depacketizer, Event};
+use phone_use_video::receive::{Signal, decode_stream};
 use tokio::sync::{Mutex, broadcast, mpsc, watch};
 use tokio::task::JoinHandle;
 use tokio::time::Instant;
@@ -342,35 +341,28 @@ enum Feedback {
 }
 
 fn decode(
-    mut queue: mpsc::Receiver<Vec<u8>>,
+    queue: mpsc::Receiver<Vec<u8>>,
     store: &FrameStore,
     feedback: &mpsc::UnboundedSender<Feedback>,
 ) {
-    let Ok(mut decoder) = Decoder::new() else {
-        return;
-    };
-    let mut depacketizer = Depacketizer::new();
-    while let Some(datagram) = queue.blocking_recv() {
-        for event in depacketizer.push(&datagram) {
-            match event {
-                Event::KeyframeNeeded => {
-                    let _ = feedback.send(Feedback::Keyframe);
-                }
-                Event::Unit(unit) => match decoder.decode(&unit.data) {
-                    Ok(frame) => {
-                        if let Some(frame) = frame {
-                            store.publish(frame.rotated_cw());
-                        }
-                        let _ = feedback.send(Feedback::FrameDecoded(unit.timestamp));
-                    }
-                    Err(_) => {
-                        store.record_decode_error();
-                        let _ = feedback.send(Feedback::Keyframe);
-                    }
-                },
+    decode_stream(
+        queue,
+        |frame| {
+            store.publish(frame.rotated_cw());
+        },
+        |signal| match signal {
+            Signal::Keyframe => {
+                let _ = feedback.send(Feedback::Keyframe);
             }
-        }
-    }
+            Signal::Decoded(timestamp) => {
+                let _ = feedback.send(Feedback::FrameDecoded(timestamp));
+            }
+            Signal::DecodeFailed => {
+                store.record_decode_error();
+                let _ = feedback.send(Feedback::Keyframe);
+            }
+        },
+    );
 }
 
 /// The receiver reports the device's encoder expects: a liveness report each second, and, as Apple's Device Hub
