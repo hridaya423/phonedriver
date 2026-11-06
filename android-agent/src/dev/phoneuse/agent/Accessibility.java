@@ -30,6 +30,9 @@ final class Accessibility {
     private static UiAutomation automation;
     private static Method sourceNodeId;
     private static boolean kicked;
+    private static boolean afterWake;
+    private static final java.util.Set<String> waitedWebViews = new java.util.HashSet<>();
+    private static final int WEBVIEW_WAIT_MS = 2500;
     private static int screenW;
     private static int screenH;
 
@@ -123,7 +126,7 @@ final class Accessibility {
         screenW = di.getSize().getWidth();
         screenH = di.getSize().getHeight();
         JSONObject tree = read();
-        for (int i = 0; hollow(tree) && i < EMPTY_TREE_RETRIES; i++) {
+        for (int i = 0; hollow(tree, afterWake) && i < EMPTY_TREE_RETRIES; i++) {
             SystemClock.sleep(20);
             tree = read();
             if (i == EMPTY_TREE_RETRIES / 2 && !kicked) {
@@ -134,16 +137,54 @@ final class Accessibility {
                 SystemClock.sleep(KICK_MS);
             }
         }
+        afterWake = false;
+        java.util.Set<String> pending = emptyWebViews(tree);
+        for (int waited = 0; !pending.isEmpty() && waited < WEBVIEW_WAIT_MS; waited += 100) {
+            SystemClock.sleep(100);
+            tree = read();
+            pending = emptyWebViews(tree);
+        }
+        waitedWebViews.addAll(pending);
         return tree;
     }
 
-    // Also hollow: an application window whose root has no children. After the screen has been off, API 26 lists
-    // the app's window with an empty root until the next window change.
-    private static boolean hollow(JSONObject tree) throws Exception {
+    // Chromium builds a WebView's accessibility tree on the first query, which takes about a second (a page is a
+    // leaf node until then), and Compose does the same for its host view, so the first read of each of them waits
+    // for its children, at most WEBVIEW_WAIT_MS.
+    private static java.util.Set<String> emptyWebViews(JSONObject tree) throws Exception {
+        JSONArray nodes = tree.getJSONArray("nodes");
+        java.util.Set<String> pending = new java.util.HashSet<>();
+        for (int i = 0; i < nodes.length(); i++) {
+            JSONObject n = nodes.getJSONObject(i);
+            String cls = n.optString("cls");
+            if (!"android.webkit.WebView".equals(cls) && !"androidx.compose.ui.platform.AndroidComposeView".equals(cls)) {
+                continue;
+            }
+            boolean hasChild = false;
+            for (int j = 0; j < nodes.length() && !hasChild; j++) {
+                hasChild = nodes.getJSONObject(j).optInt("p", -1) == i;
+            }
+            String key = n.optString("n") + "@" + n.optInt("w");
+            if (hasChild) {
+                waitedWebViews.add(key);
+            } else if (!waitedWebViews.contains(key)) {
+                pending.add(key);
+            }
+        }
+        return pending;
+    }
+
+    // Right after a wake an application window whose root has no children is hollow too: after the screen has been
+    // off, API 26 lists the app's window with an empty root until the next window change. Only then, because a cold
+    // start looks the same for a moment and the shade kick would cover the app.
+    private static boolean hollow(JSONObject tree, boolean emptyAppWindowCounts) throws Exception {
         JSONArray windows = tree.getJSONArray("windows");
         JSONArray nodes = tree.getJSONArray("nodes");
         if (nodes.length() <= windows.length()) {
             return true;
+        }
+        if (!emptyAppWindowCounts) {
+            return false;
         }
         for (int i = 0; i < windows.length(); i++) {
             JSONObject w = windows.getJSONObject(i);
@@ -165,6 +206,7 @@ final class Accessibility {
 
     static void allowKick() {
         kicked = false;
+        afterWake = true;
     }
 
     private static JSONObject read() {
@@ -261,6 +303,11 @@ final class Accessibility {
             f.append('v');
         }
         if (n.isVisibleToUser()) f.append('V');
+        android.os.Bundle extras = n.getExtras();
+        CharSequence roleDescription = extras == null ? null : extras.getCharSequence("AccessibilityNodeInfo.roleDescription");
+        if (roleDescription != null && roleDescription.length() > 0) {
+            Json.put(o, "rd", roleDescription.toString());
+        }
         if (n.isCheckable()) f.append('c');
         if (n.isChecked()) f.append('C');
         if (n.isEnabled()) f.append('e');

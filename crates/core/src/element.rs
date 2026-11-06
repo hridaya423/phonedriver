@@ -74,6 +74,20 @@ impl Role {
         }
     }
 
+    /// Maps the role description Jetpack Compose puts on a plain `android.view.View` (`Role.Switch` and the like).
+    pub fn from_role_description(description: &str) -> Option<Role> {
+        match description.to_lowercase().as_str() {
+            "switch" => Some(Role::Switch),
+            "checkbox" => Some(Role::Checkbox),
+            "radio button" => Some(Role::Radio),
+            "tab" => Some(Role::Tab),
+            "button" => Some(Role::Button),
+            "image" => Some(Role::Image),
+            "dropdown list" => Some(Role::Menu),
+            _ => None,
+        }
+    }
+
     /// Maps an `XCUIElementType` name.
     pub fn from_xcui(ty: &str) -> Role {
         match ty.strip_prefix("XCUIElementType").unwrap_or(ty) {

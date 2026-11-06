@@ -1290,3 +1290,38 @@ async fn snapshot_within_a_ref_renders_only_that_subtree_and_a_missing_ref_is_st
     let e = err(&d, "default", "snapshot", json!({"within": "e99"})).await;
     assert_eq!(e.code, -32006, "{e:?}");
 }
+
+#[tokio::test(start_paused = true)]
+async fn a_text_shared_by_an_inert_label_and_one_field_resolves_to_the_field() {
+    let json = r#"{"windows":[{"id":1,"type":"application","package":"com.example","bounds":[0,0,360,800]}],"nodes":[
+        {"p":-1,"w":1,"cls":"android.widget.FrameLayout","b":[0,0,360,800],"f":"vVe"},
+        {"p":0,"w":1,"cls":"android.view.View","desc":"Name","b":[0,100,360,130],"f":"vVe"},
+        {"p":0,"w":1,"cls":"android.widget.EditText","desc":"Name","b":[0,140,360,200],"f":"vVeE","a":["tap","set_text"]},
+        {"p":0,"w":1,"cls":"android.widget.Button","text":"Same","b":[0,300,360,360],"f":"vVe","a":["tap"]},
+        {"p":0,"w":1,"cls":"android.widget.Button","text":"Same","b":[0,400,360,460],"f":"vVe","a":["tap"]}]}"#;
+    let tree = RawTree::from_android_json(json, Scale { density: 1.0 }).unwrap();
+    let (source, fake) = FakeSource::with(vec![tree]);
+    let (d, _home) = daemon(source);
+    ok(
+        &d,
+        "default",
+        "act",
+        json!({"action": {"kind": "tap", "target": {"text": "Name"}}}),
+    )
+    .await;
+    let Call::Gesture(g) = &fake.calls()[0] else {
+        panic!()
+    };
+    assert_eq!(
+        g.fingers[0][0].at.y, 170.0,
+        "the tap goes to the field, not the label"
+    );
+    let e = err(
+        &d,
+        "default",
+        "act",
+        json!({"action": {"kind": "tap", "target": {"text": "Same"}}}),
+    )
+    .await;
+    assert_eq!(e.code, -32008, "two buttons are still ambiguous: {e:?}");
+}

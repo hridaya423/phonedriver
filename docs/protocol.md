@@ -155,6 +155,7 @@ Frames: `u32 big-endian length` + UTF-8 JSON. Requests carry `id`; replies echo 
 | `a` | `getActionList` | `tap`, `long_tap`, `set_text`, `scroll_fwd`, `scroll_back`, `scroll_up`, `scroll_down`, `scroll_left`, `scroll_right` (the directional ones from API 23 `AccessibilityAction.ACTION_SCROLL_*`) |
 | `range` | `getRangeInfo` | sliders and progress |
 | `coll`, `item` | `getCollectionInfo`, `getCollectionItemInfo` | list size and row position ("Row 17 of 1000" without scrolling) |
+| `rd` | `getExtras()` key `AccessibilityNodeInfo.roleDescription` | Compose role description (`Switch`, `Checkbox`, `Radio button`, `Tab`, `Button`, `Image`, `Dropdown list`); omitted when absent |
 | `n` | hidden `getSourceNodeId` via reflection | source id for ref continuity (architecture 4.3); omitted when unavailable |
 
 `Element.value` comes from `sd`, else `range`, else editable `text`. `scrollable↓` and friends come from the directional scroll actions; when only `scroll_fwd`/`scroll_back` exist, the axis comes from the collection shape (`cols > rows` means horizontal).
