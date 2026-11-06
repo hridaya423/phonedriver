@@ -108,6 +108,116 @@ pub async fn simctl_with_input(args: &[&str], input: Option<&str>) -> Result<Str
     Ok(String::from_utf8_lossy(&out.stdout).into_owned())
 }
 
+/// The `simctl` subcommands whose first argument is the device, which `shell` fills in on the Simulator.
+const DEVICE_SUBCOMMANDS: &[&str] = &[
+    "openurl",
+    "ui",
+    "privacy",
+    "location",
+    "status_bar",
+    "push",
+    "launch",
+    "terminate",
+    "install",
+    "uninstall",
+    "listapps",
+    "appinfo",
+    "get_app_container",
+    "addmedia",
+    "keychain",
+    "pbcopy",
+    "pbpaste",
+    "io",
+    "spawn",
+];
+
+/// What `xcrun` runs for a `shell` command on the Simulator `udid`: `simctl <sub> ...` gets the device inserted after
+/// the subcommand, and anything else runs in the Simulator's `/bin/sh` through `simctl spawn`.
+pub fn shell_args(udid: &str, command: &str) -> std::result::Result<Vec<String>, String> {
+    let words = split_words(command)?;
+    if words.first().map(String::as_str) != Some("simctl") {
+        return Ok(["spawn", udid, "/bin/sh", "-c", command]
+            .map(String::from)
+            .to_vec());
+    }
+    let Some(sub) = words.get(1) else {
+        return Err(format!(
+            "simctl needs a subcommand; the device is filled in. Available: {}",
+            DEVICE_SUBCOMMANDS.join(", ")
+        ));
+    };
+    if !DEVICE_SUBCOMMANDS.contains(&sub.as_str()) {
+        return Err(format!(
+            "`simctl {sub}` is not offered here (it does not target this Simulator). Available: {}",
+            DEVICE_SUBCOMMANDS.join(", ")
+        ));
+    }
+    let mut args = vec![sub.clone(), udid.to_string()];
+    args.extend(words[2..].iter().cloned());
+    Ok(args)
+}
+
+fn split_words(s: &str) -> std::result::Result<Vec<String>, String> {
+    let mut words = Vec::new();
+    let mut cur = String::new();
+    let mut quote: Option<char> = None;
+    let mut started = false;
+    for c in s.chars() {
+        match (quote, c) {
+            (Some(q), c) if c == q => quote = None,
+            (Some(_), c) => cur.push(c),
+            (None, '\'' | '"') => {
+                quote = Some(c);
+                started = true;
+            }
+            (None, c) if c.is_whitespace() => {
+                if started || !cur.is_empty() {
+                    words.push(std::mem::take(&mut cur));
+                    started = false;
+                }
+            }
+            (None, c) => cur.push(c),
+        }
+    }
+    if quote.is_some() {
+        return Err("a quote is not closed".into());
+    }
+    if started || !cur.is_empty() {
+        words.push(cur);
+    }
+    Ok(words)
+}
+
+/// `xcrun simctl <args>` to completion: the exit status and both streams, killed after `timeout`.
+pub async fn simctl_shell(
+    args: &[String],
+    timeout: std::time::Duration,
+) -> Result<(i32, String, String, bool)> {
+    let mut cmd = Command::new("xcrun");
+    cmd.arg("simctl")
+        .args(args)
+        .env("LC_CTYPE", "UTF-8")
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .kill_on_drop(true);
+    let child = cmd.spawn().map_err(|e| Error::Transport {
+        detail: format!("cannot run xcrun simctl (is Xcode installed?): {e}"),
+    })?;
+    match tokio::time::timeout(timeout, child.wait_with_output()).await {
+        Ok(Ok(out)) => Ok((
+            out.status.code().unwrap_or(-1),
+            String::from_utf8_lossy(&out.stdout).into_owned(),
+            String::from_utf8_lossy(&out.stderr).into_owned(),
+            false,
+        )),
+        Ok(Err(e)) => Err(Error::Transport {
+            detail: format!("simctl failed: {e}"),
+        }),
+        Err(_) => Ok((124, String::new(), String::new(), true)),
+    }
+}
+
 /// One key of a property list file, through `plutil`.
 pub async fn plutil_extract(file: &str, key: &str) -> Result<String> {
     let out = Command::new("plutil")
@@ -180,6 +290,44 @@ mod tests {
                 os: "iOS 26.5".into(),
             }]
         );
+    }
+
+    #[test]
+    fn a_plain_command_runs_in_the_simulators_shell() {
+        assert_eq!(
+            shell_args("U", "defaults read -g AppleInterfaceStyle").unwrap(),
+            [
+                "spawn",
+                "U",
+                "/bin/sh",
+                "-c",
+                "defaults read -g AppleInterfaceStyle"
+            ]
+        );
+    }
+
+    #[test]
+    fn simctl_commands_get_the_device_after_the_subcommand() {
+        assert_eq!(
+            shell_args("U", "simctl ui appearance dark").unwrap(),
+            ["ui", "U", "appearance", "dark"]
+        );
+        assert_eq!(
+            shell_args("U", "simctl openurl 'https://example.com/a b'").unwrap(),
+            ["openurl", "U", "https://example.com/a b"]
+        );
+        assert_eq!(
+            shell_args("U", "simctl location set 37.77,-122.41").unwrap(),
+            ["location", "U", "set", "37.77,-122.41"]
+        );
+    }
+
+    #[test]
+    fn simctl_subcommands_that_do_not_target_this_device_are_refused_with_the_list() {
+        let e = shell_args("U", "simctl erase all").unwrap_err();
+        assert!(e.contains("not offered") && e.contains("openurl"), "{e}");
+        assert!(shell_args("U", "simctl").is_err());
+        assert!(shell_args("U", "simctl openurl 'unclosed").is_err());
     }
 
     #[test]

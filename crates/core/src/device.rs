@@ -30,6 +30,7 @@ bitflags! {
         const APPS = 1 << 12;
         const LAUNCH = 1 << 13;
         const FOREGROUND = 1 << 14;
+        const SHELL = 1 << 15;
     }
 }
 
@@ -195,6 +196,39 @@ pub enum AppOp {
     Uninstall,
 }
 
+/// A command for the device's own shell. `Debug` never prints the command, because it may hold a secret.
+#[derive(Clone, PartialEq, Eq)]
+pub struct ShellRequest {
+    pub command: String,
+    pub timeout: std::time::Duration,
+}
+
+impl fmt::Debug for ShellRequest {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Shell({} chars)", self.command.chars().count())
+    }
+}
+
+#[derive(Clone, PartialEq, Eq, Default)]
+pub struct ShellReply {
+    pub exit: i32,
+    pub stdout: String,
+    pub stderr: String,
+    pub timed_out: bool,
+}
+
+impl fmt::Debug for ShellReply {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "ShellReply(exit {}, {} + {} bytes)",
+            self.exit,
+            self.stdout.len(),
+            self.stderr.len()
+        )
+    }
+}
+
 /// Whether the screen is on and whether the keyguard is up (architecture 6.3).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ScreenState {
@@ -235,6 +269,13 @@ pub trait Device: Send + Sync {
         Err(Error::Unsupported {
             op: Op::App,
             reason: "this device cannot stop, clear or remove apps",
+        })
+    }
+    /// Runs a command in the device's shell and waits for it, killing it after `req.timeout`.
+    async fn shell(&self, _req: &ShellRequest) -> Result<ShellReply> {
+        Err(Error::Unsupported {
+            op: Op::Shell,
+            reason: "this device has no shell",
         })
     }
     /// A device with no screen power or lock state reports an awake, unlocked screen.

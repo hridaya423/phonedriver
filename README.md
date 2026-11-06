@@ -262,9 +262,13 @@ Any client that starts a stdio server can use this entry.
 }
 ```
 
-The server has thirteen tools: `devices`, `apps`, `snapshot`, `screenshot`, `tap`, `type`, `swipe`, `scroll`, `press`, `launch`, `wait`, `batch`, `clipboard` (`apps` also installs, stops, clears and uninstalls). Each prints the same text as the CLI verb of the same name. `PHONE_USE_DEVICE` is optional when one device is connected.
+The server has fourteen tools: `devices`, `apps`, `snapshot`, `screenshot`, `tap`, `type`, `swipe`, `scroll`, `press`, `launch`, `wait`, `batch`, `clipboard`, `shell` (`apps` also installs, stops, clears and uninstalls). Each prints the same text as the CLI verb of the same name. `PHONE_USE_DEVICE` is optional when one device is connected.
 
 Typed secrets (`phone-use type --secret`, or `secret: true` over MCP) never reach logs, traces or replies. phone-use sends no telemetry. It talks to the device and nothing else.
+
+### Shell
+
+`phone-use shell "cmd uimode night yes"` runs a command on the device and prints the exit code, the output (cut at 40 lines; `--grep`, `--head`) and what changed on screen. On Android it runs in the agent already on the device, not in a new `adb shell`. On an iOS Simulator it runs through `simctl spawn`, and `shell "simctl ui appearance dark"` fills in the device for `simctl` subcommands. A physical iPhone has no shell. A physical device refuses wipes and removing apps phone-use did not install unless you pass `--force`. See `docs/bench/shell.md` and decision D21.
 
 ## Development
 

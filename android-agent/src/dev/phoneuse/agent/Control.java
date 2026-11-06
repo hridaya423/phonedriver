@@ -21,6 +21,7 @@ final class Control {
     private final LinkedBlockingQueue<byte[]> outbox = new LinkedBlockingQueue<>();
     private final ExecutorService requests = Executors.newSingleThreadExecutor(Control::looperThread);
     private final ExecutorService gestures = Executors.newSingleThreadExecutor(Control::looperThread);
+    private final ExecutorService shells = Executors.newCachedThreadPool();
 
     Control(DataInputStream in, DataOutputStream out) {
         this.in = in;
@@ -75,7 +76,8 @@ final class Control {
                 byte[] frame = new byte[n];
                 in.readFully(frame);
                 JSONObject q = Json.parse(frame);
-                ExecutorService target = "gesture".equals(q.optString("op")) ? gestures : requests;
+                String op = q.optString("op");
+                ExecutorService target = "gesture".equals(op) ? gestures : "shell".equals(op) ? shells : requests;
                 target.execute(() -> event(answer(q)));
             }
         } finally {
@@ -84,6 +86,7 @@ final class Control {
             }
             requests.shutdownNow();
             gestures.shutdownNow();
+            shells.shutdownNow();
             outbox.add(CLOSE);
         }
     }

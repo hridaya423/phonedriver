@@ -9,7 +9,7 @@ use std::time::Duration;
 use base64::Engine;
 use phone_use_core::device::{
     App, AppOp, Button, Capabilities, ClipboardOp, Device, DeviceEvent, FrameRef, Gesture, Key,
-    Quality, ScreenState, TextInput, TimedPoint, Url,
+    Quality, ScreenState, ShellRequest, TextInput, TimedPoint, Url,
 };
 use phone_use_core::diff::{DiffOrFull, diff};
 use phone_use_core::element::{Actions, Element, ElementState, Ref, Role, Source};
@@ -30,10 +30,12 @@ use tokio::time::Instant;
 
 use super::DeviceSource;
 use super::session::{Resolved, Session};
+use super::shell;
 use crate::wire::{
     ActParams, Action, ActionResult, AppParams, BatchParams, BatchResult, ClipboardParams,
-    FindParams, Kind, Observation, PinchDirection, ScreenshotParams, ScreenshotResult,
-    SnapshotParams, Step, StepFailure, StepResult, Target, TypeMode, WaitCondition, WaitParams,
+    FindParams, Kind, Observation, PinchDirection, ScreenshotParams, ScreenshotResult, ShellParams,
+    ShellResult, SnapshotParams, Step, StepFailure, StepResult, Target, TypeMode, WaitCondition,
+    WaitParams,
 };
 
 pub const LEASE_TTL: Duration = Duration::from_secs(600);
@@ -53,6 +55,7 @@ pub enum Call {
     Apps,
     App(AppParams),
     Clipboard(ClipboardParams),
+    Shell(ShellParams),
     /// What `doctor` needs: the device answers a tree read, and a frame arrives.
     Health,
     Release,
@@ -382,6 +385,7 @@ impl Actor {
                     None => json!({"text": device.clipboard(ClipboardOp::Get).await?}),
                 }
             }
+            Call::Shell(p) => to_value(self.shell(s, p).await?),
             Call::Health => self.health().await?,
             Call::Release | Call::Leased => json!({}),
         };
@@ -449,6 +453,84 @@ impl Actor {
             AppOp::Uninstall => "uninstalled",
         };
         Ok(json!({"ok": true, "summary": format!("{word} {}", found.name)}))
+    }
+
+    /// Runs a command in the device's shell, then (unless it only reads) settles and reports what changed on screen.
+    async fn shell(&mut self, s: &mut Session, p: ShellParams) -> Result<ShellResult, Error> {
+        self.need(
+            Capabilities::SHELL,
+            Op::Shell,
+            "an iPhone or iPad has no shell for anyone to run commands in; use launch, open, type and the other verbs, or a Simulator",
+        )?;
+        if self.physical() && !p.force {
+            let mut mine = Vec::new();
+            self.ledger(|l| mine = l.clone());
+            if let Some(reason) = shell::refuse_on_physical(&p.command, &mine) {
+                return Err(Error::Unsupported {
+                    op: Op::Shell,
+                    reason,
+                });
+            }
+        }
+        let settle = p.settle && !shell::only_reads(&p.command);
+        let mut cfg = Config::action();
+        cfg.expect_change = Some(Duration::from_millis(p.expect_change_ms.unwrap_or(250)));
+        if let Some(t) = p.timeout_ms {
+            cfg.timeout = Duration::from_millis(t);
+        }
+        if settle && s.last.is_none() {
+            s.last = Some(self.fresh(s).await?);
+        }
+        let limit = Duration::from_secs(p.time_limit_s.unwrap_or(30));
+        let device = self.device()?;
+        let req = ShellRequest {
+            command: p.command.clone(),
+            timeout: limit,
+        };
+        let started = self.begin_action();
+        let ran = Instant::now();
+        let reply = tokio::time::timeout(limit + Duration::from_secs(5), device.shell(&req))
+            .await
+            .map_err(|_| Error::Timeout {
+                waited_ms: (limit.as_millis() + 5000) as u32,
+                condition: "the shell command to return".into(),
+            })??;
+        let ms = ran.elapsed().as_millis() as u32;
+        let tidy = shell::tidy(
+            &reply.stdout,
+            &reply.stderr,
+            p.grep.as_deref(),
+            p.head.unwrap_or(shell::DEFAULT_HEAD),
+        );
+        let output = if p.secret {
+            tidy.text.replace(p.command.as_str(), MASK)
+        } else {
+            tidy.text
+        };
+        let action = if settle {
+            let summary = if p.secret {
+                format!("ran a command ({} chars)", p.command.chars().count())
+            } else {
+                "ran".to_string()
+            };
+            Some(
+                self.finish(s, true, cfg, started, summary, None, None, None)
+                    .await?,
+            )
+        } else {
+            if !p.settle {
+                self.unobserved = Some(started);
+            }
+            None
+        };
+        Ok(ShellResult {
+            exit: reply.exit,
+            output,
+            omitted: tidy.omitted,
+            timed_out: reply.timed_out,
+            ms,
+            action,
+        })
     }
 
     /// Everything but an emulator or a Simulator belongs to a person.

@@ -48,6 +48,15 @@ impl Traces {
         took: Duration,
     ) {
         let (ok, reply, settle_ms) = match result {
+            Ok(v) if method == "shell" => (
+                true,
+                format!(
+                    "exit {}, {} output chars",
+                    v["exit"],
+                    v["output"].as_str().map_or(0, |o| o.chars().count())
+                ),
+                v["action"]["settle_ms"].as_u64(),
+            ),
             Ok(v) => (
                 true,
                 v["summary"].as_str().unwrap_or(method).to_string(),
@@ -186,6 +195,13 @@ fn sanitize(method: &str, params: &Value, full: bool) -> Value {
         "find" if !full => {
             if let Some(s) = p.get("text").cloned() {
                 p["text"] = length("text_len", &s);
+            }
+        }
+        "shell" => {
+            if let Some(s) = p.get("command").cloned()
+                && p["secret"].as_bool().unwrap_or(false)
+            {
+                p["command"] = length("secret_len", &s);
             }
         }
         "clipboard" => {

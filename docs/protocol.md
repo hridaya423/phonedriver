@@ -33,6 +33,7 @@ Progress: a client that sends `"progress": true` in `hello` may receive notifica
 | `batch` | `device?, steps: Step[], timeout_ms?, expect_change_ms?` | `BatchResult` |
 | `apps` | `device?` | `[App]` (launchable apps: `{id, name, system}`) |
 | `app` | `device?, action: "install"|"stop"|"clear"|"uninstall", app?, path?` | `{ok, summary}` (`path` is for install, on the daemon's machine; `app` is a name or id; refused with `unsupported` on a physical device for an app phone-use did not install) |
+| `shell` | `device?, command, settle? (default true), timeout_ms?, expect_change_ms?, time_limit_s? (default 30), grep?, head? (default 40, 0 = all), force?, secret?` | `{exit, output, omitted, timed_out, ms, action?}`; `action` is an `act` result (`observation` is the diff) and is absent when the command only reads or `settle` is false; `unsupported` for a physical iPhone or iPad, and for a destructive command on a physical device without `force` (decision D21) |
 | `clipboard` | `device?, set?: string` | `{text?: string}` (`{}` after a set; `text` is null when the clipboard is empty) |
 | `health` | `device?` | `{id, model, os, frames_ms}` (what `doctor` needs: connects, reads the tree once, then waits up to 1 s for the next frame; `frames_ms` is null when none came or the device has no frame stream) |
 
@@ -144,6 +145,7 @@ Frames: `u32 big-endian length` + UTF-8 JSON. Requests carry `id`; replies echo 
 | `gesture` | `pointers:[{id, path:[{x, y, t_ms}]}]` | `{}` after the final UP is delivered |
 | `key` | `keycode, meta?, action?: "down"|"up"|"press"` | `{}` |
 | `text` | `mode` (`paste`, `set`, `keys`), `text`, `sensitive?` (marks the clip `IS_SENSITIVE`) | `{}`; `set` acts on the focused input field; `keys` fails with `unmappable character U+XXXX at N` before typing anything |
+| `shell` | `command`, `timeout_ms?` (default 30000) | `{exit, stdout, stderr, timed_out}`; runs `sh -c` as the shell user on a thread of its own, each stream capped at 1 MiB, killed at the timeout with exit 124 |
 | `clipboard_get` / `clipboard_set` | `text` (set), `sensitive?` | `{text}` (get; null when empty) |
 | `apps` | `all?` | `{apps:[{package, label, system}]}` |
 | `launch` | `package` | `{}` |
