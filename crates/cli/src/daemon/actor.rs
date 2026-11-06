@@ -79,6 +79,7 @@ pub fn spawn(id: String, source: Arc<dyn DeviceSource>, home: PathBuf) -> mpsc::
         base: Instant::now(),
         recent: None,
         unobserved: None,
+        awake: None,
         names: Arc::default(),
     };
     tokio::spawn(actor.run(rx));
@@ -111,6 +112,11 @@ enum Signal {
     Ignored,
 }
 
+/// A screen found on and unlocked stays that way for this long unless a window or display event says otherwise:
+/// reading the power state costs an agent round trip on every action, and on the bare tap it is most of what is
+/// not the app handling the event.
+const AWAKE_REUSE: Duration = Duration::from_secs(1);
+
 struct Actor {
     id: String,
     source: Arc<dyn DeviceSource>,
@@ -123,6 +129,8 @@ struct Actor {
     recent: Option<(Duration, Input)>,
     /// When an action was last delivered without waiting for its effects.
     unobserved: Option<Duration>,
+    /// When `prepare` last found the screen on and unlocked; cleared by any window or display event.
+    awake: Option<Duration>,
     names: Arc<Mutex<HashMap<String, String>>>,
 }
 
@@ -186,6 +194,7 @@ impl Actor {
         self.lease = None;
         self.live = None;
         self.unobserved = None;
+        self.awake = None;
     }
 
     /// The settle parameters for a call that only observes. Right after an action that was sent without settling, the
@@ -211,8 +220,12 @@ impl Actor {
                 changed_area_pt2: f.changed_area_pt2,
                 changed_box: f.changed_box.unwrap_or_else(zero),
             },
-            Signal::Window => Input::WindowChanged,
+            Signal::Window => {
+                self.awake = None;
+                Input::WindowChanged
+            }
             Signal::Display(screen) => {
+                self.awake = None;
                 if let Some(l) = &mut self.live {
                     l.screen = screen;
                 }
@@ -220,6 +233,7 @@ impl Actor {
             }
             Signal::Gone => {
                 self.live = None;
+                self.awake = None;
                 return None;
             }
             Signal::Ignored => return None,
@@ -786,6 +800,13 @@ impl Actor {
     /// Wakes a dark screen, swipes a swipe-only lock screen away, and refuses a PIN lock (architecture 6.3).
     async fn prepare(&mut self, action: &Action) -> Result<(bool, bool), Error> {
         if matches!(action, Action::Press { key } if key == "lock") {
+            self.awake = None;
+            return Ok((false, false));
+        }
+        if self
+            .awake
+            .is_some_and(|at| self.now().saturating_sub(at) < AWAKE_REUSE)
+        {
             return Ok((false, false));
         }
         let device = self.device()?;
@@ -824,6 +845,7 @@ impl Actor {
         if woke || unlocked {
             self.until_app_content().await?;
         }
+        self.awake = Some(self.now());
         Ok((woke, unlocked))
     }
 
@@ -891,7 +913,11 @@ impl Actor {
 
     async fn act(&mut self, s: &mut Session, p: ActParams) -> Result<ActionResult, Error> {
         let (woke, unlocked) = self.prepare(&p.action).await?;
-        let mut result = self.act_now(s, p).await?;
+        let acted = self.act_now(s, p).await;
+        if acted.is_err() {
+            self.awake = None;
+        }
+        let mut result = acted?;
         result.woke = woke;
         result.unlocked = unlocked;
         Ok(result)

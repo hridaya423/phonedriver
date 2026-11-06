@@ -1346,6 +1346,39 @@ async fn a_dark_screen_is_woken_before_the_action_and_the_reply_says_so() {
 }
 
 #[tokio::test(start_paused = true)]
+async fn the_power_state_is_read_once_for_taps_in_quick_succession() {
+    let (source, fake) = FakeSource::with(vec![tree(&["One"])]);
+    let (d, _home) = daemon(source);
+    for _ in 0..3 {
+        ok(&d, "default", "act", tap_point(10.0, 10.0)).await;
+    }
+    assert_eq!(fake.screen_reads(), 1);
+}
+
+#[tokio::test(start_paused = true)]
+async fn the_power_state_is_read_again_after_a_window_event_a_pause_or_a_lock_press() {
+    let (source, fake) = FakeSource::with(vec![tree(&["One"])]);
+    let (d, _home) = daemon(source);
+    ok(&d, "default", "act", tap_point(10.0, 10.0)).await;
+    fake.emit(phone_use_core::device::DeviceEvent::WindowChanged { package: None });
+    tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+    ok(&d, "default", "act", tap_point(10.0, 10.0)).await;
+    assert_eq!(fake.screen_reads(), 2);
+    tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+    ok(&d, "default", "act", tap_point(10.0, 10.0)).await;
+    assert_eq!(fake.screen_reads(), 3);
+    ok(
+        &d,
+        "default",
+        "act",
+        json!({"action": {"kind": "press", "key": "lock"}}),
+    )
+    .await;
+    ok(&d, "default", "act", tap_point(10.0, 10.0)).await;
+    assert_eq!(fake.screen_reads(), 4);
+}
+
+#[tokio::test(start_paused = true)]
 async fn a_swipe_only_keyguard_is_swiped_away_before_the_action() {
     let (source, fake) = FakeSource::with(vec![tree(&["One"])]);
     fake.set_screen(screen(true, true, false));
