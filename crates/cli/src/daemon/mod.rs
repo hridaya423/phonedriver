@@ -59,11 +59,22 @@ pub trait DeviceSource: Send + Sync {
     async fn list(&self) -> Result<Vec<Listed>, Error>;
     async fn connect(&self, id: &str) -> Result<Arc<dyn Device>, Error>;
 
+    /// The devices to look through when a request names `requested` (`None`: no device named). A source that
+    /// owns several backends asks only the ones that can hold that device.
+    async fn list_for(&self, requested: Option<&str>) -> Result<Vec<Listed>, Error> {
+        let _ = requested;
+        self.list().await
+    }
+
     /// Why this device cannot be driven yet, when that is known without connecting (an iPhone with no signing
     /// team). With several devices and none named, only devices without a blocker are candidates for the default.
     fn blocker(&self, _id: &str) -> Option<&'static str> {
         None
     }
+}
+
+pub(crate) fn names(id: &str, requested: &str) -> bool {
+    id == requested || id.strip_suffix(requested).is_some_and(|p| p.ends_with(':'))
 }
 
 pub struct Daemon {
@@ -202,7 +213,7 @@ impl Daemon {
     }
 
     async fn resolve(&self, requested: Option<&str>) -> Result<String, Error> {
-        let list = self.source.list().await?;
+        let list = self.source.list_for(requested).await?;
         let summaries = || {
             list.iter()
                 .map(|l| DeviceSummary {
@@ -215,7 +226,7 @@ impl Daemon {
         match requested {
             Some(r) => list
                 .iter()
-                .find(|l| l.id == r || l.id.ends_with(&format!(":{r}")))
+                .find(|l| names(&l.id, r))
                 .map(|l| l.id.clone())
                 .ok_or_else(|| Error::NoDevice {
                     requested: Some(r.to_string()),

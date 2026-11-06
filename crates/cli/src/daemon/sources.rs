@@ -36,6 +36,45 @@ impl DeviceSource for Sources {
         }
     }
 
+    /// A prefixed id (`android:emulator-5554`, `sim:<udid>`, `ios:<udid>`) asks the one source that owns it. A bare
+    /// id (`emulator-5554`) asks the sources in order and stops at the first that has it, so the Android serial a
+    /// caller usually means never waits on the iOS sources. The audit measured 2.05 s per call on Windows from
+    /// listing physical iOS devices for an Android request.
+    async fn list_for(&self, requested: Option<&str>) -> Result<Vec<Listed>, Error> {
+        let Some(requested) = requested else {
+            return self.list().await;
+        };
+        if let Some((_, owner)) = self
+            .0
+            .iter()
+            .find(|(prefix, _)| requested.starts_with(prefix))
+        {
+            return owner.list().await;
+        }
+        let mut out = Vec::new();
+        let mut first_error = None;
+        let mut answered = false;
+        for (_, source) in &self.0 {
+            match source.list().await {
+                Ok(list) => {
+                    answered = true;
+                    let found = list.iter().any(|l| super::names(&l.id, requested));
+                    out.extend(list);
+                    if found {
+                        break;
+                    }
+                }
+                Err(e) => {
+                    first_error.get_or_insert(e);
+                }
+            }
+        }
+        match (answered, first_error) {
+            (false, Some(e)) => Err(e),
+            _ => Ok(out),
+        }
+    }
+
     async fn connect(&self, id: &str) -> Result<Arc<dyn Device>, Error> {
         let source = self
             .0

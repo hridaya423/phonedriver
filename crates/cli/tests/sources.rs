@@ -83,3 +83,63 @@ async fn connect_goes_to_the_source_that_owns_the_prefix() {
         Err(Error::DeviceGone { .. })
     ));
 }
+
+struct Counting(Fixed, std::sync::atomic::AtomicUsize);
+
+#[async_trait]
+impl DeviceSource for Counting {
+    async fn list(&self) -> Result<Vec<Listed>, Error> {
+        self.1.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        self.0.list().await
+    }
+
+    async fn connect(&self, id: &str) -> Result<Arc<dyn Device>, Error> {
+        self.0.connect(id).await
+    }
+}
+
+fn counted(ids: Vec<&'static str>) -> Arc<Counting> {
+    Arc::new(Counting(Fixed(Ok(ids)), Default::default()))
+}
+
+fn calls(c: &Counting) -> usize {
+    c.1.load(std::sync::atomic::Ordering::SeqCst)
+}
+
+#[tokio::test]
+async fn a_request_for_an_android_device_never_calls_the_ios_sources() {
+    let (adb, sim, phys) = (
+        counted(vec!["android:emulator-5554"]),
+        counted(vec!["sim:s"]),
+        counted(vec!["ios:p"]),
+    );
+    let s = Sources(vec![
+        ("android:", adb.clone()),
+        ("sim:", sim.clone()),
+        ("ios:", phys.clone()),
+    ]);
+    let got = s.list_for(Some("android:emulator-5554")).await.unwrap();
+    assert_eq!(ids(got), ["android:emulator-5554"]);
+    let got = s.list_for(Some("emulator-5554")).await.unwrap();
+    assert_eq!(ids(got), ["android:emulator-5554"]);
+    assert_eq!((calls(&adb), calls(&sim), calls(&phys)), (2, 0, 0));
+}
+
+#[tokio::test]
+async fn a_prefixed_request_asks_only_its_owner_and_a_bare_one_falls_through() {
+    let (adb, sim, phys) = (
+        counted(vec![]),
+        counted(vec!["sim:s"]),
+        counted(vec!["ios:p"]),
+    );
+    let s = Sources(vec![
+        ("android:", adb.clone()),
+        ("sim:", sim.clone()),
+        ("ios:", phys.clone()),
+    ]);
+    assert_eq!(ids(s.list_for(Some("ios:p")).await.unwrap()), ["ios:p"]);
+    assert_eq!((calls(&adb), calls(&sim), calls(&phys)), (0, 0, 1));
+    assert_eq!(ids(s.list_for(Some("s")).await.unwrap()), ["sim:s"]);
+    assert_eq!((calls(&adb), calls(&sim), calls(&phys)), (1, 1, 1));
+    assert_eq!(ids(s.list_for(None).await.unwrap()), ["sim:s", "ios:p"]);
+}

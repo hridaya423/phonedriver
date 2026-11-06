@@ -201,3 +201,13 @@ Each decision records the choice, the alternatives it beat, and the evidence tha
 **Rejected.** Picking a physical device over a Simulator when both are ready: a person who plugged in a phone and has a Simulator booted may mean either. Hiding blocked devices from `devices`: the table should show everything the daemon sees.
 
 **Reopen if.** Another source gains a blocker (an Android device that needs a setting only a person can change), which would make the rule matter more.
+
+## D20. A request looks only in the source that can hold its device; the usbmuxd listing is cached for 5 s
+
+**Choice.** `Daemon::resolve` asks `DeviceSource::list_for(requested)`. A prefixed id (`android:`, `sim:`, `ios:`) asks the one source that owns the prefix; a bare id asks the sources in order (adb first) and stops at the first that has it. No device named lists everything. `PhysicalSource` reuses the usbmuxd listing, failures included, for 5 s.
+
+**Why.** The speed audit measured 2.05 s added to every call on Windows by listing physical iOS devices for an Android request. The `idevice` client exposes no usbmuxd attach or detach events, so a TTL is the only option; 5 s because a plugged-in phone appearing within seconds is acceptable and a failed listing is the expensive case.
+
+**Rejected.** Subscribing to usbmuxd events (not available); caching only successes (the Windows cost is the failure).
+
+**Reopen if.** A newly attached iPhone being invisible for up to 5 s confuses agents.
