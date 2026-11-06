@@ -1294,6 +1294,7 @@ impl Actor {
                     clear: true,
                     text: String::new(),
                     secure,
+                    submitted: false,
                 };
                 self.finish(
                     s,
@@ -1368,6 +1369,7 @@ impl Actor {
                     field: field.map(|f| f.r#ref),
                     text: text.clone(),
                     secure,
+                    submitted: submit,
                 };
                 let mask = secret.then_some(text);
                 self.finish(
@@ -1563,7 +1565,7 @@ impl Actor {
         let st = Some(st);
         let tree = self.device()?.tree().await?;
         let rendered = self.build(s, &tree, st.map(settle_line));
-        let verified = verify.map(|v| v.check(&rendered));
+        let verified = verify.and_then(|v| v.check(&rendered));
         let (kind, mut text) = match s.last.as_ref().map(|prev| diff(prev, &rendered)) {
             Some(DiffOrFull::Diff(changes)) => {
                 (Kind::Diff, DiffOrFull::Diff(changes).text(&rendered))
@@ -2018,34 +2020,38 @@ struct Verify {
     clear: bool,
     text: String,
     secure: bool,
+    /// Enter followed the text.
+    submitted: bool,
 }
 
 impl Verify {
     /// The field now holds the text; a secure field exposes only masked text, so only lengths are compared.
-    fn check(&self, now: &Rendered) -> bool {
-        let Some(e) = self
+    /// `None` when Enter was sent and the field is gone: a form that submits or a search overlay that closes (Safari
+    /// on en.wikipedia.org, iOS 26.5) leaves nothing to read back, so the text can be neither confirmed nor refuted.
+    fn check(&self, now: &Rendered) -> Option<bool> {
+        let named = self
             .field
             .and_then(|r| now.index_of(r))
             .map(|i| &now.elements[i])
-            .or_else(|| {
-                now.elements
-                    .iter()
-                    .find(|e| e.state.contains(ElementState::FOCUSED) && e.role.is_text_entry())
-            })
-        else {
-            return false;
+            .filter(|e| e.role.is_text_entry());
+        let Some(e) = named.or_else(|| {
+            now.elements
+                .iter()
+                .find(|e| e.state.contains(ElementState::FOCUSED) && e.role.is_text_entry())
+        }) else {
+            return if self.submitted { None } else { Some(false) };
         };
         let Some(value) = e.value.as_deref() else {
-            return self.clear;
+            return Some(self.clear);
         };
         if self.clear {
-            return value.is_empty();
+            return Some(value.is_empty());
         }
-        if self.secure || is_secure(e) {
+        Some(if self.secure || is_secure(e) {
             value.chars().count() >= self.text.chars().count()
         } else {
             value.contains(&self.text)
-        }
+        })
     }
 }
 
