@@ -1333,7 +1333,22 @@ impl Actor {
                 let (field, tap_at): (Option<Element>, Option<Point>) = match &into {
                     Some(t) => {
                         let r = self.resolve_target(s, t).await?;
-                        (r.element, Some(r.at))
+                        let inner = r
+                            .element
+                            .as_ref()
+                            .filter(|e| !e.role.is_text_entry())
+                            .and_then(|e| {
+                                s.last
+                                    .as_ref()
+                                    .and_then(|now| text_entry_within(now, e.r#ref))
+                            });
+                        match inner {
+                            Some(f) => {
+                                let at = f.bounds.center();
+                                (Some(f), Some(at))
+                            }
+                            None => (r.element, Some(r.at)),
+                        }
                     }
                     None => (
                         s.last.as_ref().and_then(|last| {
@@ -2075,6 +2090,20 @@ fn delivered(s: &Session, summary: String, via: Option<&'static str>) -> ActionR
             capture: None,
         },
     }
+}
+
+/// The first text field inside a group, when the agent named the group (a search bar's container).
+fn text_entry_within(now: &Rendered, group: Ref) -> Option<Element> {
+    let mut stack = vec![now.index_of(group)?];
+    while let Some(i) = stack.pop() {
+        for &c in now.elements[i].children.iter().rev() {
+            if now.elements[c].role.is_text_entry() {
+                return Some(now.elements[c].clone());
+            }
+            stack.push(c);
+        }
+    }
+    None
 }
 
 fn is_secure(e: &Element) -> bool {

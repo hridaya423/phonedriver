@@ -617,6 +617,37 @@ async fn typed_text_settles_in_under_a_tap_s_first_change_wait() {
 }
 
 #[tokio::test(start_paused = true)]
+async fn type_into_a_group_that_holds_a_text_field_types_into_that_field() {
+    let grouped = |value: &str| {
+        let json = format!(
+            r#"{{"windows":[{{"id":1,"type":"application","package":"com.example","bounds":[0,0,360,800]}}],"nodes":[
+            {{"p":-1,"w":1,"cls":"android.widget.FrameLayout","b":[0,0,360,800],"f":"vVe"}},
+            {{"p":0,"w":1,"cls":"android.view.ViewGroup","desc":"Search","b":[0,100,360,160],"f":"vVe","a":["tap"]}},
+            {{"p":1,"w":1,"cls":"android.widget.EditText","text":"{value}","b":[10,110,350,150],"f":"vVeEF","a":["tap","set_text"]}}]}}"#
+        );
+        RawTree::from_android_json(&json, Scale { density: 1.0 }).unwrap()
+    };
+    let (source, fake) = FakeSource::with(vec![grouped(""), grouped(""), grouped("cats")]);
+    let (d, _home) = daemon(source);
+    let r = ok(&d, "default", "snapshot", json!({})).await;
+    let text = r["text"].as_str().unwrap();
+    assert!(text.contains("textbox"), "{text}");
+    let r = ok(
+        &d,
+        "default",
+        "act",
+        json!({"action": {"kind": "type", "text": "cats", "into": {"text": "Search"}}}),
+    )
+    .await;
+    assert_eq!(r["verified"], true, "{r}");
+    assert!(
+        matches!(&fake.calls()[0], Call::Gesture(g) if (g.fingers[0][0].at.y - 130.0).abs() < 1.0),
+        "{:?}",
+        fake.calls()
+    );
+}
+
+#[tokio::test(start_paused = true)]
 async fn a_field_that_kept_its_old_text_is_reported_with_what_it_shows_and_a_hint_for_that_cause() {
     let (source, _) = FakeSource::with(vec![
         field_tree("10", false),
