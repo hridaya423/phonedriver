@@ -604,6 +604,19 @@ async fn type_into_a_field_with_text_replaces_it_and_append_keeps_it() {
 }
 
 #[tokio::test(start_paused = true)]
+async fn typed_text_settles_in_under_a_tap_s_first_change_wait() {
+    let (source, _) = FakeSource::with(vec![
+        field_tree("", false),
+        field_tree("", false),
+        field_tree("hi", false),
+    ]);
+    let (d, _home) = daemon(source);
+    ok(&d, "default", "snapshot", json!({})).await;
+    let r = ok(&d, "default", "act", type_params("hi", false)).await;
+    assert!(r["settle_ms"].as_u64().unwrap() <= 200, "{r}");
+}
+
+#[tokio::test(start_paused = true)]
 async fn a_field_that_kept_its_old_text_is_reported_with_what_it_shows_and_a_hint_for_that_cause() {
     let (source, _) = FakeSource::with(vec![
         field_tree("10", false),
