@@ -488,8 +488,11 @@ fn trace_text(home: &Path) -> String {
 
 #[tokio::test(start_paused = true)]
 async fn type_taps_the_field_pastes_and_verifies_the_text_by_reading_it_back() {
-    let (source, fake) =
-        FakeSource::with(vec![field_tree("", false), field_tree("héllo 世界", false)]);
+    let (source, fake) = FakeSource::with(vec![
+        field_tree("", false),
+        field_tree("", false),
+        field_tree("héllo 世界", false),
+    ]);
     let (d, _home) = daemon(source);
     ok(&d, "default", "snapshot", json!({})).await;
     let r = ok(&d, "default", "act", type_params("héllo 世界", false)).await;
@@ -504,6 +507,7 @@ async fn type_taps_the_field_pastes_and_verifies_the_text_by_reading_it_back() {
         ))
     );
     let wrong = FakeSource::with(vec![
+        field_tree("", false),
         field_tree("", false),
         field_tree("something else", false),
     ]);
@@ -546,8 +550,11 @@ async fn typing_with_submit_into_a_field_that_closes_is_not_reported_as_unverifi
 
 #[tokio::test(start_paused = true)]
 async fn secret_text_never_reaches_the_trace_the_reply_or_the_debug_output() {
-    let (source, fake) =
-        FakeSource::with(vec![field_tree("", false), field_tree("hunter2", false)]);
+    let (source, fake) = FakeSource::with(vec![
+        field_tree("", false),
+        field_tree("", false),
+        field_tree("hunter2", false),
+    ]);
     let (d, home) = daemon(source);
     ok(&d, "default", "snapshot", json!({})).await;
     let r = ok(&d, "default", "act", type_params("hunter2", true)).await;
@@ -567,8 +574,57 @@ async fn secret_text_never_reaches_the_trace_the_reply_or_the_debug_output() {
 }
 
 #[tokio::test(start_paused = true)]
+async fn type_into_a_field_with_text_replaces_it_and_append_keeps_it() {
+    use phone_use_core::device::TextInput;
+    let (source, fake) = FakeSource::with(vec![
+        field_tree("10", false),
+        field_tree("10", false),
+        field_tree("07", false),
+    ]);
+    let (d, _home) = daemon(source);
+    ok(&d, "default", "snapshot", json!({})).await;
+    let r = ok(&d, "default", "act", type_params("07", false)).await;
+    assert_eq!(r["verified"], true, "{r}");
+    let calls = fake.calls();
+    assert_eq!(calls[1], Call::Text(TextInput::SetValue(String::new())));
+    assert_eq!(calls[2], Call::Text(TextInput::Paste("07".into())));
+
+    let (source, fake) = FakeSource::with(vec![
+        field_tree("ab", false),
+        field_tree("ab", false),
+        field_tree("abcd", false),
+    ]);
+    let (d, _home) = daemon(source);
+    ok(&d, "default", "snapshot", json!({})).await;
+    let mut p = type_params("cd", false);
+    p["action"]["append"] = json!(true);
+    let r = ok(&d, "default", "act", p).await;
+    assert_eq!(r["verified"], true, "{r}");
+    assert_eq!(fake.calls()[1], Call::Text(TextInput::Paste("cd".into())));
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_field_that_kept_its_old_text_is_reported_with_what_it_shows_and_a_hint_for_that_cause() {
+    let (source, _) = FakeSource::with(vec![
+        field_tree("10", false),
+        field_tree("10", false),
+        field_tree("10", false),
+    ]);
+    let (d, _home) = daemon(source);
+    ok(&d, "default", "snapshot", json!({})).await;
+    let r = ok(&d, "default", "act", type_params("07", false)).await;
+    assert_eq!(r["verified"], false, "{r}");
+    assert_eq!(r["unverified"]["shows"], "@e1 shows \"10\"", "{r}");
+    assert!(r["unverified"]["hint"].is_string(), "{r}");
+}
+
+#[tokio::test(start_paused = true)]
 async fn typing_into_a_password_field_is_secret_without_the_flag_and_verified_by_length() {
-    let (source, fake) = FakeSource::with(vec![field_tree("", true), field_tree("•••••••", true)]);
+    let (source, fake) = FakeSource::with(vec![
+        field_tree("", true),
+        field_tree("", true),
+        field_tree("•••••••", true),
+    ]);
     let (d, home) = daemon(source);
     ok(&d, "default", "snapshot", json!({})).await;
     let r = ok(&d, "default", "act", type_params("hunter2", false)).await;

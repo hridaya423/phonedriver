@@ -123,6 +123,8 @@ struct TypeArgs {
     mode: Option<String>,
     /// Press enter afterwards.
     submit: Option<bool>,
+    /// With `into`, add to the field's text instead of replacing it.
+    append: Option<bool>,
     /// The text is a password, code or other secret: it is never shown back, logged or traced.
     secret: Option<bool>,
 }
@@ -300,6 +302,7 @@ fn step_verb(step: serde_json::Value) -> Result<Verb, String> {
                 into: a.into,
                 mode: a.mode,
                 submit: a.submit.unwrap_or(false),
+                append: a.append.unwrap_or(false),
                 secret: false,
             })
         }
@@ -595,6 +598,7 @@ impl Mcp {
             into: a.into,
             mode: a.mode,
             submit: a.submit.unwrap_or(false),
+            append: a.append.unwrap_or(false),
             secret,
         };
         self.run(a.device, verb, secret.then_some(a.text)).await

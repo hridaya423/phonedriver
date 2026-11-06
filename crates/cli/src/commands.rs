@@ -276,7 +276,7 @@ pub(crate) enum Verb {
         #[arg(long)]
         role: Option<String>,
     },
-    /// Type text into a field. Secrets come from stdin or PHONE_USE_SECRET, never from arguments.
+    /// Type text into a field. With `--into` the text replaces what the field holds. Secrets come from stdin or PHONE_USE_SECRET, never from arguments.
     Type {
         /// The text. Leave it out with `--secret`.
         text: Option<String>,
@@ -289,6 +289,9 @@ pub(crate) enum Verb {
         /// Press enter after the text.
         #[arg(long)]
         submit: bool,
+        /// With `--into`, add to the field's text instead of replacing it.
+        #[arg(long)]
+        append: bool,
         /// Read the text from stdin or PHONE_USE_SECRET and keep it out of logs and traces.
         #[arg(long)]
         secret: bool,
@@ -888,11 +891,11 @@ pub(crate) fn step_json(verb: &Verb, secret: Option<&str>) -> Result<Value, Fail
             into,
             mode,
             submit,
+            append,
             secret: is_secret,
         } => {
             let text = secret.or(text.as_deref()).unwrap_or_default();
-            let mut a =
-                json!({"kind": "type", "text": text, "secret": is_secret, "submit": submit});
+            let mut a = json!({"kind": "type", "text": text, "secret": is_secret, "submit": submit, "append": append});
             if let Some(i) = into {
                 a["into"] = parse_target(i);
             }
@@ -992,12 +995,16 @@ fn show_batch(result: &Value, json: bool, sent: usize) -> Result<String, Failure
     let total = result["steps"].as_array().map_or(0, Vec::len);
     let mut lines = Vec::new();
     for (i, s) in r.steps.iter().enumerate() {
-        let verified = match s.verified {
-            Some(true) => " · verified",
-            Some(false) => " · NOT verified",
-            None => "",
+        let verified = match (&s.verified, &s.unverified) {
+            (Some(true), _) => " · verified".to_string(),
+            (Some(false), Some(u)) => format!(" · NOT verified: {}", u.shows),
+            (Some(false), None) => " · NOT verified".to_string(),
+            _ => String::new(),
         };
         lines.push(format!("{}. {}{verified}", i + 1, s.summary));
+        if let Some(u) = &s.unverified {
+            lines.push(format!("   hint: {}", u.hint));
+        }
     }
     if let Some(f) = &r.failed {
         let code = f.error["code"].as_i64().unwrap_or(-32603) as i32;
@@ -1127,10 +1134,11 @@ fn show_action(result: &Value, json: bool) -> Result<String, Failure> {
     }
     let r: ActionResult = decode(result)?;
     let mut head = format!("ok {}", r.summary);
-    match r.verified {
-        Some(true) => head.push_str(" · verified"),
-        Some(false) => head.push_str(" · NOT verified"),
-        None => {}
+    match (&r.verified, &r.unverified) {
+        (Some(true), _) => head.push_str(" · verified"),
+        (Some(false), Some(u)) => head.push_str(&format!(" · NOT verified: {}", u.shows)),
+        (Some(false), None) => head.push_str(" · NOT verified"),
+        _ => {}
     }
     if r.settle_ms > 0 || r.settled {
         if !r.settled {
@@ -1169,8 +1177,9 @@ fn show_action(result: &Value, json: bool) -> Result<String, Failure> {
     if r.settled && !r.changed {
         out.push_str("\nhint: nothing changed; `phone-use wait settled` waits for the screen, `phone-use snapshot` shows it");
     }
-    if r.verified == Some(false) && r.via.as_deref() == Some("paste") {
-        out.push_str("\nhint: the field does not show the text; retry with `--mode keys`");
+    if let Some(u) = &r.unverified {
+        out.push_str("\nhint: ");
+        out.push_str(&u.hint);
     }
     Ok(out)
 }

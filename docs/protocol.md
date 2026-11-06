@@ -47,7 +47,7 @@ Progress: a client that sends `"progress": true` in `hello` may receive notifica
 type Target = {ref: string} | {point: {x: number, y: number}} | {text: string, role?: Role}
 type Action =
   | {kind: "tap", target: Target, count?: number, long?: number}   // long: hold ms; count taps are 80 ms apart
-  | {kind: "type", text: string, into?: Target, mode?: "paste"|"set"|"keys", secret?: boolean, submit?: boolean}
+  | {kind: "type", text: string, into?: Target, mode?: "paste"|"set"|"keys", secret?: boolean, submit?: boolean, append?: boolean}
     // the CLI reads secret text from stdin or PHONE_USE_SECRET and sends it here over the user-only socket
   | {kind: "clear", target: Target}
   | {kind: "swipe", direction: Dir, from?: Target, distance?: number, fast?: boolean}
@@ -65,7 +65,7 @@ type WaitCondition = {appears: Target} | {gone: Target} | {settled: true}
 type Step = Action | {kind: "wait", condition: WaitCondition}   // `secret` text is for single `act` calls only
 type BatchResult = {
   ok: boolean,
-  steps: Array<{summary: string, verified?: boolean}>,   // the steps that ran and succeeded
+  steps: Array<{summary: string, verified?: boolean, unverified?: {shows, hint}}>,   // the steps that ran and succeeded
   failed?: {step: number, error: {code, message, data}}, // 1-based; `error` is as in section "Errors"
   settled: boolean, settle_ms: number, changed: boolean,
   observation: Observation   // diff from what the session last observed before step 1 to after the last step that ran
@@ -89,7 +89,8 @@ type ActionResult = {
   ok: true,
   summary: string,                // "tapped @e6 \"Display & touch\" at 206,488"
   via?: string,                   // "nav-button", "edge-swipe", "paste", ...
-  verified?: boolean,             // type: field text now contains the input
+  verified?: boolean,             // type: the field holds the input (replace: exactly; append or no target: ends with it)
+  unverified?: {shows: string, hint: string},  // with verified: false: what the field shows and a hint for that cause
   settled: boolean, settle_ms: number,
   changed: boolean,               // pixels or windows changed, or the diff is not empty
   woke?: true,                    // the screen was off and the action woke it first

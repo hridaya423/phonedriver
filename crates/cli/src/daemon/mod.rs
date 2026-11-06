@@ -14,6 +14,7 @@ pub mod shell;
 pub mod socket;
 pub mod sources;
 pub mod trace;
+pub mod verify;
 
 use std::collections::HashMap;
 use std::path::PathBuf;

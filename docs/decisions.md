@@ -229,3 +229,13 @@ Secrets. The trace keeps the command text (an agent's command is what it did), b
 **Rejected.** A `sim` tool for `simctl` (one more tool in `tools/list` for what a prefix does); a regex `grep` (a dependency for what `a|b` words cover; `| grep -E` still works inside the command); exit code as the CLI's own exit status (it collides with phone-use's codes; `--json` has `exit`); prompting before destructive commands (agents cannot answer; a refusal with `force` can be retried deliberately); settling after every command (a 250 ms tax on reads).
 
 **Reopen if.** An agent needs a command that runs longer than 30 s without a stream, or interactive input (stdin is closed), or the guard blocks a command a user asked for often enough that `force` becomes habit.
+
+## D22. `type --into` replaces the field's text; verification says what the field shows and why not
+
+**Choice.** `type <text> --into <field>` empties the field first when it holds text, then enters the text (fill semantics), on Android and iOS; `--append` / `append: true` keeps the text. Typing with no `--into` goes after the caret as before. Emptying uses `SetValue("")` where the device can set values and backspaces otherwise. `type "" --into` is `clear`. A failed verification carries `unverified: {shows, hint}`: what the field shows now, and a hint that matches the cause (length limit, filtered characters, nothing taken, focus elsewhere, field gone, field exposes no text); a secure field is never quoted.
+
+**Why.** Dogfooding the Clock alarm (API 26): the hour field held `10` with a length limit of 2, `type "07"` appended and was rejected, the reply said `retry with --mode keys` (wrong), and `type ""` reported `verified` while the field still held `10` because the check was `value.contains("")`. A fill is what an agent means by "put 07 in the hour".
+
+**Rejected.** Select-all then paste (not reliable across Android fields and unavailable on iOS); a separate `fill` tool (one more tool for the default behavior).
+
+**Reopen if.** An app treats the empty field as a state change (search-as-you-type fires on the clear) enough to matter; use `--append` there.
