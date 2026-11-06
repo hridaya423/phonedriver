@@ -51,9 +51,9 @@ def chart(tn, rows):
         x = round(X(v))
         if v:
             b += rect(x, fy + 47, 1, rh * n, c["faint"])
-        t, _ = mono(f"{v // 1000}k", x, ay + 20, 14, c["t3"], 0.04, anchor="start" if v == 0 else "middle")
+        t, _ = mono(f"{v // 1000}k", x, ay + 20, 14, c["t3"], 0.04, anchor="middle")
         b += t
-    t, _ = mono("Input + output + cache, one run each", fx + 14, ay + 20, 13, c["t3"], 0.05, caps=True)
+    t, _ = mono("One run each", fx + 14, ay + 20, 13, c["t3"], 0.05, caps=True)
     b += t
     for i, task in enumerate(tasks):
         y = fy + 47 + rh * i
