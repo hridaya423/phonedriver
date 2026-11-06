@@ -8,5 +8,7 @@ pub mod offer;
 pub mod runner;
 pub mod setup;
 pub mod simulator;
+#[cfg(feature = "testing")]
+pub mod testbed;
 pub mod touch;
 pub mod transport;

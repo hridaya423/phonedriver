@@ -5,8 +5,7 @@
 #![cfg(unix)]
 #![allow(dead_code)]
 
-#[path = "../../ios/tests/support/testbed.rs"]
-mod testbed;
+use phone_use_ios::testbed;
 
 use std::path::PathBuf;
 use std::process::Output;

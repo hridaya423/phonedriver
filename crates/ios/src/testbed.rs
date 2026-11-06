@@ -23,7 +23,7 @@ fn run(cmd: &mut Command) -> String {
 }
 
 fn xcodegen() -> PathBuf {
-    phone_use_ios::runner::find_tool("xcodegen").expect("xcodegen is not installed")
+    crate::runner::find_tool("xcodegen").expect("xcodegen is not installed")
 }
 
 /// Builds the testbed with the current sources and installs it.
