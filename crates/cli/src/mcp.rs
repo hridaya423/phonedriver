@@ -189,7 +189,7 @@ impl Mcp {
             .with_client(async |client| execute_with(client, verb, secret, &globals).await)
             .await;
         match result {
-            Ok(text) => CallToolResult::success(vec![ContentBlock::text(text)]),
+            Ok(text) => CallToolResult::success(vec![ContentBlock::text(success_text(text))]),
             Err(f) => failure(&f),
         }
     }
@@ -197,10 +197,75 @@ impl Mcp {
 
 fn failure(f: &Failure) -> CallToolResult {
     let text = match f.hint() {
-        Some(h) => format!("{}\nhint: {h}", f.message()),
+        Some(h) => format!("{}\nhint: {}", f.message(), for_mcp(&h)),
         None => f.message(),
     };
     CallToolResult::error(vec![ContentBlock::text(text)])
+}
+
+/// Success text with its `hint:` lines in tool vocabulary; element lines are left alone.
+fn success_text(text: String) -> String {
+    text.lines()
+        .map(|l| match l.strip_prefix("hint: ") {
+            Some(h) => format!("hint: {}", for_mcp(h)),
+            None => l.to_string(),
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+/// Hints are written for the command line. The MCP agent has tools and arguments, not `phone-use` commands and flags.
+fn for_mcp(hint: &str) -> String {
+    const PHRASES: &[(&str, &str)] = &[
+        (
+            "`phone-use press hide-keyboard`",
+            "`press` with key `hide-keyboard`",
+        ),
+        ("`phone-use press enter`", "`press` with key `enter`"),
+        ("`phone-use snapshot --no-settle`", "`snapshot`"),
+        (
+            "`phone-use wait settled`",
+            "`wait` with condition `settled`",
+        ),
+        (
+            "`--mode paste` or `--mode keys`",
+            "`mode` `paste` or `keys`",
+        ),
+        ("`--mode keys`", "`mode` `keys`"),
+        ("`--in <list ref>`", "`in` with the list's ref"),
+        ("`--device <id>`", "`device`"),
+        ("`--timeout`", "`timeout_ms`"),
+        ("`--max`", "`max`"),
+        (
+            "Run `phone-use doctor` to check the connection.",
+            "Ask the user to run `phone-use doctor` to check the connection.",
+        ),
+        (
+            "Run `phone-use doctor` to see what this device supports.",
+            "Try another approach; this device does not support that.",
+        ),
+        ("Run `phone-use ", "Call `"),
+    ];
+    let mut out = hint.to_string();
+    for (from, to) in PHRASES {
+        out = out.replace(from, to);
+    }
+    while let Some(start) = out.find("`phone-use ") {
+        let Some(len) = out[start + 1..].find('`') else {
+            break;
+        };
+        let inner = out[start + 1 + "phone-use ".len()..start + 1 + len].to_string();
+        let mut words = inner.split_whitespace();
+        let tool = words.next().unwrap_or_default().to_string();
+        let rest: Vec<&str> = words.collect();
+        let shown = if tool == "scroll" && !rest.is_empty() {
+            format!("`scroll` {}", rest.join(" "))
+        } else {
+            format!("`{tool}`")
+        };
+        out.replace_range(start..start + len + 2, &shown);
+    }
+    out
 }
 
 fn bad(message: &str) -> CallToolResult {
@@ -214,6 +279,13 @@ impl Mcp {
     )]
     async fn devices(&self, Parameters(_): Parameters<DeviceArgs>) -> CallToolResult {
         self.run(None, Verb::Devices, None).await
+    }
+
+    #[tool(
+        description = "List the apps that can be launched, one `name  id` per line. Use it when `launch` says there is no app with the name you gave."
+    )]
+    async fn apps(&self, Parameters(a): Parameters<DeviceArgs>) -> CallToolResult {
+        self.run(a.device, Verb::Apps, None).await
     }
 
     #[tool(
@@ -385,4 +457,55 @@ pub fn run() -> ExitCode {
         held.run(None, Verb::Release, None).await;
         ExitCode::SUCCESS
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn hints_name_tools_and_arguments() {
+        let cases = [
+            (
+                "Run `phone-use snapshot` for fresh refs; closest now: @e9 button \"X\"",
+                "Call `snapshot` for fresh refs; closest now: @e9 button \"X\"",
+            ),
+            (
+                "Hide the keyboard with `phone-use press hide-keyboard`, or `phone-use scroll down` to bring the element above it.",
+                "Hide the keyboard with `press` with key `hide-keyboard`, or `scroll` down to bring the element above it.",
+            ),
+            (
+                "Use `--mode paste` or `--mode keys`; `set` works only where the device can set field values.",
+                "Use `mode` `paste` or `keys`; `set` works only where the device can set field values.",
+            ),
+            (
+                "Pass `--device <id>` with one of: a, b.",
+                "Pass `device` with one of: a, b.",
+            ),
+            (
+                "Increase `--timeout`, or run `phone-use snapshot` to check the screen.",
+                "Increase `timeout_ms`, or run `snapshot` to check the screen.",
+            ),
+            (
+                "nothing changed; `phone-use wait settled` waits for the screen, `phone-use snapshot` shows it",
+                "nothing changed; `wait` with condition `settled` waits for the screen, `snapshot` shows it",
+            ),
+        ];
+        for (from, to) in cases {
+            assert_eq!(for_mcp(from), to);
+        }
+        assert!(
+            !for_mcp("Run `phone-use doctor` to check the connection.").contains("Run `phone-use")
+        );
+    }
+
+    #[test]
+    fn only_hint_lines_of_a_success_are_rewritten() {
+        let text = "ok tapped\n@e1 button \"phone-use snapshot\"\nhint: retry with `--mode keys`"
+            .to_string();
+        assert_eq!(
+            success_text(text),
+            "ok tapped\n@e1 button \"phone-use snapshot\"\nhint: retry with `mode` `keys`"
+        );
+    }
 }

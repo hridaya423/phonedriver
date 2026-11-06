@@ -191,7 +191,7 @@ Any client that starts a stdio server can use this entry.
 }
 ```
 
-The server has ten tools: `devices`, `snapshot`, `screenshot`, `tap`, `type`, `swipe`, `scroll`, `press`, `launch`, `wait`. Each prints the same text as the CLI verb of the same name. `PHONE_USE_DEVICE` is optional when one device is connected.
+The server has eleven tools: `devices`, `apps`, `snapshot`, `screenshot`, `tap`, `type`, `swipe`, `scroll`, `press`, `launch`, `wait`. Each prints the same text as the CLI verb of the same name. `PHONE_USE_DEVICE` is optional when one device is connected.
 
 Typed secrets (`phone-use type --secret`, or `secret: true` over MCP) never reach logs, traces or replies. phone-use sends no telemetry. It talks to the device and nothing else.
 

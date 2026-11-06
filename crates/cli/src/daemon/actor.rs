@@ -1692,18 +1692,30 @@ fn find_app<'a>(installed: &'a [App], query: &str) -> Result<&'a App, Error> {
             }
         }
     }
+    let words = |s: &str| -> Vec<String> {
+        s.to_lowercase()
+            .split(|c: char| !c.is_alphanumeric())
+            .filter(|w| w.chars().count() >= 3)
+            .map(str::to_string)
+            .collect()
+    };
+    let wanted = words(query);
     let mut close: Vec<(f32, &App)> = installed
         .iter()
-        .map(|a| (normalized_distance(query, &a.name), a))
+        .map(|a| {
+            let shares = words(&a.name).iter().any(|w| wanted.contains(w));
+            let d = normalized_distance(query, &a.name);
+            (if shares { d.min(SUGGEST_WITHIN) } else { d }, a)
+        })
         .filter(|(d, _)| *d <= SUGGEST_WITHIN)
         .collect();
     close.sort_by(|a, b| a.0.total_cmp(&b.0));
-    Err(Error::NotFound {
+    Err(Error::NoApp {
         query: query.to_string(),
         similar: close
             .into_iter()
             .take(5)
-            .map(|(_, a)| a.name.clone())
+            .map(|(_, a)| format!("{} ({})", a.name, a.id.0))
             .collect(),
     })
 }

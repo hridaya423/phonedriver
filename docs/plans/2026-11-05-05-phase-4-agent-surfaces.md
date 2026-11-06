@@ -15,7 +15,7 @@
 **Files:** Create `crates/cli/src/mcp.rs`; test `crates/cli/tests/mcp.rs`.
 
 **Step 1: Failing tests** with an in-process MCP client from `rmcp` against `phone-use mcp` running on a daemon with `FakeDevice`:
-- `tools/list` returns exactly the ten tools in architecture 10.2, each with a description under 300 characters and a JSON schema whose required fields match the CLI's required arguments.
+- `tools/list` returns exactly the tools in architecture 10.2 (ten at first, eleven with `apps`), each with a description under 300 characters and a JSON schema whose required fields match the CLI's required arguments.
 - `tools/call snapshot` returns one text content block equal to the CLI output for the same state.
 - `tools/call screenshot` returns one image content block (`image/png`, base64) and one text block with size and scale.
 - An error (`stale_ref`) returns `isError: true` and the message plus hint as text.

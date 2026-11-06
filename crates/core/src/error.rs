@@ -239,6 +239,12 @@ pub enum Error {
         query: String,
         similar: Vec<ElementLine>,
     },
+    #[error("no app named \"{query}\"")]
+    NoApp {
+        query: String,
+        /// Installed apps whose name shares a word with the query or is close to it, as `Name (id)`.
+        similar: Vec<String>,
+    },
     #[error("{} elements match \"{query}\"", matches.len())]
     Ambiguous {
         query: String,
@@ -304,6 +310,7 @@ impl Error {
             Error::AutomationConflict { .. } => -32014,
             Error::Transport { .. } => -32015,
             Error::NotReached { .. } => -32016,
+            Error::NoApp { .. } => -32017,
         }
     }
 
@@ -340,6 +347,10 @@ impl Error {
                 format!("Use one of these instead: {}", similar.join("; "))
             }
             Error::NotFound { .. } => "Run `phone-use snapshot` to see what is on screen.".into(),
+            Error::NoApp { similar, .. } if !similar.is_empty() => {
+                format!("Use one of these installed apps: {}.", similar.join("; "))
+            }
+            Error::NoApp { .. } => "Use `phone-use apps` to list the installed apps.".into(),
             Error::Ambiguous { matches, .. } => {
                 format!("Use a ref instead: {}", matches.join("; "))
             }
@@ -513,6 +524,14 @@ mod tests {
                 waited_ms: 10_000,
                 condition: "appears \"Done\"".into(),
             },
+            Error::NoApp {
+                query: "phone-use testbed".into(),
+                similar: vec!["Testbed (dev.phoneuse.testbed)".into()],
+            },
+            Error::NoApp {
+                query: "Zork".into(),
+                similar: vec![],
+            },
             Error::NotReached {
                 query: "Safari".into(),
                 scrolls: 3,
@@ -563,6 +582,7 @@ mod tests {
             Error::AutomationConflict { .. } => (-32014, "automation_conflict"),
             Error::Transport { .. } => (-32015, "transport"),
             Error::NotReached { .. } => (-32016, "not_reached"),
+            Error::NoApp { .. } => (-32017, "no_app"),
         }
     }
 
