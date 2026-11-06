@@ -36,6 +36,10 @@ final class Input {
         }
     }
 
+    static void collapsePanels() {
+        ServiceManager.getStatusBarManager().collapsePanels();
+    }
+
     static void expandNotifications() {
         ServiceManager.getStatusBarManager().expandNotificationsPanel();
     }

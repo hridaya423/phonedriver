@@ -27,9 +27,11 @@ final class Ops {
             case "apps":
                 return Json.put(r, "apps", Apps.list(q.optBoolean("all")));
             case "launch":
+                Input.collapsePanels();
                 Apps.launch(q.getString("package"));
                 return r;
             case "open_url":
+                Input.collapsePanels();
                 return Json.put(r, "package", Apps.openUrl(q.getString("url")));
             case "notifications":
                 Input.expandNotifications();

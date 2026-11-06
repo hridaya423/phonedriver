@@ -175,6 +175,7 @@ struct Expect {
     log: Option<Value>,
     no_log: Option<Value>,
     shell: Option<ShellCheck>,
+    answer: Option<String>,
     timeout_ms: Option<u64>,
 }
 
@@ -195,6 +196,7 @@ struct Ctx {
     platform: Platform,
     home: PathBuf,
     originals: HashMap<String, bool>,
+    answer: String,
 }
 
 impl Ctx {
@@ -530,6 +532,11 @@ impl Ctx {
                 }
             }
         }
+        if let Some(a) = &e.answer
+            && !self.answer.contains(a.as_str())
+        {
+            return Err(format!("the agent's answer has no {a:?}: {}", self.answer));
+        }
         if let Some(check) = &e.shell {
             let out = self.shell(&check.cmd).await?;
             if !out.contains(&check.contains) {
@@ -650,6 +657,144 @@ fn load(dir: &Path) -> Result<Vec<Scenario>, String> {
         .collect()
 }
 
+#[derive(Deserialize)]
+struct Tasks {
+    tasks: Vec<Task>,
+}
+
+#[derive(Deserialize)]
+pub struct Task {
+    pub name: String,
+    pub set: String,
+    pub prompt: String,
+    #[serde(default, with = "serde_yaml::with::singleton_map_recursive")]
+    reset: Vec<Step>,
+    #[serde(default, with = "serde_yaml::with::singleton_map_recursive")]
+    check: Vec<Step>,
+    #[serde(default, with = "serde_yaml::with::singleton_map_recursive")]
+    cleanup: Vec<Step>,
+}
+
+pub fn load_tasks(path: &Path) -> Result<Vec<Task>, String> {
+    let text = std::fs::read_to_string(path).map_err(|e| format!("{}: {e}", path.display()))?;
+    serde_yaml::from_str::<Tasks>(&text)
+        .map(|t| t.tasks)
+        .map_err(|e| format!("{}: {e}", path.display()))
+}
+
+/// `phone-use-bench eval list|prompt|reset|check|cleanup ...` for `bench/agent-eval/run.sh`.
+/// `list <tasks.yaml> <set>` prints task names; `prompt <tasks.yaml> <name>` prints a prompt;
+/// `reset|check|cleanup <tasks.yaml> <name> <phone-use> <device> [answer-file]` runs that part of a task and exits 1 on failure.
+pub async fn eval_main(args: &[String]) -> i32 {
+    let [verb, file, rest @ ..] = args else {
+        eprintln!("usage: eval list|prompt|reset|check|cleanup <tasks.yaml> ...");
+        return 2;
+    };
+    let tasks = match load_tasks(Path::new(file)) {
+        Ok(t) => t,
+        Err(e) => {
+            eprintln!("error: {e}");
+            return 2;
+        }
+    };
+    match (verb.as_str(), rest) {
+        ("list", [set]) => {
+            tasks
+                .iter()
+                .filter(|t| &t.set == set)
+                .for_each(|t| println!("{}", t.name));
+            0
+        }
+        ("prompt", [name]) => match tasks.iter().find(|t| &t.name == name) {
+            Some(t) => {
+                println!("{}", t.prompt);
+                0
+            }
+            None => 2,
+        },
+        (phase @ ("reset" | "check" | "cleanup"), [name, bin, device, tail @ ..]) => {
+            let Some(task) = tasks.iter().find(|t| &t.name == name) else {
+                eprintln!("no task {name}");
+                return 2;
+            };
+            let serial = device
+                .strip_prefix("android:")
+                .unwrap_or(device)
+                .to_string();
+            let home = std::env::temp_dir().join(format!("phone-use-eval-{}", std::process::id()));
+            let _ = std::fs::create_dir_all(&home);
+            let mut ctx = Ctx {
+                bin: PathBuf::from(bin),
+                device: format!("android:{serial}"),
+                platform: Platform::Android {
+                    adb: Adb::from_env(),
+                    serial,
+                },
+                home,
+                originals: HashMap::new(),
+                answer: tail
+                    .first()
+                    .and_then(|f| std::fs::read_to_string(f).ok())
+                    .unwrap_or_default(),
+            };
+            let steps = match phase {
+                "reset" => &task.reset,
+                "check" => &task.check,
+                _ => &task.cleanup,
+            };
+            let mut code = 0;
+            for (i, step) in steps.iter().enumerate() {
+                if let Err(e) = ctx.run(step).await {
+                    println!("{phase} step {}: {e}", i + 1);
+                    code = 1;
+                    break;
+                }
+            }
+            let _ = ctx.cli(&["release"]);
+            stop_daemon(&ctx.home);
+            code
+        }
+        _ => {
+            eprintln!("bad eval arguments");
+            2
+        }
+    }
+}
+
+/// Totals for one `claude -p --output-format stream-json` transcript.
+pub fn transcript_stats(jsonl: &str) -> Value {
+    let (mut calls, mut result) = (0u64, Value::Null);
+    for line in jsonl.lines() {
+        let Ok(v) = serde_json::from_str::<Value>(line) else {
+            continue;
+        };
+        match v["type"].as_str() {
+            Some("assistant") => {
+                calls += v["message"]["content"].as_array().map_or(0, |c| {
+                    c.iter().filter(|b| b["type"] == "tool_use").count() as u64
+                })
+            }
+            Some("result") => result = v,
+            _ => {}
+        }
+    }
+    let u = &result["usage"];
+    let n = |k: &str| u[k].as_u64().unwrap_or(0);
+    serde_json::json!({
+        "tool_calls": calls,
+        "turns": result["num_turns"],
+        "input_tokens": n("input_tokens"),
+        "output_tokens": n("output_tokens"),
+        "cache_creation_tokens": n("cache_creation_input_tokens"),
+        "cache_read_tokens": n("cache_read_input_tokens"),
+        "total_tokens": n("input_tokens") + n("output_tokens") + n("cache_creation_input_tokens") + n("cache_read_input_tokens"),
+        "cost_usd": result["total_cost_usd"],
+        "duration_ms": result["duration_ms"],
+        "is_error": result["is_error"],
+        "answer": result["result"],
+    })
+}
+
 pub async fn main(args: &[String]) -> i32 {
     let args = match parse(args) {
         Ok(a) => a,
@@ -694,6 +839,7 @@ pub async fn main(args: &[String]) -> i32 {
         platform,
         home,
         originals: HashMap::new(),
+        answer: String::new(),
     };
     let _ = ctx.cli(&["release"]);
     let api: u32 = match ctx.platform {
@@ -802,6 +948,32 @@ cleanup:
             &serde_json::json!({"ev": "row", "n": 751})
         ));
         assert!(!matches_pattern(&ev, &serde_json::json!({"missing": 1})));
+    }
+
+    #[test]
+    fn the_shipped_agent_eval_tasks_parse_five_and_five() {
+        let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("agent-eval/tasks.yaml");
+        let tasks = load_tasks(&path).unwrap();
+        assert_eq!(tasks.iter().filter(|t| t.set == "tuning").count(), 5);
+        assert_eq!(tasks.iter().filter(|t| t.set == "heldout").count(), 5);
+        assert!(
+            tasks
+                .iter()
+                .all(|t| !t.check.is_empty() && !t.reset.is_empty())
+        );
+    }
+
+    #[test]
+    fn transcript_stats_count_tool_calls_and_read_the_result_event() {
+        let jsonl = r#"{"type":"system"}
+{"type":"assistant","message":{"content":[{"type":"text","text":"x"},{"type":"tool_use","name":"a"},{"type":"tool_use","name":"b"}]}}
+{"type":"assistant","message":{"content":[{"type":"tool_use","name":"c"}]}}
+{"type":"result","num_turns":4,"duration_ms":900,"total_cost_usd":0.5,"is_error":false,"result":"done","usage":{"input_tokens":10,"output_tokens":20,"cache_creation_input_tokens":30,"cache_read_input_tokens":40}}"#;
+        let s = transcript_stats(jsonl);
+        assert_eq!(s["tool_calls"], 3);
+        assert_eq!(s["total_tokens"], 100);
+        assert_eq!(s["answer"], "done");
+        assert_eq!(s["duration_ms"], 900);
     }
 
     #[test]
