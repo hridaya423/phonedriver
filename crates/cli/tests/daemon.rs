@@ -541,6 +541,25 @@ async fn a_malformed_type_action_does_not_echo_the_text_in_its_error() {
 }
 
 #[tokio::test(start_paused = true)]
+async fn an_action_the_daemon_does_not_know_says_the_daemon_is_older() {
+    let (source, _) = FakeSource::with(vec![tree(&["One"])]);
+    let (d, _home) = daemon(source);
+    let e = err(
+        &d,
+        "default",
+        "act",
+        json!({"action": {"kind": "teleport", "direction": "down"}}),
+    )
+    .await;
+    assert_eq!(e.code, -32602);
+    assert!(
+        e.message.contains("does not know the action `teleport`") && e.message.contains("older"),
+        "{}",
+        e.message
+    );
+}
+
+#[tokio::test(start_paused = true)]
 async fn a_snapshot_of_a_screen_that_has_been_quiet_returns_at_once_and_one_right_after_activity_waits()
  {
     let (source, fake) = FakeSource::with(vec![tree(&["One"])]);
