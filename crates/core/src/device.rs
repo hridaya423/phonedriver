@@ -229,6 +229,11 @@ pub trait Device: Send + Sync {
         Ok(())
     }
     /// The platform's own tree JSON with a `density` key, for saving fixtures; `None` when the platform has none.
+    /// The screen size now, for a device that cannot announce a rotation as `DisplayChanged` in time for the next
+    /// header. `None` means the daemon tracks the size from events.
+    fn current_screen(&self) -> Option<Size> {
+        None
+    }
     /// True when a window of `tree` is secure (`FLAG_SECURE`): its pixels are black while its tree reads.
     fn secure_content_hidden(&self, _tree: &RawTree) -> bool {
         false
