@@ -20,6 +20,18 @@ fn version_prints_name_and_version() {
 }
 
 #[test]
+fn the_version_flag_prints_the_same_line_as_the_version_verb() {
+    for flag in ["--version", "-V"] {
+        Command::cargo_bin("phone-use")
+            .unwrap()
+            .arg(flag)
+            .assert()
+            .success()
+            .stdout("phone-use 0.1.0\n");
+    }
+}
+
+#[test]
 fn no_args_prints_usage_and_exits_2() {
     let out = Command::cargo_bin("phone-use").unwrap().assert().code(2);
     let stderr = String::from_utf8(out.get_output().stderr.clone()).unwrap();
