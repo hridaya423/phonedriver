@@ -240,9 +240,12 @@ impl Actor {
             Some(l) if l.session == session => l.last_call = now,
             Some(l) if share => l.last_call = now,
             Some(l) => {
+                let idle = now.saturating_duration_since(l.last_call);
                 return Err(Error::DeviceBusy {
                     id: self.id.clone(),
                     held_by: l.session.clone(),
+                    idle_s: idle.as_secs(),
+                    expires_s: LEASE_TTL.saturating_sub(idle).as_secs(),
                 });
             }
             None => {
@@ -287,10 +290,10 @@ impl Actor {
 
     async fn handle(&mut self, session: String, share: bool, call: Call) -> Result<Value, Error> {
         if matches!(call, Call::Leased) {
-            return Ok(self
-                .lease
-                .as_ref()
-                .map_or(Value::Null, |l| Value::String(l.session.clone())));
+            return Ok(self.lease.as_ref().map_or(
+                Value::Null,
+                |l| json!({"session": l.session, "idle_s": l.last_call.elapsed().as_secs()}),
+            ));
         }
         if matches!(call, Call::Release) {
             if self.lease.as_ref().is_some_and(|l| l.session == session) {

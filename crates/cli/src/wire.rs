@@ -173,6 +173,9 @@ pub struct DeviceEntry {
     pub tier: String,
     pub capabilities: Capabilities,
     pub leased_by: Option<String>,
+    /// Seconds since the leasing session last called.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub lease_idle_s: Option<u64>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
