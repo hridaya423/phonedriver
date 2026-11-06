@@ -61,7 +61,9 @@ Each decision records the choice, the alternatives it beat, and the evidence tha
 
 **Rejected.** Device pixels: differ by density; a model's guess on a downscaled image becomes wrong by 3x. Normalized 0..1: hard for models and humans to reason about.
 
-## D6. Typed operations; never execute agent-written code
+## D6. Typed operations; no host-side code execution
+
+**Amended 2026-11-06 by D21.** The user asked for a `shell` tool, on by default. Agent-written commands now run on the *device* (the Android agent's shell, or `simctl spawn` on a Simulator), never on the host, with a guard against destructive commands on physical devices. Host-side code execution stays rejected.
 
 **Choice.** The agent calls verbs (CLI, MCP, SDK). Batching is a sequence of verbs, not a program.
 
