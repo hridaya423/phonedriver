@@ -251,3 +251,20 @@ async fn a_daemon_of_another_version_is_shut_down_and_replaced() {
         .unwrap();
     assert_ne!(pid, u64::from(std::process::id()));
 }
+
+#[test]
+fn skill_prints_skill_md_exactly() {
+    let want =
+        std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/../../SKILL.md")).unwrap();
+    let out = Command::cargo_bin("phone-use")
+        .unwrap()
+        .arg("skill")
+        .assert()
+        .success();
+    assert_eq!(
+        String::from_utf8(out.get_output().stdout.clone()).unwrap(),
+        want
+    );
+    assert!(want.starts_with("---\nname: phone-use\ndescription: "));
+    assert!(want.lines().count() < 150);
+}
