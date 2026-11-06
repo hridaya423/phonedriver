@@ -536,6 +536,23 @@ async fn press_notifications_shows_the_shade_with_a_posted_notification() {
 
 #[tokio::test]
 #[ignore = "needs PHONE_USE_TEST_DEVICE"]
+async fn launch_with_the_shade_open_shows_the_app_not_the_shade() {
+    let rig = Rig::new().await;
+    rig.ok(&["press", "home"]);
+    rig.ok(&["press", "notifications"]);
+    let r = rig.json(&["launch", "dev.phoneuse.testbed"]);
+    let shown = text(&r);
+    rig.adb
+        .shell(&rig.serial, "cmd statusbar collapse")
+        .await
+        .unwrap();
+    assert_eq!(app_id(&r), "dev.phoneuse.testbed", "{r}");
+    assert!(shown.contains("button \"Taps\""), "{shown}");
+    assert!(!shown.contains("Collapse"), "{shown}");
+}
+
+#[tokio::test]
+#[ignore = "needs PHONE_USE_TEST_DEVICE"]
 async fn apps_lists_the_testbed_by_its_label() {
     let rig = Rig::new().await;
     let r = rig.json(&["apps"]);

@@ -67,6 +67,9 @@ pub(crate) enum Verb {
         within: Option<String>,
         #[arg(long)]
         max_lines: Option<usize>,
+        /// Read the screen's pixels with OCR and add the text the tree lacks. Done automatically when the tree is empty or a web view has no children.
+        #[arg(long)]
+        pixels: bool,
         /// Save the device's own tree and a screenshot as a test fixture.
         #[arg(long)]
         save_fixture: Option<String>,
@@ -363,18 +366,22 @@ pub(crate) async fn execute_with(
             if g.json {
                 return Ok(result.to_string());
             }
-            Ok(device_table(&result))
+            Ok(with_default_device(
+                device_table(&result),
+                g.device.as_deref(),
+            ))
         }
         Verb::Snapshot {
             diff,
             interactive,
             within,
             max_lines,
+            pixels,
             save_fixture,
             fixture_dir,
         } => {
             let mut p = json!({
-                "diff": diff, "interactive": interactive, "max_lines": max_lines,
+                "diff": diff, "interactive": interactive, "max_lines": max_lines, "pixels": pixels,
                 "no_settle": g.no_settle, "elements": g.json, "capture": save_fixture.is_some(),
             });
             if let Some(w) = within {
@@ -620,6 +627,13 @@ fn decode<T: serde::de::DeserializeOwned>(v: &Value) -> Result<T, Failure> {
         .map_err(|e| Failure::Local(format!("the daemon sent an unexpected reply: {e}")))
 }
 
+fn with_default_device(table: String, default: Option<&str>) -> String {
+    match default {
+        Some(id) => format!("{table}\ndefault device: {id} (used when `device` is omitted)"),
+        None => table,
+    }
+}
+
 fn device_table(result: &Value) -> String {
     let Ok(devices) = serde_json::from_value::<Vec<DeviceEntry>>(result.clone()) else {
         return result.to_string();
@@ -680,6 +694,8 @@ fn show_action(result: &Value, json: bool) -> Result<String, Failure> {
             head.push_str(&format!(" · settled in {}ms", r.settle_ms));
             if r.observation.kind == Kind::Full {
                 head.push_str(" · new screen");
+            } else if r.observation.text.is_empty() {
+                head.push_str(" · no element changed");
             }
         }
     }
@@ -774,4 +790,40 @@ fn run_daemon(trace: TraceOptions) -> ExitCode {
             }
         }
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn action(changed: bool, kind: &str, text: &str) -> Value {
+        json!({
+            "ok": true, "summary": "tapped @e1", "settled": true, "settle_ms": 400, "changed": changed,
+            "observation": {
+                "header": {}, "text": text, "kind": kind, "changed": changed, "settled": true,
+                "settle_ms": 400, "loading": false
+            }
+        })
+    }
+
+    #[test]
+    fn a_tap_that_redraws_without_changing_any_element_says_so() {
+        let shown = show_action(&action(true, "diff", ""), false).unwrap();
+        assert_eq!(
+            shown,
+            "ok tapped @e1 · settled in 400ms · no element changed"
+        );
+        let shown = show_action(&action(true, "diff", "~ @e1 x → y"), false).unwrap();
+        assert!(!shown.contains("no element changed"), "{shown}");
+    }
+
+    #[test]
+    fn devices_names_the_default_device_when_one_is_set() {
+        let table = "ID\nandroid:a".to_string();
+        assert!(
+            with_default_device(table.clone(), Some("android:a"))
+                .ends_with("default device: android:a (used when `device` is omitted)")
+        );
+        assert_eq!(with_default_device(table.clone(), None), table);
+    }
 }

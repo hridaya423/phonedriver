@@ -4,6 +4,7 @@ import android.app.Activity
 import android.view.View
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -32,7 +33,6 @@ object ComposeScreen {
     fun create(activity: Activity): View {
         val view = ComposeView(activity)
         view.setContent {
-            var on by remember { mutableStateOf(false) }
             var text by remember { mutableStateOf("") }
             Column(Modifier.fillMaxSize().semantics { testTagsAsResourceId = true }) {
                 Text("Compose title", Modifier.semantics { heading() })
@@ -40,14 +40,22 @@ object ComposeScreen {
                     onClick = { Events.emit(Events.put(Events.event("compose_click"), "id", "compose_button")) },
                     modifier = Modifier.testTag("compose_button"),
                 ) { Text("Compose button") }
-                Switch(
-                    checked = on,
-                    onCheckedChange = {
-                        on = it
-                        Events.emit(Events.put(Events.event("compose_toggle"), "on", it))
-                    },
-                    modifier = Modifier.testTag("compose_switch"),
-                )
+                Row {
+                    listOf("compose_switch", "compose_switch_2", "compose_switch_3").forEach { tag ->
+                        var checked by remember { mutableStateOf(false) }
+                        Switch(
+                            checked = checked,
+                            onCheckedChange = {
+                                checked = it
+                                val o = Events.event("compose_toggle")
+                                Events.put(o, "id", tag)
+                                Events.put(o, "on", it)
+                                Events.emit(o)
+                            },
+                            modifier = Modifier.testTag(tag),
+                        )
+                    }
+                }
                 BasicTextField(
                     value = text,
                     onValueChange = {

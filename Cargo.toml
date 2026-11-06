@@ -5,6 +5,7 @@ members = ["crates/*", "bench"]
 [workspace.package]
 version = "0.1.0"
 edition = "2024"
+license = "MIT"
 
 [workspace.lints.rust]
 unsafe_code = "deny"

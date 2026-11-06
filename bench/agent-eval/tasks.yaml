@@ -1,0 +1,134 @@
+tasks:
+  - name: dark-theme
+    set: tuning
+    prompt: "Turn on the dark theme on the phone."
+    reset:
+      - shell: "cmd uimode night no"
+      - shell: "am force-stop com.android.settings"
+      - press: home
+    check:
+      - expect: {shell: {cmd: "cmd uimode night", contains: "yes"}}
+    cleanup:
+      - shell: "cmd uimode night no"
+      - shell: "am force-stop com.android.settings"
+
+  - name: alarm-0730
+    set: tuning
+    prompt: "Set an alarm for 7:30 in the morning."
+    reset:
+      - shell: "pm clear com.google.android.deskclock"
+      - press: home
+    check:
+      - expect: {shell: {cmd: "settings get system next_alarm_formatted", contains: "7:30 AM"}}
+    cleanup:
+      - shell: "pm clear com.google.android.deskclock"
+
+  - name: testbed-web-form
+    set: tuning
+    prompt: "In the phone-use testbed app, fill in the web form with the name Ada Lovelace, tick the agreement box and submit it."
+    reset:
+      - shell: "am force-stop dev.phoneuse.testbed"
+      - testbed: taps
+    check:
+      - expect: {log: {ev: web, field: name, value: "Ada Lovelace"}}
+      - expect: {log: {ev: web, field: agree, value: true}}
+      - expect: {log: {ev: web, field: send}}
+    cleanup:
+      - shell: "am force-stop dev.phoneuse.testbed"
+
+  - name: testbed-row-640
+    set: tuning
+    prompt: "In the phone-use testbed app, find the list, scroll to the row called Row 640 and open it."
+    reset:
+      - shell: "am force-stop dev.phoneuse.testbed"
+      - testbed: taps
+    check:
+      - expect: {log: {ev: row, n: 640}}
+    cleanup:
+      - shell: "am force-stop dev.phoneuse.testbed"
+
+  - name: notification-code
+    set: tuning
+    prompt: "The phone-use testbed app has posted a notification that contains a verification code. Find the code and type it into the plain text field in the testbed app."
+    reset:
+      - shell: "am force-stop dev.phoneuse.testbed"
+      - shell: "pm grant dev.phoneuse.testbed android.permission.POST_NOTIFICATIONS"
+      - shell: "am start -n dev.phoneuse.testbed/.MainActivity --es tab text --es notify 'Your verification code is 482913'"
+      - sleep_ms: 1500
+      - shell: "cmd statusbar collapse"
+      - clear_log
+    check:
+      - expect: {log: {ev: text, field: plain, value: "482913"}}
+    cleanup:
+      - shell: "cmd statusbar collapse"
+      - shell: "cmd notification cancel dev.phoneuse.testbed 1"
+      - shell: "am force-stop dev.phoneuse.testbed"
+
+  - name: airplane-on-off
+    set: heldout
+    prompt: "Turn airplane mode on, then turn it off again."
+    reset:
+      - shell: "cmd connectivity airplane-mode disable"
+      - shell: "logcat -G 16M"
+      - shell: "logcat -c"
+      - press: home
+    check:
+      - expect: {shell: {cmd: "logcat -d -s PhoneGlobals:I", contains: "isAirplaneNewlyOn=true"}}
+      - expect: {shell: {cmd: "settings get global airplane_mode_on", contains: "0"}}
+    cleanup:
+      - shell: "cmd connectivity airplane-mode disable"
+      - shell: "am force-stop com.android.settings"
+
+  - name: files-new-folder
+    set: heldout
+    prompt: "Create a folder named \"phone-use\" in the Files app."
+    reset:
+      - shell: "find /sdcard/ -maxdepth 4 -type d -name phone-use -exec rm -rf {} +"
+      - shell: "pm clear com.google.android.providers.media.module"
+      - shell: "pm clear com.google.android.documentsui"
+      - sleep_ms: 6000
+      - press: home
+    check:
+      - expect: {shell: {cmd: "find /sdcard/ -maxdepth 4 -type d -name phone-use", contains: "/phone-use"}}
+    cleanup:
+      - shell: "find /sdcard/ -maxdepth 4 -type d -name phone-use -exec rm -rf {} +"
+      - shell: "pm clear com.google.android.providers.media.module"
+      - shell: "pm clear com.google.android.documentsui"
+      - sleep_ms: 6000
+
+  - name: chrome-heading
+    set: heldout
+    prompt: "In Chrome, open example.com and tell me the heading of the page. Answer with the heading only."
+    reset:
+      - shell: "pm clear com.android.chrome"
+      - press: home
+    check:
+      - expect: {answer: "Example Domain"}
+      - expect: {text: "Example Domain"}
+    cleanup:
+      - shell: "am force-stop com.android.chrome"
+      - shell: "pm clear com.android.chrome"
+
+  - name: compose-third-switch
+    set: heldout
+    prompt: "In the phone-use testbed app, open the Compose tab and turn on the third switch."
+    reset:
+      - shell: "am force-stop dev.phoneuse.testbed"
+      - testbed: taps
+    check:
+      - expect: {log: {ev: compose_toggle, id: compose_switch_3, on: true}}
+      - expect: {no_log: {ev: compose_toggle, id: compose_switch}}
+      - expect: {no_log: {ev: compose_toggle, id: compose_switch_2}}
+    cleanup:
+      - shell: "am force-stop dev.phoneuse.testbed"
+
+  - name: clock-timer-3min
+    set: heldout
+    prompt: "Set a 3-minute timer in the Clock app and start it."
+    reset:
+      - shell: "pm clear com.google.android.deskclock"
+      - press: home
+    check:
+      - expect: {shell: {cmd: "dumpsys alarm | grep -A4 TIMER_EXPIRED | grep -o 'origWhen=+[0-9]*m'", contains: "origWhen=+2m"}}
+    cleanup:
+      - shell: "pm clear com.google.android.deskclock"
