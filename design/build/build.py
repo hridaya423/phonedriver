@@ -42,22 +42,15 @@ def banner(tn):
     W, H = 1280, 400
     b = ""
     top, bottom = 52, 351
-    b += lockup(c, 48, top, 32)[0]
-    heads = ["Read the screen as text.", "Tap a ref.", "Get the diff."]
-    for i, s in enumerate(heads):
-        t, _ = text(s, 48, 161 + 61 * i, INTER, 60, c["t1"], -0.04)
+    b += lockup(c, 48, top, 32, solid=True)[0]
+    for i, s in enumerate(["Let your AI agent", "use a phone."]):
+        t, _ = text(s, 48, 176 + 70 * i, INTER, 68, c["t1"], -0.04)
         b += t
-    ry = 311
+    ry = 292
     b += rule(48, ry, 608, c["line"])
-    cells = ["One Rust binary", "CLI and MCP", "Android and iOS"]
-    x = 48
-    for i, s in enumerate(cells):
-        t, w = mono(s, x, ry + 20, 16, c["t2"], 0.05, caps=True)
+    for i, s in enumerate(["Android + iOS · CLI + MCP", "Up to 153× faster than phone-harness"]):
+        t, _ = mono(s, 48, ry + 20 + 28 * i + 6, 16, c["t2"], 0.05, caps=True)
         b += t
-        x += w + 16
-        if i < 2:
-            b += vrule(x, ry + 8, 24, c["line"])
-            x += 17
     gx = 656
     b += dots(gx, top, 32, bottom - top + 1, c["dot"], r=1)
     px, pw, ph = 688, 544, 299
@@ -74,7 +67,7 @@ def banner(tn):
         [("@e9 ", c["t3"]), ("heading ", c["t2"]), ('"Display & touch"', c["t1"])],
         [("@e10 ", c["t1"]), ("switch ", c["t1"]), ('"Dark theme" ', c["t1"]), ("off", c["t1"])],
         [("@e11 ", c["t3"]), ("button ", c["t2"]), ('"Brightness level" ', c["t1"]), ('"64%"', c["t2"])],
-        [("~ ", c["atext"]), ("@e10 ", c["t3"]), ("switch ", c["t2"]), ('"Dark theme" ', c["t1"]), ("off → ", c["t2"]), ("on", c["ok"])],
+        [("~ ", c["t2"]), ("@e10 ", c["t3"]), ("switch ", c["t2"]), ('"Dark theme" ', c["t1"]), ("off → ", c["t2"]), ("on", c["ok"])],
     ]
     for i, parts in enumerate(rows):
         yy = ry0 + 60 * i
@@ -86,17 +79,17 @@ def banner(tn):
             b += rule(px + 1, yy + 59, pw - 2, c["line"] if i == 2 else c["faint"])
         t, _ = runs(px + 18, yy + 30, 19.5, parts)
         b += t
-    return svg(W, H, b, "phone-use. Read the screen as text. Tap a ref. Get the diff. A snapshot line, @e10 switch Dark theme off, is tapped and the diff reads off to on.", c["page"])
+    return svg(W, H, b, "phone-use. Let your AI agent use a phone. Android and iOS, CLI and MCP, up to 153 times faster than phone-harness. A snapshot line, @e10 switch Dark theme off, is tapped and the diff reads off to on.", c["page"])
 
 
 def social():
     c = LIGHT
     W, H = 1280, 640
     b = ""
-    b += lockup(c, 64, 64, 48)[0]
-    t, _ = text("Read the screen as text.", 64, 256, INTER, 88, c["t1"], -0.04)
+    b += lockup(c, 64, 64, 48, solid=True)[0]
+    t, _ = text("Let your AI agent", 64, 256, INTER, 88, c["t1"], -0.04)
     b += t
-    t, _ = text("Tap a ref. Get the diff.", 64, 346, INTER, 88, c["t1"], -0.04)
+    t, _ = text("use a phone.", 64, 346, INTER, 88, c["t1"], -0.04)
     b += t
     fx, fy, fw = 64, 400, 1152
     b += frame(fx, fy, fw, 176, c["line"], c["page"])
