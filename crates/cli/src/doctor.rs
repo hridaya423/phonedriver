@@ -430,70 +430,6 @@ async fn runner_answers(id: &str) -> Check {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn each_check_is_one_aligned_line_and_a_fix_follows_a_problem() {
-        let checks = vec![
-            Check::ok("xcode", "Xcode 27.0"),
-            Check::bad(Status::Warn, "simulators", "none booted", "Boot one."),
-            Check::bad(
-                Status::Fail,
-                "runner build",
-                "xcodebuild failed",
-                "Open Xcode once.",
-            ),
-        ];
-        assert_eq!(
-            render(&checks),
-            "ok    xcode         Xcode 27.0\n\
-             warn  simulators    none booted\n      fix: Boot one.\n\
-             fail  runner build  xcodebuild failed\n      fix: Open Xcode once.\n"
-        );
-    }
-
-    #[test]
-    fn without_a_configured_adb_server_a_missing_one_is_a_warning() {
-        let down = Err(phone_use_core::error::Error::Transport {
-            detail: "refused".into(),
-        });
-        let local = adb_server("127.0.0.1:5037", None, &down);
-        assert_eq!(local.status, Status::Warn);
-        let tunnel = adb_server("127.0.0.1:5038", Some("tcp:127.0.0.1:5038"), &down);
-        assert_eq!(tunnel.status, Status::Fail);
-        assert!(
-            tunnel
-                .detail
-                .contains("ADB_SERVER_SOCKET=tcp:127.0.0.1:5038")
-        );
-    }
-
-    #[cfg(unix)]
-    #[test]
-    fn the_socket_must_be_private_to_its_owner() {
-        use std::os::unix::fs::PermissionsExt;
-        let dir = tempfile::tempdir().unwrap();
-        let sock = dir.path().join("daemon.sock");
-        let set = |p: &Path, m: u32| {
-            std::fs::set_permissions(p, std::fs::Permissions::from_mode(m)).unwrap()
-        };
-        assert_eq!(socket_permissions(&sock).unwrap().status, Status::Ok);
-        std::fs::write(&sock, "").unwrap();
-        set(dir.path(), 0o700);
-        set(&sock, 0o600);
-        assert_eq!(socket_permissions(&sock).unwrap().status, Status::Ok);
-        set(&sock, 0o666);
-        let loose = socket_permissions(&sock).unwrap();
-        assert_eq!(loose.status, Status::Fail);
-        assert!(loose.fix.unwrap().contains("chmod 600"));
-        set(&sock, 0o600);
-        set(dir.path(), 0o755);
-        assert_eq!(socket_permissions(&sock).unwrap().status, Status::Fail);
-    }
-}
-
 /// Each wired iOS device: paired, Developer Mode, developer disk image, tier and services, and the runner with the
 /// expiry of the profile that signed the local build.
 pub async fn physical(home: &Path) -> Vec<Check> {
@@ -683,4 +619,68 @@ pub fn ios_setup() -> bool {
         }
         all_ok
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn each_check_is_one_aligned_line_and_a_fix_follows_a_problem() {
+        let checks = vec![
+            Check::ok("xcode", "Xcode 27.0"),
+            Check::bad(Status::Warn, "simulators", "none booted", "Boot one."),
+            Check::bad(
+                Status::Fail,
+                "runner build",
+                "xcodebuild failed",
+                "Open Xcode once.",
+            ),
+        ];
+        assert_eq!(
+            render(&checks),
+            "ok    xcode         Xcode 27.0\n\
+             warn  simulators    none booted\n      fix: Boot one.\n\
+             fail  runner build  xcodebuild failed\n      fix: Open Xcode once.\n"
+        );
+    }
+
+    #[test]
+    fn without_a_configured_adb_server_a_missing_one_is_a_warning() {
+        let down = Err(phone_use_core::error::Error::Transport {
+            detail: "refused".into(),
+        });
+        let local = adb_server("127.0.0.1:5037", None, &down);
+        assert_eq!(local.status, Status::Warn);
+        let tunnel = adb_server("127.0.0.1:5038", Some("tcp:127.0.0.1:5038"), &down);
+        assert_eq!(tunnel.status, Status::Fail);
+        assert!(
+            tunnel
+                .detail
+                .contains("ADB_SERVER_SOCKET=tcp:127.0.0.1:5038")
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn the_socket_must_be_private_to_its_owner() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = tempfile::tempdir().unwrap();
+        let sock = dir.path().join("daemon.sock");
+        let set = |p: &Path, m: u32| {
+            std::fs::set_permissions(p, std::fs::Permissions::from_mode(m)).unwrap()
+        };
+        assert_eq!(socket_permissions(&sock).unwrap().status, Status::Ok);
+        std::fs::write(&sock, "").unwrap();
+        set(dir.path(), 0o700);
+        set(&sock, 0o600);
+        assert_eq!(socket_permissions(&sock).unwrap().status, Status::Ok);
+        set(&sock, 0o666);
+        let loose = socket_permissions(&sock).unwrap();
+        assert_eq!(loose.status, Status::Fail);
+        assert!(loose.fix.unwrap().contains("chmod 600"));
+        set(&sock, 0o600);
+        set(dir.path(), 0o755);
+        assert_eq!(socket_permissions(&sock).unwrap().status, Status::Fail);
+    }
 }
