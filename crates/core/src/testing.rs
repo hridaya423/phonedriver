@@ -34,6 +34,7 @@ pub struct FakeDevice {
     clipboard: Mutex<Option<String>>,
     foreground: Mutex<Option<AppId>>,
     screen: Mutex<ScreenState>,
+    screen_reads: std::sync::atomic::AtomicUsize,
     apps: Mutex<Vec<App>>,
     display: Mutex<Option<Size>>,
     events: broadcast::Sender<DeviceEvent>,
@@ -56,6 +57,7 @@ impl FakeDevice {
             calls: Mutex::new(Vec::new()),
             clipboard: Mutex::new(None),
             foreground: Mutex::new(None),
+            screen_reads: Default::default(),
             screen: Mutex::new(ScreenState {
                 on: true,
                 locked: false,
@@ -94,6 +96,10 @@ impl FakeDevice {
 
     pub fn set_screen(&self, state: ScreenState) {
         *lock(&self.screen) = state;
+    }
+
+    pub fn screen_reads(&self) -> usize {
+        self.screen_reads.load(std::sync::atomic::Ordering::SeqCst)
     }
 
     pub fn calls(&self) -> Vec<Call> {
@@ -214,6 +220,8 @@ impl Device for FakeDevice {
     }
 
     async fn screen_state(&self) -> Result<ScreenState> {
+        self.screen_reads
+            .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
         Ok(*lock(&self.screen))
     }
 
