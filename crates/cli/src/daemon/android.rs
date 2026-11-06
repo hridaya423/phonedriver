@@ -58,7 +58,7 @@ impl AdbSource {
                 t.running = false;
             });
         }
-        Ok(self.adb.devices().await?)
+        self.adb.devices().await
     }
 }
 
