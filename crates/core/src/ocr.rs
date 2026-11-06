@@ -38,6 +38,15 @@ fn already_in_tree(tree: &[Element], b: &TextBox) -> bool {
     })
 }
 
+/// True when the tree says too little to act on: nothing at all, or a web view with no children.
+pub fn tree_is_hollow(rendered: &Rendered) -> bool {
+    rendered.elements.is_empty()
+        || rendered
+            .elements
+            .iter()
+            .any(|e| e.role == Role::WebView && e.children.is_empty())
+}
+
 /// Appends the boxes the tree does not already show as `Source::Ocr` text elements, in reading order.
 /// `new_ref` names each one; it is called once per kept box.
 pub fn merge(
@@ -120,6 +129,18 @@ mod tests {
             Ref(next)
         });
         r
+    }
+
+    #[test]
+    fn a_tree_is_hollow_when_empty_or_a_web_view_has_no_children() {
+        let mut r = tree_with("Wi-Fi", rect(0.0, 0.0, 10.0, 10.0));
+        assert!(!tree_is_hollow(&r));
+        r.elements[0].role = Role::WebView;
+        assert!(tree_is_hollow(&r));
+        r.elements[0].children.push(0);
+        assert!(!tree_is_hollow(&r));
+        r.elements.clear();
+        assert!(tree_is_hollow(&r));
     }
 
     #[test]

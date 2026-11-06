@@ -11,10 +11,11 @@ use phone_use_core::device::{
     ScreenState, TextInput, TimedPoint, Url,
 };
 use phone_use_core::diff::{DiffOrFull, diff};
-use phone_use_core::element::{Actions, Element, ElementState, Ref, Role};
+use phone_use_core::element::{Actions, Element, ElementState, Ref, Role, Source};
 use phone_use_core::error::{Direction, Error, Op, UserAction};
 use phone_use_core::geometry::{Point, Rect, Size};
 use phone_use_core::gesture;
+use phone_use_core::ocr::{merge, tree_is_hollow};
 use phone_use_core::prune::prune;
 use phone_use_core::raw::RawTree;
 use phone_use_core::render::{
@@ -504,7 +505,15 @@ impl Actor {
         };
         let tree = device.tree().await?;
         let line = settle.map(settle_line);
-        let rendered = self.build(s, &tree, line);
+        let mut rendered = self.build(s, &tree, line);
+        s.ocr = false;
+        if p.pixels || tree_is_hollow(&rendered) {
+            match self.merge_pixels(s, &mut rendered).await {
+                Ok(()) => s.ocr = true,
+                Err(e) if p.pixels => return Err(e),
+                Err(_) => {}
+            }
+        }
         let filters = Filters {
             interactive: p.interactive,
             within: p.within,
@@ -560,7 +569,51 @@ impl Actor {
     /// Fetches the screen as it is now for resolving a target. It does not replace what the agent was last shown.
     async fn fresh(&mut self, s: &mut Session) -> Result<Rendered, Error> {
         let tree = self.device()?.tree().await?;
-        Ok(self.build(s, &tree, None))
+        let mut rendered = self.build(s, &tree, None);
+        if s.ocr {
+            self.merge_pixels(s, &mut rendered).await?;
+        }
+        Ok(rendered)
+    }
+
+    /// Adds the text a screenshot shows and the tree does not. A box keeps the ref of the same text in the last
+    /// snapshot, so a ref the agent was shown still names it.
+    async fn merge_pixels(
+        &mut self,
+        s: &mut Session,
+        rendered: &mut Rendered,
+    ) -> Result<(), Error> {
+        let Some(screen) = rendered.header.device.as_ref().map(|d| d.screen) else {
+            return Ok(());
+        };
+        let image = self.device()?.screenshot(Quality(100)).await?;
+        let boxes =
+            tokio::task::spawn_blocking(move || crate::ocr::recognize(&image.bytes, screen))
+                .await
+                .map_err(|e| Error::Transport {
+                    detail: format!("OCR task failed: {e}"),
+                })??;
+        let mut taken = Vec::new();
+        let last: Vec<(Ref, String)> = s
+            .last
+            .iter()
+            .flat_map(|l| l.elements.iter())
+            .filter(|e| e.source == Source::Ocr)
+            .map(|e| (e.r#ref, e.label.clone().unwrap_or_default()))
+            .collect();
+        merge(rendered, boxes, |b| {
+            match last
+                .iter()
+                .find(|(r, text)| *text == b.text && !taken.contains(r))
+            {
+                Some((r, _)) => {
+                    taken.push(*r);
+                    *r
+                }
+                None => s.refs.fresh(),
+            }
+        });
+        Ok(())
     }
 
     /// Where a target is now. Only a ref or text target needs the screen, so a point costs no tree read.

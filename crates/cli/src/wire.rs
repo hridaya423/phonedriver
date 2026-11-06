@@ -204,6 +204,8 @@ pub struct SnapshotParams {
     pub elements: bool,
     #[serde(default)]
     pub capture: bool,
+    #[serde(default)]
+    pub pixels: bool,
     pub timeout_ms: Option<u64>,
 }
 

@@ -41,6 +41,12 @@ pub struct RefTable {
 }
 
 impl RefTable {
+    /// A ref no tree element has, for an element that comes from pixels.
+    pub fn fresh(&mut self) -> Ref {
+        self.next += 1;
+        Ref(self.next)
+    }
+
     /// One ref per node, matched against the previous call's nodes.
     pub fn assign(&mut self, tree: &RawTree, nodes: &[Node]) -> Vec<Ref> {
         let keys: Vec<StructuralKey> = nodes

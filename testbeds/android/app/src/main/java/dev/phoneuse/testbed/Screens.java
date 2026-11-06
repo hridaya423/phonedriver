@@ -465,7 +465,20 @@ final class Screens {
 
     @SuppressLint({"SetJavaScriptEnabled", "JavascriptInterface"})
     static View web(Activity a) {
-        WebView w = new WebView(a);
+        return web(a, true);
+    }
+
+    @SuppressLint({"SetJavaScriptEnabled", "JavascriptInterface"})
+    static View web(Activity a, boolean accessible) {
+        WebView w = accessible
+                ? new WebView(a)
+                : new WebView(a) {
+                    @Override
+                    public android.view.accessibility.AccessibilityNodeProvider
+                            getAccessibilityNodeProvider() {
+                        return null;
+                    }
+                };
         w.setId(id(a, "web"));
         w.getSettings().setJavaScriptEnabled(true);
         w.addJavascriptInterface(new WebBridge(), "Testbed");
