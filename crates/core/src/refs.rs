@@ -105,6 +105,37 @@ impl RefTable {
             }
         }
 
+        let unique = |ids: &mut dyn Iterator<Item = Option<&String>>| {
+            let mut count: HashMap<String, usize> = HashMap::new();
+            for id in ids.flatten() {
+                *count.entry(id.clone()).or_default() += 1;
+            }
+            count
+                .into_iter()
+                .filter(|(_, c)| *c == 1)
+                .map(|(id, _)| id)
+                .collect::<HashSet<String>>()
+        };
+        let now_unique = unique(&mut nodes.iter().map(|n| n.id.as_ref()));
+        let before_unique = unique(&mut self.last.iter().map(|s| s.key.id.as_ref()));
+        for (i, n) in nodes.iter().enumerate() {
+            let Some(id) = n.id.as_ref().filter(|id| now_unique.contains(*id)) else {
+                continue;
+            };
+            if out[i].is_some() || !before_unique.contains(id) {
+                continue;
+            }
+            let found = self
+                .last
+                .iter()
+                .position(|s| s.key.id.as_ref() == Some(id) && s.role == n.role);
+            if let Some(j) = found
+                && claimed.insert(j)
+            {
+                out[i] = Some(self.last[j].r);
+            }
+        }
+
         let refs: Vec<Ref> = out
             .into_iter()
             .map(|r| {
@@ -173,6 +204,56 @@ mod tests {
             .iter()
             .map(|r| r.to_string())
             .collect()
+    }
+
+    fn ios(nodes: &[(&str, &str, f32)]) -> RawTree {
+        let mut json = vec![
+            r#"{"p":-1,"cls":"XCUIElementTypeOther","b":[0,0,400,800],"f":"vVe"}"#.to_string(),
+        ];
+        for (id, label, y) in nodes {
+            json.push(format!(
+                r#"{{"p":0,"cls":"XCUIElementTypeStaticText","id":"{id}","text":"{label}","b":[0,{y},400,{}],"f":"vVe"}}"#,
+                y + 40.0
+            ));
+        }
+        RawTree::from_ios_json(&format!(
+            r#"{{"app":{{"bundle_id":"x","pid":1}},"nodes":[{}]}}"#,
+            json.join(",")
+        ))
+        .unwrap()
+    }
+
+    fn assign_labels(table: &mut RefTable, tree: &RawTree) -> Vec<(String, Ref)> {
+        let nodes = prune(tree);
+        let refs = table.assign(tree, &nodes);
+        nodes
+            .into_iter()
+            .zip(refs)
+            .map(|(n, r)| (n.label.unwrap_or_default(), r))
+            .collect()
+    }
+
+    #[test]
+    fn an_element_with_a_unique_app_id_keeps_its_ref_when_relabeled() {
+        let mut t = RefTable::default();
+        let before = assign_labels(&mut t, &ios(&[("status", "Last tap: none", 100.0)]));
+        let after = assign_labels(&mut t, &ios(&[("status", "Last tap: b17", 100.0)]));
+        assert_eq!(after[0].1, before[0].1);
+    }
+
+    #[test]
+    fn rows_sharing_one_app_id_do_not_keep_refs_by_place() {
+        let mut t = RefTable::default();
+        let before = assign_labels(
+            &mut t,
+            &ios(&[("cell", "Row 1", 100.0), ("cell", "Row 2", 140.0)]),
+        );
+        let after = assign_labels(
+            &mut t,
+            &ios(&[("cell", "Row 2", 100.0), ("cell", "Row 3", 140.0)]),
+        );
+        assert_eq!(after[0].1, before[1].1, "Row 2 follows its item");
+        assert!(before.iter().all(|(_, r)| *r != after[1].1), "Row 3 is new");
     }
 
     #[test]

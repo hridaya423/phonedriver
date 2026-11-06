@@ -67,7 +67,11 @@ pub fn prune(tree: &RawTree) -> Vec<Node> {
     for i in 0..n {
         let node = &tree.nodes[i];
         let pressable = node.actions.intersects(Actions::TAP | Actions::LONG_PRESS);
-        if clipped[i].is_none() || !pressable || node.label.is_some() || absorbed_by[i].is_some() {
+        if clipped[i].is_none() || !pressable || absorbed_by[i].is_some() {
+            continue;
+        }
+        if let Some(label) = &node.label {
+            hide_repeats(tree, &children, i, label, &mut absorbed_by);
             continue;
         }
         let mut stack: Vec<usize> = children[i].iter().rev().copied().collect();
@@ -144,6 +148,7 @@ pub fn prune(tree: &RawTree) -> Vec<Node> {
             || hint.is_some()
             || node.role.is_text_entry()
             || node.role == Role::ProgressIndicator
+            || node.role == Role::Keyboard
             || scrollable;
         if !keep {
             continue;
@@ -173,6 +178,31 @@ pub fn prune(tree: &RawTree) -> Vec<Node> {
         });
     }
     out
+}
+
+/// A labeled control is one element to a screen reader: its icons and the texts its label already holds add nothing.
+fn hide_repeats(
+    tree: &RawTree,
+    children: &[Vec<usize>],
+    control: usize,
+    label: &str,
+    absorbed_by: &mut [Option<usize>],
+) {
+    let mut stack: Vec<usize> = children[control].clone();
+    while let Some(d) = stack.pop() {
+        let child = &tree.nodes[d];
+        if !child.actions.is_empty() {
+            continue;
+        }
+        let repeats = child.label.as_deref().is_some_and(|l| {
+            let l = l.trim().to_lowercase();
+            !l.is_empty() && label.to_lowercase().contains(&l)
+        });
+        if child.role == Role::Image || repeats {
+            absorbed_by[d] = Some(control);
+        }
+        stack.extend(&children[d]);
+    }
 }
 
 /// Siblings whose vertical centers fall in the same band this tall, in points, read as one row.
@@ -359,6 +389,36 @@ mod tests {
         let nodes = prune(&RawTree::from_android_json(json, Scale { density: 1.0 }).unwrap());
         let labels: Vec<_> = nodes.iter().filter_map(|n| n.label.as_deref()).collect();
         assert_eq!(labels, ["Send"]);
+    }
+
+    #[test]
+    fn a_labeled_button_hides_its_icon_and_the_text_that_repeats_its_label() {
+        let json = r#"{"app":{"bundle_id":"x","pid":1},"nodes":[
+            {"p":-1,"cls":"XCUIElementTypeOther","b":[0,0,100,100],"f":"vVe"},
+            {"p":0,"cls":"XCUIElementTypeButton","text":"Taps","a":["tap"],"b":[0,50,40,90],"f":"vVes"},
+            {"p":1,"cls":"XCUIElementTypeImage","text":"hand.tap","b":[10,55,30,70],"f":"vVe"},
+            {"p":1,"cls":"XCUIElementTypeStaticText","text":"Taps","b":[10,75,30,85],"f":"vVe"},
+            {"p":0,"cls":"XCUIElementTypeButton","text":"Wi-Fi","a":["tap"],"b":[40,50,100,90],"f":"vVe"},
+            {"p":4,"cls":"XCUIElementTypeStaticText","text":"Connected","b":[50,75,90,85],"f":"vVe"}
+        ]}"#;
+        let nodes = prune(&RawTree::from_ios_json(json).unwrap());
+        let labels: Vec<_> = nodes
+            .iter()
+            .map(|n| n.label.as_deref().unwrap_or("-"))
+            .collect();
+        assert_eq!(labels, ["Taps", "Wi-Fi", "Connected"]);
+    }
+
+    #[test]
+    fn a_labeled_button_hides_texts_its_label_already_holds() {
+        let json = r#"{"app":{"bundle_id":"x","pid":1},"nodes":[
+            {"p":-1,"cls":"XCUIElementTypeOther","b":[0,0,400,200],"f":"vVe"},
+            {"p":0,"cls":"XCUIElementTypeButton","text":"Apple Account, Sign in to iCloud.","a":["tap"],"b":[0,0,400,80],"f":"vVe"},
+            {"p":1,"cls":"XCUIElementTypeStaticText","text":"Apple Account","b":[10,10,200,30],"f":"vVe"},
+            {"p":1,"cls":"XCUIElementTypeStaticText","text":"Sign in to iCloud.","b":[10,40,300,60],"f":"vVe"}
+        ]}"#;
+        let nodes = prune(&RawTree::from_ios_json(json).unwrap());
+        assert_eq!(nodes.len(), 1, "{nodes:#?}");
     }
 
     #[test]

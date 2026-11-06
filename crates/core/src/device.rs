@@ -236,4 +236,8 @@ pub trait Device: Send + Sync {
     async fn capture_tree(&self) -> Result<Option<String>> {
         Ok(None)
     }
+    /// Goes back. Returns how, when the platform has more than one way (`nav-button`, `edge-swipe`).
+    async fn back(&self) -> Result<Option<&'static str>> {
+        self.button(Button::Back).await.map(|()| None)
+    }
 }

@@ -1,0 +1,10 @@
+name: settings-search
+steps:
+  - shell: "xcrun simctl terminate {udid} com.apple.Preferences || true"
+  - launch: Settings
+  - tap: {role: search_field}
+  - type: {text: "Wi-Fi"}
+  - expect: {element: {role: search_field, contains: "Wi-Fi"}}
+  - expect: {element: {role: text, contains: "Wi-Fi"}}
+cleanup:
+  - shell: "xcrun simctl terminate {udid} com.apple.Preferences || true"

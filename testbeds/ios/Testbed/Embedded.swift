@@ -62,6 +62,7 @@ struct WebForm: UIViewRepresentable {
         let config = WKWebViewConfiguration()
         config.userContentController.add(context.coordinator, name: "putb")
         let view = WKWebView(frame: .zero, configuration: config)
+        view.allowsBackForwardNavigationGestures = true
         if let url = Bundle.main.url(forResource: "form", withExtension: "html") {
             view.loadFileURL(url, allowingReadAccessTo: url)
         }

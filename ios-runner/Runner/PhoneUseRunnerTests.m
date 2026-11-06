@@ -34,12 +34,16 @@ static NSString *PUModel(void)
 static NSDictionary *PUHello(void)
 {
     CGRect bounds = [[XCUIApplication alloc] initWithBundleIdentifier:@"com.apple.springboard"].frame;
-    return @{
+    NSDictionary *env = NSProcessInfo.processInfo.environment;
+    NSMutableDictionary *hello = [@{
         @"version": PURunnerVersion,
         @"ios": UIDevice.currentDevice.systemVersion,
         @"model": PUModel(),
         @"screen": @{@"w": @(bounds.size.width), @"h": @(bounds.size.height), @"scale": @(UIScreen.mainScreen.scale)},
-    };
+    } mutableCopy];
+    if (env[@"SIMULATOR_UDID"]) hello[@"udid"] = env[@"SIMULATOR_UDID"];
+    if (env[@"PHONE_USE_BUILD"]) hello[@"build"] = env[@"PHONE_USE_BUILD"];
+    return hello;
 }
 
 static NSString *PUStringField(NSDictionary *request, NSString *key, NSError **error)
@@ -68,15 +72,21 @@ static NSDictionary *PUPerform(NSDictionary *request, NSError **error)
     if ([op isEqualToString:@"screenshot"]) {
         NSString *format = request[@"format"] ?: @"jpeg";
         NSNumber *quality = request[@"quality"] ?: @80;
-        if (![format isKindOfClass:NSString.class] || ![quality isKindOfClass:NSNumber.class]) {
-            if (error) *error = PUError(PURunnerErrorBadRequest, @"format must be a string and quality a number");
+        NSNumber *scale = request[@"scale"] ?: @0;
+        if (![format isKindOfClass:NSString.class] || ![quality isKindOfClass:NSNumber.class]
+            || ![scale isKindOfClass:NSNumber.class]) {
+            if (error) *error = PUError(PURunnerErrorBadRequest, @"format must be a string, quality and scale numbers");
             return nil;
         }
-        return PUScreenshot(format, quality.integerValue, error);
+        return PUScreenshot(format, quality.integerValue, scale.doubleValue, error);
     }
     if ([op isEqualToString:@"type"]) {
         NSString *text = PUStringField(request, @"text", error);
-        return text && PUType(text, error) ? @{} : nil;
+        return text && PUType(text, [request[@"speed"] unsignedIntegerValue], error) ? @{} : nil;
+    }
+    if ([op isEqualToString:@"key"]) {
+        NSString *key = PUStringField(request, @"key", error);
+        return key && PUKey(key, request[@"modifiers"] ?: @[], error) ? @{} : nil;
     }
     if ([op isEqualToString:@"button"]) {
         NSString *name = PUStringField(request, @"name", error);

@@ -1,0 +1,11 @@
+name: testbed-list
+steps:
+  - testbed: list
+  - expect: {element: {text: "Row 0"}}
+  - swipe: {direction: up}
+  - swipe: {direction: up}
+  - expect: {absent: '"Row 0"'}
+  - expect: {element: {text: "Row 45"}}
+  - expect: {log: {ev: scroll}}
+cleanup:
+  - shell: "xcrun simctl terminate {udid} dev.phoneuse.testbed || true"

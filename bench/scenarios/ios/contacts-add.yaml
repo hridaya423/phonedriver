@@ -1,0 +1,18 @@
+name: contacts-add
+steps:
+  - shell: "xcrun simctl terminate {udid} com.apple.MobileAddressBook || true"
+  - launch: Contacts
+  - expect: {absent: '"Zoe Phoneuse"'}
+  - tap: Add
+  - type: {text: Zoe, into: "First name"}
+  - type: {text: Phoneuse, into: "Last name"}
+  - tap: Done
+  - expect: {element: {text: "Zoe Phoneuse"}}
+  - tap: Edit
+  - swipe: {direction: up}
+  - swipe: {direction: up}
+  - tap: {text: "Delete Contact", role: cell}
+  - tap: {text: "Delete Contact", role: button}
+  - expect: {absent: '"Zoe Phoneuse"'}
+cleanup:
+  - shell: "xcrun simctl terminate {udid} com.apple.MobileAddressBook || true"

@@ -112,6 +112,18 @@ impl Rendered {
         self.elements.iter().position(|e| e.r#ref == r)
     }
 
+    /// The element is a keyboard or one of its keys (an iOS keyboard is part of the app's tree).
+    fn in_keyboard(&self, r: Ref) -> bool {
+        let mut at = self.index_of(r);
+        while let Some(i) = at {
+            if self.elements[i].role == Role::Keyboard {
+                return true;
+            }
+            at = self.parents[i];
+        }
+        false
+    }
+
     pub fn loading(&self) -> bool {
         self.elements
             .iter()
@@ -224,7 +236,7 @@ impl Rendered {
         }
         if let Some(k) = self.header.keyboard
             && k.contains(e.bounds)
-            && e.role != Role::Keyboard
+            && !self.in_keyboard(e.r#ref)
         {
             s.push_str(" under-keyboard");
         }
@@ -435,6 +447,37 @@ mod tests {
     fn golden(name: &str, fixture: &str) {
         let text = captured(fixture).text(&Filters::default()).unwrap();
         insta::assert_snapshot!(name, text);
+    }
+
+    #[test]
+    fn keys_of_an_ios_keyboard_are_not_under_the_keyboard() {
+        let tree = RawTree::from_ios_json(
+            r#"{"app":{"bundle_id":"x","pid":1},"nodes":[
+            {"p":-1,"cls":"XCUIElementTypeApplication","text":"App","b":[0,0,400,800],"f":"vVe"},
+            {"p":0,"cls":"XCUIElementTypeButton","text":"Hidden","a":["tap"],"b":[0,600,100,640],"f":"vVe"},
+            {"p":0,"cls":"XCUIElementTypeKeyboard","b":[0,500,400,800],"f":"vVe"},
+            {"p":2,"cls":"XCUIElementTypeKey","text":"Q","a":["tap"],"b":[0,520,40,560],"f":"vVe"}
+        ]}"#,
+        )
+        .unwrap();
+        let nodes = prune(&tree);
+        let refs = RefTable::default().assign(&tree, &nodes);
+        let mut h = header();
+        h.keyboard = Some(Rect {
+            x: 0.0,
+            y: 500.0,
+            w: 400.0,
+            h: 300.0,
+        });
+        let text = Rendered::build(nodes, &refs, h)
+            .text(&Filters::default())
+            .unwrap();
+        assert!(text.contains("button \"Hidden\" under-keyboard"), "{text}");
+        assert!(text.contains("keyboard"), "{text}");
+        assert!(
+            text.contains("button \"Q\"\n") || text.ends_with("button \"Q\""),
+            "{text}"
+        );
     }
 
     #[test]
