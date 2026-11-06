@@ -44,8 +44,16 @@ final class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         contexts.forEach { open($0.url) }
     }
 
-    func sceneDidBecomeActive(_ scene: UIScene) { Log.event("lifecycle", ["state": "active"]) }
-    func sceneWillResignActive(_ scene: UIScene) { Log.event("lifecycle", ["state": "inactive"]) }
+    func sceneDidBecomeActive(_ scene: UIScene) {
+        UIApplication.shared.isIdleTimerDisabled = true
+        Log.event("lifecycle", ["state": "active"])
+        Log.event("idle_timer", ["disabled": UIApplication.shared.isIdleTimerDisabled])
+    }
+
+    func sceneWillResignActive(_ scene: UIScene) {
+        UIApplication.shared.isIdleTimerDisabled = false
+        Log.event("lifecycle", ["state": "inactive"])
+    }
     func sceneDidEnterBackground(_ scene: UIScene) { Log.event("lifecycle", ["state": "background"]) }
     func sceneWillEnterForeground(_ scene: UIScene) { Log.event("lifecycle", ["state": "foreground"]) }
 
