@@ -73,13 +73,30 @@ phone-harness cannot type Unicode through `adb input text`. phone-use typed mixe
 
 ## Install
 
-phone-use is not published. Build it from source with Rust 1.99 or later.
+After the first release (nothing is published yet, so these do not work today), one line installs the prebuilt binary. Each artifact has the Android agent inside.
+
+```sh
+# macOS and Linux
+curl --proto '=https' --tlsv1.2 -LsSf https://github.com/OWNER/phone-use/releases/latest/download/phone-use-installer.sh | sh
+
+# Homebrew (macOS and Linux)
+brew install OWNER/tap/phone-use
+```
+
+```powershell
+# Windows
+powershell -ExecutionPolicy Bypass -c "irm https://github.com/OWNER/phone-use/releases/latest/download/phone-use-installer.ps1 | iex"
+```
+
+The shell and PowerShell installers put `phone-use` in `$CARGO_HOME/bin` (`~/.cargo/bin`) and add it to your `PATH`. The iOS Simulator runner needs no download: its sources are inside the binary, and the first command that needs it builds it on your Mac with Xcode and XcodeGen.
+
+To build from source instead, use Rust 1.99 or later.
 
 ```sh
 cargo build --release
 ```
 
-The build packs the Android agent, so it needs the Android SDK (`ANDROID_HOME` with build-tools and platform 37), `d8`, and JDK 17. To skip that step, set `PHONE_USE_AGENT_JAR` to a built `phone-use-agent.jar`. The binary is `target/release/phone-use`.
+The build packs the Android agent, so it needs the Android SDK (`ANDROID_HOME` with build-tools 37.0.0 and platform android-37.0), `d8`, and JDK 17. To skip that step, set `PHONE_USE_AGENT_JAR` to a built `phone-use-agent.jar` (`bash android-agent/build.sh` makes one). The binary is `target/release/phone-use`.
 
 ```console
 $ target/release/phone-use version
