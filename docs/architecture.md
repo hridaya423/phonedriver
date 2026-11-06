@@ -142,7 +142,7 @@ Reading order (task 2.7): siblings print top to bottom by vertical center in 8-p
 
 Text-target resolution follows the same rule: `tap "Network & internet"` matches the row whose merged label is that text, so the tap goes to the actionable ancestor, never to an inert text node. If text only matches a non-actionable node, the tap goes to its nearest actionable ancestor; if there is none, to the text's own center.
 
-The keyboard window is one `keyboard` node without its keys (task 3.2): an agent types with `type`, and about sixty key nodes made the first typed character a "new screen" in the diff (more than 60% of refs changed).
+The keyboard window is one `keyboard` node without its keys (task 3.2): an agent types with `type`, and about sixty key nodes made the first typed character a "new screen" in the diff (more than 60% of refs changed). The same holds on iOS since the agent-experience audit (it measured 26 to 40 `button "q"` lines, about 190 tokens, per keyboard appearance): `ios::map::tidy` keeps only the `Keyboard` node of the window that holds the keyboard, as a child of the application, and drops that window's keys and its Emoji and Dictate buttons. A key is therefore not a tap target by name; `press enter`, `type --submit` and `press hide-keyboard` cover what keys were used for.
 
 Compose and WebView (task 3.10): both build their accessibility tree on the first query, about a second after the view appears, and show as a childless node until then, so the agent's first read of each `WebView` or `AndroidComposeView` waits up to 2.5 s for children. A Compose toggle (`Switch`, `Checkbox`, `RadioButton`) is an `android.view.View` that is checkable and takes the tap, with its role in the `AccessibilityNodeInfo.roleDescription` extra of a child node (`rd` on the wire, protocol section 2); the parser gives the checkable parent that role. A Compose `testTag` is the node's `id` when the app sets `testTagsAsResourceId`. `isHeading` exists from API 28, so a Compose title is a `heading` only from there. A text target that matches an inert element and exactly one element with actions (a web label `Name` next to its input `Name`) resolves to the one with actions.
 
@@ -317,7 +317,7 @@ Components (one Java file each where possible):
 | Rotation | Agent restarts the encoder; session maps coordinates with the new size |
 | `wm size` change | Same as rotation |
 | `wm density` change | The agent's `display_changed` event carries the density; a different density becomes `DeviceEvent::DensityChanged`, the actor drops the connection and the next call starts a new agent with the new density (a few seconds). Not testable on the API 26 emulator: `wm density` restarts its system server and drops adb |
-| IME shown | Header `keyboard shown`; elements under it get `under-keyboard`. The platform calls a view the keyboard covers invisible to the user, so `prune` keeps an on-screen node that lies inside the keyboard window's bounds (flag `v` without `V`). `tap` on an element marked `under-keyboard` fails `OffScreen` with `behind_keyboard: true` and the hint to `press back` (hides the IME) or `scroll`, and sends no input |
+| IME shown | Header `keyboard shown`; elements under it get `under-keyboard`. The platform calls a view the keyboard covers invisible to the user, so `prune` keeps an on-screen node that lies inside the keyboard window's bounds (flag `v` without `V`). `tap` on an element marked `under-keyboard` fails `OffScreen` with `behind_keyboard: true` and the hint to `press hide-keyboard` or `scroll`, and sends no input |
 
 Only display 0 is supported in v1.
 
@@ -412,7 +412,7 @@ phone-use clear <target>
 phone-use swipe <up|down|left|right> [--from <target>] [--distance 0..1] [--fast]
 phone-use scroll <up|down|left|right> [--in <target>] [--until "text"|@ref] [--max N]
 phone-use gesture <json>                   multi-finger paths with timing
-phone-use press <home|back|recents|notifications|lock|volume-up|volume-down|enter|...>
+phone-use press <home|back|recents|notifications|lock|volume-up|volume-down|enter|hide-keyboard|...>
 phone-use launch <app name|package|bundle id>
 phone-use open <url>                       deep link or web URL in its handler app
 phone-use apps
@@ -438,7 +438,8 @@ How the less obvious verbs work per platform:
 |---|---|---|---|
 | `press notifications` | StatusBarManager `expandNotificationsPanel` (scrcpy wrapper) | swipe down from the top-left edge | same swipe via runner |
 | `open <url>` | ActivityManager VIEW intent | runner `XCUIDevice.shared.system.open` if installed, else `Unsupported` | runner on device and Simulator (`simctl openurl` asks "Open in …?" for custom schemes) |
-| `press back` | `KEYCODE_BACK` | nav-bar back button, else left-edge swipe; `via` says which | same |
+| `press back` | `KEYCODE_BACK` | nav-bar back button, else left-edge swipe; `via` says which | same; with the keyboard shown, `back` hides it first, as Android does |
+| `press hide-keyboard` | no-op when the keyboard is hidden (`back` would leave the screen), else `KEYCODE_BACK` | n/a | a "Hide keyboard" key if the keyboard has one, else an upward drag from just above the keyboard (forms that dismiss on drag: Contacts, Settings; a drag down dismissed Contacts' New Contact sheet and lost the draft in the first live try); if the keyboard is still there the call fails `Unsupported` and says to `press enter` or tap Done (the testbed's Plain field keeps its keyboard on a drag) |
 
 Text targets resolve by: exact label, then case-insensitive exact, then substring. More than one match fails with `Ambiguous` and lists refs. No match fails with `NotFound`, whose `similar` lists elements whose text contains the query or is within 0.3 of it by normalized optimal-string-alignment distance (insertions, deletions, substitutions and swaps of neighbors, case ignored, so `Rwo 5` suggests `Row 5`; plain Levenshtein would put that swap at 0.4). A list line says its size (`list 1000 rows`); a text row of a list is a `cell`, with its position when the app attached collection item info (RecyclerView does only for rows bound while an accessibility service was connected).
 

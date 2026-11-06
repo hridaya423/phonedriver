@@ -338,11 +338,20 @@ impl Error {
                 scroll_hint,
                 ..
             } => format!(
-                "Hide the keyboard with `phone-use press back`, or `phone-use scroll {}` to bring the element above it.",
+                "Hide the keyboard with `phone-use press hide-keyboard`, or `phone-use scroll {}` to bring the element above it.",
                 scroll_hint.name()
             ),
             Error::OffScreen { scroll_hint, .. } => {
                 format!("Scroll first: `phone-use scroll {}`.", scroll_hint.name())
+            }
+            Error::Unsupported { op: Op::Text, .. } => {
+                "Use `--mode paste` or `--mode keys`; `set` works only where the device can set field values.".into()
+            }
+            Error::Unsupported { op: Op::Key, .. } => {
+                "Use `phone-use press enter` or tap the field's Done button to end editing.".into()
+            }
+            Error::Unsupported { op: Op::Ocr, .. } => {
+                "Use `phone-use screenshot` to look at the screen instead.".into()
             }
             Error::Unsupported { .. } => {
                 "Run `phone-use doctor` to see what this device supports.".into()

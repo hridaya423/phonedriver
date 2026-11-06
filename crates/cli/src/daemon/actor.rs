@@ -921,6 +921,38 @@ impl Actor {
                 self.scroll(s, p.settle, cfg, direction, within, until, max)
                     .await
             }
+            Action::Press { key } if key == "hide-keyboard" => {
+                let shown = device
+                    .tree()
+                    .await?
+                    .windows
+                    .iter()
+                    .any(|w| w.kind == "input_method");
+                if !shown {
+                    let st = State::Done {
+                        settled: true,
+                        changed: false,
+                        still_changing: None,
+                        elapsed: Duration::ZERO,
+                    };
+                    return self
+                        .report(s, st, "keyboard already hidden".into(), None, None, None)
+                        .await;
+                }
+                let started = self.begin_action();
+                let via = device.hide_keyboard().await?;
+                let summary = format!("hid the keyboard via {}", via.unwrap_or("back"));
+                let result = self
+                    .finish(s, p.settle, cfg, started, summary, via, None, None)
+                    .await?;
+                if p.settle && result.observation.header.keyboard.is_some() {
+                    return Err(Error::Unsupported {
+                        op: Op::Key,
+                        reason: "this screen kept the keyboard when it was told to hide",
+                    });
+                }
+                Ok(result)
+            }
             Action::Press { key } => {
                 let started = self.begin_action();
                 let via = press(&*device, &key).await?;
@@ -1725,6 +1757,7 @@ async fn press(device: &dyn Device, key: &str) -> Result<Option<&'static str>, E
             "volume-up".into(),
             "volume-down".into(),
             "enter".into(),
+            "hide-keyboard".into(),
         ],
     })
 }

@@ -11,6 +11,7 @@ use phone_use_core::device::{
     App, AppId, Button, Capabilities, ClipboardOp, Device, DeviceEvent, DeviceInfo, FrameRef,
     Gesture, Image, ImageFormat, Key, Quality, Result, TextInput, Url,
 };
+use phone_use_core::element::Role;
 use phone_use_core::error::{Error, Op};
 use phone_use_core::geometry::Size;
 use phone_use_core::raw::RawTree;
@@ -424,9 +425,29 @@ impl Device for IosDevice {
         Ok(())
     }
 
+    async fn hide_keyboard(&self) -> Result<Option<&'static str>> {
+        let _busy = Busy::new(&self.activity);
+        let reply = self.snapshot(30).await?;
+        match map::hide_keyboard_plan(&reply, self.screen()) {
+            Some(map::HidePlan::Tap(at)) => {
+                self.gesture(phone_use_core::gesture::tap(at, 1, None))
+                    .await?;
+                Ok(Some("hide-key"))
+            }
+            Some(map::HidePlan::Drag(g)) => {
+                self.gesture(g).await?;
+                Ok(Some("drag"))
+            }
+            None => Ok(None),
+        }
+    }
+
     async fn back(&self) -> Result<Option<&'static str>> {
         let _busy = Busy::new(&self.activity);
         let tree = self.tree().await?;
+        if tree.nodes.iter().any(|n| n.role == Role::Keyboard) {
+            return self.hide_keyboard().await;
+        }
         match map::back_button(&tree) {
             Some(at) => {
                 self.gesture(Gesture {

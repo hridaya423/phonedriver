@@ -1382,7 +1382,7 @@ async fn a_button_under_the_keyboard_is_marked_and_a_tap_on_it_fails_off_screen_
     assert!(e.message.contains("under the keyboard"), "{e:?}");
     let hint = e.data["hint"].as_str().unwrap();
     assert!(
-        hint.contains("press back") && hint.contains("scroll"),
+        hint.contains("press hide-keyboard") && hint.contains("scroll"),
         "{hint}"
     );
     assert!(fake.calls().is_empty(), "{:?}", fake.calls());
@@ -1717,4 +1717,65 @@ async fn health_says_null_when_no_frame_arrives_within_a_second() {
     let r = ok(&d, "doctor", "health", json!({})).await;
     assert!(r["frames_ms"].is_null(), "{r}");
     assert_eq!(r["id"], "fake:1");
+}
+
+fn ime_tree(shown: bool) -> RawTree {
+    let keyboard_window = if shown {
+        r#",{"id":2,"type":"input_method","bounds":[0,500,360,800]}"#
+    } else {
+        ""
+    };
+    let keyboard_node = if shown {
+        r#",{"p":-1,"w":2,"cls":"android.widget.FrameLayout","b":[0,500,360,800],"f":"vVe"}"#
+    } else {
+        ""
+    };
+    let json = format!(
+        r#"{{"windows":[{{"id":1,"type":"application","package":"com.example","bounds":[0,0,360,800]}}{keyboard_window}],"nodes":[
+        {{"p":-1,"w":1,"cls":"android.widget.FrameLayout","b":[0,0,360,800],"f":"vVe"}},
+        {{"p":0,"w":1,"cls":"android.widget.EditText","text":"","desc":"Field","b":[0,100,360,160],"f":"vVeEF","a":["tap","set_text"]}}{keyboard_node}]}}"#
+    );
+    RawTree::from_android_json(&json, Scale { density: 1.0 }).unwrap()
+}
+
+fn press_key(key: &str) -> Value {
+    json!({"action": {"kind": "press", "key": key}})
+}
+
+#[tokio::test(start_paused = true)]
+async fn press_hide_keyboard_hides_a_shown_keyboard_and_says_how() {
+    let (source, fake) = FakeSource::with(vec![ime_tree(true), ime_tree(false)]);
+    let (d, _home) = daemon(source);
+    let r = ok(&d, "default", "act", press_key("hide-keyboard")).await;
+    assert!(
+        r["summary"].as_str().unwrap().contains("hid the keyboard"),
+        "{r}"
+    );
+    assert!(
+        fake.calls()
+            .contains(&Call::Button(phone_use_core::device::Button::Back))
+    );
+    assert!(!r["observation"]["header"]["keyboard"].is_object(), "{r}");
+}
+
+#[tokio::test(start_paused = true)]
+async fn press_hide_keyboard_with_no_keyboard_sends_nothing_because_back_would_leave_the_screen() {
+    let (source, fake) = FakeSource::with(vec![ime_tree(false)]);
+    let (d, _home) = daemon(source);
+    let r = ok(&d, "default", "act", press_key("hide-keyboard")).await;
+    assert!(
+        r["summary"].as_str().unwrap().contains("already hidden"),
+        "{r}"
+    );
+    assert!(fake.calls().is_empty(), "{:?}", fake.calls());
+}
+
+#[tokio::test(start_paused = true)]
+async fn press_hide_keyboard_fails_with_a_way_forward_when_the_keyboard_stays() {
+    let (source, _fake) = FakeSource::with(vec![ime_tree(true)]);
+    let (d, _home) = daemon(source);
+    let e = err(&d, "default", "act", press_key("hide-keyboard")).await;
+    assert_eq!(e.code, -32011, "{e:?}");
+    assert!(e.message.contains("kept the keyboard"), "{}", e.message);
+    assert!(e.data["hint"].as_str().unwrap().contains("press enter"));
 }

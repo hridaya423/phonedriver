@@ -31,7 +31,7 @@ Use `wait` when the screen needs time: `wait "Row 640"`, `wait gone:"Loading"`, 
 
 - To read more of a list, call `scroll down`. To reach a known row, call `scroll down --until "Row 640"`.
 - Use `swipe` for gestures that are not scrolling, such as pulling a sheet down.
-- A line ending in `under-keyboard` is hidden by the keyboard. Press `back` to close the keyboard, then tap.
+- A line ending in `under-keyboard` is hidden by the keyboard. Run `press hide-keyboard`, then tap (on iOS `back` does not close it unless the keyboard is up, then it does the same).
 - `find "text"` (command line) lists the elements that contain the text.
 
 ## Screenshots

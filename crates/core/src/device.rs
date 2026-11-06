@@ -245,4 +245,10 @@ pub trait Device: Send + Sync {
     async fn back(&self) -> Result<Option<&'static str>> {
         self.button(Button::Back).await.map(|()| None)
     }
+    /// Closes the on-screen keyboard, which the caller has seen is shown. Returns how. Android's back button closes
+    /// it before it goes back.
+    async fn hide_keyboard(&self) -> Result<Option<&'static str>> {
+        self.back().await?;
+        Ok(Some("back"))
+    }
 }
