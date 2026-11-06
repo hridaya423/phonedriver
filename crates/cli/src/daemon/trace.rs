@@ -134,37 +134,53 @@ impl Traces {
 /// The request as the trace keeps it. Typed text and the clipboard text become their lengths whatever the flags say,
 /// because a `SecureField` is only known to the actor and not on every error path. Text targets are copies of what
 /// the screen shows, so they follow `full`. A URL loses its query and fragment, where tokens live.
+fn length(key: &str, v: &Value) -> Value {
+    json!({ key: v.as_str().map_or(0, |s| s.chars().count()) })
+}
+
+fn hide_text(t: &mut Value, full: bool) {
+    if !full && let Some(s) = t.get("text") {
+        t["text"] = length("text_len", s);
+    }
+}
+
+fn hide_condition(condition: &mut Value, full: bool) {
+    for key in ["appears", "gone"] {
+        hide_text(&mut condition[key], full);
+    }
+}
+
+fn hide_action(action: &mut Value, full: bool) {
+    let secret = action["secret"].as_bool().unwrap_or(false);
+    if action["kind"] == "type"
+        && let Some(text) = action.get("text").cloned()
+    {
+        action["text"] = length(if secret { "secret_len" } else { "text_len" }, &text);
+    }
+    if let Some(url) = action["url"].as_str() {
+        let end = url.find(['?', '#']).unwrap_or(url.len());
+        action["url"] = json!(&url[..end]);
+    }
+    for key in ["target", "into", "from", "in", "until"] {
+        hide_text(&mut action[key], full);
+    }
+}
+
 fn sanitize(method: &str, params: &Value, full: bool) -> Value {
     let mut p = params.clone();
-    let length = |key: &str, v: &Value| json!({ key: v.as_str().map_or(0, |s| s.chars().count()) });
-    let hide_text = |t: &mut Value| {
-        if !full && let Some(s) = t.get("text") {
-            t["text"] = length("text_len", s);
-        }
-    };
     if let Some(o) = p.as_object_mut() {
         o.remove("session");
     }
     match method {
-        "act" => {
-            let action = &mut p["action"];
-            let secret = action["secret"].as_bool().unwrap_or(false);
-            if action["kind"] == "type"
-                && let Some(text) = action.get("text").cloned()
-            {
-                action["text"] = length(if secret { "secret_len" } else { "text_len" }, &text);
-            }
-            if let Some(url) = action["url"].as_str() {
-                let end = url.find(['?', '#']).unwrap_or(url.len());
-                action["url"] = json!(&url[..end]);
-            }
-            for key in ["target", "into", "from", "in", "until"] {
-                hide_text(&mut action[key]);
-            }
-        }
-        "wait" => {
-            for key in ["appears", "gone"] {
-                hide_text(&mut p["condition"][key]);
+        "act" => hide_action(&mut p["action"], full),
+        "wait" => hide_condition(&mut p["condition"], full),
+        "batch" => {
+            for step in p["steps"].as_array_mut().into_iter().flatten() {
+                if step["kind"] == "wait" {
+                    hide_condition(&mut step["condition"], full);
+                } else {
+                    hide_action(step, full);
+                }
             }
         }
         "find" if !full => {

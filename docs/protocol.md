@@ -30,6 +30,7 @@ Progress: a client that sends `"progress": true` in `hello` may receive notifica
 | `find` | `device?, text, role?` | `[ElementLine]` (rendered lines such as `@e12 cell "Row 1"`; the elements whose label or hint contains `text`, in any case; `role` is a snake_case role name) |
 | `act` | `device?, action: Action, settle?: bool, timeout_ms?, expect_change_ms?` | `ActionResult` |
 | `wait` | `device?, condition: WaitCondition, timeout_ms?, expect_change_ms?` | `ActionResult` |
+| `batch` | `device?, steps: Step[], timeout_ms?, expect_change_ms?` | `BatchResult` |
 | `apps` | `device?` | `[App]` (launchable apps: `{id, name, system}`) |
 | `clipboard` | `device?, set?: string` | `{text?: string}` (`{}` after a set; `text` is null when the clipboard is empty) |
 | `health` | `device?` | `{id, model, os, frames_ms}` (what `doctor` needs: connects, reads the tree once, then waits up to 1 s for the next frame; `frames_ms` is null when none came or the device has no frame stream) |
@@ -56,6 +57,18 @@ type WaitCondition = {appears: Target} | {gone: Target} | {settled: true}
 // appears and gone reply with a full Observation and `summary: "\"Row 640\" appeared after 3 tree reads"`; a text
 // target is a substring match, so `gone:Loading` is not gone while "Hide loading" is on screen. They fail `timeout`
 // (-32013) naming the condition.
+
+type Step = Action | {kind: "wait", condition: WaitCondition}   // `secret` text is for single `act` calls only
+type BatchResult = {
+  ok: boolean,
+  steps: Array<{summary: string, verified?: boolean}>,   // the steps that ran and succeeded
+  failed?: {step: number, error: {code, message, data}}, // 1-based; `error` is as in section "Errors"
+  settled: boolean, settle_ms: number, changed: boolean,
+  observation: Observation   // diff from what the session last observed before step 1 to after the last step that ran
+}
+// The steps run in order in one lease, each acted on and settled like `act`. The first error ends the batch with
+// `ok: false` (a result, not a JSON-RPC error, so the steps that ran and the screen are not lost). An empty list or a
+// step the daemon cannot parse is -32602 and nothing runs.
 
 type Observation = {
   header: Header,                 // core::render::Header: device {id, model, os, screen, orientation}, app {id, name},

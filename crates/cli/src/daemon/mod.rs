@@ -32,7 +32,7 @@ use tokio::time::Instant;
 use self::actor::{Call, Job};
 use self::rpc::RpcError;
 use self::trace::{TraceOptions, Traces};
-use crate::wire::{ActParams, Action, Common, DeviceEntry, VERSION};
+use crate::wire::{ActParams, Action, BatchParams, Common, DeviceEntry, Step, VERSION};
 
 const IDLE_EXIT: Duration = Duration::from_secs(15 * 60);
 const SHUTDOWN_GRACE: Duration = Duration::from_millis(500);
@@ -142,7 +142,7 @@ impl Daemon {
                 Ok(json!({"pid": std::process::id()}))
             }
             "devices" => Ok(self.devices().await?),
-            "release" | "snapshot" | "screenshot" | "act" | "wait" | "find" | "apps"
+            "release" | "snapshot" | "screenshot" | "act" | "wait" | "batch" | "find" | "apps"
             | "clipboard" | "health" => {
                 let common: Common = rpc::params(params)?;
                 let call = match method {
@@ -164,6 +164,28 @@ impl Daemon {
                             ));
                         }
                         Call::Act(act)
+                    }
+                    "batch" => {
+                        let batch: BatchParams = rpc::params(params)?;
+                        if batch.steps.is_empty() {
+                            return Err(RpcError::invalid_params(
+                                "a batch needs at least one step",
+                            ));
+                        }
+                        for (i, raw) in batch.steps.iter().enumerate() {
+                            let step = Step::parse(raw).map_err(|why| {
+                                RpcError::invalid_params(format!("step {}: {why}", i + 1))
+                            })?;
+                            if let Step::Act(Action::Gesture { fingers }) = &step
+                                && (fingers.is_empty() || fingers.iter().any(|f| f.len() < 2))
+                            {
+                                return Err(RpcError::invalid_params(format!(
+                                    "step {}: each finger needs at least two points: where it lands and where it lifts",
+                                    i + 1
+                                )));
+                            }
+                        }
+                        Call::Batch(batch)
                     }
                     _ => Call::Wait(rpc::params(params)?),
                 };

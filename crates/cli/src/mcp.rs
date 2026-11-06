@@ -14,7 +14,7 @@ use serde_json::json;
 use tokio::sync::Mutex;
 
 use crate::client::{Client, Failure};
-use crate::commands::{Globals, Verb, execute_with};
+use crate::commands::{Globals, Verb, execute_with, run_batch};
 use crate::wire::ScreenshotResult;
 
 #[derive(Clone)]
@@ -22,6 +22,15 @@ pub struct Mcp {
     socket: Option<PathBuf>,
     session: String,
     client: Arc<Mutex<Option<Client>>>,
+}
+
+#[derive(Deserialize, JsonSchema)]
+struct BatchArgs {
+    device: Option<String>,
+    /// Run in order. Each step is an object: `tool` (tap, type, swipe, scroll, press, launch or wait) plus that tool's arguments, such as {"tool":"tap","target":"@e3"}.
+    steps: Vec<serde_json::Value>,
+    /// Give up on a step's settle or wait after this many milliseconds. Default 5000.
+    timeout_ms: Option<u64>,
 }
 
 #[derive(Deserialize, JsonSchema)]
@@ -46,6 +55,7 @@ struct SnapshotArgs {
 }
 
 #[derive(Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 struct TapArgs {
     device: Option<String>,
     /// `@e5` (a ref from the last snapshot), `x,y` in points, or the text of an element, such as `Dark theme`.
@@ -59,6 +69,7 @@ struct TapArgs {
 }
 
 #[derive(Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 struct TypeArgs {
     device: Option<String>,
     /// The text to type.
@@ -74,6 +85,7 @@ struct TypeArgs {
 }
 
 #[derive(Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 struct SwipeArgs {
     device: Option<String>,
     /// up, down, left or right: where the finger moves.
@@ -87,6 +99,7 @@ struct SwipeArgs {
 }
 
 #[derive(Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 struct ScrollArgs {
     device: Option<String>,
     /// up, down, left or right: where more content should appear.
@@ -100,6 +113,7 @@ struct ScrollArgs {
 }
 
 #[derive(Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 struct PressArgs {
     device: Option<String>,
     /// home, back, recents, notifications, lock, volume-up, volume-down, enter or hide-keyboard.
@@ -107,6 +121,7 @@ struct PressArgs {
 }
 
 #[derive(Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 struct LaunchArgs {
     device: Option<String>,
     /// An app name or package or bundle id, such as `Settings`. Pass this or `url`.
@@ -116,12 +131,110 @@ struct LaunchArgs {
 }
 
 #[derive(Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 struct WaitArgs {
     device: Option<String>,
     /// `settled`, a text or @ref to appear, or `gone:<text>` to leave the screen.
     condition: String,
     /// Give up after this many milliseconds. Default 5000.
     timeout_ms: Option<u64>,
+}
+
+impl TapArgs {
+    fn verb(self) -> Verb {
+        Verb::Tap {
+            target: self.target,
+            role: self.role,
+            count: self.count,
+            long: self.long,
+        }
+    }
+}
+
+impl SwipeArgs {
+    fn verb(self) -> Verb {
+        Verb::Swipe {
+            direction: self.direction,
+            from: self.from,
+            distance: self.distance,
+            fast: self.fast.unwrap_or(false),
+        }
+    }
+}
+
+impl ScrollArgs {
+    fn verb(self) -> Verb {
+        Verb::Scroll {
+            direction: self.direction,
+            within: self.r#in,
+            until: self.until,
+            max: self.max,
+        }
+    }
+}
+
+impl LaunchArgs {
+    fn verb(self) -> Result<Verb, &'static str> {
+        match (self.app, self.url) {
+            (Some(app), None) => Ok(Verb::Launch { app }),
+            (None, Some(url)) => Ok(Verb::Open { url }),
+            _ => Err("pass app or url, one of them"),
+        }
+    }
+}
+
+/// A step of `batch`: `tool` and that tool's arguments, as the same verb the tool runs. Secret text is refused,
+/// because a batch's text goes through the daemon's trace like any other and a secret must be typed alone.
+fn step_verb(step: serde_json::Value) -> Result<Verb, String> {
+    let serde_json::Value::Object(mut fields) = step else {
+        return Err("a step is an object with a `tool`".into());
+    };
+    let Some(serde_json::Value::String(tool)) = fields.remove("tool") else {
+        return Err("a step needs `tool`".into());
+    };
+    let rest = serde_json::Value::Object(fields);
+    let args = |e: serde_json::Error| e.to_string();
+    match tool.as_str() {
+        "tap" => Ok(serde_json::from_value::<TapArgs>(rest)
+            .map_err(args)?
+            .verb()),
+        "swipe" => Ok(serde_json::from_value::<SwipeArgs>(rest)
+            .map_err(args)?
+            .verb()),
+        "scroll" => Ok(serde_json::from_value::<ScrollArgs>(rest)
+            .map_err(args)?
+            .verb()),
+        "press" => Ok(Verb::Press {
+            key: serde_json::from_value::<PressArgs>(rest).map_err(args)?.key,
+        }),
+        "wait" => Ok(Verb::Wait {
+            condition: serde_json::from_value::<WaitArgs>(rest)
+                .map_err(args)?
+                .condition,
+        }),
+        "launch" => serde_json::from_value::<LaunchArgs>(rest)
+            .map_err(args)?
+            .verb()
+            .map_err(String::from),
+        "type" => {
+            let a = serde_json::from_value::<TypeArgs>(rest).map_err(args)?;
+            if a.secret.unwrap_or(false) {
+                return Err(
+                    "secret text cannot go in a batch; call `type` with secret on its own".into(),
+                );
+            }
+            Ok(Verb::Type {
+                text: Some(a.text),
+                into: a.into,
+                mode: a.mode,
+                submit: a.submit.unwrap_or(false),
+                secret: false,
+            })
+        }
+        other => Err(format!(
+            "`{other}` cannot be a step; use tap, type, swipe, scroll, press, launch or wait"
+        )),
+    }
 }
 
 impl Mcp {
@@ -341,13 +454,8 @@ impl Mcp {
         description = "Tap an element by @ref, by its text, or at x,y points. Returns what changed once the screen settled. Prefer refs; use points only from a screenshot. One call at a time."
     )]
     async fn tap(&self, Parameters(a): Parameters<TapArgs>) -> CallToolResult {
-        let verb = Verb::Tap {
-            target: a.target,
-            role: a.role,
-            count: a.count,
-            long: a.long,
-        };
-        self.run(a.device, verb, None).await
+        let device = a.device.clone();
+        self.run(device, a.verb(), None).await
     }
 
     #[tool(
@@ -370,26 +478,16 @@ impl Mcp {
         description = "Drag one finger across the screen the way a user swipes: to flip pages, pull down, dismiss. To read more of a list use scroll instead. One call at a time."
     )]
     async fn swipe(&self, Parameters(a): Parameters<SwipeArgs>) -> CallToolResult {
-        let verb = Verb::Swipe {
-            direction: a.direction,
-            from: a.from,
-            distance: a.distance,
-            fast: a.fast.unwrap_or(false),
-        };
-        self.run(a.device, verb, None).await
+        let device = a.device.clone();
+        self.run(device, a.verb(), None).await
     }
 
     #[tool(
         description = "Scroll a list so more content shows in the direction, or until the text or @ref in `until` is on screen. It never flings past a target. One call at a time."
     )]
     async fn scroll(&self, Parameters(a): Parameters<ScrollArgs>) -> CallToolResult {
-        let verb = Verb::Scroll {
-            direction: a.direction,
-            within: a.r#in,
-            until: a.until,
-            max: a.max,
-        };
-        self.run(a.device, verb, None).await
+        let device = a.device.clone();
+        self.run(device, a.verb(), None).await
     }
 
     #[tool(
@@ -403,12 +501,38 @@ impl Mcp {
         description = "Open an app by name, package or bundle id (`app`), or open a web link or deep link (`url`) in the app that handles it. Returns the first screen. One call at a time."
     )]
     async fn launch(&self, Parameters(a): Parameters<LaunchArgs>) -> CallToolResult {
-        let verb = match (a.app, a.url) {
-            (Some(app), None) => Verb::Launch { app },
-            (None, Some(url)) => Verb::Open { url },
-            _ => return bad("pass app or url, one of them"),
-        };
-        self.run(a.device, verb, None).await
+        let device = a.device.clone();
+        match a.verb() {
+            Ok(verb) => self.run(device, verb, None).await,
+            Err(why) => bad(why),
+        }
+    }
+
+    #[tool(
+        description = "Run several actions in order in one call, such as tap a field, type, press enter. Stops at the first failure and says which step failed. Returns one diff for the whole batch, so use it instead of sending calls together."
+    )]
+    async fn batch(&self, Parameters(a): Parameters<BatchArgs>) -> CallToolResult {
+        let mut steps = Vec::new();
+        for (i, step) in a.steps.into_iter().enumerate() {
+            let json = step_verb(step)
+                .and_then(|v| crate::commands::step_json(&v, None).map_err(|f| f.message()));
+            match json {
+                Ok(j) => steps.push(j),
+                Err(why) => return bad(&format!("step {}: {why}", i + 1)),
+            }
+        }
+        if steps.is_empty() {
+            return bad("a batch needs at least one step");
+        }
+        let mut globals = Self::globals(a.device);
+        globals.timeout = a.timeout_ms;
+        let result = self
+            .with_client(async |client| run_batch(client, steps, &globals).await)
+            .await;
+        match result {
+            Ok(text) => CallToolResult::success(vec![ContentBlock::text(success_text(text))]),
+            Err(f) => failure(&f),
+        }
     }
 
     #[tool(

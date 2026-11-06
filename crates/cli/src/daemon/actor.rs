@@ -31,9 +31,9 @@ use tokio::time::Instant;
 use super::DeviceSource;
 use super::session::{Resolved, Session};
 use crate::wire::{
-    ActParams, Action, ActionResult, ClipboardParams, FindParams, Kind, Observation,
-    ScreenshotParams, ScreenshotResult, SnapshotParams, Target, TypeMode, WaitCondition,
-    WaitParams,
+    ActParams, Action, ActionResult, BatchParams, BatchResult, ClipboardParams, FindParams, Kind,
+    Observation, ScreenshotParams, ScreenshotResult, SnapshotParams, Step, StepFailure, StepResult,
+    Target, TypeMode, WaitCondition, WaitParams,
 };
 
 pub const LEASE_TTL: Duration = Duration::from_secs(600);
@@ -48,6 +48,7 @@ pub enum Call {
     Screenshot(ScreenshotParams),
     Act(ActParams),
     Wait(WaitParams),
+    Batch(BatchParams),
     Find(FindParams),
     Apps,
     Clipboard(ClipboardParams),
@@ -341,6 +342,7 @@ impl Actor {
             Call::Screenshot(p) => to_value(self.screenshot(p.inline).await?),
             Call::Act(p) => to_value(self.act(s, p).await?),
             Call::Wait(p) => to_value(self.wait(s, p).await?),
+            Call::Batch(p) => to_value(self.batch(s, p).await?),
             Call::Find(p) => {
                 let now = self.fresh(s).await?;
                 to_value(s.find(&now, &p.text, p.role))
@@ -1316,6 +1318,119 @@ impl Actor {
             woke: false,
             unlocked: false,
             observation,
+        })
+    }
+
+    /// Runs the steps in order, each settled before the next, and stops at the first error. The observation is the
+    /// diff from what the agent last saw, so a batch costs one reply however many steps it has.
+    async fn batch(&mut self, s: &mut Session, p: BatchParams) -> Result<BatchResult, Error> {
+        let baseline = s.last.clone();
+        let mut done = Vec::new();
+        let mut failed = None;
+        let mut last: Option<ActionResult> = None;
+        for (i, raw) in p.steps.iter().enumerate() {
+            let step = Step::parse(raw).map_err(|_| unreachable_state())?;
+            let result = match step {
+                Step::Act(action) => {
+                    self.act(
+                        s,
+                        ActParams {
+                            action,
+                            settle: true,
+                            timeout_ms: p.timeout_ms,
+                            expect_change_ms: p.expect_change_ms,
+                        },
+                    )
+                    .await
+                }
+                Step::Wait(condition) => {
+                    self.wait(
+                        s,
+                        WaitParams {
+                            condition,
+                            timeout_ms: p.timeout_ms,
+                            expect_change_ms: p.expect_change_ms,
+                        },
+                    )
+                    .await
+                }
+            };
+            match result {
+                Ok(r) => {
+                    done.push(StepResult {
+                        summary: r.summary.clone(),
+                        verified: r.verified,
+                    });
+                    last = Some(r);
+                }
+                Err(e @ Error::DeviceGone { .. }) => return Err(e),
+                Err(e) => {
+                    failed = Some(StepFailure {
+                        step: i + 1,
+                        error: e.to_rpc(),
+                    });
+                    break;
+                }
+            }
+        }
+        let mut result = match (last, failed.is_some()) {
+            (Some(r), false) => r,
+            _ => {
+                let tree = self.device()?.tree().await?;
+                let rendered = self.build(s, &tree, None);
+                let observation = Observation {
+                    header: rendered.header.clone(),
+                    text: String::new(),
+                    kind: Kind::Full,
+                    changed: true,
+                    settled: false,
+                    settle_ms: 0,
+                    still_changing: None,
+                    loading: rendered.loading(),
+                    elements: None,
+                    capture: None,
+                };
+                s.last = Some(rendered);
+                ActionResult {
+                    ok: true,
+                    summary: String::new(),
+                    via: None,
+                    verified: None,
+                    settled: false,
+                    settle_ms: 0,
+                    changed: true,
+                    woke: false,
+                    unlocked: false,
+                    observation,
+                }
+            }
+        };
+        if let (Some(base), Some(now)) = (&baseline, &s.last) {
+            match diff(base, now) {
+                DiffOrFull::Diff(changes) => {
+                    result.observation.kind = Kind::Diff;
+                    result.observation.text = DiffOrFull::Diff(changes).text(now);
+                }
+                DiffOrFull::Full => {
+                    result.observation.kind = Kind::Full;
+                    result.observation.text = now.text(&Filters::default()).unwrap_or_default();
+                }
+            }
+        } else if let Some(now) = &s.last {
+            result.observation.kind = Kind::Full;
+            result.observation.text = now.text(&Filters::default()).unwrap_or_default();
+        }
+        result.observation.changed = result.observation.kind == Kind::Full
+            || !result.observation.text.is_empty()
+            || result.changed;
+        Ok(BatchResult {
+            ok: failed.is_none(),
+            steps: done,
+            failed,
+            settled: result.settled,
+            settle_ms: result.settle_ms,
+            changed: result.observation.changed,
+            observation: result.observation,
         })
     }
 

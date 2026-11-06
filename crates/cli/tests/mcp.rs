@@ -90,7 +90,7 @@ fn files(dir: &Path) -> Vec<PathBuf> {
 }
 
 #[tokio::test]
-async fn tools_list_is_the_eleven_tools_with_short_descriptions_and_the_cli_required_arguments() {
+async fn tools_list_is_the_tools_with_short_descriptions_and_the_cli_required_arguments() {
     let rig = rig(vec![tree(&["One"])]).await;
     let tools = rig.client.list_all_tools().await.unwrap();
     let mut required: BTreeMap<String, Vec<String>> = BTreeMap::new();
@@ -122,6 +122,7 @@ async fn tools_list_is_the_eleven_tools_with_short_descriptions_and_the_cli_requ
         ("press", vec!["key"]),
         ("launch", vec![]),
         ("wait", vec!["condition"]),
+        ("batch", vec!["steps"]),
     ]
     .into_iter()
     .map(|(n, r)| (n.to_string(), r.into_iter().map(String::from).collect()))
@@ -461,5 +462,104 @@ async fn failures_and_hints_over_mcp_name_tools_and_arguments_not_cli_commands()
             "{text}"
         );
         assert!(text.contains("hint:"), "{text}");
+    }
+}
+
+#[tokio::test]
+async fn a_batch_over_mcp_runs_the_steps_and_returns_one_numbered_reply() {
+    let rig = rig(vec![field_tree("", false), field_tree("hi", false)]).await;
+    rig.call("snapshot", json!({})).await;
+    let r = rig
+        .call(
+            "batch",
+            json!({"steps": [
+                {"tool": "tap", "target": "@e1"},
+                {"tool": "type", "text": "hi", "submit": true},
+                {"tool": "press", "key": "enter"},
+            ]}),
+        )
+        .await;
+    assert_ne!(r.is_error, Some(true), "{r:?}");
+    let text = texts(&r).join("\n");
+    assert!(text.starts_with("ok 3 steps"), "{text}");
+    assert!(text.contains("\n1. tapped @e1"), "{text}");
+    assert!(text.contains("\n2. typed 2 chars"), "{text}");
+    assert!(text.contains("\n3. pressed enter"), "{text}");
+}
+
+#[tokio::test]
+async fn a_failing_batch_step_is_an_error_naming_the_step_with_hints_in_tool_words() {
+    let rig = rig(vec![tree(&["One"])]).await;
+    rig.call("snapshot", json!({})).await;
+    let r = rig
+        .call(
+            "batch",
+            json!({"steps": [
+                {"tool": "tap", "target": "@e1"},
+                {"tool": "tap", "target": "@e99"},
+                {"tool": "press", "key": "home"},
+            ]}),
+        )
+        .await;
+    assert_eq!(r.is_error, Some(true), "{r:?}");
+    let text = texts(&r).join("\n");
+    assert!(text.starts_with("step 2 of 3 failed"), "{text}");
+    assert!(text.contains("1. tapped @e1"), "{text}");
+    assert!(!text.contains("phone-use "), "{text}");
+}
+
+#[tokio::test]
+async fn a_batch_refuses_secrets_unknown_tools_and_unknown_arguments_before_acting() {
+    let rig = rig(vec![field_tree("", false)]).await;
+    for (step, why) in [
+        (
+            json!({"tool": "type", "text": "hunter2", "secret": true}),
+            "secret",
+        ),
+        (json!({"tool": "snapshot"}), "cannot be a step"),
+        (
+            json!({"tool": "tap", "target": "@e1", "colour": "red"}),
+            "colour",
+        ),
+        (json!({"target": "@e1"}), "needs `tool`"),
+    ] {
+        let r = rig
+            .call(
+                "batch",
+                json!({"steps": [{"tool": "press", "key": "home"}, step]}),
+            )
+            .await;
+        assert_eq!(r.is_error, Some(true), "{why}: {r:?}");
+        let text = texts(&r).join("\n");
+        assert!(text.starts_with("step 2:") && text.contains(why), "{text}");
+        assert!(!text.contains("hunter2"), "{text}");
+    }
+}
+
+#[tokio::test]
+async fn text_typed_in_a_batch_stays_out_of_the_trace() {
+    let rig = rig(vec![
+        field_tree("", false),
+        field_tree("correct horse", false),
+    ])
+    .await;
+    rig.call("snapshot", json!({})).await;
+    let r = rig
+        .call(
+            "batch",
+            json!({"steps": [{"tool": "type", "text": "correct horse", "into": "@e1"}]}),
+        )
+        .await;
+    assert_ne!(r.is_error, Some(true), "{r:?}");
+    for f in files(rig.home.path()) {
+        if f.extension().is_some_and(|e| e == "sock") {
+            continue;
+        }
+        let text = std::fs::read(&f).unwrap();
+        assert!(
+            !String::from_utf8_lossy(&text).contains("correct horse"),
+            "{} holds the typed text",
+            f.display()
+        );
     }
 }
