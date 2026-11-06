@@ -16,7 +16,7 @@ use crate::daemon::sources::Sources;
 use crate::daemon::{Config, Daemon, socket};
 use crate::wire::{ActionResult, DeviceEntry, Kind, Observation, ScreenshotResult, VERSION};
 
-const USAGE: &str = "usage: phone-use <command>\n\ncommands:\n  devices\n  snapshot\n  screenshot\n  find\n  launch\n  open\n  apps\n  swipe\n  scroll\n  gesture\n  tap\n  type\n  clear\n  clipboard\n  press\n  wait\n  release\n  daemon\n  doctor\n  version";
+const USAGE: &str = "usage: phone-use <command>\n\ncommands:\n  devices\n  snapshot\n  screenshot\n  find\n  launch\n  open\n  apps\n  swipe\n  scroll\n  gesture\n  tap\n  type\n  clear\n  clipboard\n  press\n  wait\n  release\n  daemon\n  doctor\n  mcp\n  version";
 
 #[derive(Parser)]
 #[command(name = "phone-use", disable_help_subcommand = true)]
@@ -52,7 +52,7 @@ pub struct Cli {
 }
 
 #[derive(Subcommand)]
-enum Verb {
+pub(crate) enum Verb {
     /// List devices, tier, capabilities and leases.
     Devices,
     /// Print what is on screen, or what changed since the last observation.
@@ -159,6 +159,8 @@ enum Verb {
     },
     /// Check Xcode, booted simulators and their runners; each line says ok, warn or fail, with a fix.
     Doctor,
+    /// Serve the tools over MCP on stdio.
+    Mcp,
     /// Print the version.
     Version,
 }
@@ -174,6 +176,7 @@ pub fn run(cli: Cli) -> ExitCode {
             ExitCode::SUCCESS
         }
         Verb::Daemon { .. } => run_daemon(),
+        Verb::Mcp => crate::mcp::run(),
         Verb::Doctor => {
             if crate::doctor::run(&socket::home()) {
                 ExitCode::SUCCESS
@@ -220,13 +223,13 @@ pub fn run(cli: Cli) -> ExitCode {
     }
 }
 
-struct Globals {
-    device: Option<String>,
-    json: bool,
-    no_settle: bool,
-    timeout: Option<u64>,
-    expect_change: Option<u64>,
-    share: bool,
+pub(crate) struct Globals {
+    pub device: Option<String>,
+    pub json: bool,
+    pub no_settle: bool,
+    pub timeout: Option<u64>,
+    pub expect_change: Option<u64>,
+    pub share: bool,
 }
 
 /// The text of a `type --secret`, read before any connection is made so a usage error types nothing.
@@ -284,6 +287,15 @@ async fn execute(
     g: &Globals,
 ) -> Result<String, Failure> {
     let mut client = Client::connect(session.to_string()).await?;
+    execute_with(&mut client, verb, secret, g).await
+}
+
+pub(crate) async fn execute_with(
+    client: &mut Client,
+    verb: Verb,
+    secret: Option<String>,
+    g: &Globals,
+) -> Result<String, Failure> {
     let with = |mut params: Value| {
         if let Some(d) = &g.device {
             params["device"] = json!(d);
@@ -332,7 +344,7 @@ async fn execute(
             let result = client.call("snapshot", with(p)).await?;
             let obs: Observation = decode(&result)?;
             if let Some(name) = save_fixture {
-                save_fixture_files(&mut client, &with(json!({})), &obs, &name, fixture_dir).await?;
+                save_fixture_files(client, &with(json!({})), &obs, &name, fixture_dir).await?;
             }
             if g.json {
                 return Ok(result.to_string());
@@ -546,7 +558,7 @@ async fn execute(
                 "released".into()
             })
         }
-        Verb::Daemon { .. } | Verb::Doctor | Verb::Version => Ok(String::new()),
+        Verb::Daemon { .. } | Verb::Doctor | Verb::Mcp | Verb::Version => Ok(String::new()),
     }
 }
 
