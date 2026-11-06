@@ -4,7 +4,7 @@ use phone_use_core::device::{App, AppId, Gesture, Key, TimedPoint};
 use phone_use_core::element::Role;
 use phone_use_core::error::Error;
 use phone_use_core::geometry::{Point, Rect, Size};
-use phone_use_core::raw::{RawTree, RawWindow};
+use phone_use_core::raw::{RawNode, RawTree, RawWindow};
 use serde_json::{Value, json};
 
 /// The screen in points as the app sees it now: the application element's frame follows the orientation, while the
@@ -36,6 +36,7 @@ pub fn raw_tree(reply: &Value, screen: Size) -> Result<RawTree, Error> {
         layer: 0,
         bounds: full,
     });
+    add_alerts(&mut tree, reply)?;
     if let Some(k) = tree.nodes.iter().find(|n| n.role == Role::Keyboard) {
         tree.windows.push(RawWindow {
             id: -1,
@@ -46,6 +47,49 @@ pub fn raw_tree(reply: &Value, screen: Size) -> Result<RawTree, Error> {
         });
     }
     Ok(tree)
+}
+
+/// SpringBoard's alerts (permission prompts, "Allow Paste") come in `alerts`, one node list each, because the
+/// foreground app's snapshot does not hold them. Each becomes a window of kind `alert` in front of the app.
+fn add_alerts(tree: &mut RawTree, reply: &Value) -> Result<(), Error> {
+    let Some(alerts) = reply["alerts"].as_array() else {
+        return Ok(());
+    };
+    let mut windows = Vec::new();
+    let mut front: Vec<RawNode> = Vec::new();
+    for (k, nodes) in alerts.iter().enumerate() {
+        let part = RawTree::from_ios_json(&json!({"nodes": nodes}).to_string()).map_err(|e| {
+            Error::Transport {
+                detail: format!("the runner sent an alert that does not parse: {e}"),
+            }
+        })?;
+        let Some(first) = part.nodes.first() else {
+            continue;
+        };
+        let id = -2 - k as i32;
+        windows.push(RawWindow {
+            id,
+            kind: "alert".into(),
+            package: Some("com.apple.springboard".into()),
+            layer: 2,
+            bounds: first.bounds,
+        });
+        let base = front.len();
+        for mut n in part.nodes {
+            n.window = id;
+            n.parent = n.parent.map(|p| p + base);
+            front.push(n);
+        }
+    }
+    let shift = front.len();
+    for n in &mut tree.nodes {
+        n.parent = n.parent.map(|p| p + shift);
+    }
+    front.append(&mut tree.nodes);
+    tree.nodes = front;
+    windows.append(&mut tree.windows);
+    tree.windows = windows;
+    Ok(())
 }
 
 /// XCUI exposes each scroll view's indicators as an "Other" element labeled "Vertical scroll bar, 2 pages" with a
@@ -329,6 +373,34 @@ mod tests {
             })
         );
         assert_eq!(screen_of(&json!({"nodes": []})), None);
+    }
+
+    #[test]
+    fn a_springboard_alert_becomes_an_alert_window_in_front_of_the_app() {
+        let mut reply: Value = serde_json::from_str(TESTBED_MAIN).unwrap();
+        reply["alerts"] = json!([[
+            {"p": -1, "cls": "XCUIElementTypeAlert", "text": "Allow “Testbed” to use your location?", "b": [51, 300, 351, 500], "f": "vVe"},
+            {"p": 0, "cls": "XCUIElementTypeStaticText", "text": "Allow “Testbed” to use your location?", "b": [60, 310, 340, 350], "f": "vVe"},
+            {"p": 0, "cls": "XCUIElementTypeButton", "text": "Allow While Using App", "b": [60, 420, 340, 460], "f": "vVe", "a": ["tap"]}
+        ]]);
+        let tree = raw_tree(&reply, SCREEN).unwrap();
+        assert_eq!(tree.windows[0].kind, "alert");
+        assert_eq!(tree.windows[1].kind, "application");
+        let alerts = phone_use_core::alert::find(&tree, SCREEN);
+        assert_eq!(alerts.len(), 1);
+        assert_eq!(alerts[0].1.package, "com.apple.springboard");
+        assert_eq!(
+            alerts[0].1.title.as_deref(),
+            Some("Allow “Testbed” to use your location?")
+        );
+        let nodes = phone_use_core::prune::prune(&tree);
+        let first = &tree.nodes[nodes[0].raw];
+        assert_eq!(first.role, Role::Alert);
+        assert!(
+            nodes
+                .iter()
+                .any(|n| n.label.as_deref() == Some("Allow While Using App") && n.parent.is_some())
+        );
     }
 
     #[test]

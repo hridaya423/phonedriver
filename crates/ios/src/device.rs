@@ -28,7 +28,9 @@ use idevice::services::installation_proxy::InstallationProxyClient;
 
 use crate::map;
 use crate::runner::{Client, Runner};
-use crate::simulator::{Simulator, shell_args, simctl, simctl_shell, simctl_with_input};
+use crate::simulator::{
+    Simulator, privacy_service, shell_args, simctl, simctl_shell, simctl_with_input,
+};
 
 /// Luma pixels per point for settle polls: one sample per 4x4 points, as architecture 4.6 measures change.
 const POLL_SCALE: f32 = 0.25;
@@ -602,6 +604,15 @@ impl Device for IosDevice {
             AppOp::Uninstall => {
                 simctl(&["uninstall", &self.udid, &app.0]).await?;
             }
+        }
+        Ok(())
+    }
+
+    async fn grant(&self, app: &AppId, permissions: &[String]) -> Result<()> {
+        self.simulator_only()?;
+        for name in permissions {
+            let service = privacy_service(name)?;
+            simctl(&["privacy", &self.udid, "grant", service, &app.0]).await?;
         }
         Ok(())
     }

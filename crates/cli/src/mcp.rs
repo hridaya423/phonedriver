@@ -177,6 +177,8 @@ struct LaunchArgs {
     app: Option<String>,
     /// A web link or deep link to open in the app that handles it. Pass this or `app`.
     url: Option<String>,
+    /// With `app`: runtime permissions to grant first so their dialog never appears, such as `notifications`, `camera`, `location`.
+    grant: Option<Vec<String>>,
 }
 
 #[derive(Deserialize, JsonSchema)]
@@ -243,7 +245,10 @@ impl ScrollArgs {
 impl LaunchArgs {
     fn verb(self) -> Result<Verb, &'static str> {
         match (self.app, self.url) {
-            (Some(app), None) => Ok(Verb::Launch { app }),
+            (Some(app), None) => Ok(Verb::Launch {
+                app,
+                grant: self.grant.unwrap_or_default(),
+            }),
             (None, Some(url)) => Ok(Verb::Open { url }),
             _ => Err("pass app or url, one of them"),
         }
@@ -631,7 +636,7 @@ impl Mcp {
     }
 
     #[tool(
-        description = "Open an app (`app`: name, package or bundle id) or a web or deep link (`url`) and return its first screen. When no app has the name, `apps` lists names. An app reopens where it was left. One call at a time."
+        description = "Open an app (`app`: name, package or bundle id) or a web or deep link (`url`) and return its first screen. When no app has the name, `apps` lists names. An app reopens where it was left. `grant` (with `app`) grants runtime permissions first so their dialog never appears: `notifications`, `camera`, `location` or a permission name; on a physical phone only for apps phone-use installed. One call at a time."
     )]
     async fn launch(&self, Parameters(a): Parameters<LaunchArgs>) -> CallToolResult {
         let device = a.device.clone();

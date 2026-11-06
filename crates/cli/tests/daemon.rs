@@ -2334,3 +2334,109 @@ async fn on_a_physical_device_only_apps_phone_use_installed_can_be_cleared_or_re
     assert_eq!(removed, 1);
     assert!(home.path().join("installed.json").exists());
 }
+
+#[tokio::test(start_paused = true)]
+async fn launch_with_grant_grants_before_it_launches_and_says_so() {
+    let (source, fake) = installed();
+    let (d, _home) = daemon(source);
+    ok(&d, "default", "snapshot", json!({})).await;
+    let r = ok(
+        &d,
+        "default",
+        "act",
+        act_with(
+            json!({"kind": "launch", "app": "Settings", "grant": ["notifications", "camera"]}),
+        ),
+    )
+    .await;
+    let calls = fake.calls();
+    let grant = calls
+        .iter()
+        .position(|c| matches!(c, Call::Grant(..)))
+        .expect("granted");
+    let launch = calls
+        .iter()
+        .position(|c| matches!(c, Call::Launch(..)))
+        .expect("launched");
+    assert!(grant < launch, "{calls:?}");
+    assert_eq!(
+        calls[grant],
+        Call::Grant(
+            AppId("com.android.settings".into()),
+            vec!["notifications".into(), "camera".into()]
+        )
+    );
+    assert!(
+        r["summary"]
+            .as_str()
+            .unwrap()
+            .contains("(granted notifications, camera)"),
+        "{r}"
+    );
+}
+
+#[tokio::test]
+async fn grant_on_a_physical_device_needs_an_app_phone_use_installed() {
+    let (source, fake) = physical();
+    let (d, _home) = daemon(source);
+    let e = err(
+        &d,
+        "default",
+        "act",
+        act_with(json!({"kind": "launch", "app": "Theirs", "grant": ["camera"]})),
+    )
+    .await;
+    assert_eq!(e.code, -32011);
+    assert!(e.message.contains("will not grant"), "{}", e.message);
+    assert!(
+        !fake
+            .calls()
+            .iter()
+            .any(|c| matches!(c, Call::Grant(..) | Call::Launch(..))),
+        "{:?}",
+        fake.calls()
+    );
+    ok(
+        &d,
+        "default",
+        "app",
+        json!({"action": "install", "path": "/tmp/a.apk"}),
+    )
+    .await;
+    ok(
+        &d,
+        "default",
+        "act",
+        act_with(json!({"kind": "launch", "app": "Mine", "grant": ["camera"]})),
+    )
+    .await;
+    assert!(
+        fake.calls()
+            .iter()
+            .any(|c| matches!(c, Call::Grant(a, _) if a.0 == "com.example.installed"))
+    );
+}
+
+#[tokio::test]
+async fn a_system_dialog_over_an_app_is_named_in_the_header_and_is_not_the_app() {
+    let json = r#"{"windows":[
+        {"id":9,"type":"application","package":"com.google.android.permissioncontroller","bounds":[28,767,1052,1735]},
+        {"id":3,"type":"application","package":"com.example","bounds":[0,0,360,800]}],"nodes":[
+        {"p":-1,"w":9,"cls":"android.widget.LinearLayout","b":[28,767,1052,1735],"f":"vVe"},
+        {"p":0,"w":9,"cls":"android.widget.TextView","id":"com.google.android.permissioncontroller:id/permission_message","text":"Allow Clock to send notifications?","b":[100,800,900,900],"f":"vVeH"},
+        {"p":0,"w":9,"cls":"android.widget.Button","text":"Allow","b":[100,1000,900,1100],"f":"vVe","a":["tap"]},
+        {"p":-1,"w":3,"cls":"android.widget.TextView","text":"Clock","b":[0,0,360,100],"f":"vVe"}]}"#;
+    let tree = RawTree::from_android_json(json, Scale { density: 3.0 }).unwrap();
+    let (source, _fake) = FakeSource::with(vec![tree]);
+    let (d, _home) = daemon(source);
+    let r = ok(&d, "default", "snapshot", json!({})).await;
+    let text = r["text"].as_str().unwrap();
+    assert!(text.contains("app com.example"), "{text}");
+    assert!(
+        text.contains(
+            "alert com.google.android.permissioncontroller: \"Allow Clock to send notifications?\""
+        ),
+        "{text}"
+    );
+    assert!(text.contains("button \"Allow\""), "{text}");
+}

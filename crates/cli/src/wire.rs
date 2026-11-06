@@ -57,6 +57,8 @@ pub enum Action {
     },
     Launch {
         app: String,
+        #[serde(default)]
+        grant: Vec<String>,
     },
     Open {
         url: String,
@@ -108,7 +110,7 @@ impl std::fmt::Debug for Action {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Action::Tap { target, .. } => write!(f, "Tap({target:?})"),
-            Action::Launch { app } => write!(f, "Launch({app})"),
+            Action::Launch { app, .. } => write!(f, "Launch({app})"),
             Action::Open { url } => write!(f, "Open({url})"),
             Action::Gesture { fingers } => write!(f, "Gesture({} fingers)", fingers.len()),
             Action::Type {

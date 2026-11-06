@@ -151,6 +151,40 @@ static XCUIApplication *PUApplication(int pid, NSError **error)
     return app;
 }
 
+static NSDictionary *PUPublicNode(NSInteger parent, NSString *cls, XCUIElement *e, BOOL tappable)
+{
+    CGRect f = e.frame;
+    NSMutableDictionary *n = [NSMutableDictionary dictionaryWithCapacity:6];
+    n[@"p"] = @(parent);
+    n[@"cls"] = cls;
+    n[@"b"] = @[PUPoint(CGRectGetMinX(f)), PUPoint(CGRectGetMinY(f)), PUPoint(CGRectGetMaxX(f)), PUPoint(CGRectGetMaxY(f))];
+    NSString *label = PUString(e.label);
+    if (label) n[@"text"] = label;
+    n[@"f"] = @"vVe";
+    if (tappable) n[@"a"] = @[@"tap"];
+    return n;
+}
+
+// A permission prompt belongs to SpringBoard, not to the app under it, so the app's snapshot never holds it.
+static NSArray *PUSpringboardAlerts(void)
+{
+    static XCUIApplication *springboard;
+    if (!springboard) springboard = [[XCUIApplication alloc] initWithBundleIdentifier:@"com.apple.springboard"];
+    NSMutableArray *out = [NSMutableArray array];
+    for (XCUIElement *alert in springboard.alerts.allElementsBoundByIndex) {
+        NSMutableArray *nodes = [NSMutableArray array];
+        [nodes addObject:PUPublicNode(-1, @"XCUIElementTypeAlert", alert, NO)];
+        for (XCUIElement *text in alert.staticTexts.allElementsBoundByIndex) {
+            [nodes addObject:PUPublicNode(0, @"XCUIElementTypeStaticText", text, NO)];
+        }
+        for (XCUIElement *button in alert.buttons.allElementsBoundByIndex) {
+            [nodes addObject:PUPublicNode(0, @"XCUIElementTypeButton", button, YES)];
+        }
+        [out addObject:nodes];
+    }
+    return out;
+}
+
 NSDictionary *PUSnapshot(NSInteger maxDepth, NSError **error)
 {
     id<XCAccessibilityElement> element = PUActiveElement(error);
@@ -171,5 +205,8 @@ NSDictionary *PUSnapshot(NSInteger maxDepth, NSError **error)
 
     NSMutableArray *nodes = [NSMutableArray arrayWithCapacity:256];
     PUFlatten(root, -1, root.frame, nodes);
-    return @{@"app": @{@"bundle_id": app.bundleID ?: @"", @"pid": @(pid)}, @"nodes": nodes};
+    NSMutableDictionary *reply = [@{@"app": @{@"bundle_id": app.bundleID ?: @"", @"pid": @(pid)}, @"nodes": nodes} mutableCopy];
+    NSArray *alerts = PUSpringboardAlerts();
+    if (alerts.count) reply[@"alerts"] = alerts;
+    return reply;
 }

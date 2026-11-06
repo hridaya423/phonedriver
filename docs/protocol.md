@@ -56,7 +56,10 @@ type Action =
   | {kind: "scroll", direction: Dir, in?: Target, until?: Target, max?: number}
   | {kind: "gesture", fingers: Array<Array<{x: number, y: number, t_ms: number}>>}
   | {kind: "press", key: Key}
-  | {kind: "launch", app: string}
+  | {kind: "launch", app: string, grant?: string[]}  // grant: runtime permissions to grant first (Android `pm grant`:
+    // `notifications`, `camera`, `location` or a full name; Simulator `simctl privacy` services). On a physical device only
+    // for an app phone-use installed (`Unsupported`, -32011, otherwise); a physical iPhone and `notifications` on the
+    // Simulator are `Unsupported`.
 type WaitCondition = {appears: Target} | {gone: Target} | {settled: true}
 // appears and gone reply with a full Observation and `summary: "\"Row 640\" appeared after 3 tree reads"`; a text
 // target is a substring match, so `gone:Loading` is not gone while "Hide loading" is on screen. They fail `timeout`
@@ -76,7 +79,7 @@ type BatchResult = {
 
 type Observation = {
   header: Header,                 // core::render::Header: device {id, model, os, screen, orientation}, app {id, name},
-                                  // keyboard (rect or null), settle {settled, ms}
+                                  // keyboard (rect or null), settle {settled, ms}, alerts [{package, title}]
   text: string,                   // rendered snapshot (with header) or diff lines, exactly what the CLI prints
   kind: "full" | "diff",
   changed: boolean, settled: boolean, settle_ms: number,

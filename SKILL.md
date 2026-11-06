@@ -32,6 +32,10 @@ Several steps in a row (tap a field, type, press enter) go in one `batch`: one c
 - A point (`tap 206,488`) only from a screenshot, in the screenshot's units.
 - "is no longer on screen" means the screen changed: `snapshot`, then use the closest match the error names.
 
+## System dialogs
+
+A permission sheet, an "isn't responding" box or another system dialog shows in the header as `alert <package>: "<question>"`, and its buttons are in the list with refs whatever app is behind it. Tap the button the task needs; when the dialog grants access the task did not name, ask the user first. `launch` with `grant` skips a permission sheet in advance.
+
 ## Finding things
 
 - `scroll down` reveals more of a list; `scroll down --until "Row 640"` reaches a known row. `swipe` is for other gestures: pulling a sheet, reordering with `to`, zooming with `pinch`.

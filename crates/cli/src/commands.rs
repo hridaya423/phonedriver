@@ -223,6 +223,11 @@ pub(crate) enum Verb {
     Launch {
         /// The app's name, package or bundle id; `phone-use apps` lists them.
         app: String,
+        /// Grant these runtime permissions first, so their dialog never appears: `notifications`, `camera`,
+        /// `location`, or a full name such as `android.permission.CAMERA` (Android); `photos`, `location` and the other
+        /// `simctl privacy` services (Simulator). A physical device only takes this for apps phone-use installed.
+        #[arg(long, value_delimiter = ',')]
+        grant: Vec<String>,
     },
     /// Open a web link or deep link in the app that handles it.
     Open {
@@ -884,7 +889,9 @@ pub(crate) fn step_json(verb: &Verb, secret: Option<&str>) -> Result<Value, Fail
             }
             a
         }
-        Verb::Launch { app } => json!({"kind": "launch", "app": app}),
+        Verb::Launch { app, grant } => {
+            json!({"kind": "launch", "app": app, "grant": grant})
+        }
         Verb::Open { url } => json!({"kind": "open", "url": url}),
         Verb::Type {
             text,

@@ -49,6 +49,9 @@ pub struct Header {
     /// A secure window is on screen: its pixels are black but its tree is readable.
     #[serde(default)]
     pub secure_hidden: bool,
+    /// System alerts over the screen, topmost first.
+    #[serde(default)]
+    pub alerts: Vec<crate::alert::AlertLine>,
 }
 
 /// A screen ready to print: header plus elements with refs, in preorder.
@@ -234,6 +237,12 @@ impl Rendered {
             parts.push("secure content hidden".into());
         }
         lines.push(parts.join(" · "));
+        for a in &h.alerts {
+            lines.push(match &a.title {
+                Some(t) => format!("alert {}: {}", a.package, quote(t)),
+                None => format!("alert {}", a.package),
+            });
+        }
         lines.join("\n")
     }
 
@@ -439,6 +448,7 @@ mod tests {
                 ms: 212,
             }),
             secure_hidden: false,
+            alerts: Vec::new(),
         }
     }
 
@@ -731,6 +741,33 @@ mod tests {
                 at: Point { x: 200.0, y: 50.0 }
             }
         );
+    }
+
+    #[test]
+    fn a_system_alert_gets_a_header_line_naming_it() {
+        let tree = RawTree::from_android_json(
+            include_str!("../tests/fixtures/android/real_permission_dialog.json"),
+            Scale { density: 2.625 },
+        )
+        .unwrap();
+        let nodes = prune(&tree);
+        let refs = RefTable::default().assign(&tree, &nodes);
+        let mut header = header();
+        header.app = None;
+        header.alerts = crate::alert::find(&tree, Size { w: 411.4, h: 923.4 })
+            .into_iter()
+            .map(|(_, a)| a)
+            .collect();
+        let text = Rendered::build(nodes, &refs, header)
+            .text(&Filters::default())
+            .unwrap();
+        assert!(
+            text.lines().nth(2).unwrap().starts_with(
+                "alert com.google.android.permissioncontroller: \"Allow Camera to take pictures and record video?\""
+            ),
+            "{text}"
+        );
+        assert!(text.contains("button \"While using the app\""), "{text}");
     }
 
     #[test]

@@ -1,5 +1,6 @@
 //! Pure domain logic for phone-use: geometry, elements, refs, rendering, diff, settle, errors.
 
+pub mod alert;
 pub mod device;
 pub mod diff;
 pub mod element;
