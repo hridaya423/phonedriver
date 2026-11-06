@@ -98,6 +98,7 @@ JSON-RPC `error` with `code` from the table, `message`, and `data: {code_name, h
 | -32013 | timeout |
 | -32014 | automation_conflict |
 | -32015 | transport |
+| -32016 | not_reached (`data.end` is `ended`, `stuck` or `limit`; `data.scrolls`, `data.last`) |
 
 ## 2. Daemon ↔ Android agent
 

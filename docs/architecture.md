@@ -205,6 +205,7 @@ pub enum Error {
     Unsupported { op: Op, reason: &'static str },
     NotSettled { waited_ms: u32, still_changing: Rect },
     Timeout { waited_ms: u32, condition: String },
+    NotReached { query: String, scrolls: u32, end: ScrollEnd, last: Option<String> }, // a scroll search stopped: Ended, Stuck or Limit
     AutomationConflict { holder: String },     // another UiAutomation client owns the bridge
     Transport { detail: String },              // the only catch-all, for IO failures we have not classified
 }
@@ -422,7 +423,7 @@ phone-use daemon [--detach] | mcp | doctor | ios setup | version
 
 Global flags: `--device` (default from `PHONE_USE_DEVICE`), `--session`, `--json` (machine output), `--no-settle`, `--timeout`.
 
-Scroll mechanics: `scroll` drags 60% of the largest scrollable container (or `--in`) in 10 steps over 250 ms, then holds 150 ms with a stationary sample every 25 ms before the lift (Android 8 flings a list that lifts after a gap with no samples), so it never flings. `scroll --until "Label N"` flings when the visible labels share the prefix and the target is over three screens away, and turns back on overshoot; other targets scroll one drag at a time. Two scrolls in a row that change nothing end the search with `NotFound`.
+Scroll mechanics: `scroll` drags 60% of the largest scrollable container (or `--in`) in 10 steps over 250 ms, then holds 150 ms with a stationary sample every 25 ms before the lift (Android 8 flings a list that lifts after a gap with no samples), so it never flings. `scroll --until "Label N"` flings when the visible labels share the prefix, the target is over three screens away and the device has a frame stream (`FRAMES`; a fling moves nothing on the polled iOS runner, observed in the agent-experience audit, so there it drags one screen at a time), and turns back on overshoot; other targets scroll one drag at a time. Without `--max` the limit is 30 drags, or enough one-screen drags to cross a numbered target's distance (at most 300). The search ends with `NotReached` (code -32016) when two drags in a row change nothing (`the list ended at "Developer"` after it had moved, `the list did not move` when it never did) or the limit is hit (`scrolled 30 times and "Row 640" is still not on screen`); `NotFound` is only for a target that cannot be resolved.
 
 `clear <target>` taps the field to focus it, then sets its value to nothing with `ACTION_SET_TEXT` and reports `verified` when the field then shows no text (`via: set`). `clipboard set <text>` takes the text on the command line (it is not a secret; use `type --secret` for secrets), and `clipboard` prints the device clipboard; the daemon does not trace either.
 

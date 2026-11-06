@@ -48,7 +48,15 @@ struct FakeSource {
 
 impl FakeSource {
     fn with(trees: Vec<RawTree>) -> (Arc<FakeSource>, Arc<FakeDevice>) {
-        let fake = Arc::new(FakeDevice::new(trees));
+        Self::of(FakeDevice::new(trees))
+    }
+
+    fn polled(trees: Vec<RawTree>) -> (Arc<FakeSource>, Arc<FakeDevice>) {
+        Self::of(FakeDevice::new(trees).lacking(Capabilities::FRAMES))
+    }
+
+    fn of(fake: FakeDevice) -> (Arc<FakeSource>, Arc<FakeDevice>) {
+        let fake = Arc::new(fake);
         let source = Arc::new(FakeSource {
             devices: Mutex::new(vec![(
                 Listed {
@@ -875,7 +883,33 @@ async fn scroll_until_reports_unsettled_when_the_last_scroll_never_settled() {
 }
 
 #[tokio::test(start_paused = true)]
-async fn scroll_until_fails_not_found_after_two_scrolls_in_a_row_change_nothing() {
+async fn scroll_until_says_the_list_ended_where_it_ended_after_it_had_moved() {
+    let (source, fake) = FakeSource::with(vec![
+        list_tree(&["Row 0", "Row 1"]),
+        list_tree(&["Row 5", "Row 6"]),
+        list_tree(&["Row 998", "Row 999"]),
+    ]);
+    let (d, _home) = daemon(source);
+    let e = err(
+        &d,
+        "default",
+        "act",
+        scroll(json!({"until": {"text": "Zebra"}})),
+    )
+    .await;
+    assert_eq!(e.code, -32016, "{e:?}");
+    assert!(
+        e.message.contains("scrolled 4 times")
+            && e.message.contains("the list ended at \"Row 999\"")
+            && e.message.contains("\"Zebra\""),
+        "{}",
+        e.message
+    );
+    assert_eq!(fake.calls().len(), 4);
+}
+
+#[tokio::test(start_paused = true)]
+async fn scroll_until_says_the_list_did_not_move_when_nothing_ever_changed() {
     let (source, fake) = FakeSource::with(vec![list_tree(&["Row 998", "Row 999"])]);
     let (d, _home) = daemon(source);
     let e = err(
@@ -885,7 +919,13 @@ async fn scroll_until_fails_not_found_after_two_scrolls_in_a_row_change_nothing(
         scroll(json!({"until": {"text": "Row 5000"}})),
     )
     .await;
-    assert_eq!(e.code, -32007, "{e:?}");
+    assert_eq!(e.code, -32016, "{e:?}");
+    assert!(
+        e.message.contains("the list did not move") && e.message.contains("2 scrolls"),
+        "{}",
+        e.message
+    );
+    assert!(!e.message.contains("no element matches"), "{}", e.message);
     assert_eq!(
         fake.calls().len(),
         2,
@@ -894,7 +934,7 @@ async fn scroll_until_fails_not_found_after_two_scrolls_in_a_row_change_nothing(
 }
 
 #[tokio::test(start_paused = true)]
-async fn scroll_until_gives_up_after_max_gestures() {
+async fn scroll_until_gives_up_after_max_gestures_and_says_how_many() {
     let trees: Vec<RawTree> = (0..10)
         .map(|i| list_tree(&[&format!("Row {}", i * 2), &format!("Row {}", i * 2 + 1)]))
         .collect();
@@ -907,8 +947,68 @@ async fn scroll_until_gives_up_after_max_gestures() {
         scroll(json!({"until": {"text": "Row 99"}, "max": 3})),
     )
     .await;
-    assert_eq!(e.code, -32013, "{e:?}");
+    assert_eq!(e.code, -32016, "{e:?}");
+    assert!(
+        e.message.contains("scrolled 3 times") && e.message.contains("still not on screen"),
+        "{}",
+        e.message
+    );
     assert_eq!(fake.calls().len(), 3);
+}
+
+fn is_fling(call: &Call) -> bool {
+    let Call::Gesture(g) = call else {
+        panic!("{call:?}")
+    };
+    g.fingers[0].last().unwrap().t_ms <= 100
+}
+
+#[tokio::test(start_paused = true)]
+async fn scroll_until_a_far_numbered_row_flings_on_a_device_with_a_frame_stream() {
+    let (source, fake) = FakeSource::with(vec![list_tree(&["Row 0", "Row 1"])]);
+    let (d, _home) = daemon(source);
+    let _ = err(
+        &d,
+        "default",
+        "act",
+        scroll(json!({"until": {"text": "Row 500"}})),
+    )
+    .await;
+    assert!(fake.calls().iter().all(is_fling), "{:?}", fake.calls());
+}
+
+#[tokio::test(start_paused = true)]
+async fn scroll_until_never_flings_on_a_polled_device_where_a_fling_moves_nothing() {
+    let (source, fake) = FakeSource::polled(vec![list_tree(&["Row 0", "Row 1"])]);
+    let (d, _home) = daemon(source);
+    let _ = err(
+        &d,
+        "default",
+        "act",
+        scroll(json!({"until": {"text": "Row 500"}})),
+    )
+    .await;
+    let calls = fake.calls();
+    assert!(!calls.is_empty());
+    assert!(calls.iter().all(|c| !is_fling(c)), "{calls:?}");
+}
+
+#[tokio::test(start_paused = true)]
+async fn scroll_until_a_far_numbered_row_on_a_polled_device_gets_more_than_thirty_scrolls() {
+    let trees: Vec<RawTree> = (0..200)
+        .map(|i| list_tree(&[&format!("Row {}", i * 8), &format!("Row {}", i * 8 + 7)]))
+        .collect();
+    let (source, fake) = FakeSource::polled(trees);
+    let (d, _home) = daemon(source);
+    let r = ok(
+        &d,
+        "default",
+        "act",
+        scroll(json!({"until": {"text": "Row 640"}})),
+    )
+    .await;
+    assert!(r["summary"].as_str().unwrap().contains("Row 640"), "{r}");
+    assert!(fake.calls().len() > 30, "{}", fake.calls().len());
 }
 
 fn act_with(action: Value) -> Value {
