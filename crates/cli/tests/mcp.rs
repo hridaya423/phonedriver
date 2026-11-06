@@ -413,6 +413,17 @@ fn calls_sent_together_run_one_at_a_time_in_the_order_they_were_sent() {
 }
 
 #[tokio::test]
+async fn argument_schemas_carry_no_boilerplate() {
+    let rig = rig(vec![tree(&["One"])]).await;
+    for t in rig.client.list_all_tools().await.unwrap() {
+        let text = serde_json::to_string(&*t.input_schema).unwrap();
+        for waste in ["$schema", "\"format\"", "\"minimum\"", "\"null\""] {
+            assert!(!text.contains(waste), "{}: {waste} in {text}", t.name);
+        }
+    }
+}
+
+#[tokio::test]
 async fn the_server_tells_the_agent_that_calls_share_one_screen() {
     let rig = rig(vec![tree(&["One"])]).await;
     let info = rig.client.peer_info().unwrap();
