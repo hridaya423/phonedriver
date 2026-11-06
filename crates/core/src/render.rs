@@ -808,4 +808,26 @@ mod tests {
         );
         assert_eq!(r.elements[0].role, Role::Button);
     }
+
+    #[test]
+    fn tapping_an_ios_row_by_its_name_is_not_ambiguous_between_its_cell_and_its_button() {
+        let tree = RawTree::from_ios_json(
+            r#"{"app":{"bundle_id":"x","pid":1},"nodes":[
+            {"p":-1,"cls":"XCUIElementTypeOther","b":[0,0,400,800],"f":"vVe"},
+            {"p":0,"cls":"XCUIElementTypeTable","b":[0,0,400,800],"f":"vVeS","a":["scroll_down"]},
+            {"p":1,"cls":"XCUIElementTypeCell","text":"Display & Text Size","a":["tap"],"b":[0,100,400,150],"f":"vVe"},
+            {"p":2,"cls":"XCUIElementTypeButton","text":"Display & Text Size","a":["tap"],"b":[16,100,350,150],"f":"vVe"}
+        ]}"#,
+        )
+        .unwrap();
+        let nodes = prune(&tree);
+        let refs = RefTable::default().assign(&tree, &nodes);
+        let r = Rendered::build(nodes, &refs, header());
+        assert!(matches!(
+            r.resolve_text("Display & Text Size", None),
+            TextMatch::One { .. }
+        ));
+        let text = r.text(&Filters::default()).unwrap();
+        assert_eq!(text.matches("Display & Text Size").count(), 1, "{text}");
+    }
 }
