@@ -336,3 +336,21 @@ async fn the_trace_options_can_come_from_the_environment_as_1() {
         .assert()
         .success();
 }
+
+#[cfg(unix)]
+#[test]
+fn a_socket_that_nothing_serves_names_the_variable_in_the_error() {
+    let home = tempfile::tempdir().unwrap();
+    let out = Command::cargo_bin("phone-use")
+        .unwrap()
+        .env("PHONE_USE_HOME", home.path())
+        .env("PHONE_USE_SOCKET", "/dev/null/phone-use.sock")
+        .arg("devices")
+        .assert()
+        .code(1);
+    let stderr = String::from_utf8(out.get_output().stderr.clone()).unwrap();
+    assert!(
+        stderr.contains("PHONE_USE_SOCKET=/dev/null/phone-use.sock") && stderr.contains("ssh"),
+        "{stderr}"
+    );
+}
