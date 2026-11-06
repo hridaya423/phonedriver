@@ -20,6 +20,10 @@ use tokio::sync::{Notify, broadcast, watch};
 use tokio::task::JoinHandle;
 use tokio::time::Instant;
 
+use idevice::IdeviceService;
+use idevice::provider::UsbmuxdProvider;
+use idevice::services::installation_proxy::InstallationProxyClient;
+
 use crate::map;
 use crate::runner::{Client, Runner};
 use crate::simulator::{Simulator, simctl, simctl_with_input};
@@ -41,7 +45,13 @@ const APP_START_RETRY: Duration = Duration::from_millis(100);
 /// that still entered 102 mixed characters exactly in 267 ms; keys mode types at the runner's default 60.
 const PASTE_SPEED: u32 = 5000;
 
+enum Host {
+    Simulator,
+    Physical(UsbmuxdProvider),
+}
+
 pub struct IosDevice {
+    host: Host,
     info: DeviceInfo,
     screen: Mutex<Size>,
     udid: String,
@@ -115,13 +125,48 @@ impl IosDevice {
 
     /// Starts or reuses the runner on `sim` (task 5.4) and starts settle polling. `home` holds the runner build.
     pub async fn connect(sim: &Simulator, home: &Path) -> Result<IosDevice> {
-        let runner = Arc::new(Runner::start(&sim.udid, home).await?);
+        let runner = Runner::start(&sim.udid, home).await?;
+        IosDevice::with_runner(
+            Host::Simulator,
+            format!("sim:{}", sim.udid),
+            &sim.udid,
+            &sim.name,
+            runner,
+        )
+    }
+
+    /// The Runner tier on a wired physical device: builds the runner signed with `team`, starts it and reaches it
+    /// through usbmuxd.
+    pub async fn connect_physical(
+        device: &crate::transport::Wired,
+        model: &str,
+        team: &str,
+        home: &Path,
+    ) -> Result<IosDevice> {
+        let provider = device.provider();
+        let runner = Runner::start_device(&provider, &device.udid, team, home).await?;
+        IosDevice::with_runner(
+            Host::Physical(provider),
+            format!("ios:{}", device.udid),
+            &device.udid,
+            model,
+            runner,
+        )
+    }
+
+    fn with_runner(
+        host: Host,
+        id: String,
+        udid: &str,
+        model: &str,
+        runner: Runner,
+    ) -> Result<IosDevice> {
+        let runner = Arc::new(runner);
         let hello = runner.hello.clone();
         let screen = Size {
             w: hello.screen.w,
             h: hello.screen.h,
         };
-        let id = format!("sim:{}", sim.udid);
         let (events, _) = broadcast::channel(EVENT_BACKLOG);
         let store = Arc::new(FrameStore::new(POLL_SCALE));
         let activity = Arc::new(Activity {
@@ -136,16 +181,17 @@ impl IosDevice {
             events.clone(),
         ));
         Ok(IosDevice {
+            host,
             info: DeviceInfo {
                 id,
-                model: sim.name.clone(),
+                model: model.to_string(),
                 os: format!("iOS {}", hello.ios),
                 screen,
                 density: hello.screen.scale,
                 capabilities: Self::CAPABILITIES,
             },
             screen: Mutex::new(screen),
-            udid: sim.udid.clone(),
+            udid: udid.to_string(),
             runner,
             store,
             activity,
@@ -264,6 +310,36 @@ fn luma_frame(reply: &Value) -> Option<Frame> {
         vec![128; chroma],
         vec![128; chroma],
     ))
+}
+
+async fn installed_apps(provider: &UsbmuxdProvider, id: &str) -> Result<Vec<App>> {
+    let gone = |e| crate::transport::classify(&id.to_string(), &e);
+    let socket =
+        crate::transport::lockdown_service(provider, InstallationProxyClient::service_name())
+            .await
+            .map_err(gone)?;
+    let mut client = InstallationProxyClient::new(socket);
+    let found = client.get_apps(None, None).await.map_err(gone)?;
+    let mut apps: Vec<App> = found
+        .iter()
+        .map(|(id, info)| {
+            let field = |k: &str| {
+                info.as_dictionary()
+                    .and_then(|d| d.get(k))
+                    .and_then(|v| v.as_string())
+            };
+            App {
+                id: AppId(id.clone()),
+                name: field("CFBundleDisplayName")
+                    .or(field("CFBundleName"))
+                    .unwrap_or(id)
+                    .to_string(),
+                system: field("ApplicationType") == Some("System"),
+            }
+        })
+        .collect();
+    apps.sort_by(|a, b| a.id.0.cmp(&b.id.0));
+    Ok(apps)
 }
 
 #[async_trait]
@@ -393,6 +469,12 @@ impl Device for IosDevice {
     }
 
     async fn clipboard(&self, op: ClipboardOp) -> Result<Option<String>> {
+        if matches!(self.host, Host::Physical(_)) {
+            return Err(Error::Unsupported {
+                op: Op::Clipboard,
+                reason: "the runner tier has no clipboard access on a physical device",
+            });
+        }
         match op {
             ClipboardOp::Get => Ok(Some(simctl(&["pbpaste", &self.udid]).await?)),
             ClipboardOp::Set(text) => {
@@ -403,6 +485,9 @@ impl Device for IosDevice {
     }
 
     async fn apps(&self) -> Result<Vec<App>> {
+        if let Host::Physical(provider) = &self.host {
+            return Box::pin(installed_apps(provider, &self.info.id)).await;
+        }
         let plist = simctl(&["listapps", &self.udid]).await?;
         let json = crate::simulator::plist_to_json(&plist).await?;
         Ok(map::apps(&json))
@@ -411,7 +496,16 @@ impl Device for IosDevice {
     async fn launch(&self, app: &AppId) -> Result<()> {
         {
             let _busy = Busy::new(&self.activity);
-            simctl(&["launch", &self.udid, &app.0]).await?;
+            match self.host {
+                Host::Simulator => {
+                    simctl(&["launch", &self.udid, &app.0]).await?;
+                }
+                Host::Physical(_) => {
+                    self.client()
+                        .request(Op::Launch, json!({"op": "activate", "bundle_id": app.0}))
+                        .await?;
+                }
+            }
         }
         let deadline = Instant::now() + APP_START_WAIT;
         while Instant::now() < deadline && self.foreground().await?.as_ref() != Some(app) {

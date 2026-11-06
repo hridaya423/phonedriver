@@ -41,7 +41,8 @@ static NSDictionary *PUHello(void)
         @"model": PUModel(),
         @"screen": @{@"w": @(bounds.size.width), @"h": @(bounds.size.height), @"scale": @(UIScreen.mainScreen.scale)},
     } mutableCopy];
-    if (env[@"SIMULATOR_UDID"]) hello[@"udid"] = env[@"SIMULATOR_UDID"];
+    NSString *udid = env[@"SIMULATOR_UDID"] ?: env[@"PHONE_USE_UDID"];
+    if (udid) hello[@"udid"] = udid;
     if (env[@"PHONE_USE_BUILD"]) hello[@"build"] = env[@"PHONE_USE_BUILD"];
     return hello;
 }

@@ -109,6 +109,7 @@ impl Env {
         c.env("PHONE_USE_HOME", self.home.path())
             .env("PHONE_USE_SOCKET", &self.socket)
             .env("ADB_SERVER_SOCKET", &self.adb)
+            .env("USBMUXD_SOCKET_ADDRESS", "127.0.0.1:1")
             .env_remove("PHONE_USE_SESSION")
             .env_remove("PHONE_USE_DEVICE");
         c

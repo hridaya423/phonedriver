@@ -12,7 +12,7 @@ use serde_json::{Value, json};
 
 use crate::client::{Client, Failure};
 use crate::daemon::android::AdbSource;
-use crate::daemon::ios::SimSource;
+use crate::daemon::ios::{PhysicalSource, SimSource};
 use crate::daemon::sources::Sources;
 use crate::daemon::trace::TraceOptions;
 use crate::daemon::{Config, Daemon, socket};
@@ -722,6 +722,7 @@ fn run_daemon(trace: TraceOptions) -> ExitCode {
         let sources = Sources(vec![
             ("android:", Arc::new(AdbSource::from_env())),
             ("sim:", Arc::new(SimSource::new(socket::home()))),
+            ("ios:", Arc::new(PhysicalSource::new(socket::home()))),
         ]);
         let daemon = Daemon::with_trace(
             Arc::new(sources),

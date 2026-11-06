@@ -24,6 +24,14 @@ static const uint32_t PUMaxFrame = 16 * 1024 * 1024;
     return self;
 }
 
+// usbmuxd reaches a device's TCP ports from a non-loopback address, so a runner on a device must listen on all
+// interfaces; on the Simulator, loopback is enough.
+#if TARGET_OS_SIMULATOR
+static const char *PUListenHost = "127.0.0.1";
+#else
+static const char *PUListenHost = "0.0.0.0";
+#endif
+
 - (BOOL)start:(NSError **)error
 {
     nw_parameters_t params = nw_parameters_create_secure_tcp(NW_PARAMETERS_DISABLE_PROTOCOL, ^(nw_protocol_options_t tcp) {
@@ -31,10 +39,10 @@ static const uint32_t PUMaxFrame = 16 * 1024 * 1024;
     });
     nw_parameters_set_reuse_local_address(params, true);
     NSString *port = [NSString stringWithFormat:@"%u", _port];
-    nw_parameters_set_local_endpoint(params, nw_endpoint_create_host("127.0.0.1", port.UTF8String));
+    nw_parameters_set_local_endpoint(params, nw_endpoint_create_host(PUListenHost, port.UTF8String));
     _listener = nw_listener_create(params);
     if (!_listener) {
-        if (error) *error = PUError(PURunnerErrorFailed, [NSString stringWithFormat:@"cannot listen on 127.0.0.1:%@", port]);
+        if (error) *error = PUError(PURunnerErrorFailed, [NSString stringWithFormat:@"cannot listen on %s:%@", PUListenHost, port]);
         return NO;
     }
     nw_listener_set_queue(_listener, _queue);
@@ -56,7 +64,7 @@ static const uint32_t PUMaxFrame = 16 * 1024 * 1024;
         if (error) *error = PUError(PURunnerErrorFailed, [NSString stringWithFormat:@"listen on port %@ failed: %@", port, failure]);
         return NO;
     }
-    NSLog(@"PhoneUseRunner listening on 127.0.0.1:%@", port);
+    NSLog(@"PhoneUseRunner listening on %s:%@", PUListenHost, port);
     return YES;
 }
 

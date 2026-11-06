@@ -6,7 +6,7 @@ use idevice::provider::{IdeviceProvider, UsbmuxdProvider};
 use idevice::rsd::RsdHandshake;
 use idevice::services::lockdown::LockdownClient;
 use idevice::tcp::handle::AdapterHandle;
-use idevice::usbmuxd::{Connection, UsbmuxdAddr, UsbmuxdConnection};
+use idevice::usbmuxd::{Connection, UsbmuxdAddr};
 use idevice::{IdeviceError, IdeviceService};
 use phone_use_core::error::{DeviceId, Error, UserAction};
 
@@ -27,12 +27,16 @@ impl Wired {
             udid: self.udid.clone(),
             device_id: self.mux_id,
         }
-        .to_provider(UsbmuxdAddr::default(), LABEL)
+        .to_provider(usbmuxd_addr(), LABEL)
     }
 }
 
+fn usbmuxd_addr() -> UsbmuxdAddr {
+    UsbmuxdAddr::from_env_var().unwrap_or_default()
+}
+
 pub async fn wired() -> Result<Vec<Wired>, IdeviceError> {
-    let mut mux = UsbmuxdConnection::default().await?;
+    let mut mux = usbmuxd_addr().connect(0).await?;
     let mut out: Vec<Wired> = Vec::new();
     for d in mux.get_devices().await? {
         if d.connection_type == Connection::Usb && !out.iter().any(|w| w.udid == d.udid) {
@@ -71,8 +75,24 @@ pub async fn identity(device: &Wired) -> Result<Identity, IdeviceError> {
     })
 }
 
-/// The CoreDevice tunnel over the userspace TCP stack, with its RSD service list. `IdeviceService::connect` is
-/// spelled out in `open` because blaze's frontend cannot lay out that trait's default method for this type.
+/// What `IdeviceService::connect` does, spelled out because blaze's frontend cannot lay out that trait's default
+/// method for any service type.
+pub async fn lockdown_service(
+    provider: &dyn IdeviceProvider,
+    name: impl Into<String>,
+) -> Result<idevice::Idevice, IdeviceError> {
+    let mut lockdown = LockdownClient::connect(provider).await?;
+    let pairing = provider.get_pairing_file().await?;
+    let legacy = lockdown.start_session(&pairing).await?;
+    let (port, ssl) = lockdown.start_service(name).await?;
+    let mut socket = provider.connect(port).await?;
+    if ssl {
+        socket.start_session(&pairing, legacy).await?;
+    }
+    Ok(socket)
+}
+
+/// The CoreDevice tunnel over the userspace TCP stack, with its RSD service list.
 pub struct Tunnel {
     pub adapter: AdapterHandle,
     pub rsd: RsdHandshake,
@@ -81,16 +101,7 @@ pub struct Tunnel {
 impl Tunnel {
     pub async fn open(device: &Wired) -> Result<Tunnel, IdeviceError> {
         let provider = device.provider();
-        let mut lockdown = LockdownClient::connect(&provider).await?;
-        let pairing = provider.get_pairing_file().await?;
-        let legacy = lockdown.start_session(&pairing).await?;
-        let (port, ssl) = lockdown
-            .start_service(CoreDeviceProxy::service_name())
-            .await?;
-        let mut socket = provider.connect(port).await?;
-        if ssl {
-            socket.start_session(&pairing, legacy).await?;
-        }
+        let socket = lockdown_service(&provider, CoreDeviceProxy::service_name()).await?;
         let proxy = CoreDeviceProxy::new(socket).await?;
         let rsd_port = proxy.tunnel_info().server_rsd_port;
         let mut adapter = proxy.create_software_tunnel()?.to_async_handle();
