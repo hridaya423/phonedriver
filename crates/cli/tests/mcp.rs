@@ -424,6 +424,27 @@ async fn argument_schemas_carry_no_boilerplate() {
 }
 
 #[tokio::test]
+async fn the_tool_list_every_turn_re_reads_fits_a_budget_and_hides_what_agents_never_used() {
+    let rig = rig(vec![tree(&["One"])]).await;
+    let tools = rig.client.list_all_tools().await.unwrap();
+    let total: usize = tools
+        .iter()
+        .map(|t| serde_json::to_string(t).unwrap().len())
+        .sum();
+    assert!(total < 5_400, "tools/list is {total} characters");
+    for t in &tools {
+        let text = serde_json::to_string(&*t.input_schema).unwrap();
+        for hidden in ["\"device\"", "\"max_lines\"", "\"role\"", "\"distance\""] {
+            assert!(!text.contains(hidden), "{}: {hidden}", t.name);
+        }
+    }
+    let r = rig
+        .call("snapshot", json!({"max_lines": 2, "interactive": true}))
+        .await;
+    assert_ne!(r.is_error, Some(true), "{:?}", texts(&r));
+}
+
+#[tokio::test]
 async fn the_server_tells_the_agent_that_calls_share_one_screen() {
     let rig = rig(vec![tree(&["One"])]).await;
     let info = rig.client.peer_info().unwrap();
