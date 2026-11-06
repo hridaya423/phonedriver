@@ -50,11 +50,14 @@ phone-harness cannot type Unicode through `adb input text`. phone-use typed mixe
 
 ## Try it
 
-1. Build phone-use (see [Install](#install)), then add it to Claude Code as an MCP server.
+1. Install phone-use first (see [Install](#install)), then add it to Claude Code as an MCP server. Use the binary's full path.
 
    ```sh
-   claude mcp add phone-use -- /path/to/phone-use mcp
+   claude mcp add phone-use -- "$(pwd)/target/release/phone-use" mcp
+   claude mcp list    # expect: phone-use ... Connected
    ```
+
+   For the first run, boot one simulator or connect one device, so no `--device` or `PHONE_USE_DEVICE` is needed. `phone-use skill` prints the instructions an agent reads; the MCP server also carries a short version.
 
 2. Boot a simulator or connect a device, then ask the agent.
 
@@ -96,7 +99,15 @@ To build from source instead, use Rust 1.99 or later.
 cargo build --release
 ```
 
-The build packs the Android agent, so it needs the Android SDK (`ANDROID_HOME` with build-tools 37.0.0 and platform android-37.0), `d8`, and JDK 17. To skip that step, set `PHONE_USE_AGENT_JAR` to a built `phone-use-agent.jar` (`bash android-agent/build.sh` makes one). The binary is `target/release/phone-use`.
+The build packs the Android agent, so it needs the Android SDK with build-tools **37.0.0** and platform **android-37.0** (`ANDROID_HOME`, falling back to `ANDROID_SDK_ROOT`, then `/opt/homebrew/share/android-commandlinetools`), `d8` and JDK 17. Override the versions with `ANDROID_BUILD_TOOLS` and `ANDROID_PLATFORM`. If anything is missing the build says exactly what and how to get it. To skip that step, set `PHONE_USE_AGENT_JAR` to a built `phone-use-agent.jar` (`bash android-agent/build.sh` makes one; none is published yet).
+
+**iOS only, no Android toolchain:**
+
+```sh
+cargo build --release -p phone-use --no-default-features
+```
+
+That binary has no Android support (`phone-use doctor` skips the Android checks). Run the tests with the default features. The binary is `target/release/phone-use`.
 
 ```console
 $ target/release/phone-use version
@@ -125,6 +136,49 @@ phone-use snapshot
 phone-use tap "Dark theme"
 phone-use wait settled
 ```
+
+### iPhone or iPad
+
+A physical iOS device needs the runner signed with your Apple developer team (a free Apple ID works and expires every 7 days). Plug the device in, unlock it, then:
+
+```sh
+phone-use ios setup                  # pairing, Developer Mode, developer disk image
+export PHONE_USE_TEAM=<your team ID>   # Xcode > Settings > Accounts, or: security find-identity -v -p codesigning
+phone-use --device ios:<udid> snapshot
+```
+
+Without a team, the command stops with exit code 3 and says so. With a booted Simulator and an iPhone that has no team, the Simulator is the default device. The daemon reads `PHONE_USE_TEAM` when it starts, so run `phone-use daemon stop` after setting it.
+
+## Environment variables
+
+| Name | Default | Meaning |
+|---|---|---|
+| `PHONE_USE_HOME` | `~/.phone-use` | Where the daemon keeps its socket (`run/`), `daemon.log`, `traces/`, `tmp/` and the iOS `runner/` builds. Set it to run a separate daemon. On macOS the socket path must stay under about 100 bytes. |
+| `PHONE_USE_SOCKET` | under `PHONE_USE_HOME` (else `$XDG_RUNTIME_DIR/phone-use`) | The daemon's socket or named pipe. Point it at an `ssh -L` forward to use a remote machine's devices. |
+| `PHONE_USE_DEVICE` | none | The device to use when `--device` is not given. Also read by `phone-use mcp`. |
+| `PHONE_USE_SESSION` | `default` | The session name, as `--session`. |
+| `PHONE_USE_TEAM` | none | Apple developer team ID that signs the iOS runner on a physical device. |
+| `PHONE_USE_IOS_TIER` | `runner` | `coredevice` selects the CoreDevice tier on iOS 27 devices. Experimental. |
+| `PHONE_USE_SECRET` | none | The text for `type --secret`, instead of stdin. |
+| `PHONE_USE_TRACE_FULL` | off | `1` keeps observation text and text targets in traces (the daemon reads it at start). |
+| `PHONE_USE_TRACE_SCREENS` | off | `1` copies every screenshot next to its trace file. |
+| `PHONE_USE_AGENT_JAR` | built by `android-agent/build.sh` | Build time only: use this prebuilt Android agent jar. |
+| `ADB_SERVER_SOCKET` | `tcp:127.0.0.1:5037` | The adb server to use, for example a tunnel to another machine. |
+| `PHONE_USE_TEST_DEVICE`, `PHONE_USE_TEST_IOS_UDID`, `PHONE_USE_BENCH`, `PHONE_USE_BIN` | none | Tests and benchmarks only. |
+
+The runner's own `PHONE_USE_PORT`, `PHONE_USE_BUILD` and `PHONE_USE_UDID` are set by phone-use for the iOS runner and are not for you.
+
+## Debugging
+
+When something does not work:
+
+- `phone-use doctor` checks the toolchain, devices and the socket, and says how to fix each problem.
+- `$PHONE_USE_HOME/daemon.log` (default `~/.phone-use/daemon.log`) holds the daemon's own messages and startup errors.
+- `$PHONE_USE_HOME/traces/<id>.jsonl` has one line per request: method, parameters, the reply's summary, `ms` and settle time. Typed text is recorded only as a length. Start the daemon with `PHONE_USE_TRACE_FULL=1` to keep observation text, and `PHONE_USE_TRACE_SCREENS=1` to keep screenshots. A running daemon keeps its options: `phone-use daemon stop` first.
+- iOS: `$PHONE_USE_HOME/runner/<udid>.log` is the runner's output, and `runner/<hash>/build.log` is its first build.
+- `phone-use daemon stop` stops the daemon and the iOS runners it started. The next command starts a new one.
+
+Exit codes: `0` done, `1` the command failed, `2` the command line is wrong, `3` a person must act on the device (unlock, trust, allow), `4` no matching device or it was disconnected. On a terminal, a first command that takes more than a second says what it is doing (building the runner, starting the agent).
 
 ## Supported devices
 
