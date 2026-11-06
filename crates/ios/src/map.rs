@@ -7,6 +7,14 @@ use phone_use_core::geometry::{Point, Rect, Size};
 use phone_use_core::raw::{RawTree, RawWindow};
 use serde_json::{Value, json};
 
+/// The screen in points as the app sees it now: the application element's frame follows the orientation, while the
+/// size the runner reported at connect does not.
+pub fn screen_of(reply: &Value) -> Option<Size> {
+    let b = reply["nodes"].get(0)?["b"].as_array()?;
+    let (w, h) = (b.get(2)?.as_f64()? as f32, b.get(3)?.as_f64()? as f32);
+    (w > 0.0 && h > 0.0).then_some(Size { w, h })
+}
+
 /// The runner reports one foreground app and no windows, so the app becomes the application window and the
 /// on-screen keyboard, when present, the input-method window the header and reading order look for.
 pub fn raw_tree(reply: &Value, screen: Size) -> Result<RawTree, Error> {
@@ -202,6 +210,21 @@ mod tests {
 
     const TESTBED_MAIN: &str = include_str!("../../core/tests/fixtures/ios/testbed_main.json");
     const SCREEN: Size = Size { w: 402.0, h: 874.0 };
+
+    #[test]
+    fn the_screen_is_the_application_frame() {
+        let reply: Value = serde_json::from_str(TESTBED_MAIN).unwrap();
+        assert_eq!(screen_of(&reply), Some(SCREEN));
+        let landscape = json!({"nodes": [{"cls": "XCUIElementTypeApplication", "p": -1, "b": [0, 0, 1376, 1032]}]});
+        assert_eq!(
+            screen_of(&landscape),
+            Some(Size {
+                w: 1376.0,
+                h: 1032.0
+            })
+        );
+        assert_eq!(screen_of(&json!({"nodes": []})), None);
+    }
 
     #[test]
     fn the_foreground_app_becomes_the_application_window() {

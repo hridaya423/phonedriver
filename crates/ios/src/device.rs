@@ -43,6 +43,7 @@ const PASTE_SPEED: u32 = 5000;
 
 pub struct IosDevice {
     info: DeviceInfo,
+    screen: Mutex<Size>,
     udid: String,
     runner: Arc<Runner>,
     store: Arc<FrameStore>,
@@ -143,6 +144,7 @@ impl IosDevice {
                 density: hello.screen.scale,
                 capabilities: Self::CAPABILITIES,
             },
+            screen: Mutex::new(screen),
             udid: sim.udid.clone(),
             runner,
             store,
@@ -150,6 +152,26 @@ impl IosDevice {
             events,
             poller,
         })
+    }
+
+    fn screen(&self) -> Size {
+        *self.screen.lock().unwrap_or_else(|e| e.into_inner())
+    }
+
+    /// The screen size the snapshot shows, announcing a change (rotation) as `DisplayChanged`.
+    fn follow_orientation(&self, reply: &Value) -> Size {
+        let Some(now) = map::screen_of(reply) else {
+            return self.screen();
+        };
+        let mut known = self.screen.lock().unwrap_or_else(|e| e.into_inner());
+        if *known != now {
+            *known = now;
+            let _ = self.events.send(DeviceEvent::DisplayChanged {
+                screen: now,
+                rotation: u8::from(now.w > now.h),
+            });
+        }
+        now
     }
 
     fn client(&self) -> &Client {
@@ -252,7 +274,12 @@ impl Device for IosDevice {
 
     async fn tree(&self) -> Result<RawTree> {
         let reply = self.snapshot(30).await?;
-        map::raw_tree(&reply, self.info.screen)
+        let screen = self.follow_orientation(&reply);
+        map::raw_tree(&reply, screen)
+    }
+
+    fn current_screen(&self) -> Option<Size> {
+        Some(self.screen())
     }
 
     fn frames(&self) -> Option<watch::Receiver<FrameRef>> {
@@ -307,9 +334,7 @@ impl Device for IosDevice {
             Button::VolumeDown => "volume_down",
             Button::Back => return self.back().await.map(|_| ()),
             Button::Notifications => {
-                return self
-                    .gesture(map::notifications_swipe(self.info.screen))
-                    .await;
+                return self.gesture(map::notifications_swipe(self.screen())).await;
             }
             Button::Recents => {
                 return Err(Error::Unsupported {
@@ -338,7 +363,7 @@ impl Device for IosDevice {
                 Ok(Some("nav-button"))
             }
             None => {
-                self.gesture(map::back_swipe(self.info.screen)).await?;
+                self.gesture(map::back_swipe(self.screen())).await?;
                 Ok(Some("edge-swipe"))
             }
         }

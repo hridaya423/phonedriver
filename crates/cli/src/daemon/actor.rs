@@ -92,6 +92,12 @@ struct Live {
     screen: Size,
 }
 
+impl Live {
+    fn screen(&self) -> Size {
+        self.device.current_screen().unwrap_or(self.screen)
+    }
+}
+
 enum Signal {
     Frame(FrameRef),
     Window,
@@ -406,7 +412,7 @@ impl Actor {
         let (info, screen, secure_hidden) = match &self.live {
             Some(l) => (
                 l.device.info().clone(),
-                l.screen,
+                l.screen(),
                 l.device.secure_content_hidden(tree),
             ),
             None => return Rendered::build(Vec::new(), &[], Header::default()),
@@ -974,7 +980,7 @@ impl Actor {
         let size = self
             .live
             .as_ref()
-            .map_or(Size { w: 0.0, h: 0.0 }, |l| l.screen);
+            .map_or(Size { w: 0.0, h: 0.0 }, Live::screen);
         Rect {
             x: 0.0,
             y: 0.0,

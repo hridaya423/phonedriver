@@ -15,6 +15,22 @@ static BOOL PUSpinUntil(BOOL (^done)(void), NSTimeInterval timeout)
     return YES;
 }
 
+// Events are synthesized in the portrait frame whatever the orientation (observed on an iPad Pro 13-inch simulator
+// in landscape: a tap at (519, 438) landed at (438, 513) in a 1376 x 1032 app, and the interfaceOrientation of the
+// record made no difference). Points arrive in the screen as the app sees it, so they are rotated back.
+static CGPoint PUPortraitPoint(CGPoint p)
+{
+    CGRect screen = [[XCUIApplication alloc] initWithBundleIdentifier:@"com.apple.springboard"].frame;
+    CGFloat portraitWidth = MIN(screen.size.width, screen.size.height);
+    CGFloat portraitHeight = MAX(screen.size.width, screen.size.height);
+    switch (XCUIDevice.sharedDevice.orientation) {
+        case UIDeviceOrientationLandscapeLeft: return CGPointMake(portraitWidth - p.y, p.x);
+        case UIDeviceOrientationLandscapeRight: return CGPointMake(p.y, portraitHeight - p.x);
+        case UIDeviceOrientationPortraitUpsideDown: return CGPointMake(portraitWidth - p.x, portraitHeight - p.y);
+        default: return p;
+    }
+}
+
 static XCPointerEventPath *PUPath(id pointer, double *end, NSError **error)
 {
     NSArray *points = [pointer isKindOfClass:NSDictionary.class] ? pointer[@"path"] : nil;
@@ -31,7 +47,7 @@ static XCPointerEventPath *PUPath(id pointer, double *end, NSError **error)
             if (error) *error = PUError(PURunnerErrorBadRequest, @"path points need numeric x, y and non-decreasing t_ms");
             return nil;
         }
-        CGPoint point = CGPointMake(x.doubleValue, y.doubleValue);
+        CGPoint point = PUPortraitPoint(CGPointMake(x.doubleValue, y.doubleValue));
         double offset = t.doubleValue / 1000.0;
         if (!path) {
             path = [[XCPointerEventPath alloc] initForTouchAtPoint:point offset:offset];

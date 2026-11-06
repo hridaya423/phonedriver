@@ -33,6 +33,7 @@ pub struct FakeDevice {
     foreground: Mutex<Option<AppId>>,
     screen: Mutex<ScreenState>,
     apps: Mutex<Vec<App>>,
+    display: Mutex<Option<Size>>,
     events: broadcast::Sender<DeviceEvent>,
     frames: watch::Sender<FrameRef>,
 }
@@ -60,9 +61,15 @@ impl FakeDevice {
                 focused: true,
             }),
             apps: Mutex::new(Vec::new()),
+            display: Mutex::new(None),
             events: broadcast::channel(64).0,
             frames: watch::channel(FrameRef::default()).0,
         }
+    }
+
+    /// The screen size `current_screen()` reports from now on, as a device that follows its own rotation does.
+    pub fn rotate_to(&self, screen: Size) {
+        *lock(&self.display) = Some(screen);
     }
 
     /// The launchable apps `apps()` reports, as `(id, name)`.
@@ -107,6 +114,10 @@ fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
 impl Device for FakeDevice {
     fn info(&self) -> &DeviceInfo {
         &self.info
+    }
+
+    fn current_screen(&self) -> Option<Size> {
+        *lock(&self.display)
     }
 
     async fn tree(&self) -> Result<RawTree> {

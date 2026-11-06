@@ -178,6 +178,28 @@ async fn devices_lists_fake_devices_with_tier_and_capabilities() {
 }
 
 #[tokio::test]
+async fn the_header_follows_a_device_that_reports_its_own_rotation() {
+    let (source, fake) = FakeSource::with(vec![tree(&["One"])]);
+    let (d, _home) = daemon(source);
+    let before = ok(&d, "default", "snapshot", json!({})).await;
+    assert!(
+        before["text"]
+            .as_str()
+            .unwrap()
+            .contains("360x800pt · portrait")
+    );
+    fake.rotate_to(phone_use_core::geometry::Size { w: 800.0, h: 360.0 });
+    let after = ok(&d, "default", "snapshot", json!({})).await;
+    assert!(
+        after["text"]
+            .as_str()
+            .unwrap()
+            .contains("800x360pt · landscape"),
+        "{after}"
+    );
+}
+
+#[tokio::test]
 async fn snapshot_returns_the_rendered_text_of_the_fake_tree() {
     let (source, _) = FakeSource::with(vec![tree(&["One", "Two", "Three"])]);
     let (d, _home) = daemon(source);
