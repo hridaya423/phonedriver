@@ -200,11 +200,18 @@ pub(crate) enum Verb {
         spec: String,
     },
     /// Press at `from`, hold, drag to `to` and lift: reorder a list, move an item, drag a handle. Targets are `@ref`, `x,y` or text.
-    Drag { from: String, to: String },
+    Drag {
+        /// Where the finger goes down.
+        from: String,
+        /// Where it lifts.
+        to: String,
+    },
     /// Two fingers: `out` spreads them to zoom in, `in` closes them to zoom out. At the screen's center, or at `--at`.
     Pinch {
+        /// `out` zooms in, `in` zooms out.
         #[arg(value_parser = ["in", "out"])]
         direction: String,
+        /// The center of the pinch: `@ref`, `x,y` or text. Default is the middle of the screen.
         #[arg(long)]
         at: Option<String>,
         /// How far apart the fingers end (out) or start (in), as a share of the screen's shorter side; default 0.5.
@@ -224,6 +231,7 @@ pub(crate) enum Verb {
     /// List the apps that can be launched, or `install <path>`, `stop`, `clear` (data) or `uninstall` one by name or id.
     /// On a physical device `clear` and `uninstall` only touch apps phone-use installed.
     Apps {
+        /// What to do to an app. Omit it to list apps.
         #[arg(value_parser = ["install", "stop", "clear", "uninstall"])]
         action: Option<String>,
         /// The app file to install (on the daemon's machine), or the app to stop, clear or uninstall.
@@ -309,7 +317,10 @@ pub(crate) enum Verb {
     },
     /// Run steps in order and print one diff at the end; stops at the first step that fails. Each step is a
     /// command line in quotes, such as `batch "tap @e3" "type hello --submit" "press enter"`.
-    Batch { steps: Vec<String> },
+    Batch {
+        /// One command line per step, in quotes.
+        steps: Vec<String>,
+    },
     /// Give up this session's lease on the device.
     Release,
     /// Run the daemon in the foreground or detached; `daemon stop` ends the running one.
