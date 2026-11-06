@@ -135,6 +135,14 @@ final class Screens {
         return frame;
     }
 
+    static View lateFocus(Activity a) {
+        LinearLayout root = column(a);
+        View f = field(a, "late", InputType.TYPE_CLASS_TEXT, false);
+        root.addView(f);
+        f.postDelayed(f::requestFocus, 700);
+        return root;
+    }
+
     @SuppressLint("ClickableViewAccessibility")
     static View list(Activity a, int row) {
         RecyclerView rv = new RecyclerView(a);

@@ -161,13 +161,12 @@ final class Accessibility {
         }
     }
 
-    // The open shade is a system window larger than an edge bar: NotificationShade on API 37, the status bar window
-    // grown to full height on API 26. Its root is not read, because that call blocks while System UI is stalled.
+    // The open shade is the system window that holds input focus (NotificationShade on API 37). A test for "a system
+    // window larger than an edge bar" was true before the shade had moved, so the collapse went out early and was lost.
+    // The window's root is not read, because that call blocks while System UI is stalled.
     private static boolean shadeOpen() {
         for (AccessibilityWindowInfo w : automation.getWindows()) {
-            Rect b = new Rect();
-            w.getBoundsInScreen(b);
-            if (w.getType() == AccessibilityWindowInfo.TYPE_SYSTEM && !isEdgeBar(w, b)) {
+            if (w.getType() == AccessibilityWindowInfo.TYPE_SYSTEM && w.isFocused()) {
                 return true;
             }
         }

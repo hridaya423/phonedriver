@@ -140,6 +140,7 @@ public final class MainActivity extends androidx.activity.ComponentActivity {
             case "settle": screen = Screens.settle(this); break;
             case "wait": screen = Screens.waiting(this); break;
             case "compose": screen = ComposeScreen.create(this); break;
+            case "latefocus": screen = Screens.lateFocus(this); break;
             case "hollow":
                 screen = new View(this);
                 panel = Screens.hollow(this, content);

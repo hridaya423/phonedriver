@@ -404,3 +404,26 @@ async fn the_shade_kick_leaves_the_shade_closed_when_system_ui_stalls() {
         "the shade was left open: {seen:#?}"
     );
 }
+
+#[tokio::test]
+#[ignore = "needs PHONE_USE_TEST_DEVICE"]
+async fn paste_waits_for_a_field_that_takes_focus_late() {
+    let (raw, mut c, _g) = start().await;
+    testbed::open_tab(&raw.adb, &raw.serial, "text").await;
+    find_node(&mut c, ":id/plain").await;
+    testbed::clear_log(&raw.adb, &raw.serial).await;
+    testbed::open_tab(&raw.adb, &raw.serial, "latefocus").await;
+    find_node(&mut c, ":id/late").await;
+    c.ok(json!({"op":"text","mode":"paste","text":"late text"}))
+        .await;
+    let log = testbed::wait_for_log(&raw.adb, &raw.serial, 2000, |l| {
+        l.iter()
+            .any(|e| e["ev"] == "text" && e["value"] == "late text")
+    })
+    .await;
+    assert!(
+        log.iter()
+            .any(|e| e["ev"] == "text" && e["field"] == "late" && e["value"] == "late text"),
+        "{log:?}"
+    );
+}

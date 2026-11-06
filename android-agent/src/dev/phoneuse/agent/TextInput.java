@@ -13,6 +13,7 @@ import com.genymobile.scrcpy.wrappers.ServiceManager;
 final class TextInput {
     private static final long RESTORE_WAIT_MS = 500;
     private static final long POLL_MS = 25;
+    private static final long FOCUS_WAIT_MS = 1500;
 
     private static ClipboardManager clipboard() {
         ClipboardManager cm = ServiceManager.getClipboardManager();
@@ -62,7 +63,17 @@ final class TextInput {
         return t == null ? "" : t.toString();
     }
 
+    // The field a tap just opened (Settings search on API 37) takes focus a few hundred ms after it appears in the
+    // tree, and a paste before that goes nowhere while the reply says ok.
+    private static void awaitFocusedInput() throws Exception {
+        long deadline = SystemClock.uptimeMillis() + FOCUS_WAIT_MS;
+        while (SystemClock.uptimeMillis() < deadline && Accessibility.focusedInput() == null) {
+            SystemClock.sleep(POLL_MS);
+        }
+    }
+
     private static void paste(String text, boolean sensitive) throws Exception {
+        awaitFocusedInput();
         ClipboardManager cm = clipboard();
         ClipData saved = cm.getClip();
         String before = focusedText();
