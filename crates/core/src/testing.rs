@@ -7,7 +7,7 @@ use tokio::sync::{broadcast, watch};
 
 use crate::device::{
     App, AppId, Button, Capabilities, ClipboardOp, Device, DeviceEvent, DeviceInfo, FrameRef,
-    Gesture, Image, Key, Quality, Result, TextInput, Url,
+    Gesture, Image, Key, Quality, Result, ScreenState, TextInput, Url,
 };
 use crate::error::{Error, Op};
 use crate::geometry::Size;
@@ -22,6 +22,7 @@ pub enum Call {
     OpenUrl(Url),
     Text(TextInput),
     Launch(AppId),
+    Wake,
 }
 
 pub struct FakeDevice {
@@ -30,6 +31,7 @@ pub struct FakeDevice {
     calls: Mutex<Vec<Call>>,
     clipboard: Mutex<Option<String>>,
     foreground: Mutex<Option<AppId>>,
+    screen: Mutex<ScreenState>,
     apps: Mutex<Vec<App>>,
     events: broadcast::Sender<DeviceEvent>,
     frames: watch::Sender<FrameRef>,
@@ -51,6 +53,12 @@ impl FakeDevice {
             calls: Mutex::new(Vec::new()),
             clipboard: Mutex::new(None),
             foreground: Mutex::new(None),
+            screen: Mutex::new(ScreenState {
+                on: true,
+                locked: false,
+                secure: false,
+                focused: true,
+            }),
             apps: Mutex::new(Vec::new()),
             events: broadcast::channel(64).0,
             frames: watch::channel(FrameRef::default()).0,
@@ -67,6 +75,10 @@ impl FakeDevice {
                 system: false,
             })
             .collect();
+    }
+
+    pub fn set_screen(&self, state: ScreenState) {
+        *lock(&self.screen) = state;
     }
 
     pub fn calls(&self) -> Vec<Call> {
@@ -124,6 +136,12 @@ impl Device for FakeDevice {
     }
 
     async fn gesture(&self, g: Gesture) -> Result<()> {
+        {
+            let mut screen = lock(&self.screen);
+            if screen.locked && !screen.secure {
+                screen.locked = false;
+            }
+        }
         self.record(Call::Gesture(g))
     }
 
@@ -165,6 +183,15 @@ impl Device for FakeDevice {
 
     async fn foreground(&self) -> Result<Option<AppId>> {
         Ok(lock(&self.foreground).clone())
+    }
+
+    async fn screen_state(&self) -> Result<ScreenState> {
+        Ok(*lock(&self.screen))
+    }
+
+    async fn wake(&self) -> Result<()> {
+        lock(&self.screen).on = true;
+        self.record(Call::Wake)
     }
 }
 

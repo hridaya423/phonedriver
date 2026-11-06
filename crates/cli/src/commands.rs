@@ -611,6 +611,12 @@ fn show_action(result: &Value, json: bool) -> Result<String, Failure> {
             }
         }
     }
+    if r.woke {
+        head.push_str(" · woke the screen first");
+    }
+    if r.unlocked {
+        head.push_str(" · swiped the lock screen away first");
+    }
     let mut out = head;
     if !r.observation.text.is_empty() {
         out.push('\n');

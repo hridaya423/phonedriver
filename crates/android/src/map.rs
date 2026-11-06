@@ -98,6 +98,13 @@ pub fn event(v: &Value, density: f32) -> Option<DeviceEvent> {
         "window_changed" => Some(DeviceEvent::WindowChanged {
             package: v["pkg"].as_str().map(str::to_string),
         }),
+        "display_changed"
+            if v["density"]
+                .as_f64()
+                .is_some_and(|d| (d as f32 - density).abs() > 0.01) =>
+        {
+            Some(DeviceEvent::DensityChanged)
+        }
         "display_changed" => Some(DeviceEvent::DisplayChanged {
             screen: Size {
                 w: v["w"].as_f64()? as f32 / density,
@@ -238,6 +245,13 @@ mod tests {
                 },
                 rotation: 1
             })
+        );
+        assert_eq!(
+            event(
+                &json!({"ev":"display_changed","w":1080,"h":2424,"rotation":0,"density":3.5}),
+                2.625
+            ),
+            Some(DeviceEvent::DensityChanged)
         );
         assert_eq!(
             event(&json!({"ev":"state","locked":true}), 2.625),

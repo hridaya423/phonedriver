@@ -27,5 +27,18 @@ final class DeviceState {
         return r;
     }
 
+    static JSONObject power() {
+        JSONObject r = new JSONObject();
+        Json.put(r, "screen_on", ServiceManager.getPowerManager().isScreenOn(0));
+        Json.put(r, "locked", Keyguard.locked());
+        Json.put(r, "secure_keyguard", Keyguard.secure());
+        boolean focused = false;
+        for (AccessibilityWindowInfo w : Accessibility.windows()) {
+            focused |= w.isFocused();
+        }
+        Json.put(r, "focused", focused);
+        return r;
+    }
+
     private DeviceState() {}
 }

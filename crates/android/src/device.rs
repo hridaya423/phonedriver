@@ -3,7 +3,7 @@
 use async_trait::async_trait;
 use phone_use_core::device::{
     App, AppId, Button, Capabilities, ClipboardOp, Device, DeviceEvent, DeviceInfo, FrameRef,
-    Gesture, Image, ImageFormat, Key, Quality, Result, TextInput, Url,
+    Gesture, Image, ImageFormat, Key, Quality, Result, ScreenState, TextInput, Url,
 };
 use phone_use_core::error::{Error, Op};
 use phone_use_core::geometry::{Rect, Size};
@@ -74,14 +74,6 @@ impl AndroidDevice {
     /// The last lines the agent printed, for the daemon's log.
     pub fn agent_log(&self) -> Vec<String> {
         self.log.recent()
-    }
-
-    /// Wakes the screen (architecture 6.3: before any action on a dark screen).
-    pub async fn wake(&self) -> Result<()> {
-        self.control
-            .request(Op::Button, json!({"op": "wake"}))
-            .await?;
-        Ok(())
     }
 
     async fn simple(&self, op: Op, req: Value) -> Result<Value> {
@@ -230,6 +222,21 @@ impl Device for AndroidDevice {
     async fn foreground(&self) -> Result<Option<AppId>> {
         let reply = self.simple(Op::Foreground, json!({"op": "state"})).await?;
         Ok(reply["foreground"].as_str().map(|p| AppId(p.to_string())))
+    }
+
+    async fn screen_state(&self) -> Result<ScreenState> {
+        let reply = self.simple(Op::Foreground, json!({"op": "power"})).await?;
+        Ok(ScreenState {
+            on: reply["screen_on"].as_bool().unwrap_or(true),
+            locked: reply["locked"].as_bool().unwrap_or(false),
+            secure: reply["secure_keyguard"].as_bool().unwrap_or(false),
+            focused: reply["focused"].as_bool().unwrap_or(true),
+        })
+    }
+
+    async fn wake(&self) -> Result<()> {
+        self.simple(Op::Button, json!({"op": "wake"})).await?;
+        Ok(())
     }
 
     fn secure_content_hidden(&self, tree: &RawTree) -> bool {

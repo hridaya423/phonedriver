@@ -137,8 +137,34 @@ final class Accessibility {
         return tree;
     }
 
+    // Also hollow: an application window whose root has no children. After the screen has been off, API 26 lists
+    // the app's window with an empty root until the next window change.
     private static boolean hollow(JSONObject tree) throws Exception {
-        return tree.getJSONArray("nodes").length() <= tree.getJSONArray("windows").length();
+        JSONArray windows = tree.getJSONArray("windows");
+        JSONArray nodes = tree.getJSONArray("nodes");
+        if (nodes.length() <= windows.length()) {
+            return true;
+        }
+        for (int i = 0; i < windows.length(); i++) {
+            JSONObject w = windows.getJSONObject(i);
+            if (!"application".equals(w.getString("type"))) {
+                continue;
+            }
+            int count = 0;
+            for (int j = 0; j < nodes.length(); j++) {
+                if (nodes.getJSONObject(j).optInt("w", -1) == w.getInt("id")) {
+                    count++;
+                }
+            }
+            if (count <= 1) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    static void allowKick() {
+        kicked = false;
     }
 
     private static JSONObject read() {

@@ -36,10 +36,13 @@ final class Ops {
                 return r;
             case "state":
                 return DeviceState.state();
+            case "power":
+                return DeviceState.power();
             case "sync_frame":
                 Video.requestSyncFrame();
                 return r;
             case "wake":
+                Accessibility.allowKick();
                 Input.key(android.view.KeyEvent.KEYCODE_WAKEUP, "press");
                 return r;
             default:

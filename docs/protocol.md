@@ -67,6 +67,8 @@ type ActionResult = {
   verified?: boolean,             // type: field text now contains the input
   settled: boolean, settle_ms: number,
   changed: boolean,               // pixels or windows changed, or the diff is not empty
+  woke?: true,                    // the screen was off and the action woke it first
+  unlocked?: true,                // a swipe-only lock screen was swiped away first
   observation: Observation       // kind "diff" with empty text when nothing changed
 }
 ```
@@ -121,6 +123,7 @@ Frames: `u32 big-endian length` + UTF-8 JSON. Requests carry `id`; replies echo 
 | `open_url` | `url` | `{package}` that handled it |
 | `notifications` | none | `{}` (expands the shade) |
 | `state` | none | `{screen_on, locked, secure_keyguard, ime_visible, foreground}` |
+| `power` | none | `{screen_on, locked, secure_keyguard, focused}` (`focused`: an accessibility window has input focus); cheap, read before every action |
 | `sync_frame` | none | `{}`; next video frame is a keyframe |
 | `wake` | none | `{}` |
 
@@ -156,7 +159,7 @@ Frames: `u32 big-endian length` + UTF-8 JSON. Requests carry `id`; replies echo 
 Events:
 ```json
 {"ev":"window_changed","w":12,"pkg":"com.android.settings","t":123456789}
-{"ev":"display_changed","w":1080,"h":2400,"rotation":1}
+{"ev":"display_changed","w":1080,"h":2400,"rotation":1,"density":2.625}
 {"ev":"state","locked":true}
 ```
 

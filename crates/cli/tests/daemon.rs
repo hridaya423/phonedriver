@@ -1045,3 +1045,73 @@ async fn clipboard_sets_and_reads_the_device_clipboard_and_the_trace_keeps_neith
     assert_eq!(r["text"], "clip-secret-1");
     assert!(!trace_text(home.path()).contains("clip-secret-1"));
 }
+
+fn screen(on: bool, locked: bool, secure: bool) -> phone_use_core::device::ScreenState {
+    phone_use_core::device::ScreenState {
+        on,
+        locked,
+        secure,
+        focused: true,
+    }
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_dark_screen_is_woken_before_the_action_and_the_reply_says_so() {
+    let (source, fake) = FakeSource::with(vec![tree(&["One"])]);
+    fake.set_screen(screen(false, false, false));
+    let (d, _home) = daemon(source);
+    let r = ok(&d, "default", "act", tap_point(10.0, 10.0)).await;
+    assert_eq!(r["woke"], true, "{r}");
+    assert!(r.get("unlocked").is_none(), "{r}");
+    let calls = fake.calls();
+    assert_eq!(calls[0], Call::Wake, "{calls:?}");
+    assert!(matches!(calls[1], Call::Gesture(_)), "{calls:?}");
+    let r = ok(&d, "default", "act", tap_point(10.0, 10.0)).await;
+    assert!(r.get("woke").is_none(), "an awake screen is not woken: {r}");
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_swipe_only_keyguard_is_swiped_away_before_the_action() {
+    let (source, fake) = FakeSource::with(vec![tree(&["One"])]);
+    fake.set_screen(screen(true, true, false));
+    let (d, _home) = daemon(source);
+    let r = ok(&d, "default", "act", tap_point(10.0, 10.0)).await;
+    assert_eq!(r["unlocked"], true, "{r}");
+    let calls = fake.calls();
+    assert_eq!(calls.len(), 2, "{calls:?}");
+    let Call::Gesture(swipe) = &calls[0] else {
+        panic!("{calls:?}")
+    };
+    let path = &swipe.fingers[0];
+    assert!(path.last().unwrap().at.y < path[0].at.y, "{swipe:?}");
+    assert!(matches!(calls[1], Call::Gesture(_)));
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_pin_keyguard_fails_needs_user_unlock_and_sends_no_input() {
+    let (source, fake) = FakeSource::with(vec![tree(&["One"])]);
+    fake.set_screen(screen(false, true, true));
+    let (d, _home) = daemon(source);
+    let e = err(&d, "default", "act", tap_point(10.0, 10.0)).await;
+    assert_eq!(e.code, -32005, "{e:?}");
+    assert_eq!(e.data["action"]["kind"], "unlock_device", "{e:?}");
+    assert_eq!(fake.calls(), vec![Call::Wake]);
+}
+
+#[tokio::test(start_paused = true)]
+async fn pressing_lock_does_not_wake_the_screen_first() {
+    let (source, fake) = FakeSource::with(vec![tree(&["One"])]);
+    fake.set_screen(screen(false, false, false));
+    let (d, _home) = daemon(source);
+    ok(
+        &d,
+        "default",
+        "act",
+        json!({"action": {"kind": "press", "key": "lock"}}),
+    )
+    .await;
+    assert_eq!(
+        fake.calls(),
+        vec![Call::Button(phone_use_core::device::Button::Lock)]
+    );
+}

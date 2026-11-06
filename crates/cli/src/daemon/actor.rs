@@ -8,11 +8,11 @@ use std::time::Duration;
 
 use phone_use_core::device::{
     App, Button, Capabilities, ClipboardOp, Device, DeviceEvent, FrameRef, Gesture, Key, Quality,
-    TextInput, TimedPoint, Url,
+    ScreenState, TextInput, TimedPoint, Url,
 };
 use phone_use_core::diff::{DiffOrFull, diff};
 use phone_use_core::element::{Actions, Element, ElementState, Ref, Role};
-use phone_use_core::error::{Direction, Error, Op};
+use phone_use_core::error::{Direction, Error, Op, UserAction};
 use phone_use_core::geometry::{Point, Rect, Size};
 use phone_use_core::gesture;
 use phone_use_core::prune::prune;
@@ -35,6 +35,8 @@ use crate::wire::{
 
 pub const LEASE_TTL: Duration = Duration::from_secs(600);
 const TICK: Duration = Duration::from_millis(5);
+const SCREEN_WAIT: Duration = Duration::from_secs(3);
+const KEYGUARD_WAIT: Duration = Duration::from_millis(1000);
 const MASK: &str = "•••";
 
 pub enum Call {
@@ -122,7 +124,7 @@ async fn next_signal(live: &mut Option<Live>) -> Signal {
         e = l.events.recv() => match e {
             Ok(DeviceEvent::WindowChanged { .. }) | Err(broadcast::error::RecvError::Lagged(_)) => Signal::Window,
             Ok(DeviceEvent::DisplayChanged { screen, .. }) => Signal::Display(screen),
-            Ok(DeviceEvent::Gone) => Signal::Gone,
+            Ok(DeviceEvent::Gone | DeviceEvent::DensityChanged) => Signal::Gone,
             Ok(DeviceEvent::Locked(_)) => Signal::Ignored,
             Err(broadcast::error::RecvError::Closed) => pending().await,
         },
@@ -553,7 +555,96 @@ impl Actor {
         s.resolve(target, &now)
     }
 
+    /// Wakes a dark screen, swipes a swipe-only lock screen away, and refuses a PIN lock (architecture 6.3).
+    async fn prepare(&mut self, action: &Action) -> Result<(bool, bool), Error> {
+        if matches!(action, Action::Press { key } if key == "lock") {
+            return Ok((false, false));
+        }
+        let device = self.device()?;
+        let mut state = device.screen_state().await?;
+        let (mut woke, mut unlocked) = (false, false);
+        if !state.on {
+            device.wake().await?;
+            woke = true;
+            state = self.until_screen(true, "the screen to turn on").await?;
+            // Observed on API 26: the keyguard reports locked a few hundred ms after the screen reports on.
+            let started = Instant::now();
+            while !state.locked && started.elapsed() < KEYGUARD_WAIT {
+                tokio::time::sleep(Duration::from_millis(100)).await;
+                state = device.screen_state().await?;
+            }
+        }
+        if state.locked {
+            if state.secure {
+                return Err(Error::NeedsUser {
+                    action: UserAction::UnlockDevice,
+                });
+            }
+            let screen = self.screen_rect();
+            // A drag that starts on a notification card (the middle of the screen on API 26) does not unlock.
+            let start = Point {
+                x: screen.w / 2.0,
+                y: screen.h * 0.9,
+            };
+            device
+                .gesture(gesture::swipe_from(start, screen, Direction::Up, 0.6, true))
+                .await?;
+            self.until_screen(false, "the lock screen to go away")
+                .await?;
+            unlocked = true;
+        }
+        if woke || unlocked {
+            // Observed on API 26 and 37: input sent as soon as the screen is on and unlocked is rejected
+            // by the dispatcher until a window has input focus again, and on API 26 the tree lists only
+            // system windows, then part of the app, until the app's window is back.
+            let started = Instant::now();
+            let mut last_len = 0;
+            while started.elapsed() < SCREEN_WAIT {
+                let tree = device.tree().await?;
+                let stable = tree.nodes.len() == last_len;
+                last_len = tree.nodes.len();
+                let app_is_back = tree.nodes.iter().any(|n| {
+                    tree.windows
+                        .iter()
+                        .any(|w| w.id == n.window && w.kind == "application")
+                });
+                if app_is_back && stable && device.screen_state().await?.focused {
+                    break;
+                }
+                tokio::time::sleep(Duration::from_millis(100)).await;
+            }
+        }
+        Ok((woke, unlocked))
+    }
+
+    async fn until_screen(&self, wait_for_on: bool, what: &str) -> Result<ScreenState, Error> {
+        let device = self.device()?;
+        let started = Instant::now();
+        loop {
+            let state = device.screen_state().await?;
+            let done = if wait_for_on { state.on } else { !state.locked };
+            if done {
+                return Ok(state);
+            }
+            if started.elapsed() > SCREEN_WAIT {
+                return Err(Error::Timeout {
+                    waited_ms: started.elapsed().as_millis() as u32,
+                    condition: what.to_string(),
+                });
+            }
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        }
+    }
+
     async fn act(&mut self, s: &mut Session, p: ActParams) -> Result<ActionResult, Error> {
+        let (woke, unlocked) = self.prepare(&p.action).await?;
+        let mut result = self.act_now(s, p).await?;
+        result.woke = woke;
+        result.unlocked = unlocked;
+        Ok(result)
+    }
+
+    async fn act_now(&mut self, s: &mut Session, p: ActParams) -> Result<ActionResult, Error> {
         let mut cfg = Config::action();
         if let Some(t) = p.timeout_ms {
             cfg.timeout = Duration::from_millis(t);
@@ -748,6 +839,7 @@ impl Actor {
                     .unwrap_or_default();
                 let verify = Verify {
                     field: r.element.map(|e| e.r#ref),
+                    clear: true,
                     text: String::new(),
                     secure,
                 };
@@ -820,6 +912,7 @@ impl Actor {
                     .unwrap_or_default();
                 let summary = format!("typed {n} chars{label}");
                 let verify = Verify {
+                    clear: false,
                     field: field.map(|f| f.r#ref),
                     text: text.clone(),
                     secure,
@@ -1029,6 +1122,8 @@ impl Actor {
             settled,
             settle_ms: ms,
             changed,
+            woke: false,
+            unlocked: false,
             observation,
         })
     }
@@ -1081,6 +1176,8 @@ impl Actor {
             settled: true,
             settle_ms: ms,
             changed: true,
+            woke: false,
+            unlocked: false,
             observation,
         })
     }
@@ -1145,6 +1242,8 @@ fn delivered(s: &Session, summary: String, via: Option<&'static str>) -> ActionR
         settled: false,
         settle_ms: 0,
         changed: false,
+        woke: false,
+        unlocked: false,
         observation: Observation {
             header: s
                 .last
@@ -1166,6 +1265,8 @@ fn delivered(s: &Session, summary: String, via: Option<&'static str>) -> ActionR
 
 struct Verify {
     field: Option<Ref>,
+    /// The field should now be empty.
+    clear: bool,
     text: String,
     secure: bool,
 }
@@ -1186,9 +1287,9 @@ impl Verify {
             return false;
         };
         let Some(value) = e.value.as_deref() else {
-            return self.text.is_empty();
+            return self.clear;
         };
-        if self.text.is_empty() {
+        if self.clear {
             return value.is_empty();
         }
         if self.secure || is_secure(e) {
