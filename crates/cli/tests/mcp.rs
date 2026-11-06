@@ -303,3 +303,17 @@ async fn a_secret_typed_over_mcp_reaches_no_reply_no_trace_and_no_file() {
         );
     }
 }
+
+#[tokio::test]
+async fn scroll_over_mcp_reaches_the_daemon_with_every_argument_shape() {
+    let rig = rig(vec![tree(&["One", "Two"])]).await;
+    rig.call("snapshot", json!({})).await;
+    for args in [
+        json!({"direction": "down"}),
+        json!({"direction": "down", "until": "Two"}),
+        json!({"direction": "down", "in": "@e1"}),
+    ] {
+        let r = rig.call("scroll", args.clone()).await;
+        assert_ne!(r.is_error, Some(true), "{args}: {r:?}");
+    }
+}

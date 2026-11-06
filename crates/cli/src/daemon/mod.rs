@@ -146,8 +146,8 @@ impl Daemon {
                     "health" => Call::Health,
                     "clipboard" => Call::Clipboard(rpc::params(params)?),
                     "act" => {
-                        let act: ActParams = rpc::params(params)
-                            .map_err(|_| RpcError::invalid_params("the action is malformed"))?;
+                        let act: ActParams = serde_json::from_value(params.clone())
+                            .map_err(|e| act_error(&e, params))?;
                         if let Action::Gesture { fingers } = &act.action
                             && (fingers.is_empty() || fingers.iter().any(|f| f.len() < 2))
                         {
@@ -310,4 +310,14 @@ impl Daemon {
             }
         }
     }
+}
+
+fn act_error(e: &serde_json::Error, params: &Value) -> RpcError {
+    let kind = params["action"]["kind"].as_str().unwrap_or_default();
+    if e.to_string().starts_with("unknown variant") && kind.len() <= 32 {
+        return RpcError::invalid_params(format!(
+            "this daemon does not know the action `{kind}`: it is older than the client, so stop it and run the command again to start a new one"
+        ));
+    }
+    RpcError::invalid_params("the action is malformed")
 }
