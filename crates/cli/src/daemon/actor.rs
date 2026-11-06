@@ -44,6 +44,9 @@ const TICK: Duration = Duration::from_millis(5);
 const SCREEN_WAIT: Duration = Duration::from_secs(3);
 const KEYGUARD_WAIT: Duration = Duration::from_millis(1000);
 const WAIT_DEBOUNCE: Duration = Duration::from_millis(100);
+/// Typed text is already in the field when the call returns (the paste waits for it), so unlike after a tap there is
+/// no effect still to come: the first-change wait and the quiet period after it are short.
+const TYPED_QUIET: Duration = Duration::from_millis(150);
 const MASK: &str = "•••";
 
 pub enum Call {
@@ -1412,6 +1415,15 @@ impl Actor {
                     submitted: submit,
                 };
                 let mask = secret.then_some(text);
+                let cfg = if submit || p.expect_change_ms.is_some() {
+                    cfg
+                } else {
+                    Config {
+                        expect_change: Some(TYPED_QUIET),
+                        quiet: TYPED_QUIET,
+                        ..cfg
+                    }
+                };
                 self.finish(
                     s,
                     p.settle,
