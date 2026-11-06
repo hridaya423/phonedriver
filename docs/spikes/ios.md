@@ -124,3 +124,11 @@ Measured on the iPad after the fix (development build with `CARGO_PROFILE_DEV_PA
 ## I5: signing-free tree from the audit service (not run)
 
 Not attempted. The CoreDevice tier returns an empty tree for the session to read with OCR (Phase 7), and the runner provides the tree where it is installed. `axAuditDaemon.remoteAXService` is listed on both devices (I2); walking it remains open.
+
+### I6 follow-up: cheap publish, release-build stability, and two gaps (2026-11-06, iPad iOS 27.0, battery 28% charging)
+
+Change: `Frame::turned_cw()` marks the quarter turn instead of doing it (115 ms in a debug build); the thumbnail for the settle detector is computed straight from the unturned luma plane (test `a_turned_frame_has_the_thumbnail_and_size_of_its_upright_picture`); `encode_png` turns the picture only when a screenshot is taken. `decode_stream` now takes `Pacing`: it shows the newest picture when the queue is empty or every 100 ms during a backlog, and above 400 waiting datagrams only decodes and counts `FrameStore::publishes_skipped` (a skip is the observed failure mode: a starved host, I6 above). Per-stage cost was not re-timed in isolation; the end-to-end release run below is the evidence.
+
+Release build (`CARGO_INCREMENTAL=0 cargo build --release -p phone-use`), own daemon with `PHONE_USE_IOS_TIER=coredevice`, host load average 3 to 15: 135 s of alternating taps on B3 and B7, one per second plus the settle wait: 95 taps, 0 missed changes (`changed` true for each), tap-to-settled-diff p50 430 ms p95 524 ms; the testbed's event log holds exactly 95 `tap` events in that window, alternating b3, b7. No backlog was seen.
+
+Not met, found on the way: (1) the stream is not turned by device orientation. With the testbed in landscape the screenshot comes out sideways (1032x1368, content rotated), and taps must be given in that frame's coordinates (B3 at 661,1188), not the app's. The tier assumes the portrait case measured earlier. (2) The tier has no accessibility tree: `snapshot` is OCR text without refs, so tap-by-text and refs do not work. Because of both, CoreDevice stays opt-in.

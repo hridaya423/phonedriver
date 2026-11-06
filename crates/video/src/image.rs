@@ -47,6 +47,7 @@ pub fn scaled_size(width: u32, height: u32, scale: f32) -> (u32, u32) {
 
 /// PNG of `frame` at `scale` times its pixel size (BT.601 limited range, as the agent's encoder writes it).
 pub fn encode_png(frame: &Frame, scale: f32) -> Result<Vec<u8>, EncodeError> {
+    let frame = &*frame.upright();
     let (w, h) = (frame.width as usize, frame.height as usize);
     let (ow, oh) = scaled_size(frame.width, frame.height, scale);
     let (ow, oh) = (ow as usize, oh as usize);
