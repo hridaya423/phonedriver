@@ -18,7 +18,7 @@ use crate::daemon::trace::TraceOptions;
 use crate::daemon::{Config, Daemon, socket};
 use crate::wire::{ActionResult, DeviceEntry, Kind, Observation, ScreenshotResult, VERSION};
 
-const USAGE: &str = "usage: phone-use <command>\n\ncommands:\n  devices\n  snapshot\n  screenshot\n  find\n  launch\n  open\n  apps\n  swipe\n  scroll\n  gesture\n  tap\n  type\n  clear\n  clipboard\n  press\n  wait\n  release\n  daemon\n  doctor\n  mcp\n  skill\n  version";
+const USAGE: &str = "usage: phone-use <command>\n\ncommands:\n  devices\n  snapshot\n  screenshot\n  find\n  launch\n  open\n  apps\n  swipe\n  scroll\n  gesture\n  tap\n  type\n  clear\n  clipboard\n  press\n  wait\n  release\n  daemon\n  doctor\n  ios\n  mcp\n  skill\n  version";
 
 #[derive(Parser)]
 #[command(name = "phone-use", disable_help_subcommand = true)]
@@ -171,8 +171,20 @@ pub(crate) enum Verb {
     Mcp,
     /// Print SKILL.md, the instructions an agent reads before it uses phone-use.
     Skill,
+    /// Prepare a physical iOS device: pairing, Developer Mode, the developer disk image.
+    Ios {
+        #[command(subcommand)]
+        command: IosCommand,
+    },
     /// Print the version.
     Version,
+}
+
+#[derive(Subcommand, Debug)]
+pub enum IosCommand {
+    /// Check each wired device and do what needs no one at the device: show the Developer Mode switch, mount the
+    /// developer disk image with Xcode's tool (the only step that talks to Apple). Prints `ok` for steps already done.
+    Setup,
 }
 
 pub fn run(cli: Cli) -> ExitCode {
@@ -197,6 +209,15 @@ pub fn run(cli: Cli) -> ExitCode {
         Verb::Skill => {
             print!("{}", include_str!("../../../SKILL.md"));
             ExitCode::SUCCESS
+        }
+        Verb::Ios {
+            command: IosCommand::Setup,
+        } => {
+            if crate::doctor::ios_setup() {
+                ExitCode::SUCCESS
+            } else {
+                ExitCode::from(1)
+            }
         }
         Verb::Doctor => {
             if crate::doctor::run(&socket::home()) {
@@ -579,9 +600,12 @@ pub(crate) async fn execute_with(
                 "released".into()
             })
         }
-        Verb::Daemon { .. } | Verb::Doctor | Verb::Mcp | Verb::Skill | Verb::Version => {
-            Ok(String::new())
-        }
+        Verb::Daemon { .. }
+        | Verb::Doctor
+        | Verb::Ios { .. }
+        | Verb::Mcp
+        | Verb::Skill
+        | Verb::Version => Ok(String::new()),
     }
 }
 
