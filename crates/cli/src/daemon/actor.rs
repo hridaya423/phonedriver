@@ -8,8 +8,8 @@ use std::time::Duration;
 
 use base64::Engine;
 use phone_use_core::device::{
-    App, AppOp, Button, Capabilities, ClipboardOp, Device, DeviceEvent, FrameRef, Gesture, Key,
-    Quality, ScreenState, ShellRequest, TextInput, TimedPoint, Url,
+    App, AppId, AppOp, Button, Capabilities, ClipboardOp, Device, DeviceEvent, FrameRef, Gesture,
+    Key, Quality, ScreenState, ShellRequest, TextInput, TimedPoint, Url,
 };
 use phone_use_core::diff::{DiffOrFull, diff};
 use phone_use_core::element::{Actions, Element, ElementState, Ref, Role, Source};
@@ -50,6 +50,7 @@ const TYPED_QUIET: Duration = Duration::from_millis(150);
 const TREE_STEP: Duration = Duration::from_millis(100);
 const TREE_STABLE_WAIT: Duration = Duration::from_secs(1);
 const LOADING_WAIT: Duration = Duration::from_secs(4);
+const LEAVE_WAIT: Duration = Duration::from_millis(2500);
 const MASK: &str = "•••";
 
 pub enum Call {
@@ -935,13 +936,13 @@ impl Actor {
             unlocked = true;
         }
         if woke || unlocked {
-            self.until_app_content().await?;
+            self.until_app_content(None).await?;
         }
         self.awake = Some(self.now());
         Ok((woke, unlocked))
     }
 
-    async fn until_app_content(&self) -> Result<(), Error> {
+    async fn until_app_content(&self, leaving: Option<&AppId>) -> Result<(), Error> {
         let device = self.device()?;
         // Observed on API 26 and 37: input sent as soon as the screen is on and unlocked is rejected
         // by the dispatcher until a window has input focus again, and on API 26 the tree lists only
@@ -972,9 +973,12 @@ impl Actor {
                 .any(|(i, n)| n.role == Role::WebView && tree.children(i).next().is_none());
             last_len = tree.nodes.len();
             let app_is_back = tree.nodes.iter().any(|n| {
-                tree.windows
-                    .iter()
-                    .any(|w| w.id == n.window && w.kind == "application")
+                tree.windows.iter().any(|w| {
+                    w.id == n.window
+                        && w.kind == "application"
+                        && (started.elapsed() > LEAVE_WAIT
+                            || leaving.is_none_or(|l| w.package.as_deref() != Some(l.0.as_str())))
+                })
             });
             if app_is_back && stable && !page_pending && device.screen_state().await?.focused {
                 break;
@@ -1212,9 +1216,10 @@ impl Actor {
                     .expect_change_ms
                     .map(Duration::from_millis)
                     .or(Config::launch().expect_change);
+                let leaving = device.foreground().await?.filter(|f| *f != found.id);
                 let started = self.begin_action();
                 device.launch(&found.id).await?;
-                self.until_app_content().await?;
+                self.until_app_content(leaving.as_ref()).await?;
                 s.last = None;
                 let summary = if grant.is_empty() {
                     format!("launched {}", found.name)
@@ -1234,9 +1239,10 @@ impl Actor {
                     .expect_change_ms
                     .map(Duration::from_millis)
                     .or(Config::launch().expect_change);
+                let leaving = device.foreground().await?;
                 let started = self.begin_action();
                 device.open_url(&Url(url.clone())).await?;
-                self.until_app_content().await?;
+                self.until_app_content(leaving.as_ref()).await?;
                 let summary = format!("opened {url}");
                 self.finish(s, p.settle, cfg, started, summary, None, None, None)
                     .await

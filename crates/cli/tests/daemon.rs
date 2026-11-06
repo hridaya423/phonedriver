@@ -432,7 +432,11 @@ async fn a_progress_bar_that_never_goes_away_costs_at_most_four_seconds_of_waiti
     let r = ok(&d, "default", "act", tap_point(10.0, 10.0)).await;
     assert_eq!(r["ok"], true);
     assert_eq!(r["observation"]["loading"], true, "{r}");
-    assert!(started.elapsed() < Duration::from_secs(5), "{:?}", started.elapsed());
+    assert!(
+        started.elapsed() < Duration::from_secs(5),
+        "{:?}",
+        started.elapsed()
+    );
 }
 
 #[tokio::test(start_paused = true)]
@@ -1393,6 +1397,50 @@ async fn launch_by_name_in_any_case_or_by_package_foregrounds_the_app_and_return
             fake.calls()
         );
     }
+}
+
+fn tree_of(package: &str, labels: &[&str]) -> RawTree {
+    let mut nodes = vec![
+        r#"{"p":-1,"w":1,"cls":"android.widget.FrameLayout","b":[0,0,360,800],"f":"vVe"}"#
+            .to_string(),
+    ];
+    for (i, l) in labels.iter().enumerate() {
+        let top = 100 + 100 * i as i32;
+        nodes.push(format!(
+            r#"{{"p":0,"w":1,"cls":"android.widget.Button","text":"{l}","b":[0,{top},360,{}],"f":"vVe","a":["tap"]}}"#,
+            top + 60
+        ));
+    }
+    let json = format!(
+        r#"{{"windows":[{{"id":1,"type":"application","package":"{package}","bounds":[0,0,360,800]}}],"nodes":[{}]}}"#,
+        nodes.join(",")
+    );
+    RawTree::from_android_json(&json, Scale { density: 1.0 }).unwrap()
+}
+
+#[tokio::test(start_paused = true)]
+async fn opening_a_link_from_the_launcher_waits_for_another_app_to_come_to_the_front() {
+    let home = || tree_of("com.launcher", &["Gmail", "Chrome"]);
+    let (source, fake) = FakeSource::with(vec![
+        home(),
+        home(),
+        home(),
+        home(),
+        tree_of("com.chrome", &["Stay signed out"]),
+    ]);
+    fake.launch(&AppId("com.launcher".into())).await.unwrap();
+    let (d, _home) = daemon(source);
+    ok(&d, "default", "snapshot", json!({})).await;
+    let r = ok(
+        &d,
+        "default",
+        "act",
+        act_with(json!({"kind": "open", "url": "https://example.org"})),
+    )
+    .await;
+    let text = r["observation"]["text"].as_str().unwrap();
+    assert!(text.contains("com.chrome"), "{text}");
+    assert!(text.contains("Stay signed out"), "{text}");
 }
 
 fn web_tree(loaded: bool) -> RawTree {
