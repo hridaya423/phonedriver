@@ -232,7 +232,7 @@ fn for_mcp(hint: &str) -> String {
             "`mode` `paste` or `keys`",
         ),
         ("`--mode keys`", "`mode` `keys`"),
-        ("`--in <list ref>`", "`in` with the list's ref"),
+        ("`--within <list ref>`", "`in` with the list's ref"),
         ("`--device <id>`", "`device`"),
         ("`--timeout`", "`timeout_ms`"),
         ("`--max`", "`max`"),

@@ -21,15 +21,37 @@ use phone_use_core::error::span;
 
 use crate::wire::{ActionResult, DeviceEntry, Kind, Observation, ScreenshotResult, VERSION};
 
-const USAGE: &str = "usage: phone-use <command>\n\ncommands:\n  devices\n  snapshot\n  screenshot\n  find\n  launch\n  open\n  apps\n  swipe\n  scroll\n  gesture\n  tap\n  type\n  clear\n  clipboard\n  press\n  wait\n  release\n  daemon\n  doctor\n  ios\n  mcp\n  skill\n  version";
+const USAGE: &str = "usage: phone-use <command>\n\nrun `phone-use --help` for the options and exit codes\n\ncommands:\n  devices\n  snapshot\n  screenshot\n  find\n  launch\n  open\n  apps\n  swipe\n  scroll\n  gesture\n  tap\n  type\n  clear\n  clipboard\n  press\n  wait\n  release\n  daemon\n  doctor\n  ios\n  mcp\n  skill\n  version";
+
+const AFTER_HELP: &str = "Examples:
+  phone-use devices
+  phone-use snapshot
+  phone-use tap \"Dark theme\"
+  phone-use scroll down --until \"About\"
+
+Exit codes:
+  0  done
+  1  the command failed (the message says why)
+  2  the command line is wrong
+  3  a person must act on the device (unlock, trust, allow); the message says what
+  4  no device matches, or it was disconnected
+
+When something goes wrong, see Debugging in the README: traces, daemon.log and the runner log.
+Settings by environment variable are in the README's table (PHONE_USE_HOME, PHONE_USE_TEAM, ...).";
 
 #[derive(Parser)]
-#[command(name = "phone-use", version, disable_help_subcommand = true)]
+#[command(
+    name = "phone-use",
+    version,
+    disable_help_subcommand = true,
+    after_help = AFTER_HELP,
+    next_help_heading = "Global options"
+)]
 pub struct Cli {
-    /// The device id or serial; with one device connected it is the default.
+    /// The device to use: an id from `phone-use devices` such as `android:emulator-5554` or `sim:<udid>`, or just the part after the colon. With one device connected it is the default.
     #[arg(long, global = true, env = "PHONE_USE_DEVICE")]
     device: Option<String>,
-    /// Refs, diff baselines and the device lease belong to a session.
+    /// A name for this agent's refs, diff baselines and device lease. Give each agent that shares a daemon its own.
     #[arg(
         long,
         global = true,
@@ -40,20 +62,81 @@ pub struct Cli {
     /// Print the daemon's result as JSON.
     #[arg(long, global = true)]
     json: bool,
-    /// Do not wait for the screen to settle.
+    /// Do not wait for the screen to settle after the action.
     #[arg(long, global = true)]
     no_settle: bool,
-    /// Settle timeout in milliseconds.
+    /// How long to wait for the screen to settle, in milliseconds.
     #[arg(long, global = true)]
     timeout: Option<u64>,
     /// How long to wait for an action's first visible change, in milliseconds (default 500).
     #[arg(long, global = true)]
     expect_change: Option<u64>,
-    /// Use a device another session holds.
+    /// Use a device that another session holds the lease on.
     #[arg(long, global = true)]
     share: bool,
     #[command(subcommand)]
     command: Option<Verb>,
+}
+
+const UNUSED_GLOBALS: &[(&str, &[&str])] = &[
+    (
+        "devices",
+        &["session", "no_settle", "timeout", "expect_change", "share"],
+    ),
+    ("snapshot", &["expect_change"]),
+    ("wait", &["no_settle"]),
+    ("screenshot", &["no_settle", "timeout", "expect_change"]),
+    ("apps", &["no_settle", "timeout", "expect_change"]),
+    ("find", &["no_settle", "timeout", "expect_change"]),
+    ("clipboard", &["no_settle", "timeout", "expect_change"]),
+    ("release", &["no_settle", "timeout", "expect_change"]),
+    ("daemon", ALL_GLOBALS),
+    ("doctor", ALL_GLOBALS),
+    ("mcp", ALL_GLOBALS),
+    ("skill", ALL_GLOBALS),
+    ("version", ALL_GLOBALS),
+    ("ios", ALL_GLOBALS),
+];
+
+const ALL_GLOBALS: &[&str] = &[
+    "device",
+    "session",
+    "json",
+    "no_settle",
+    "timeout",
+    "expect_change",
+    "share",
+];
+
+fn ignored_here(id: &'static str) -> clap::Arg {
+    let long: &'static str = match id {
+        "no_settle" => "no-settle",
+        "expect_change" => "expect-change",
+        "device" => "device",
+        "session" => "session",
+        "json" => "json",
+        "timeout" => "timeout",
+        _ => "share",
+    };
+    let arg = clap::Arg::new(id).long(long).hide(true);
+    match id {
+        "json" | "no_settle" | "share" => arg.action(clap::ArgAction::SetTrue),
+        _ => arg.num_args(1),
+    }
+}
+
+fn without_globals(cmd: clap::Command, unused: &[&'static str]) -> clap::Command {
+    cmd.args(unused.iter().map(|id| ignored_here(id)))
+}
+
+/// The command line, with each global option left out of the help of the commands that ignore it. A command that
+/// declares an option of the same name keeps clap from handing it the global one.
+pub fn command() -> clap::Command {
+    let mut cmd = <Cli as clap::CommandFactory>::command();
+    for (verb, unused) in UNUSED_GLOBALS {
+        cmd = cmd.mut_subcommand(*verb, |s| without_globals(s, unused));
+    }
+    cmd
 }
 
 const DIRECTIONS: [&str; 4] = ["up", "down", "left", "right"];
@@ -64,12 +147,16 @@ pub(crate) enum Verb {
     Devices,
     /// Print what is on screen, or what changed since the last observation.
     Snapshot {
+        /// Print only what changed since the last observation.
         #[arg(long)]
         diff: bool,
+        /// Print only the elements that can be tapped, typed into or scrolled.
         #[arg(long)]
         interactive: bool,
-        #[arg(long)]
+        /// Print only this element's subtree: `@ref`.
+        #[arg(long, alias = "in")]
         within: Option<String>,
+        /// Cut the output to this many lines.
         #[arg(long)]
         max_lines: Option<usize>,
         /// Read the screen's pixels with OCR and add the text the tree lacks. Done automatically when the tree is empty or a web view has no children.
@@ -78,16 +165,19 @@ pub(crate) enum Verb {
         /// Save the device's own tree and a screenshot as a test fixture.
         #[arg(long)]
         save_fixture: Option<String>,
+        /// Where `--save-fixture` writes; the default is the core crate's fixture directory.
         #[arg(long)]
         fixture_dir: Option<PathBuf>,
     },
     /// Save a screenshot at one pixel per point and print its path.
     Screenshot {
+        /// Write the PNG here, on this machine, instead of printing the path on the daemon's machine.
         #[arg(short, long)]
         output: Option<PathBuf>,
     },
     /// Tap `@ref`, `x,y` in points, or the element with this text.
     Tap {
+        /// `@ref` from a snapshot, `x,y` in points, or the text of the element.
         target: String,
         /// With a text target, only an element with this role (`button`, `cell`, `textbox`, ...).
         #[arg(long)]
@@ -100,11 +190,20 @@ pub(crate) enum Verb {
         long: Option<u32>,
     },
     /// Play fingers with timed paths, in points: `{"fingers": [[{"x": 100, "y": 300, "t_ms": 0}, {"x": 50, "y": 300, "t_ms": 300}]]}`.
-    Gesture { spec: String },
+    Gesture {
+        /// The fingers as JSON.
+        spec: String,
+    },
     /// Open an app by name or package and show its first screen.
-    Launch { app: String },
+    Launch {
+        /// The app's name, package or bundle id; `phone-use apps` lists them.
+        app: String,
+    },
     /// Open a web link or deep link in the app that handles it.
-    Open { url: String },
+    Open {
+        /// The link, such as `https://example.com` or `myapp://item/3`.
+        url: String,
+    },
     /// List the apps that can be launched.
     Apps,
     /// Drag from the middle of the screen, or of `--from`, the way a finger does.
@@ -112,11 +211,13 @@ pub(crate) enum Verb {
         /// Where the finger moves.
         #[arg(value_parser = DIRECTIONS)]
         direction: String,
+        /// Start the drag at this element or point: `@ref`, `x,y` or text.
         #[arg(long)]
         from: Option<String>,
         /// Share of the screen to cross, 0 to 1; the default is 0.5.
         #[arg(long)]
         distance: Option<f32>,
+        /// Drag quickly, which lets a list fling.
         #[arg(long)]
         fast: bool,
     },
@@ -125,50 +226,71 @@ pub(crate) enum Verb {
         /// Which way more content should show.
         #[arg(value_parser = DIRECTIONS)]
         direction: String,
-        /// The element to scroll; the default is the largest scrollable one.
-        #[arg(long = "in")]
+        /// The element to scroll: `@ref` or text. The default is the largest scrollable one.
+        #[arg(long, alias = "in")]
         within: Option<String>,
+        /// Keep scrolling until this text or `@ref` is on screen.
         #[arg(long)]
         until: Option<String>,
+        /// Give up after this many scrolls (the default is 30).
         #[arg(long)]
         max: Option<u32>,
     },
     /// List the elements whose text contains this text, in any case.
     Find {
+        /// The text to look for.
         text: String,
+        /// Only elements with this role, such as `button` or `cell`.
         #[arg(long)]
         role: Option<String>,
     },
     /// Type text into a field. Secrets come from stdin or PHONE_USE_SECRET, never from arguments.
     Type {
+        /// The text. Leave it out with `--secret`.
         text: Option<String>,
+        /// Tap this field first: `@ref`, `x,y` or the field's text.
         #[arg(long)]
         into: Option<String>,
+        /// How to enter it: `paste` (fast), `set` (replace the field's value) or `keys` (one key at a time).
         #[arg(long, value_parser = ["paste", "set", "keys"])]
         mode: Option<String>,
+        /// Press enter after the text.
         #[arg(long)]
         submit: bool,
+        /// Read the text from stdin or PHONE_USE_SECRET and keep it out of logs and traces.
         #[arg(long)]
         secret: bool,
     },
     /// Empty a text field: `@ref`, `x,y` or the field's text.
-    Clear { target: String },
+    Clear {
+        /// `@ref`, `x,y` or the field's text.
+        target: String,
+    },
     /// Print the device clipboard, or set it with `clipboard set <text>`.
     Clipboard {
+        /// `get` (the default) or `set`.
         #[arg(value_parser = ["get", "set"])]
         action: Option<String>,
+        /// The text for `set`.
         text: Option<String>,
     },
     /// Press a button or key: home, back, recents, notifications, lock, volume-up, volume-down, enter, hide-keyboard.
-    Press { key: String },
+    Press {
+        /// The key or button.
+        key: String,
+    },
     /// Wait for `settled`, for a text or `@ref` to appear, or for `gone:<text>` (or `gone:@ref`) to leave the screen.
-    Wait { condition: String },
+    Wait {
+        /// `settled`, a text or `@ref` to appear, or `gone:<text>` (or `gone:@ref`) to leave.
+        condition: String,
+    },
     /// Give up this session's lease on the device.
     Release,
     /// Run the daemon in the foreground or detached; `daemon stop` ends the running one.
     Daemon {
         #[command(subcommand)]
         command: Option<DaemonCommand>,
+        /// Run detached from the terminal; the CLI starts the daemon this way when none is running.
         #[arg(long)]
         detach: bool,
         /// Keep observation text and text targets in the trace files.
@@ -178,7 +300,7 @@ pub(crate) enum Verb {
         #[arg(long, env = "PHONE_USE_TRACE_SCREENS", value_parser = BoolishValueParser::new())]
         trace_screens: bool,
     },
-    /// Check Xcode, booted simulators and their runners; each line says ok, warn or fail, with a fix.
+    /// Check adb, Android devices and their agent, Xcode, booted simulators and their runners, wired iPhones, and the daemon socket; each line says ok, warn or fail, with a fix.
     Doctor,
     /// Serve the tools over MCP on stdio.
     Mcp,
