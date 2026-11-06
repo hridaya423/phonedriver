@@ -133,6 +133,7 @@ pub fn prune(tree: &RawTree) -> Vec<Node> {
             .any(|win| win.id == w && win.kind == "input_method")
     };
     let mut out: Vec<Node> = Vec::new();
+    let mut seen = std::collections::HashSet::new();
     let mut kept_as: Vec<Option<usize>> = vec![None; n];
     for i in reading_order(tree, &children) {
         let node = &tree.nodes[i];
@@ -192,12 +193,28 @@ pub fn prune(tree: &RawTree) -> Vec<Node> {
         if !keep {
             continue;
         }
+        // iOS lists every disabled row chevron as a button named "chevron" after its row.
+        if node.role == Role::Button
+            && !node.flags.contains(NodeFlags::ENABLED)
+            && label.as_deref() == Some("chevron")
+        {
+            continue;
+        }
         let mut role = node.role;
         if role == Role::Other && node.actions.intersects(Actions::TAP | Actions::LONG_PRESS) {
             role = Role::Button;
         }
         let parent =
             std::iter::successors(node.parent, |&p| tree.nodes[p].parent).find_map(|p| kept_as[p]);
+        let key = (
+            parent,
+            role,
+            label.clone(),
+            [bounds.x, bounds.y, bounds.w, bounds.h].map(f32::to_bits),
+        );
+        if label.is_some() && !seen.insert(key) {
+            continue;
+        }
         kept_as[i] = Some(out.len());
         out.push(Node {
             raw: i,
@@ -622,5 +639,21 @@ mod tests {
             labels_and_roles(&nodes),
             [(Role::Button, "Buy".to_string())]
         );
+    }
+
+    #[test]
+    fn a_disabled_chevron_is_dropped_and_an_exact_duplicate_sibling_is_dropped() {
+        let json = r#"{"app":{"bundle_id":"x","pid":1},"nodes":[
+            {"p":-1,"cls":"XCUIElementTypeTable","b":[0,0,400,800],"f":"vVeS","a":["scroll_down"]},
+            {"p":0,"cls":"XCUIElementTypeButton","text":"General","a":["tap"],"b":[0,100,350,150],"f":"vVe"},
+            {"p":0,"cls":"XCUIElementTypeButton","text":"chevron","a":["tap"],"b":[360,110,380,140],"f":"vV"},
+            {"p":0,"cls":"XCUIElementTypeButton","text":"Dictate","a":["tap"],"b":[300,200,350,250],"f":"vVe"},
+            {"p":0,"cls":"XCUIElementTypeButton","text":"Dictate","a":["tap"],"b":[300,200,350,250],"f":"vVe"},
+            {"p":0,"cls":"XCUIElementTypeButton","text":"Dictate","a":["tap"],"b":[300,300,350,350],"f":"vVe"}
+        ]}"#;
+        let nodes = prune(&RawTree::from_ios_json(json).unwrap());
+        let shown: Vec<String> = nodes.iter().filter_map(|n| n.label.clone()).collect();
+        assert_eq!(shown, ["General", "Dictate", "Dictate"]);
+        assert_eq!(nodes[3].bounds.y, 300.0, "the same label elsewhere stays");
     }
 }
