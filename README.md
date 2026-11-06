@@ -8,9 +8,9 @@
 <p align="center"><b>One Rust binary. Your agent reads an Android or iOS screen as text, taps a ref, and gets back what changed.</b></p>
 
 <p align="center">
-  <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-FF4A1C?style=flat-square&labelColor=15140F"></a>
-  <img alt="Rust 1.99 or later" src="https://img.shields.io/badge/rust-1.99%2B-FF4A1C?style=flat-square&labelColor=15140F">
-  <img alt="Tested on Android emulators and the iOS Simulator" src="https://img.shields.io/badge/tested-android%20%7C%20ios%20simulator-FF4A1C?style=flat-square&labelColor=15140F">
+  <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-FFD400?style=flat-square&labelColor=0B0B0C"></a>
+  <img alt="Rust 1.99 or later" src="https://img.shields.io/badge/rust-1.99%2B-FFD400?style=flat-square&labelColor=0B0B0C">
+  <img alt="Tested on Android emulators and the iOS Simulator" src="https://img.shields.io/badge/tested-android%20%7C%20ios%20simulator-FFD400?style=flat-square&labelColor=0B0B0C">
 </p>
 
 <p align="center">
@@ -189,11 +189,11 @@ Tests that need a device are ignored by default. Set `PHONE_USE_TEST_DEVICE` (fo
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset=".github/assets/brand-dark.svg">
-    <img alt="Brand sheet: ink, paper, tap orange, and the added, removed and changed colors. JetBrains Mono is the one typeface." src=".github/assets/brand-light.svg" width="100%">
+    <img alt="Brand sheet: the lockups, the mark, the colours ink, bone and contact yellow, and the two typefaces Big Shoulders Display and JetBrains Mono." src=".github/assets/brand-light.svg" width="100%">
   </picture>
 </p>
 
-The mark is a phone screen of text lines with a tap landing on one. The wordmark is drawn, and its hyphen is the tap. [`.github/assets/mark.svg`](.github/assets/mark.svg) is the app icon. Text in the assets is JetBrains Mono, converted to outlines, under the SIL Open Font License 1.1.
+The mark is a phone slab with a square punched through it. The punch is the tap, and it is the only yellow on a surface. Corners are cut at 45 degrees, top right and bottom left, never rounded. Headings are Big Shoulders Display Black in capitals; code and labels are JetBrains Mono. [`.github/assets/mark.svg`](.github/assets/mark.svg) is the app icon. [`design/brand/`](design/brand) holds the logo files and [`design/brand.md`](design/brand.md) the rules. [`design/logo-variants.md`](design/logo-variants.md) shows the eight directions that were explored and why this one won. Text in the images is converted to outlines; both fonts are under the SIL Open Font License 1.1 (see [`NOTICE`](NOTICE)).
 
 </details>
 
