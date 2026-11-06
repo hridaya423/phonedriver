@@ -1,0 +1,14 @@
+name: settings-search
+steps:
+  - shell: "am force-stop com.google.android.settings.intelligence"
+  - shell: "am force-stop com.android.settings"
+  - launch: com.android.settings
+  - tap: "Search settings"
+  - expect: {element: {text: ["Search settings", "Search…"], role: text_field}}
+  - type: {text: "battery"}
+  - expect: {element: {text: "battery", role: text_field}}
+  - press: back
+  - press: back
+cleanup:
+  - shell: "am force-stop com.google.android.settings.intelligence"
+  - shell: "am force-stop com.android.settings"

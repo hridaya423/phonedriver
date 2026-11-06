@@ -1,0 +1,13 @@
+name: clock-stopwatch
+steps:
+  - shell: "pm clear com.google.android.deskclock"
+  - launch: com.google.android.deskclock
+  - tap: "Stopwatch"
+  - tap: "Start"
+  - sleep_ms: 2000
+  - tap: ["Pause", "Stop"]
+  - expect: {element: "Reset"}
+  - tap: "Reset"
+  - expect: {element: "Start"}
+cleanup:
+  - shell: "pm clear com.google.android.deskclock"
