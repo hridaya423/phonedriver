@@ -187,6 +187,48 @@ impl Client {
     }
 }
 
+/// Stops the daemon listening at `path` without starting one, and returns its pid; `None` when nothing listens. The
+/// daemon ends the iOS runners it started when it exits, so this waits for the process itself, not just its socket.
+pub async fn stop_daemon(path: &Path) -> Result<Option<u32>, Failure> {
+    let Ok(mut client) = Client::open(path, "stop").await else {
+        return Ok(None);
+    };
+    let reply = client.call_raw("shutdown", json!({})).await?;
+    drop(client);
+    wait_until_gone(path).await;
+    if socket::connect(path).await.is_ok() {
+        return Err(Failure::Local(format!(
+            "the daemon at {} did not stop within 3 s",
+            path.display()
+        )));
+    }
+    let pid = reply["pid"].as_u64().and_then(|p| u32::try_from(p).ok());
+    if let Some(pid) = pid {
+        wait_until_exited(pid).await;
+    }
+    Ok(Some(pid.unwrap_or_default()))
+}
+
+#[cfg(unix)]
+async fn wait_until_exited(pid: u32) {
+    for _ in 0..250 {
+        let alive = tokio::process::Command::new("kill")
+            .arg("-0")
+            .arg(pid.to_string())
+            .stderr(std::process::Stdio::null())
+            .status()
+            .await
+            .is_ok_and(|s| s.success());
+        if !alive {
+            return;
+        }
+        tokio::time::sleep(Duration::from_millis(20)).await;
+    }
+}
+
+#[cfg(not(unix))]
+async fn wait_until_exited(_pid: u32) {}
+
 async fn wait_until_gone(path: &Path) {
     for _ in 0..150 {
         if socket::connect(path).await.is_err() {

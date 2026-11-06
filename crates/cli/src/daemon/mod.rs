@@ -138,7 +138,7 @@ impl Daemon {
             }
             "shutdown" => {
                 self.shutdown();
-                Ok(json!({}))
+                Ok(json!({"pid": std::process::id()}))
             }
             "devices" => Ok(self.devices().await?),
             "release" | "snapshot" | "screenshot" | "act" | "wait" | "find" | "apps"

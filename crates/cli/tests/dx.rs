@@ -40,3 +40,62 @@ fn the_secret_error_shows_how_to_pipe_it_and_not_the_top_level_usage() {
     assert!(!stderr.contains("Usage: phone-use [OPTIONS]"), "{stderr}");
     assert!(!stderr.contains("hunter2"), "{stderr}");
 }
+
+fn daemon_env(c: &mut Command, home: &tempfile::TempDir) {
+    c.env("PHONE_USE_HOME", home.path())
+        .env("PHONE_USE_SOCKET", home.path().join("run").join("d.sock"))
+        .env("ADB_SERVER_SOCKET", "tcp:127.0.0.1:1")
+        .env("USBMUXD_SOCKET_ADDRESS", "127.0.0.1:1")
+        .env_remove("PHONE_USE_DEVICE");
+}
+
+#[test]
+fn daemon_stop_ends_a_running_daemon_and_succeeds_when_there_is_none() {
+    use std::io::{BufRead, BufReader};
+    use std::process::Stdio;
+    use std::time::{Duration, Instant};
+
+    let home = tempfile::tempdir().unwrap();
+    let stop = |home: &tempfile::TempDir| {
+        let mut c = Command::cargo_bin("phone-use").unwrap();
+        daemon_env(&mut c, home);
+        c.args(["daemon", "stop"]);
+        let out = c.assert().success();
+        String::from_utf8(out.get_output().stdout.clone()).unwrap()
+    };
+    assert_eq!(stop(&home), "no daemon is running\n");
+
+    let mut started = Command::cargo_bin("phone-use").unwrap();
+    daemon_env(&mut started, &home);
+    let mut daemon = std::process::Command::new(started.get_program())
+        .arg("daemon")
+        .envs(started.get_envs().filter_map(|(k, v)| v.map(|v| (k, v))))
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .spawn()
+        .unwrap();
+    let mut ready = String::new();
+    BufReader::new(daemon.stdout.take().unwrap())
+        .read_line(&mut ready)
+        .unwrap();
+    let pid = ready
+        .trim()
+        .strip_prefix("ready ")
+        .expect(&ready)
+        .to_string();
+
+    let reaper = std::thread::spawn(move || {
+        let started = Instant::now();
+        daemon.wait().unwrap();
+        started.elapsed()
+    });
+    let before = Instant::now();
+    assert_eq!(stop(&home), format!("stopped the daemon (pid {pid})\n"));
+    assert!(
+        before.elapsed() < Duration::from_secs(3),
+        "stop waited for the pid: {:?}",
+        before.elapsed()
+    );
+    assert!(reaper.join().unwrap() < Duration::from_secs(3));
+    assert_eq!(stop(&home), "no daemon is running\n");
+}
