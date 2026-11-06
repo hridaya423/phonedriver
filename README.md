@@ -264,7 +264,7 @@ Any client that starts a stdio server can use this entry.
 
 The server has fourteen tools: `devices`, `apps`, `snapshot`, `screenshot`, `tap`, `type`, `swipe`, `scroll`, `press`, `launch`, `wait`, `batch`, `clipboard`, `shell` (`apps` also installs, stops, clears and uninstalls). Each prints the same text as the CLI verb of the same name. `PHONE_USE_DEVICE` is optional when one device is connected.
 
-Typed secrets (`phone-use type --secret`, or `secret: true` over MCP) never reach logs, traces or replies. phone-use sends no telemetry. It talks to the device and nothing else.
+Typed secrets (`phone-use type --secret`, or `secret: true` over MCP) never reach logs, traces or replies. phone-use sends no telemetry. It talks to the device and nothing else: the local daemon socket, the local adb server (or the address in `ADB_SERVER_SOCKET`) and the device, plus Apple only when mounting an iOS developer disk image. `cargo test -p phone-use --test network` runs the CLI, the daemon and the MCP server under a macOS sandbox that kills a process the moment it opens a connection to a non-local address (it runs on the macOS CI job; Linux and Windows are not covered).
 
 ### Shell
 
