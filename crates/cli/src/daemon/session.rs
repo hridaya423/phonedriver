@@ -20,6 +20,8 @@ pub struct Resolved {
     pub element: Option<Element>,
     /// The element's rendered line, such as `@e6 button "Display & touch"`.
     pub line: Option<String>,
+    /// The keyboard covers the element's bounds.
+    pub under_keyboard: bool,
 }
 
 impl Session {
@@ -32,6 +34,7 @@ impl Session {
                 at: Point { x: *x, y: *y },
                 element: None,
                 line: None,
+                under_keyboard: false,
             }),
             Target::Ref { r#ref } => match now.index_of(*r#ref) {
                 Some(i) => Ok(element_at(now, i)),
@@ -86,6 +89,8 @@ fn element_at(now: &Rendered, i: usize) -> Resolved {
         at: e.bounds.center(),
         element: Some(e.clone()),
         line: Some(now.line(e)),
+        under_keyboard: e.role != Role::Keyboard
+            && now.header.keyboard.is_some_and(|k| k.contains(e.bounds)),
     }
 }
 

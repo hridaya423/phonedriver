@@ -179,11 +179,13 @@ pub enum Error {
         query: String,
         matches: Vec<ElementLine>,
     },
-    #[error("@{} is off screen", r#ref)]
+    #[error("@{} is {}", r#ref, if *behind_keyboard { "under the keyboard" } else { "off screen" })]
     OffScreen {
         #[serde(rename = "ref")]
         r#ref: Ref,
         scroll_hint: Direction,
+        /// The element is on screen but the keyboard covers it.
+        behind_keyboard: bool,
     },
     #[error("{} is not supported on this device: {reason}", op.name())]
     Unsupported { op: Op, reason: &'static str },
@@ -258,6 +260,14 @@ impl Error {
             Error::Ambiguous { matches, .. } => {
                 format!("Use a ref instead: {}", matches.join("; "))
             }
+            Error::OffScreen {
+                behind_keyboard: true,
+                scroll_hint,
+                ..
+            } => format!(
+                "Hide the keyboard with `phone-use press back`, or `phone-use scroll {}` to bring the element above it.",
+                scroll_hint.name()
+            ),
             Error::OffScreen { scroll_hint, .. } => {
                 format!("Scroll first: `phone-use scroll {}`.", scroll_hint.name())
             }
@@ -357,6 +367,12 @@ mod tests {
             Error::OffScreen {
                 r#ref: Ref(30),
                 scroll_hint: Direction::Down,
+                behind_keyboard: false,
+            },
+            Error::OffScreen {
+                r#ref: Ref(31),
+                scroll_hint: Direction::Down,
+                behind_keyboard: true,
             },
             Error::Unsupported {
                 op: Op::Clipboard,
@@ -425,6 +441,7 @@ mod tests {
         "Open",
         "Answer",
         "Check",
+        "Hide",
     ];
 
     #[test]
