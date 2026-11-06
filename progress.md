@@ -249,3 +249,51 @@ NOT done: the Mac mini journey re-run and timings (its disk had 878 MiB free, un
 - Live, win-pc Pixel_API_37 (emulator-5554), release builds, `act tap` point, settle off, 100 runs after 10 warm-ups, interleaved three times: previous commit p50 52.7, 51.2, 50.6 ms (p95 81 to 92); this commit p50 33.7, 35.9, 34.2 ms (p95 61 to 75). Back in M1's 30 to 37 ms range; not at the 30 ms target. (The earlier 39 to 50 ms for the previous commit was on a quieter moment; the three-way comparison is within one run of the script.)
 - Paste change (200 ms confirm), `phone-use-bench scenario --runs 3` with the branch's agent: testbed-text, long-text-emoji, testbed-secure, testbed-web-form (WebView), settings-search, all 3 of 3 pass (15 of 15). The paste change stays.
 - Not run: blaze; the other 16 M2 scenarios.
+
+
+## Agent-experience fixes from dogfooding (Clock alarm on emulator-5556, Pixel_API_26) (2026-11-06)
+
+Commits, one per fix: malformed-action reason, ref stability, pruning, socket path, devices OS, type replace + verification (D22), type settle, agent docs and schemas, `type --into` a group. Cargo only (blaze not run: disk 1.7 to 3.4 GB). `cargo clippy -p phone-use -p phone-use-core -p phone-use-android --all-targets -- -D warnings` clean, `cargo fmt --all --check` clean. `cargo test --no-fail-fast` for phone-use (lib, cli, mcp, daemon, shell, actions, coverage, sources, trace, device_choice), core and android: all pass except `tests/ocr.rs` (6 tests, Apple Vision does not run in this sandbox, same as before). Tests were written with the code, not seen red first, except where noted.
+
+- Root cause of findings 1 and 2: the hour field was full (`maxLength` 2), so `type` appended and was rejected; `type ""` never emptied it (paste of nothing) yet printed `verified` because the check was `value.contains("")`; later `type "7"` was also checked with `contains`. Reproduced live: raw `input keyevent 7` on `10` changes nothing, `KEYCODE_DEL` twice then `0 7` gives `07`. Fix (D22): `type --into` replaces (`SetValue("")` first where the device can set values, backspaces on iOS, tapping the field's right edge first; `--append` keeps), exact verification for a replace, `unverified: {shows, hint}` by cause, never quoting a secure field. Live: `type "07" --into @e3` over `71` printed `verified` and the field showed `07`; `type "1234" --into @e5` printed `NOT verified: @e5 shows "12"` and `hint: the field kept the first 2 of 4 characters: it limits its length (maxLength)`. Unit tests in `crates/cli/src/daemon/verify.rs`, daemon tests `type_into_a_field_with_text_replaces_it_and_append_keeps_it`, `a_field_that_kept_its_old_text_is_reported_...`. NOT proven: the iOS backspace path (no Simulator run); the agent change `set` waits for focus.
+- Finding 3 (refs): `RefTable` keeps the last 400 elements that left the screen and gives their ref back to an element with the same `(role, id, label[, ancestor])` within 8 pt (tests `a_dialog_comes_back_from_a_popup_with_the_refs_it_had`, `a_tab_bar_keeps_its_refs_across_a_dialog_that_hid_it`, `an_element_that_returns_elsewhere_is_a_new_element`). Live, in the redo below: the `ALARM` tab stayed `@e12` across the add-alarm dialog and the dialog's `@e1..@e7`, `@e44..@e46` stayed across the AM/PM popup.
+- Finding 4 (tokens): golden `captured_clock_alarms` (fixture from the device): `button "8:30 AM Alarm"` over `text "8:30 AM"` (a tappable TextView) loses the child, and `switch "OFF" off` is `switch off`. The tap on the child's time now lands on the row (tradeoff: the child was a separate target in the tree).
+- Finding 5: a path over 100 bytes becomes `$TMPDIR/phone-use-<hash>/daemon.sock` (tests in `daemon/socket.rs` including a real listen and connect). Live: `PHONE_USE_HOME=/tmp/xxx...(120 x)`: `phone-use devices` answered in 0.25 s with a fresh daemon.
+- Finding 6: `phone-use devices` prints `Android 8.0.0 (API 26)` (one `getprop` shell per device, cached by serial and transport id).
+- Finding 7: after a type the settle waited 500 ms for a first change and 250 ms quiet. Measured on the emulator (noisy host, other agents running): `--no-settle` type into 630 to 790 ms against 1286 with settle before; after the change with settle 780 to 890. Typing now settles with a 150 ms first-change wait and 150 ms quiet (`typed_text_settles_in_under_a_tap_s_first_change_wait`). The paste itself (tap, resolve, clear, paste with a 200 ms confirm) is still about 400 to 600 ms of the remainder; not reduced further.
+- Finding 8: tools/list + instructions 11,457 to 10,041 characters (about 2,938 to 2,575 tokens at 3.9 chars/token, measured with `python3 /tmp/pu-mcpsize.py` over stdio); SKILL.md 6,312 to 4,597 characters; `$schema`, `format`, `minimum: 0` and `null` types removed in `list_tools` (test `argument_schemas_carry_no_boilerplate`). The `One call at a time.` sentence stays in six action tools (an observed failure, test `the_server_tells_the_agent_that_calls_share_one_screen`).
+- Coordinator extras: the malformed-action message now names the field (`the open action is malformed: missing field `url``) and never the value (daemon test). `phone-use open <url>` could NOT be reproduced on Android (`open https://example.com` printed `ok opened`, then the chooser appeared); the iOS failure was most likely an older daemon on the Mac mini, since the same `{"kind":"open"}` JSON is what MCP `launch` sends. `type --into <group>` falls back to the text field inside the group (test `type_into_a_group_that_holds_a_text_field_types_into_that_field`).
+- Found, not fixed: `screenshot` on this API 26 emulator returned a frame from minutes earlier (the Clock "Set time" dialog at 11:15 while the screen showed the alarm list); the video stream is stale there. The tree was correct.
+
+### Redo of the alarm by CLI (emulator-5556, PHONE_USE_HOME=/tmp/pu-ax2, this branch's debug build)
+
+```
+$ phone-use tap CANCEL                         # closed a dialog left from testing
+$ phone-use tap "Add alarm"
+ok tapped @e25 "Add alarm" ... new screen   (clock-face dialog @e26..@e46)
+$ phone-use tap "Switch to text input mode for the time input."
+ok ... @e3 textbox "11" focused, @e5 textbox "15", @e8 menu "PM", @e44..@e46 buttons (same refs as before)
+$ phone-use batch 'type 07 --into @e3' 'type 30 --into @e5' 'tap @e8'
+ok 3 steps · settled in 450ms · new screen
+1. typed 2 chars into @e3 · verified
+2. typed 2 chars into @e5 · verified
+3. tapped @e8 "PM" at 282,267
+@e48 checkbox "AM" off
+@e49 checkbox "PM" on
+$ phone-use tap @e48
+... @e1..@e7 unchanged, @e3 textbox "7", @e5 textbox "30" focused, @e50 menu "AM"
+$ phone-use tap @e46                           # OK; tab bar is @e12 "ALARM" again
+... @e52 button "7:30 AM Alarm" (expanded: Repeat, Ringtone, Label, Delete)
+$ phone-use tap @e55                           # label
+@e69 textbox focused, @e71 button "OK"
+$ phone-use type Gym --into @e69
+ok typed 3 chars into @e69 · verified · settled in 306ms
+$ phone-use tap @e71 ; phone-use tap "Repeat"  # all seven days turn on
+$ phone-use batch 'tap @e75' 'tap @e81'        # Sunday, Saturday off
+$ phone-use snapshot
+@e73 button "7:30 AM Gym"  Repeat on, Sunday off, Monday..Friday on, Saturday off, text "Label Gym"
+$ phone-use tap @e56                           # Delete: removed only my alarm
+- @e51 @e73 ...   + @e83 button "Alarm deleted"
+```
+
+The pre-existing 8:30 and 9:00 alarms were left alone.
