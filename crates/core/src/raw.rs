@@ -178,10 +178,19 @@ enum Platform {
 impl RawTree {
     /// A progress indicator is visible, or a web view has no children yet.
     pub fn loading(&self) -> bool {
-        self.nodes.iter().enumerate().any(|(i, n)| match n.role {
-            Role::ProgressIndicator => n.flags.contains(NodeFlags::VISIBLE_TO_USER),
-            Role::WebView => !self.nodes.iter().any(|c| c.parent == Some(i)),
-            _ => false,
+        self.web_view_pending() || self.progress_visible()
+    }
+
+    /// A web view has no children yet: its page has not reached the accessibility tree.
+    pub fn web_view_pending(&self) -> bool {
+        self.nodes.iter().enumerate().any(|(i, n)| {
+            n.role == Role::WebView && !self.nodes.iter().any(|c| c.parent == Some(i))
+        })
+    }
+
+    fn progress_visible(&self) -> bool {
+        self.nodes.iter().any(|n| {
+            n.role == Role::ProgressIndicator && n.flags.contains(NodeFlags::VISIBLE_TO_USER)
         })
     }
 

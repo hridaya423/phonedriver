@@ -1457,6 +1457,23 @@ fn web_tree(loaded: bool) -> RawTree {
     RawTree::from_android_json(&json, Scale { density: 1.0 }).unwrap()
 }
 
+#[tokio::test(start_paused = true)]
+async fn an_action_that_opens_a_cold_webview_waits_up_to_ten_seconds_for_its_page() {
+    let mut trees = vec![tree(&["Web"])];
+    trees.extend(vec![web_tree(false); 70]);
+    trees.push(web_tree(true));
+    let (source, fake) = FakeSource::with(trees);
+    let (d, _home) = daemon(source);
+    ok(&d, "default", "snapshot", json!({})).await;
+    tokio::spawn(async move {
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        fake.push_frame(big_frame(1));
+    });
+    let r = ok(&d, "default", "act", tap_point(10.0, 10.0)).await;
+    let text = r["observation"]["text"].as_str().unwrap();
+    assert!(text.contains("Example Domain"), "{text}");
+}
+
 fn launch_settings() -> Value {
     act_with(json!({"kind": "launch", "app": "Settings"}))
 }

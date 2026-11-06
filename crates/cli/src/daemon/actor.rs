@@ -50,6 +50,7 @@ const TYPED_QUIET: Duration = Duration::from_millis(150);
 const TREE_STEP: Duration = Duration::from_millis(100);
 const TREE_STABLE_WAIT: Duration = Duration::from_secs(1);
 const LOADING_WAIT: Duration = Duration::from_secs(4);
+const WEB_VIEW_WAIT: Duration = Duration::from_secs(10);
 const LEAVE_WAIT: Duration = Duration::from_millis(2500);
 const MASK: &str = "•••";
 
@@ -1657,7 +1658,9 @@ impl Actor {
             let next = self.device()?.tree().await?;
             let same = next == tree;
             tree = next;
-            let limit = if tree.loading() {
+            let limit = if tree.web_view_pending() {
+                WEB_VIEW_WAIT
+            } else if tree.loading() {
                 LOADING_WAIT
             } else {
                 TREE_STABLE_WAIT
