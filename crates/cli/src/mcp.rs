@@ -39,6 +39,8 @@ struct SnapshotArgs {
     within: Option<String>,
     /// Cut the output to this many lines.
     max_lines: Option<u32>,
+    /// Read the pixels with OCR and add text the tree lacks (automatic when the tree is empty).
+    pixels: Option<bool>,
 }
 
 #[derive(Deserialize, JsonSchema)]
@@ -201,6 +203,7 @@ impl Mcp {
             interactive: a.interactive.unwrap_or(false),
             within: a.within,
             max_lines: a.max_lines.map(|n| n as usize),
+            pixels: a.pixels.unwrap_or(false),
             save_fixture: None,
             fixture_dir: None,
         };

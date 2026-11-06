@@ -2,6 +2,7 @@
 name = "phone-use-video"
 version.workspace = true
 edition.workspace = true
+license.workspace = true
 
 [dependencies]
 openh264 = "0.9.9"
