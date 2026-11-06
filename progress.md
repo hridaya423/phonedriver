@@ -209,3 +209,9 @@ NOT done: the Mac mini journey re-run and timings (its disk had 878 MiB free, un
 - Change: `DeviceSource::list_for`, `Sources::list_for` (prefix routes to one source; bare ids go in order and stop at the first match), 5 s cache of the usbmuxd listing in `PhysicalSource` (errors included).
 - Tests first: `a_request_for_an_android_device_never_calls_the_ios_sources`, `a_prefixed_request_asks_only_its_owner_and_a_bare_one_falls_through` in `crates/cli/tests/sources.rs`.
 - Evidence: `CARGO_INCREMENTAL=0 cargo test -p phone-use --lib --test sources --test daemon --test device_choice --test actions` all pass (sources 6, daemon 79, ...); `cargo clippy --all-targets -- -D warnings` clean. Blaze not run: disk was full (ENOSPC) and the coordinator told me to skip it for now.
+
+## Speedup 2: Android paste confirms in at most 200 ms with one field read fewer (2026-11-06)
+
+- Change (`android-agent/.../TextInput.java`): the focus wait returns the focused node and its text is the "before" value (one accessibility read fewer); the confirm poll is 10 ms steps and at most 200 ms (was 25 ms and 500 ms, the whole 500 whenever the field text does not change or is not exposed). The saved-clipboard read stays: it is what restores the person's clipboard; the secret flag and Unicode path (clipboard paste) are untouched.
+- Not proven live: no emulator was available, so `agent_live` type tests, the M2 type and secret scenarios and p50 numbers were not run. Compiles: `cargo test -p phone-use-android --lib --test build_script --test agent_frames` passes (build.rs runs d8 on the new agent).
+- Risk: a WebView that reads the clipboard later than 200 ms would paste the restored clip. To be checked with the M2 type scenarios on an emulator before release.

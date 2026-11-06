@@ -11,8 +11,8 @@ import com.genymobile.scrcpy.wrappers.ClipboardManager;
 import com.genymobile.scrcpy.wrappers.ServiceManager;
 
 final class TextInput {
-    private static final long RESTORE_WAIT_MS = 500;
-    private static final long POLL_MS = 25;
+    private static final long RESTORE_WAIT_MS = 200;
+    private static final long POLL_MS = 10;
     private static final long FOCUS_WAIT_MS = 1500;
 
     private static ClipboardManager clipboard() {
@@ -57,33 +57,35 @@ final class TextInput {
         }
     }
 
-    private static String focusedText() throws Exception {
-        AccessibilityNodeInfo n = Accessibility.focusedInput();
+    private static String textOf(AccessibilityNodeInfo n) {
         CharSequence t = n == null ? null : n.getText();
         return t == null ? "" : t.toString();
     }
 
     // The field a tap just opened (Settings search on API 37) takes focus a few hundred ms after it appears in the
     // tree, and a paste before that goes nowhere while the reply says ok.
-    private static void awaitFocusedInput() throws Exception {
+    private static AccessibilityNodeInfo awaitFocusedInput() throws Exception {
         long deadline = SystemClock.uptimeMillis() + FOCUS_WAIT_MS;
-        while (SystemClock.uptimeMillis() < deadline && Accessibility.focusedInput() == null) {
+        AccessibilityNodeInfo n = Accessibility.focusedInput();
+        while (n == null && SystemClock.uptimeMillis() < deadline) {
             SystemClock.sleep(POLL_MS);
+            n = Accessibility.focusedInput();
         }
+        return n;
     }
 
     private static void paste(String text, boolean sensitive) throws Exception {
-        awaitFocusedInput();
+        String before = textOf(awaitFocusedInput());
         ClipboardManager cm = clipboard();
         ClipData saved = cm.getClip();
-        String before = focusedText();
         cm.setClip(clip(text, sensitive));
         try {
             Input.key(KeyEvent.KEYCODE_PASTE, "press");
             // spike A4: WebView and some Compose fields read the clipboard after the key returns,
-            // so restoring at once pastes the old clip. Wait for the field to change, at most 500 ms.
+            // so restoring at once pastes the old clip. Wait for the field to change, at most 200 ms (the 500 ms
+            // first used was the whole wait whenever the field text is not exposed or does not change).
             long deadline = SystemClock.uptimeMillis() + RESTORE_WAIT_MS;
-            while (SystemClock.uptimeMillis() < deadline && focusedText().equals(before)) {
+            while (SystemClock.uptimeMillis() < deadline && textOf(Accessibility.focusedInput()).equals(before)) {
                 SystemClock.sleep(POLL_MS);
             }
         } finally {
