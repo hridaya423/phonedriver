@@ -81,31 +81,44 @@ ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ------------------------------------------------------------------------------
+Sodium design system
+https://github.com/arla6ka/design.how (systems/sodium), https://design.how/systems/sodium
+
+The brand's colours, type roles, spacing and line rules come from the Sodium
+design system.
+
+MIT License
+
+Copyright (c) 2026 Arlan Marat
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+------------------------------------------------------------------------------
 Fonts in the brand images
 
-The images in .github/assets/ and design/ draw their text from the fonts below,
-converted to outlines. Each is licensed under the SIL Open Font License,
+The images in .github/assets/ and design/logo/ draw their text from the fonts
+below, converted to outlines. The font files used to build them are in
+design/build/fonts/. Each is licensed under the SIL Open Font License,
 Version 1.1 (https://openfontlicense.org).
 
-Big Shoulders Display, wordmark and headings
-Copyright 2019 The Big Shoulders Project Authors (https://github.com/xotypeco/big_shoulders)
+Inter Display, wordmark, headlines and figures
+Copyright 2016 The Inter Project Authors (https://github.com/rsms/inter)
 
-JetBrains Mono, code, labels and numbers
-Copyright 2020 The JetBrains Mono Project Authors (https://github.com/JetBrains/JetBrainsMono)
-
-Used only in the explored, unchosen logo variants in design/logo-variants/:
-
-Saira Stencil One
-Copyright 2019 The Saira Stencil Project Authors (https://github.com/Omnibus-Type/Saira/SairaStencil)
-
-Archivo
-Copyright 2020 The Archivo Project Authors (https://github.com/Omnibus-Type/Archivo)
-
-Chakra Petch
-Copyright 2018 The Chakra Petch Project Authors (https://github.com/m4rc1e/Chakra-Petch.git)
-
-Oxanium
-Copyright 2019 The Oxanium Project Authors (https://github.com/sevmeyer/oxanium)
-
-Barlow Condensed
-Copyright 2017 The Barlow Project Authors (https://github.com/jpt/barlow)
+Commit Mono, refs, code and labels
+Copyright 2023 Commit Mono authors (https://github.com/eigilnikolajsen/commit-mono)
