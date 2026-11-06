@@ -12,6 +12,8 @@ use phone_use_core::error::Error;
 use super::progress::after_a_second;
 use super::{DeviceSource, Listed};
 
+type OsKey = (String, Option<u32>);
+
 #[derive(Default)]
 struct Tracked {
     devices: Option<Vec<AdbDevice>>,
@@ -21,7 +23,7 @@ struct Tracked {
 pub struct AdbSource {
     adb: Adb,
     tracked: Arc<Mutex<Tracked>>,
-    os: Mutex<HashMap<(String, Option<u32>), Option<String>>>,
+    os: Mutex<HashMap<OsKey, Option<String>>>,
 }
 
 impl AdbSource {
