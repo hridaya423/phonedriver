@@ -13,7 +13,7 @@ Task 8.3. This list is prepared and not executed. Nothing here has been publishe
 
 Facts. `NOTICE` credits scrcpy, which is Apache-2.0, as the source of the code we adapted. `idevice` is MIT. `openh264` (the Rust crate) is BSD-2-Clause.
 
-Decided 2026-11-06: MIT. `LICENSE` exists, every crate sets `license = "MIT"`, and `dist-workspace.toml` should add `LICENSE` to `include` next to `NOTICE`.
+Decided 2026-11-06: AGPL-3.0-only (replaced MIT the same day, before any release). `LICENSE` exists, every crate sets `license = "AGPL-3.0-only"`, and `dist-workspace.toml` should add `LICENSE` to `include` next to `NOTICE`.
 
 ### 1a. The H.264 patent question
 

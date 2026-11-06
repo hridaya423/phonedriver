@@ -117,9 +117,9 @@ Each decision records the choice, the alternatives it beat, and the evidence tha
 
 ## D13. License
 
-**Choice.** MIT, decided by the user on 2026-11-06 ("license do MIT"). `LICENSE` holds the text and every crate sets `license = "MIT"` through the workspace. Code copied from scrcpy (Apache-2.0) and the WebDriverAgent headers (BSD) keep their own licenses and attribution in `NOTICE`; MIT is compatible with distributing both.
+**Choice.** AGPL-3.0-only, decided by the user on 2026-11-06, replacing MIT before anything was published. The user wanted a restrictive license so a competing tool cannot take the code into a closed or permissive project; AGPL is the strongest OSI open-source license (a distributed or network-served modified version must be published under AGPL). `LICENSE` holds the text and every crate sets `license = "AGPL-3.0-only"` through the workspace. Code copied from scrcpy (Apache-2.0) and the WebDriverAgent headers (BSD) keep their own licenses and attribution in `NOTICE`; both are compatible with AGPL-3.0. Every dependency is permissive (MIT, Apache-2.0, BSD, ISC, Zlib, 0BSD, Unlicense; `cargo metadata`, 2026-11-06).
 
-**Rejected.** Apache-2.0 (the earlier recommendation, for its patent grant): the user chose MIT.
+**Rejected.** MIT (chosen earlier the same day): lets a competitor take the code without giving anything back. FSL-1.1 and BSL-1.1 (non-compete source-available): stronger against a competing product, but not open source. PolyForm Strict: forbids modification, so no forks or contributions. Apache-2.0: permissive like MIT. `-only` rather than `-or-later` keeps the license under the owner's control rather than the FSF's future versions.
 
 **Also before release.** `openh264` built from source (the crate's default) does not carry Cisco's H.264 patent license, which covers only Cisco's prebuilt binaries. Decide with the user whether release builds load Cisco's binary at runtime or ship the source build.
 

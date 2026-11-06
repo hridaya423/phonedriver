@@ -144,3 +144,9 @@ Phase 6 is stopped at the "No device is approved" outcome (2026-11-06). Three an
 - Why: `crates/cli/tests/e2e_ios.rs` included `crates/ios/tests/support/testbed.rs` by `#[path]`, a file outside the cli crate. Blaze does not track it, so `BLAZE_TESTS=all blaze test` failed with E0583 until the file was touched.
 - Change: the helper is `phone_use_ios::testbed`, compiled only with feature `testing` (the pattern `phone-use-core` uses). Both test crates enable it as a dev-dependency.
 - Evidence: `BLAZE_TESTS=all blaze test` → 351 passed, 0 failed, 0 compile errors without touching any file; `cargo clippy --all-targets -- -D warnings` and `cargo fmt --check` clean; `cargo test --no-run` builds `e2e_ios` and `device_live`.
+
+## License: MIT → AGPL-3.0-only (D13, 2026-11-06)
+
+- The user asked for a restrictive license instead of MIT ("so phone harness can't just steal everything") and chose AGPL-3.0 from FSL-1.1, AGPL-3.0, BSL-1.1 and PolyForm Strict.
+- `LICENSE` is the GNU AGPL v3 text from gnu.org; the workspace sets `license = "AGPL-3.0-only"`; README badge and License section, D13 and the release checklist updated. NOTICE keeps scrcpy (Apache-2.0), WebDriverAgent (BSD) and Sodium (MIT) notices.
+- Evidence: `cargo metadata --no-deps` lists all six packages as `AGPL-3.0-only`; every dependency license is permissive (MIT, Apache-2.0, BSD, ISC, Zlib, 0BSD, Unlicense), so all are AGPL-compatible.

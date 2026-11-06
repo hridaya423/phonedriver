@@ -6,7 +6,7 @@
 </p>
 
 <p align="center">
-  <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-6b675e?style=flat-square&labelColor=161512"></a>
+  <a href="LICENSE"><img alt="License: AGPL-3.0" src="https://img.shields.io/badge/license-AGPL--3.0-6b675e?style=flat-square&labelColor=161512"></a>
   <img alt="Tested on Android emulators, the iOS Simulator and iOS devices" src="https://img.shields.io/badge/tested-android%20emulator%20%7C%20ios-6b675e?style=flat-square&labelColor=161512">
 </p>
 
@@ -221,4 +221,4 @@ The brand is built on the [Sodium](https://design.how/systems/sodium) design sys
 
 ## License
 
-MIT. See [`LICENSE`](LICENSE). The Android agent contains files copied from scrcpy under Apache-2.0; see [`NOTICE`](NOTICE).
+AGPL-3.0-only. See [`LICENSE`](LICENSE). If you distribute phone-use, or run a modified version as a network service, you must publish your source under the same license. The Android agent contains files copied from scrcpy under Apache-2.0; see [`NOTICE`](NOTICE).
