@@ -48,7 +48,7 @@ tasks:
       - shell: "am force-stop dev.phoneuse.testbed"
 
   - name: unicode-note
-    set: tuning
+    set: tokens
     prompt: "In the phone-use testbed app, open the Text tab and type `Zoë 你好 مرحبا 🙂` into the plain text field."
     reset:
       - shell: "am force-stop dev.phoneuse.testbed"
@@ -61,7 +61,7 @@ tasks:
       - shell: "am force-stop dev.phoneuse.testbed"
 
   - name: alarm-gym
-    set: tuning
+    set: tokens
     prompt: "In the Clock app, create an alarm for 7:30 AM labelled \"Gym\" that repeats on weekdays only."
     reset:
       - shell: "pm clear com.google.android.deskclock"
@@ -72,7 +72,7 @@ tasks:
       - shell: "pm clear com.google.android.deskclock"
 
   - name: wiki-birthdate
-    set: tuning
+    set: tokens
     prompt: "In Chrome, open en.wikipedia.org, search for Grace Hopper and tell me her birth date. Answer with the date only, in the form Month D, YYYY."
     reset:
       - shell: "pm clear com.android.chrome"
