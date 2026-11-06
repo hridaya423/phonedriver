@@ -77,15 +77,15 @@ After the first release (nothing is published yet, so these do not work today), 
 
 ```sh
 # macOS and Linux
-curl --proto '=https' --tlsv1.2 -LsSf https://github.com/OWNER/phone-use/releases/latest/download/phone-use-installer.sh | sh
+curl --proto '=https' --tlsv1.2 -LsSf https://github.com/hridaya423/phone-use/releases/latest/download/phone-use-installer.sh | sh
 
 # Homebrew (macOS and Linux)
-brew install OWNER/tap/phone-use
+brew install hridaya423/tap/phone-use
 ```
 
 ```powershell
 # Windows
-powershell -ExecutionPolicy Bypass -c "irm https://github.com/OWNER/phone-use/releases/latest/download/phone-use-installer.ps1 | iex"
+powershell -ExecutionPolicy Bypass -c "irm https://github.com/hridaya423/phone-use/releases/latest/download/phone-use-installer.ps1 | iex"
 ```
 
 The shell and PowerShell installers put `phone-use` in `$CARGO_HOME/bin` (`~/.cargo/bin`) and add it to your `PATH`. The iOS Simulator runner needs no download: its sources are inside the binary, and the first command that needs it builds it on your Mac with Xcode and XcodeGen.

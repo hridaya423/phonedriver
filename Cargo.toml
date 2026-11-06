@@ -6,8 +6,8 @@ members = ["crates/*", "bench"]
 version = "0.1.0"
 edition = "2024"
 license = "AGPL-3.0-only"
-repository = "https://github.com/OWNER/phone-use"
-homepage = "https://github.com/OWNER/phone-use"
+repository = "https://github.com/hridaya423/phone-use"
+homepage = "https://github.com/hridaya423/phone-use"
 description = "Lets AI agents see and operate Android and iOS devices."
 
 [workspace.lints.rust]

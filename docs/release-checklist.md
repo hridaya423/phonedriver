@@ -73,7 +73,7 @@ Options.
 
 Recommendation. A for the first release. Moving a repository to an organization later keeps the old links working through GitHub redirects.
 
-Decision needed. Give me the exact `owner/name`. The `dist` installers, hosting and release workflow are already configured with the placeholder `OWNER`; replacing it is step 1 of section 0. I will not create the repository or push.
+Decided 2026-11-06: `hridaya423/phone-use` (Homebrew tap `hridaya423/homebrew-tap`); every `OWNER` placeholder is replaced. Earlier note: The `dist` installers, hosting and release workflow are already configured with the placeholder `OWNER`; replacing it is step 1 of section 0. I will not create the repository or push.
 
 ## 4. Package names
 
