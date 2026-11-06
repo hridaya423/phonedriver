@@ -1145,6 +1145,48 @@ async fn launch_by_name_in_any_case_or_by_package_foregrounds_the_app_and_return
     }
 }
 
+fn web_tree(loaded: bool) -> RawTree {
+    let page = if loaded {
+        r#",{"p":1,"w":1,"cls":"android.view.View","text":"Example Domain","b":[0,100,360,160],"f":"vVe"}"#
+    } else {
+        ""
+    };
+    let json = format!(
+        r#"{{"windows":[{{"id":1,"type":"application","package":"com.example","bounds":[0,0,360,800]}}],"nodes":[
+        {{"p":-1,"w":1,"cls":"android.widget.FrameLayout","b":[0,0,360,800],"f":"vVe"}},
+        {{"p":0,"w":1,"cls":"android.webkit.WebView","b":[0,100,360,700],"f":"vVe"}}{page}]}}"#
+    );
+    RawTree::from_android_json(&json, Scale { density: 1.0 }).unwrap()
+}
+
+fn launch_settings() -> Value {
+    act_with(json!({"kind": "launch", "app": "Settings"}))
+}
+
+#[tokio::test(start_paused = true)]
+async fn launch_waits_for_a_webview_to_have_children_before_the_first_snapshot() {
+    let mut trees = vec![web_tree(false); 6];
+    trees.push(web_tree(true));
+    let (source, fake) = FakeSource::with(trees);
+    fake.install(&[("com.android.settings", "Settings")]);
+    let (d, _home) = daemon(source);
+    let r = ok(&d, "default", "act", launch_settings()).await;
+    let text = r["observation"]["text"].as_str().unwrap();
+    assert!(text.contains("Example Domain"), "{text}");
+}
+
+#[tokio::test(start_paused = true)]
+async fn launch_on_a_polled_device_waits_for_three_equal_node_counts_in_a_row() {
+    let mut trees = vec![list_tree(&["Search"]); 4];
+    trees.push(list_tree(&["Toolbar", "Search"]));
+    let (source, fake) = FakeSource::polled(trees);
+    fake.install(&[("com.android.settings", "Settings")]);
+    let (d, _home) = daemon(source);
+    let r = ok(&d, "default", "act", launch_settings()).await;
+    let text = r["observation"]["text"].as_str().unwrap();
+    assert!(text.contains("Toolbar"), "{text}");
+}
+
 #[tokio::test(start_paused = true)]
 async fn launching_a_misspelled_app_is_not_found_and_names_the_close_app() {
     let (source, fake) = installed();

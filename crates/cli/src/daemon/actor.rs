@@ -696,16 +696,34 @@ impl Actor {
         // on API 37 likewise reports an empty tree for a second after its first frame.
         let started = Instant::now();
         let mut last_len = 0;
+        let mut equal_reads = 0;
+        // Observed on the iOS Simulator: Settings adds a Toolbar group 300 ms to 1 s after its first frame, which
+        // made the first refs stale at once, so a polled device must read the same count three times in a row.
+        let needed = if device.info().capabilities.contains(Capabilities::FRAMES) {
+            1
+        } else {
+            3
+        };
         while started.elapsed() < SCREEN_WAIT {
             let tree = device.tree().await?;
-            let stable = tree.nodes.len() == last_len;
+            equal_reads = if tree.nodes.len() == last_len {
+                equal_reads + 1
+            } else {
+                0
+            };
+            let stable = equal_reads >= needed;
+            let page_pending = tree
+                .nodes
+                .iter()
+                .enumerate()
+                .any(|(i, n)| n.role == Role::WebView && tree.children(i).next().is_none());
             last_len = tree.nodes.len();
             let app_is_back = tree.nodes.iter().any(|n| {
                 tree.windows
                     .iter()
                     .any(|w| w.id == n.window && w.kind == "application")
             });
-            if app_is_back && stable && device.screen_state().await?.focused {
+            if app_is_back && stable && !page_pending && device.screen_state().await?.focused {
                 break;
             }
             tokio::time::sleep(Duration::from_millis(100)).await;
