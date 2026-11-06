@@ -266,9 +266,14 @@ final class Accessibility {
         nodes.put(node(n, parent));
         int count = n.getChildCount();
         for (int i = 0; i < count; i++) {
-            AccessibilityNodeInfo child = Build.VERSION.SDK_INT >= 33
-                    ? n.getChild(i, PREFETCH)
-                    : n.getChild(i);
+            AccessibilityNodeInfo child;
+            try {
+                child = Build.VERSION.SDK_INT >= 33 ? n.getChild(i, PREFETCH) : n.getChild(i);
+            } catch (NullPointerException gone) {
+                // API 37: a WebView that is still building its tree makes getChild throw from the platform's own
+                // integrity check (AccessibilityInteractionClient) for about a second after the app starts.
+                child = null;
+            }
             if (child != null) {
                 walk(child, index, nodes);
             }
@@ -347,13 +352,14 @@ final class Accessibility {
                     : r.getType() == AccessibilityNodeInfo.RangeInfo.RANGE_TYPE_PERCENT ? "percent" : "float");
             Json.put(o, "range", rj);
         }
+        // API 26 Settings: the platform reports an unknown count or index as a negative number (-2 seen).
         AccessibilityNodeInfo.CollectionInfo ci = n.getCollectionInfo();
         if (ci != null) {
-            Json.put(o, "coll", Json.put(Json.put(new JSONObject(), "rows", ci.getRowCount()), "cols", ci.getColumnCount()));
+            Json.put(o, "coll", Json.put(Json.put(new JSONObject(), "rows", Math.max(0, ci.getRowCount())), "cols", Math.max(0, ci.getColumnCount())));
         }
         AccessibilityNodeInfo.CollectionItemInfo ii = n.getCollectionItemInfo();
         if (ii != null) {
-            Json.put(o, "item", Json.put(Json.put(new JSONObject(), "row", ii.getRowIndex()), "col", ii.getColumnIndex()));
+            Json.put(o, "item", Json.put(Json.put(new JSONObject(), "row", Math.max(0, ii.getRowIndex())), "col", Math.max(0, ii.getColumnIndex())));
         }
         if (sourceNodeId != null) {
             try {

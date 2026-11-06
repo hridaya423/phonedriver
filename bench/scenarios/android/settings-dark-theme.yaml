@@ -1,0 +1,22 @@
+name: settings-dark-theme
+steps:
+  - shell: "am force-stop com.google.android.settings.intelligence"
+  - shell: "am force-stop com.android.settings"
+  - launch: com.android.settings
+  - tap: "Display"
+  - if_api:
+      at_least: 29
+      then:
+        - set_switch: {text: "Dark theme", state: "on"}
+        - expect: {element: {text: "Dark theme", role: switch}, state: "on", shell: {cmd: "cmd uimode night", contains: "yes"}}
+        - set_switch: {text: "Dark theme", state: "off"}
+        - expect: {element: {text: "Dark theme", role: switch}, state: "off", shell: {cmd: "cmd uimode night", contains: "no"}}
+      otherwise:
+        - expect: {text: "Font size"}
+cleanup:
+  - shell: "am force-stop com.google.android.settings.intelligence"
+  - if_api:
+      at_least: 29
+      then:
+        - shell: "cmd uimode night no"
+  - shell: "am force-stop com.android.settings"

@@ -1,0 +1,17 @@
+name: rotation-mid-task
+device: android
+steps:
+  - shell: "am force-stop dev.phoneuse.testbed"
+  - testbed: taps
+  - shell: "settings put system accelerometer_rotation 0"
+  - shell: "settings put system user_rotation 1"
+  - expect: {text: "landscape"}
+  - shell: "logcat -c"
+  - tap: {text: "b10", role: button}
+  - expect: {log: {ev: tap, id: b10}}
+  - shell: "settings put system user_rotation 0"
+  - expect: {text: "portrait"}
+cleanup:
+  - shell: "settings put system user_rotation 0"
+  - shell: "settings put system accelerometer_rotation 1"
+  - shell: "am force-stop dev.phoneuse.testbed"

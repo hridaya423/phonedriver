@@ -1,0 +1,13 @@
+name: testbed-permission-dialog
+device: android
+steps:
+  - shell: "pm clear dev.phoneuse.testbed"
+  - testbed: dialogs
+  - sleep_ms: 3000
+  - tap: "Ask permission"
+  - expect: {text: ["Allow", "ALLOW"]}
+  - tap: ["Don’t allow", "DENY"]
+  - expect: {absent: "access contacts"}
+cleanup:
+  - shell: "pm clear dev.phoneuse.testbed"
+  - shell: "pm grant dev.phoneuse.testbed android.permission.POST_NOTIFICATIONS"

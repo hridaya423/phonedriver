@@ -269,6 +269,7 @@ impl Daemon {
                     let idle = self.connections.load(Ordering::SeqCst) == 0
                         && Instant::now() >= deadline;
                     if idle { break }
+                    tokio::time::sleep(Duration::from_secs(1)).await;
                 }
             }
         }

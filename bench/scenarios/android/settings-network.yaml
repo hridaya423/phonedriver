@@ -1,0 +1,12 @@
+name: settings-network
+steps:
+  - shell: "am force-stop com.google.android.settings.intelligence"
+  - shell: "am force-stop com.android.settings"
+  - launch: com.android.settings
+  - tap: "Network & internet"
+  - expect: {text: ["Wi-Fi", "Wi‑Fi", "Internet"]}
+  - press: back
+  - expect: {text: "Connected devices"}
+cleanup:
+  - shell: "am force-stop com.google.android.settings.intelligence"
+  - shell: "am force-stop com.android.settings"

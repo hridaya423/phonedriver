@@ -1,0 +1,11 @@
+name: testbed-settle
+device: android
+steps:
+  - shell: "am force-stop dev.phoneuse.testbed"
+  - testbed: settle
+  - tap: "Animate"
+  - expect: {log: {ev: animate_end}}
+  - tap: "Do nothing"
+  - expect: {log: {ev: click, id: nothing}}
+cleanup:
+  - shell: "am force-stop dev.phoneuse.testbed"

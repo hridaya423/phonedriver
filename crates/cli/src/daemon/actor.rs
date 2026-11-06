@@ -596,27 +596,34 @@ impl Actor {
             unlocked = true;
         }
         if woke || unlocked {
-            // Observed on API 26 and 37: input sent as soon as the screen is on and unlocked is rejected
-            // by the dispatcher until a window has input focus again, and on API 26 the tree lists only
-            // system windows, then part of the app, until the app's window is back.
-            let started = Instant::now();
-            let mut last_len = 0;
-            while started.elapsed() < SCREEN_WAIT {
-                let tree = device.tree().await?;
-                let stable = tree.nodes.len() == last_len;
-                last_len = tree.nodes.len();
-                let app_is_back = tree.nodes.iter().any(|n| {
-                    tree.windows
-                        .iter()
-                        .any(|w| w.id == n.window && w.kind == "application")
-                });
-                if app_is_back && stable && device.screen_state().await?.focused {
-                    break;
-                }
-                tokio::time::sleep(Duration::from_millis(100)).await;
-            }
+            self.until_app_content().await?;
         }
         Ok((woke, unlocked))
+    }
+
+    async fn until_app_content(&self) -> Result<(), Error> {
+        let device = self.device()?;
+        // Observed on API 26 and 37: input sent as soon as the screen is on and unlocked is rejected
+        // by the dispatcher until a window has input focus again, and on API 26 the tree lists only
+        // system windows, then part of the app, until the app's window is back. A cold-started Settings
+        // on API 37 likewise reports an empty tree for a second after its first frame.
+        let started = Instant::now();
+        let mut last_len = 0;
+        while started.elapsed() < SCREEN_WAIT {
+            let tree = device.tree().await?;
+            let stable = tree.nodes.len() == last_len;
+            last_len = tree.nodes.len();
+            let app_is_back = tree.nodes.iter().any(|n| {
+                tree.windows
+                    .iter()
+                    .any(|w| w.id == n.window && w.kind == "application")
+            });
+            if app_is_back && stable && device.screen_state().await?.focused {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        }
+        Ok(())
     }
 
     async fn until_screen(&self, wait_for_on: bool, what: &str) -> Result<ScreenState, Error> {
@@ -772,6 +779,7 @@ impl Actor {
                     .or(Config::launch().expect_change);
                 let started = self.begin_action();
                 device.launch(&found.id).await?;
+                self.until_app_content().await?;
                 s.last = None;
                 let summary = format!("launched {}", found.name);
                 self.finish(s, p.settle, cfg, started, summary, None, None, None)
@@ -789,6 +797,7 @@ impl Actor {
                     .or(Config::launch().expect_change);
                 let started = self.begin_action();
                 device.open_url(&Url(url.clone())).await?;
+                self.until_app_content().await?;
                 let summary = format!("opened {url}");
                 self.finish(s, p.settle, cfg, started, summary, None, None, None)
                     .await

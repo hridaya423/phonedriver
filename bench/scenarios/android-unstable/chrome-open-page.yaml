@@ -1,0 +1,14 @@
+name: chrome-open-page
+steps:
+  - shell: "pm clear com.android.chrome"
+  - shell: "am start -a android.intent.action.VIEW -d http://example.com -p com.android.chrome"
+  - sleep_ms: 4000
+  - if_api:
+      at_least: 29
+      otherwise:
+        - tap: "Help make Chrome better"
+  - dismiss: ["ACCEPT & CONTINUE", "Stay signed out", "NO THANKS", "No thanks", "Got it", "GOT IT"]
+  - expect: {text: "Example Domain"}
+cleanup:
+  - shell: "am force-stop com.android.chrome"
+  - shell: "pm clear com.android.chrome"

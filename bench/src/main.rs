@@ -183,8 +183,14 @@ async fn start_daemon(
     Ok(child)
 }
 
+mod scenario;
+
 #[tokio::main]
 async fn main() {
+    let raw: Vec<String> = std::env::args().skip(1).collect();
+    if raw.first().map(String::as_str) == Some("scenario") {
+        std::process::exit(scenario::main(&raw[1..]).await);
+    }
     let args = match args() {
         Ok(a) => a,
         Err(e) => {

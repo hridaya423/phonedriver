@@ -1,0 +1,13 @@
+name: settings-battery
+steps:
+  - shell: "am force-stop com.google.android.settings.intelligence"
+  - shell: "am force-stop com.android.settings"
+  - launch: com.android.settings
+  - scroll: {direction: down, until: "Battery"}
+  - tap: {text: "Battery", role: button}
+  - expect: {absent: "Connected devices"}
+  - press: back
+  - expect: {element: {text: "Battery", role: button}}
+cleanup:
+  - shell: "am force-stop com.google.android.settings.intelligence"
+  - shell: "am force-stop com.android.settings"
