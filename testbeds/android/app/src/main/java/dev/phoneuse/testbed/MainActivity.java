@@ -1,6 +1,5 @@
 package dev.phoneuse.testbed;
 
-import android.app.Activity;
 import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
@@ -17,9 +16,9 @@ import android.widget.FrameLayout;
 import android.widget.HorizontalScrollView;
 import android.widget.LinearLayout;
 
-public final class MainActivity extends Activity {
+public final class MainActivity extends androidx.activity.ComponentActivity {
     private static final String[] TABS = {
-        "taps", "text", "list", "gestures", "busy", "secure", "dialogs", "web", "settle", "wait"
+        "taps", "text", "list", "gestures", "busy", "secure", "dialogs", "web", "settle", "wait", "compose"
     };
 
     private FrameLayout content;
@@ -133,6 +132,7 @@ public final class MainActivity extends Activity {
             case "web": screen = Screens.web(this); break;
             case "settle": screen = Screens.settle(this); break;
             case "wait": screen = Screens.waiting(this); break;
+            case "compose": screen = ComposeScreen.create(this); break;
             default: screen = Screens.taps(this); break;
         }
         content.addView(screen, new FrameLayout.LayoutParams(

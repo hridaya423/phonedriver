@@ -49,10 +49,26 @@ impl Session {
                     Ok(element_at(now, i))
                 }
                 TextMatch::None => Err(not_found(now, text)),
-                TextMatch::Many(refs) => Err(Error::Ambiguous {
-                    query: text.clone(),
-                    matches: lines(now, &refs),
-                }),
+                TextMatch::Many(refs) => {
+                    let actionable: Vec<_> = refs
+                        .iter()
+                        .copied()
+                        .filter(|r| {
+                            now.index_of(*r)
+                                .is_some_and(|i| !now.elements[i].actions.is_empty())
+                        })
+                        .collect();
+                    match actionable.as_slice() {
+                        [one] => Ok(element_at(
+                            now,
+                            now.index_of(*one).ok_or_else(|| not_found(now, text))?,
+                        )),
+                        _ => Err(Error::Ambiguous {
+                            query: text.clone(),
+                            matches: lines(now, &refs),
+                        }),
+                    }
+                }
             },
         }
     }

@@ -157,6 +157,7 @@ struct WireNode {
     desc: Option<String>,
     hint: Option<String>,
     sd: Option<String>,
+    rd: Option<String>,
     b: [f32; 4],
     #[serde(default)]
     f: String,
@@ -199,8 +200,21 @@ impl RawTree {
                 bounds: ltrb(w.bounds, scale),
             })
             .collect();
-        let mut nodes: Vec<RawNode> = wire
-            .nodes
+        let mut wire_nodes = wire.nodes;
+        // Compose puts a toggle's role description on a child of the node that is checkable and takes the tap.
+        for i in 0..wire_nodes.len() {
+            let Some(rd) = wire_nodes[i].rd.clone() else {
+                continue;
+            };
+            if let Ok(p) = usize::try_from(wire_nodes[i].p)
+                && p < i
+                && wire_nodes[p].rd.is_none()
+                && wire_nodes[p].f.contains('c')
+            {
+                wire_nodes[p].rd = Some(rd);
+            }
+        }
+        let mut nodes: Vec<RawNode> = wire_nodes
             .into_iter()
             .enumerate()
             .map(|(i, n)| node(i, n, scale, platform))
@@ -294,6 +308,11 @@ fn node(
     if flags.contains(NodeFlags::HEADING) && matches!(role, Role::Text | Role::Other) {
         role = Role::Heading;
     }
+    if role == Role::Other
+        && let Some(r) = n.rd.as_deref().and_then(Role::from_role_description)
+    {
+        role = r;
+    }
 
     let text = non_empty(n.text);
     let desc = non_empty(n.desc);
@@ -339,6 +358,19 @@ mod tests {
 
     fn settings() -> RawTree {
         RawTree::from_android_json(FIXTURE, Scale { density: 3.0 }).unwrap()
+    }
+
+    #[test]
+    fn a_compose_view_with_a_role_description_takes_that_role() {
+        let json = r#"{"windows":[],"nodes":[
+            {"p":-1,"w":1,"cls":"android.view.View","id":"compose_switch","sd":"Off","b":[0,437,137,563],"f":"vVce","a":["tap"]},
+            {"p":0,"w":1,"cls":"android.view.View","rd":"Switch","b":[0,458,137,542],"f":"vVe"},
+            {"p":-1,"w":1,"cls":"android.view.View","id":"plain","b":[0,0,10,10],"f":"vVe","a":["tap"]}
+        ]}"#;
+        let t = RawTree::from_android_json(json, Scale { density: 1.0 }).unwrap();
+        assert_eq!(t.nodes[0].role, Role::Switch);
+        assert_eq!(t.nodes[0].value.as_deref(), Some("Off"));
+        assert_eq!(t.nodes[2].role, Role::Other);
     }
 
     #[test]
