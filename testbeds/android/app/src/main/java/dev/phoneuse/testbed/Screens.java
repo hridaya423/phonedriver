@@ -367,6 +367,38 @@ final class Screens {
         return root;
     }
 
+    static View waiting(Activity a) {
+        LinearLayout root = column(a);
+        TextView loading = new TextView(a);
+        loading.setText("Loading");
+        loading.setTextSize(TypedValue.COMPLEX_UNIT_SP, 20);
+        root.addView(loading);
+        TextView revealed = new TextView(a);
+        revealed.setText("Revealed");
+        revealed.setTextSize(TypedValue.COMPLEX_UNIT_SP, 20);
+        revealed.setVisibility(View.GONE);
+        root.addView(revealed);
+        Button reveal = flat(a, "reveal", "Reveal");
+        reveal.setOnClickListener(
+                v -> v.postDelayed(
+                        () -> {
+                            revealed.setVisibility(View.VISIBLE);
+                            Events.emit(Events.event("revealed"));
+                        },
+                        1500));
+        root.addView(reveal);
+        Button hide = flat(a, "hide", "Hide spinner");
+        hide.setOnClickListener(
+                v -> v.postDelayed(
+                        () -> {
+                            loading.setVisibility(View.GONE);
+                            Events.emit(Events.event("loading_hidden"));
+                        },
+                        1000));
+        root.addView(hide);
+        return root;
+    }
+
     static View secure(Activity a) {
         TextView t = new TextView(a);
         t.setId(id(a, "secret_label"));

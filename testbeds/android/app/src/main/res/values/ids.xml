@@ -44,4 +44,6 @@
     <item name="ticker" type="id" />
     <item name="flash_area" type="id" />
     <item name="send" type="id" />
+    <item name="reveal" type="id" />
+    <item name="hide" type="id" />
 </resources>

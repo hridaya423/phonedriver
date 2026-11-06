@@ -411,6 +411,8 @@ Scroll mechanics: `scroll` drags 60% of the largest scrollable container (or `--
 
 `clear <target>` taps the field to focus it, then sets its value to nothing with `ACTION_SET_TEXT` and reports `verified` when the field then shows no text (`via: set`). `clipboard set <text>` takes the text on the command line (it is not a secret; use `type --secret` for secrets), and `clipboard` prints the device clipboard; the daemon does not trace either.
 
+`wait "text"`, `wait @ref` and `wait gone:"text"` read the tree once at the start and then once after each window change or frame with more than 128 pt² of change (100 ms after the burst's first signal), never on a timer; the reply's summary says how many tree reads it took. They resolve targets like `tap` does (substring match included), return a full snapshot, and fail `Timeout` naming the condition (default timeout 5 s). `snapshot --within @eN` prints only that element's subtree under the usual header, and a ref the screen no longer has is `StaleRef`.
+
 Defaults: `scroll --max 30`; `swipe --distance 0.5`; `tap --count 1` (2 = double tap, taps 80 ms apart); `swipe --from` takes a target and starts the gesture at its center.
 
 How the less obvious verbs work per platform:

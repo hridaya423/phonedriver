@@ -724,3 +724,113 @@ async fn a_shown_keyboard_marks_the_button_under_it_and_tapping_that_button_says
     .await;
     assert!(log.iter().any(|e| e["id"] == "send"), "{log:?}");
 }
+
+fn reads(r: &serde_json::Value) -> u32 {
+    let summary = r["summary"].as_str().unwrap();
+    let after = summary.split(" after ").nth(1).unwrap();
+    after.split(' ').next().unwrap().parse().unwrap()
+}
+
+#[tokio::test]
+#[ignore = "needs PHONE_USE_TEST_DEVICE"]
+async fn wait_for_a_row_returns_as_soon_as_the_deep_link_has_shown_it() {
+    let rig = Rig::new().await;
+    stop_testbed(&rig).await;
+    rig.ok(&["--no-settle", "open", "dev.phoneuse.testbed://list/640"]);
+    let started = std::time::Instant::now();
+    let r = rig.json(&["--timeout", "8000", "wait", "Row 640"]);
+    assert!(r["summary"].as_str().unwrap().contains("appeared"), "{r}");
+    assert!(
+        r["observation"]["text"]
+            .as_str()
+            .unwrap()
+            .contains("\"Row 640\""),
+        "{r}"
+    );
+    assert!(
+        started.elapsed() < std::time::Duration::from_secs(5),
+        "took {:?}",
+        started.elapsed()
+    );
+    assert!(reads(&r) <= 10, "{r}");
+}
+
+#[tokio::test]
+#[ignore = "needs PHONE_USE_TEST_DEVICE"]
+async fn wait_gone_returns_after_the_testbed_hides_its_label_one_second_after_a_tap() {
+    let rig = Rig::new().await;
+    rig.tab("wait").await;
+    let shown = rig.ok(&["snapshot"]);
+    assert!(shown.contains("\"Loading\""), "{shown}");
+    rig.ok(&["--no-settle", "tap", "Hide spinner"]);
+    let started = std::time::Instant::now();
+    let r = rig.json(&["--timeout", "8000", "wait", "gone:Loading"]);
+    let took = started.elapsed();
+    assert!(r["summary"].as_str().unwrap().contains("is gone"), "{r}");
+    assert!(
+        !r["observation"]["text"]
+            .as_str()
+            .unwrap()
+            .contains("\"Loading\""),
+        "{r}"
+    );
+    assert!(took < std::time::Duration::from_millis(2500), "{took:?}");
+    let log = testbed::read_log(&rig.adb, &rig.serial).await;
+    assert!(log.iter().any(|e| e["ev"] == "loading_hidden"), "{log:?}");
+}
+
+#[tokio::test]
+#[ignore = "needs PHONE_USE_TEST_DEVICE"]
+async fn wait_for_text_that_never_shows_times_out_naming_it() {
+    let rig = Rig::new().await;
+    rig.tab("taps").await;
+    let started = std::time::Instant::now();
+    let out = rig.cli(&["--timeout", "500", "wait", "Never"]);
+    let err = failure(&out);
+    assert_eq!(out.status.code(), Some(1), "{err}");
+    assert!(
+        err.contains("\"Never\"") && err.contains("timed out"),
+        "{err}"
+    );
+    assert!(started.elapsed() < std::time::Duration::from_secs(4));
+}
+
+#[tokio::test]
+#[ignore = "needs PHONE_USE_TEST_DEVICE"]
+async fn wait_reads_the_tree_per_change_not_per_tick() {
+    let rig = Rig::new().await;
+    rig.tab("wait").await;
+    tokio::time::sleep(std::time::Duration::from_millis(1500)).await;
+    rig.ok(&["--no-settle", "tap", "Reveal"]);
+    let r = rig.json(&["--timeout", "6000", "wait", "Revealed"]);
+    assert!(r["summary"].as_str().unwrap().contains("appeared"), "{r}");
+    let n = reads(&r);
+    assert!(
+        (2..=5).contains(&n),
+        "a 1.5 s wait read the tree {n} times (a 100 ms poll would read about 15): {r}"
+    );
+}
+
+#[tokio::test]
+#[ignore = "needs PHONE_USE_TEST_DEVICE"]
+async fn snapshot_within_a_ref_renders_only_that_subtree() {
+    let rig = Rig::new().await;
+    rig.tab("taps").await;
+    tokio::time::sleep(std::time::Duration::from_millis(1500)).await;
+    let all = rig.ok(&["snapshot"]);
+    assert!(
+        all.contains("Dark theme") && all.contains("\"Taps\""),
+        "{all}"
+    );
+    let bar = all
+        .lines()
+        .find(|l| l.contains("group") && l.contains("scrollable"))
+        .unwrap_or_else(|| panic!("no tab bar in {all}"));
+    let r = bar.split_whitespace().next().unwrap();
+    let within = rig.ok(&["snapshot", "--within", r]);
+    assert!(within.contains("\"Taps\""), "{within}");
+    assert!(
+        !within.contains("Dark theme") && !within.contains("\"b0\""),
+        "{within}"
+    );
+}

@@ -146,11 +146,8 @@ enum Verb {
     },
     /// Press a button or key: home, back, recents, notifications, lock, volume-up, volume-down, enter.
     Press { key: String },
-    /// Wait for `settled`.
-    Wait {
-        #[arg(value_parser = ["settled"])]
-        condition: String,
-    },
+    /// Wait for `settled`, for a text or `@ref` to appear, or for `gone:<text>` (or `gone:@ref`) to leave the screen.
+    Wait { condition: String },
     /// Give up this session's lease on the device.
     Release,
     /// Run the daemon in the foreground, or detached.
@@ -514,8 +511,13 @@ async fn execute(
                 .await?;
             show_action(&r, g.json)
         }
-        Verb::Wait { .. } => {
-            let mut p = json!({"condition": {"settled": true}});
+        Verb::Wait { condition } => {
+            let condition = match condition.strip_prefix("gone:") {
+                Some(rest) => json!({"gone": parse_target(rest)}),
+                None if condition == "settled" => json!({"settled": true}),
+                None => json!({"appears": parse_target(&condition)}),
+            };
+            let mut p = json!({"condition": condition});
             if let Some(t) = g.timeout {
                 p["timeout_ms"] = json!(t);
             }

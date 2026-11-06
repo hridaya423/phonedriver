@@ -47,7 +47,10 @@ type Action =
   | {kind: "gesture", fingers: Array<Array<{x: number, y: number, t_ms: number}>>}
   | {kind: "press", key: Key}
   | {kind: "launch", app: string}
-type WaitCondition = {appears: Target} | {gone: Target} | {settled: true}   // Phase 2 implements settled only
+type WaitCondition = {appears: Target} | {gone: Target} | {settled: true}
+// appears and gone reply with a full Observation and `summary: "\"Row 640\" appeared after 3 tree reads"`; a text
+// target is a substring match, so `gone:Loading` is not gone while "Hide loading" is on screen. They fail `timeout`
+// (-32013) naming the condition.
 
 type Observation = {
   header: Header,                 // core::render::Header: device {id, model, os, screen, orientation}, app {id, name},

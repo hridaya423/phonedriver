@@ -1167,3 +1167,126 @@ async fn a_button_under_the_keyboard_is_marked_and_a_tap_on_it_fails_off_screen_
     .await;
     assert_eq!(fake.calls().len(), 1);
 }
+
+async fn wait_with_frames(
+    d: &Daemon,
+    fake: &FakeDevice,
+    params: Value,
+    frames_at_ms: &[u64],
+) -> Result<Value, RpcError> {
+    let driver = async {
+        let mut last = 0;
+        for (i, at) in frames_at_ms.iter().enumerate() {
+            tokio::time::sleep(Duration::from_millis(at - last)).await;
+            last = *at;
+            fake.push_frame(big_frame(i as u64 + 1));
+        }
+    };
+    let (r, ()) = tokio::join!(d.call("default", "wait", params), driver);
+    r
+}
+
+#[tokio::test(start_paused = true)]
+async fn wait_for_text_reads_the_tree_once_per_frame_that_changed_and_returns_when_it_appears() {
+    let (source, fake) = FakeSource::with(vec![
+        tree(&["One"]),
+        tree(&["One"]),
+        tree(&["One"]),
+        tree(&["One", "Two"]),
+    ]);
+    let (d, _home) = daemon(source);
+    let r = wait_with_frames(
+        &d,
+        &fake,
+        json!({"condition": {"appears": {"text": "Two"}}, "timeout_ms": 5000}),
+        &[400, 800, 1200],
+    )
+    .await
+    .unwrap();
+    assert!(
+        r["summary"]
+            .as_str()
+            .unwrap()
+            .contains("after 4 tree reads"),
+        "{r}"
+    );
+    assert!(
+        r["observation"]["text"]
+            .as_str()
+            .unwrap()
+            .contains("\"Two\""),
+        "{r}"
+    );
+}
+
+#[tokio::test(start_paused = true)]
+async fn wait_for_a_text_already_on_screen_returns_after_one_read() {
+    let (source, _) = FakeSource::with(vec![tree(&["Row 640"])]);
+    let (d, _home) = daemon(source);
+    let r = ok(
+        &d,
+        "default",
+        "wait",
+        json!({"condition": {"appears": {"text": "Row 640"}}}),
+    )
+    .await;
+    assert!(
+        r["summary"].as_str().unwrap().contains("after 1 tree read"),
+        "{r}"
+    );
+}
+
+#[tokio::test(start_paused = true)]
+async fn wait_gone_returns_when_the_text_leaves() {
+    let (source, fake) = FakeSource::with(vec![tree(&["Loading", "Done"]), tree(&["Done"])]);
+    let (d, _home) = daemon(source);
+    let r = wait_with_frames(
+        &d,
+        &fake,
+        json!({"condition": {"gone": {"text": "Loading"}}, "timeout_ms": 5000}),
+        &[1000],
+    )
+    .await
+    .unwrap();
+    assert!(r["summary"].as_str().unwrap().contains("gone"), "{r}");
+    assert!(
+        !r["observation"]["text"]
+            .as_str()
+            .unwrap()
+            .contains("Loading"),
+        "{r}"
+    );
+}
+
+#[tokio::test(start_paused = true)]
+async fn wait_for_text_that_never_shows_times_out_naming_the_condition_and_reads_once() {
+    let (source, _) = FakeSource::with(vec![tree(&["One"])]);
+    let (d, _home) = daemon(source);
+    let started = tokio::time::Instant::now();
+    let e = err(
+        &d,
+        "default",
+        "wait",
+        json!({"condition": {"appears": {"text": "Never"}}, "timeout_ms": 500}),
+    )
+    .await;
+    assert_eq!(e.code, -32013, "{e:?}");
+    assert!(e.message.contains("\"Never\""), "{e:?}");
+    assert!(started.elapsed() < Duration::from_millis(700));
+}
+
+#[tokio::test(start_paused = true)]
+async fn snapshot_within_a_ref_renders_only_that_subtree_and_a_missing_ref_is_stale() {
+    let (source, _) = FakeSource::with(vec![tree(&["One", "Two"])]);
+    let (d, _home) = daemon(source);
+    let all = ok(&d, "default", "snapshot", json!({})).await;
+    assert!(all["text"].as_str().unwrap().contains("\"Two\""));
+    let one = ok(&d, "default", "snapshot", json!({"within": "e1"})).await;
+    let text = one["text"].as_str().unwrap();
+    assert!(
+        text.contains("\"One\"") && !text.contains("\"Two\""),
+        "{text}"
+    );
+    let e = err(&d, "default", "snapshot", json!({"within": "e99"})).await;
+    assert_eq!(e.code, -32006, "{e:?}");
+}
