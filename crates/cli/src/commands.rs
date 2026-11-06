@@ -154,7 +154,7 @@ pub(crate) enum Verb {
         action: Option<String>,
         text: Option<String>,
     },
-    /// Press a button or key: home, back, recents, notifications, lock, volume-up, volume-down, enter.
+    /// Press a button or key: home, back, recents, notifications, lock, volume-up, volume-down, enter, hide-keyboard.
     Press { key: String },
     /// Wait for `settled`, for a text or `@ref` to appear, or for `gone:<text>` (or `gone:@ref`) to leave the screen.
     Wait { condition: String },

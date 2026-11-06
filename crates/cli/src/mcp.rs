@@ -102,7 +102,7 @@ struct ScrollArgs {
 #[derive(Deserialize, JsonSchema)]
 struct PressArgs {
     device: Option<String>,
-    /// home, back, recents, notifications, lock, volume-up, volume-down or enter.
+    /// home, back, recents, notifications, lock, volume-up, volume-down, enter or hide-keyboard.
     key: String,
 }
 
@@ -321,7 +321,7 @@ impl Mcp {
     }
 
     #[tool(
-        description = "Press a button: home, back, recents, notifications, lock, volume-up, volume-down or enter. Returns what changed once the screen settled. One call at a time."
+        description = "Press a button: home, back, recents, notifications, lock, volume-up, volume-down, enter, or hide-keyboard to close the on-screen keyboard. Returns what changed once the screen settled. One call at a time."
     )]
     async fn press(&self, Parameters(a): Parameters<PressArgs>) -> CallToolResult {
         self.run(a.device, Verb::Press { key: a.key }, None).await

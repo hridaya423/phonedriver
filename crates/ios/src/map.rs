@@ -60,7 +60,8 @@ fn scroll_indicator(n: &Value) -> bool {
 }
 
 /// Removes scroll indicators and inner switches with their subtrees from the runner's preorder node list,
-/// renumbering parents. A toggle row is a labeled switch the width of the row holding an unlabeled switch, the
+/// renumbering parents. The window that holds the keyboard keeps only the `Keyboard` node (now a child of the
+/// application): its keys and its Emoji and Dictate buttons are the keyboard, and typing is `type`. A toggle row is a labeled switch the width of the row holding an unlabeled switch, the
 /// control itself (Settings and SwiftUI `Toggle`); a tap at the row's center does not toggle it, so the row takes
 /// the inner switch's bounds and the inner switch goes.
 fn tidy(reply: &mut Value) {
@@ -78,6 +79,26 @@ fn tidy(reply: &mut Value) {
             nodes[p]["b"] = nodes[i]["b"].clone();
             drop[i] = true;
         }
+    }
+    if let Some(k) = nodes
+        .iter()
+        .position(|n| n["cls"] == "XCUIElementTypeKeyboard")
+    {
+        let mut window = k;
+        while let Some(p) = parent(&nodes[window]).filter(|&p| p != 0) {
+            window = p;
+        }
+        for (i, dropped) in drop.iter_mut().enumerate() {
+            let mut at = Some(i);
+            while let Some(a) = at {
+                if a == window {
+                    *dropped = i != k;
+                    break;
+                }
+                at = parent(&nodes[a]);
+            }
+        }
+        nodes[k]["p"] = 0.into();
     }
     let mut index: Vec<Option<i64>> = Vec::with_capacity(nodes.len());
     let mut kept = Vec::with_capacity(nodes.len());
@@ -137,6 +158,55 @@ pub fn back_button(tree: &RawTree) -> Option<Point> {
                 && n.bounds.area() > 0.0
         })
         .map(|n| n.bounds.center())
+}
+
+/// How to close the on-screen keyboard.
+#[derive(Debug, Clone, PartialEq)]
+pub enum HidePlan {
+    /// A "Hide keyboard" key (iPad keyboards have one).
+    Tap(Point),
+    /// Drag the content above the keyboard up: forms that dismiss on drag (Contacts, Settings) hide it. A drag down
+    /// would also dismiss a sheet such as Contacts' New Contact, and lose its draft.
+    Drag(Gesture),
+}
+
+/// Reads the runner's snapshot, keys included, and plans how to hide the keyboard; `None` when none is shown.
+pub fn hide_keyboard_plan(reply: &Value, screen: Size) -> Option<HidePlan> {
+    let nodes = reply["nodes"].as_array()?;
+    let keyboard = nodes
+        .iter()
+        .find(|n| n["cls"] == "XCUIElementTypeKeyboard")?;
+    let bounds = |n: &Value| -> Option<[f32; 4]> {
+        let a = n["b"].as_array()?;
+        Some([
+            a.first()?.as_f64()? as f32,
+            a.get(1)?.as_f64()? as f32,
+            a.get(2)?.as_f64()? as f32,
+            a.get(3)?.as_f64()? as f32,
+        ])
+    };
+    let hide_key = nodes.iter().find(|n| {
+        n["cls"] == "XCUIElementTypeButton"
+            && n["text"]
+                .as_str()
+                .is_some_and(|t| t.eq_ignore_ascii_case("hide keyboard"))
+    });
+    if let Some([left, top, right, bottom]) = hide_key.and_then(bounds) {
+        return Some(HidePlan::Tap(Point {
+            x: (left + right) / 2.0,
+            y: (top + bottom) / 2.0,
+        }));
+    }
+    let [_, top, _, _] = bounds(keyboard)?;
+    let from = Point {
+        x: screen.w / 2.0,
+        y: top - 40.0,
+    };
+    let to = Point {
+        x: screen.w / 2.0,
+        y: (top - 160.0).max(screen.h * 0.1),
+    };
+    Some(HidePlan::Drag(swipe(from, to, 300)))
 }
 
 fn swipe(from: Point, to: Point, ms: u32) -> Gesture {
@@ -253,6 +323,72 @@ mod tests {
             .unwrap();
         assert_eq!(kb.bounds.y, 574.0);
         assert_eq!(kb.bounds.h, 300.0);
+    }
+
+    fn keyboard_reply() -> Value {
+        json!({"app": {"bundle_id": "x", "pid": 1}, "nodes": [
+            {"p": -1, "cls": "XCUIElementTypeApplication", "b": [0, 0, 402, 874], "f": "vVe"},
+            {"p": 0, "cls": "XCUIElementTypeWindow", "b": [0, 0, 402, 874], "f": "vVe"},
+            {"p": 1, "cls": "XCUIElementTypeTextField", "text": "Plain", "a": ["tap"], "b": [32, 112, 370, 134], "f": "vVeFE"},
+            {"p": 0, "cls": "XCUIElementTypeWindow", "b": [0, 0, 402, 874], "f": "vVe"},
+            {"p": 3, "cls": "XCUIElementTypeOther", "b": [0, 566, 402, 874], "f": "vVe"},
+            {"p": 4, "cls": "XCUIElementTypeKeyboard", "b": [0, 583, 402, 816], "f": "vVe"},
+            {"p": 5, "cls": "XCUIElementTypeButton", "text": "Q", "a": ["tap"], "b": [4, 700, 40, 750], "f": "vVe"},
+            {"p": 5, "cls": "XCUIElementTypeButton", "text": "return", "a": ["tap"], "b": [300, 752, 399, 806], "f": "vVe"},
+            {"p": 4, "cls": "XCUIElementTypeOther", "b": [0, 583, 402, 874], "f": "vVe"},
+            {"p": 8, "cls": "XCUIElementTypeButton", "text": "Emoji", "a": ["tap"], "b": [8, 805, 76, 874], "f": "vVe"},
+            {"p": 8, "cls": "XCUIElementTypeButton", "text": "Dictate", "a": ["tap"], "b": [325, 805, 393, 874], "f": "vVe"}
+        ]})
+    }
+
+    #[test]
+    fn the_keyboard_window_is_one_keyboard_node_without_keys_or_accessory_buttons() {
+        let tree = raw_tree(&keyboard_reply(), SCREEN).unwrap();
+        let roles: Vec<Role> = tree.nodes.iter().map(|n| n.role).collect();
+        assert_eq!(
+            roles.iter().filter(|r| **r == Role::Keyboard).count(),
+            1,
+            "{roles:?}"
+        );
+        assert!(
+            tree.nodes
+                .iter()
+                .all(|n| n.label.as_deref() == Some("Plain") || n.label.is_none()),
+            "{:?}",
+            tree.nodes.iter().map(|n| &n.label).collect::<Vec<_>>()
+        );
+        let kept = phone_use_core::prune::prune(&tree);
+        let shown: Vec<Role> = kept.iter().map(|n| n.role).collect();
+        assert_eq!(shown, [Role::TextField, Role::Keyboard]);
+        let kb = tree
+            .windows
+            .iter()
+            .find(|w| w.kind == "input_method")
+            .unwrap();
+        assert_eq!((kb.bounds.y, kb.bounds.h), (583.0, 233.0));
+    }
+
+    #[test]
+    fn hiding_the_keyboard_taps_a_hide_key_when_there_is_one_and_otherwise_drags_the_form_up() {
+        assert_eq!(hide_keyboard_plan(&json!({"nodes": []}), SCREEN), None);
+        let drag = hide_keyboard_plan(&keyboard_reply(), SCREEN).unwrap();
+        let HidePlan::Drag(g) = drag else {
+            panic!("{drag:?}")
+        };
+        let path = &g.fingers[0];
+        assert!(path[0].at.y < 583.0, "starts above the keyboard: {path:?}");
+        assert!(
+            path.last().unwrap().at.y < path[0].at.y,
+            "moves up, never down: a drag down dismisses a sheet and loses its draft"
+        );
+        let mut with_key = keyboard_reply();
+        with_key["nodes"].as_array_mut().unwrap().push(json!({
+            "p": 5, "cls": "XCUIElementTypeButton", "text": "Hide keyboard", "a": ["tap"],
+            "b": [340, 760, 400, 810], "f": "vVe"}));
+        assert_eq!(
+            hide_keyboard_plan(&with_key, SCREEN),
+            Some(HidePlan::Tap(Point { x: 370.0, y: 785.0 }))
+        );
     }
 
     #[test]
