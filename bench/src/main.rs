@@ -195,6 +195,14 @@ async fn main() {
     if raw.first().map(String::as_str) == Some("scenario") {
         std::process::exit(scenario::main(&raw[1..]).await);
     }
+    if raw.first().map(String::as_str) == Some("eval") {
+        std::process::exit(scenario::eval_main(&raw[1..]).await);
+    }
+    if let (Some("stats"), Some(file)) = (raw.first().map(String::as_str), raw.get(1)) {
+        let text = std::fs::read_to_string(file).unwrap_or_default();
+        println!("{}", scenario::transcript_stats(&text));
+        return;
+    }
     if raw.first().map(String::as_str) == Some("ios") {
         return ios::main().await;
     }
