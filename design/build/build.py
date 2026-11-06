@@ -164,66 +164,76 @@ def loop(tn):
     return svg(W, H, b, "The agent sends tap @e10 to the daemon. The daemon re-locates the ref and taps the device. The daemon waits until the screen has settled, then the diff comes back to the agent.", c["page"])
 
 
+TITLE = "phone-use against adb and phone-harness"
+ALT = "Bar chart, log scale, p50 on an Android 17 emulator: phone-use, phone-harness 0.3.3 and plain adb on tap, screenshot, two UI tree reads, typing 100 characters and tap then what changed. phone-use is 1.6 times faster than adb on a bare tap, 4.7 to 51 times faster on everything else."
 OPS = [
-    ("Tap", 36.5, 110.7, "3.0"),
-    ("Screenshot", 15.2, 390.1, "26"),
-    ("Snapshot, Settings", 67.7, 2426.4, "36"),
-    ("Snapshot, 1,000-row list", 15.5, 2370.0, "153"),
-    ("Type 100 characters", 288.3, 2104.5, "7.3"),
+    ("Tap", 144.1, 110.7, 223.7, "1.6", "adb; phone-harness 0.8x"),
+    ("Screenshot", 45.3, 390.1, 692.4, "15", "adb; phone-harness 8.6x"),
+    ("UI tree, Settings", 237.0, 2426.4, 2800.5, "12", "adb; phone-harness 10x"),
+    ("UI tree, 1,000-row list", 52.8, 2370.0, 2677.9, "51", "adb; phone-harness 45x"),
+    ("Type 100 characters", 755.0, 2104.5, 5204.4, "6.9", "adb; phone-harness 2.8x"),
+    ("Tap, then what changed", 666.9, None, 3111.7, "4.7", "adb; no phone-harness"),
 ]
 
 
 def speed(tn):
     import math
     c = THEMES[tn]
-    W, H = 1280, 520
-    b = ""
+    n = len(OPS)
+    W = 1280
     fx, fy, fw = 24, 24, 1232
-    rh = 76
-    fh = 46 + rh * 5 + 38 + 2
+    rh = 100
+    fh = 46 + rh * n + 38 + 2
+    H = fh + 48
+    b = ""
     b += frame(fx, fy, fw, fh, c["line"], c["page"])
     b += rect(fx + 1, fy + 1, fw - 2, 45, c["panel"]) + rule(fx + 1, fy + 46, fw - 2, c["line"])
-    t, _ = mono("phone-use against phone-harness 0.3.3", fx + 14, fy + 24, 18, c["t1"])
+    t, _ = mono(TITLE, fx + 14, fy + 24, 18, c["t1"])
     b += t
     rx = fx + fw - 14
-    t, w = mono("phone-harness", rx, fy + 24, 15, c["t2"], 0.04, anchor="end", caps=True)
-    b += t + rect(rx - w - 10 - 12, fy + 24 - 5, 10, 10, c["d5"])
-    rx2 = rx - w - 10 - 12 - 24
-    t, w2 = mono("phone-use", rx2, fy + 24, 15, c["t2"], 0.04, anchor="end", caps=True)
-    b += t + rect(rx2 - w2 - 10 - 12, fy + 24 - 5, 10, 10, c["d1"], f' stroke="{c["edge"]}" stroke-width="1"' if False else "")
-    labw, facw = 264, 176
+    for name, col in reversed((("phone-use", "d1"), ("phone-harness", "d5"), ("adb", "d3"))):
+        t, w = mono(name, rx, fy + 24, 15, c["t2"], 0.04, anchor="end", caps=True)
+        b += t + rect(rx - w - 10 - 12, fy + 24 - 5, 10, 10, c[col])
+        rx = rx - w - 10 - 12 - 24
+    labw, facw = 264, 250
     px0, px1 = fx + labw, fx + fw - facw
     b += vrule(px0, fy + 47, fh - 48, c["line"]) + vrule(px1, fy + 47, fh - 48, c["line"])
-    X = lambda ms: px0 + 16 + (math.log10(ms) - 1) / 3 * (px1 - px0 - 32 - 40)
-    ay = fy + 46 + rh * 5
+    X = lambda ms: px0 + 16 + (math.log10(ms) - 1) / 3 * (px1 - px0 - 32 - 90)
+    ay = fy + 46 + rh * n
     b += rule(fx + 1, ay, fw - 2, c["line"])
     for ms, lab in ((10, "10"), (100, "100"), (1000, "1,000"), (10000, "10,000")):
         x = round(X(ms))
-        b += vrule(x, fy + 47, rh * 5, c["faint"])
+        b += vrule(x, fy + 47, rh * n, c["faint"])
         t, _ = mono(lab + " ms", x, ay + 20, 14, c["t3"], 0.04, anchor="start" if ms == 10 else "middle")
         b += t
     t, _ = mono("p50, log scale", fx + 14, ay + 20, 14, c["t3"], 0.05, caps=True)
     b += t
-    for i, (op, pu, ph, fac) in enumerate(OPS):
+    for i, (op, pu, ph, adb, fac, sub) in enumerate(OPS):
         y = fy + 47 + rh * i
-        if i < 4:
+        if i < n - 1:
             b += rule(fx + 1, y + rh - 1, fw - 2, c["faint"])
         t, _ = mono(op, fx + 14, y + rh / 2 - 1, 15, c["t1"], 0.03, caps=True)
         b += t
         x0 = round(X(10))
-        for j, (v, col, ed, tc) in enumerate(((pu, c["d1"], c["edge"], c["t1"]), (ph, c["d5"], None, c["t2"]))):
-            by = y + 14 + j * 26
+        for j, (v, col, ed, tc) in enumerate(((pu, c["d1"], c["edge"], c["t1"]), (ph, c["d5"], None, c["t2"]), (adb, c["d3"], None, c["t2"]))):
+            by = y + 12 + j * 27
+            if v is None:
+                t, _ = mono("not supported", x0, by + 10, 14, c["t3"])
+                b += t
+                continue
             x1 = round(X(v))
             b += rect(x0, by, x1 - x0, 20, col)
             if ed:
                 b += frame(x0, by, x1 - x0, 20, ed)
             t, _ = mono(f"{v:,.1f} ms", x1 + 10, by + 10, 16, tc)
             b += t
-        t, w = text(fac, px1 + 16, y + rh / 2 + 16, INTER, 44, c["t1"], -0.035)
+        t, w = text(fac, px1 + 16, y + rh / 2 + 8, INTER, 44, c["t1"], -0.035)
         b += t
-        t, _ = text("x", px1 + 16 + w + 2, y + rh / 2 + 16, INTER, 26, c["t2"], -0.02)
+        t, _ = text("x", px1 + 16 + w + 2, y + rh / 2 + 8, INTER, 26, c["t2"], -0.02)
         b += t
-    return svg(W, H, b, "Bar chart, log scale: phone-use against phone-harness 0.3.3 on tap, screenshot, two snapshots and typing 100 characters. phone-use is 3.0 to 153 times faster.", c["page"])
+        t, _ = mono(sub, px1 + 16, y + rh / 2 + 30, 12, c["t3"], 0.02)
+        b += t
+    return svg(W, H, b, ALT, c["page"])
 
 
 def sheet(tn):

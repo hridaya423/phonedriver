@@ -1,0 +1,451 @@
+op,ms
+"adb floor (`shell true`)",64.512
+"adb floor (`shell true`)",55.129
+"adb floor (`shell true`)",57.615
+"adb floor (`shell true`)",47.589
+"adb floor (`shell true`)",54.850
+"adb floor (`shell true`)",50.722
+"adb floor (`shell true`)",46.562
+"adb floor (`shell true`)",58.674
+"adb floor (`shell true`)",59.360
+"adb floor (`shell true`)",67.127
+"adb floor (`shell true`)",80.437
+"adb floor (`shell true`)",91.270
+"adb floor (`shell true`)",77.159
+"adb floor (`shell true`)",90.066
+"adb floor (`shell true`)",84.000
+"adb floor (`shell true`)",66.275
+"adb floor (`shell true`)",68.087
+"adb floor (`shell true`)",72.716
+"adb floor (`shell true`)",71.519
+"adb floor (`shell true`)",67.701
+"adb floor (`shell true`)",69.256
+"adb floor (`shell true`)",73.392
+"adb floor (`shell true`)",69.587
+"adb floor (`shell true`)",74.062
+"adb floor (`shell true`)",72.940
+"adb floor (`shell true`)",87.773
+"adb floor (`shell true`)",117.666
+"adb floor (`shell true`)",165.433
+"adb floor (`shell true`)",95.015
+"adb floor (`shell true`)",90.883
+"adb floor (`shell true`)",103.880
+"adb floor (`shell true`)",89.077
+"adb floor (`shell true`)",94.602
+"adb floor (`shell true`)",93.921
+"adb floor (`shell true`)",74.306
+"adb floor (`shell true`)",66.188
+"adb floor (`shell true`)",69.809
+"adb floor (`shell true`)",56.850
+"adb floor (`shell true`)",59.047
+"adb floor (`shell true`)",61.761
+"adb floor (`shell true`)",60.370
+"adb floor (`shell true`)",72.079
+"adb floor (`shell true`)",65.649
+"adb floor (`shell true`)",153.924
+"adb floor (`shell true`)",119.191
+"adb floor (`shell true`)",151.220
+"adb floor (`shell true`)",118.737
+"adb floor (`shell true`)",88.930
+"adb floor (`shell true`)",63.190
+"adb floor (`shell true`)",68.265
+"tap",202.602
+"tap",185.312
+"tap",194.524
+"tap",250.425
+"tap",282.069
+"tap",223.691
+"tap",287.245
+"tap",257.369
+"tap",179.841
+"tap",217.862
+"tap",197.377
+"tap",165.808
+"tap",235.658
+"tap",427.192
+"tap",325.941
+"tap",273.928
+"tap",225.071
+"tap",227.168
+"tap",190.412
+"tap",186.910
+"tap",191.319
+"tap",252.857
+"tap",245.882
+"tap",272.314
+"tap",312.655
+"tap",198.720
+"tap",252.173
+"tap",225.960
+"tap",235.873
+"tap",210.206
+"tap",245.772
+"tap",196.454
+"tap",355.502
+"tap",196.036
+"tap",222.505
+"tap",196.625
+"tap",216.702
+"tap",179.034
+"tap",288.392
+"tap",200.357
+"tap",202.203
+"tap",292.275
+"tap",255.856
+"tap",182.390
+"tap",185.179
+"tap",170.345
+"tap",240.385
+"tap",245.288
+"tap",216.974
+"tap",224.710
+"screenshot (settled Taps tab)",675.809
+"screenshot (settled Taps tab)",671.566
+"screenshot (settled Taps tab)",768.912
+"screenshot (settled Taps tab)",668.735
+"screenshot (settled Taps tab)",643.570
+"screenshot (settled Taps tab)",731.311
+"screenshot (settled Taps tab)",689.894
+"screenshot (settled Taps tab)",695.872
+"screenshot (settled Taps tab)",740.663
+"screenshot (settled Taps tab)",725.204
+"screenshot (settled Taps tab)",683.628
+"screenshot (settled Taps tab)",732.245
+"screenshot (settled Taps tab)",700.712
+"screenshot (settled Taps tab)",746.402
+"screenshot (settled Taps tab)",755.414
+"screenshot (settled Taps tab)",665.767
+"screenshot (settled Taps tab)",739.489
+"screenshot (settled Taps tab)",689.902
+"screenshot (settled Taps tab)",689.674
+"screenshot (settled Taps tab)",636.127
+"screenshot (settled Taps tab)",692.181
+"screenshot (settled Taps tab)",662.404
+"screenshot (settled Taps tab)",688.900
+"screenshot (settled Taps tab)",704.908
+"screenshot (settled Taps tab)",664.885
+"screenshot (settled Taps tab)",629.346
+"screenshot (settled Taps tab)",692.263
+"screenshot (settled Taps tab)",723.511
+"screenshot (settled Taps tab)",695.641
+"screenshot (settled Taps tab)",694.551
+"screenshot (settled Taps tab)",726.715
+"screenshot (settled Taps tab)",656.607
+"screenshot (settled Taps tab)",711.010
+"screenshot (settled Taps tab)",738.010
+"screenshot (settled Taps tab)",732.721
+"screenshot (settled Taps tab)",737.227
+"screenshot (settled Taps tab)",684.528
+"screenshot (settled Taps tab)",720.576
+"screenshot (settled Taps tab)",712.798
+"screenshot (settled Taps tab)",686.026
+"screenshot (settled Taps tab)",686.887
+"screenshot (settled Taps tab)",685.561
+"screenshot (settled Taps tab)",697.203
+"screenshot (settled Taps tab)",730.093
+"screenshot (settled Taps tab)",620.478
+"screenshot (settled Taps tab)",618.560
+"screenshot (settled Taps tab)",680.091
+"screenshot (settled Taps tab)",692.364
+"screenshot (settled Taps tab)",727.296
+"screenshot (settled Taps tab)",716.335
+"tap, then know what changed (one dump)",3249.951
+"tap, then know what changed (one dump)",3137.190
+"tap, then know what changed (one dump)",3034.396
+"tap, then know what changed (one dump)",3159.116
+"tap, then know what changed (one dump)",3026.158
+"tap, then know what changed (one dump)",3214.114
+"tap, then know what changed (one dump)",3092.620
+"tap, then know what changed (one dump)",3130.093
+"tap, then know what changed (one dump)",3190.038
+"tap, then know what changed (one dump)",3073.590
+"tap, then know what changed (one dump)",3065.174
+"tap, then know what changed (one dump)",3167.939
+"tap, then know what changed (one dump)",3107.725
+"tap, then know what changed (one dump)",3149.577
+"tap, then know what changed (one dump)",3196.410
+"tap, then know what changed (one dump)",3007.292
+"tap, then know what changed (one dump)",3068.430
+"tap, then know what changed (one dump)",3046.035
+"tap, then know what changed (one dump)",3033.066
+"tap, then know what changed (one dump)",2992.103
+"tap, then know what changed (one dump)",3083.027
+"tap, then know what changed (one dump)",3172.344
+"tap, then know what changed (one dump)",3159.966
+"tap, then know what changed (one dump)",3141.222
+"tap, then know what changed (one dump)",3085.381
+"tap, then know what changed (one dump)",3093.460
+"tap, then know what changed (one dump)",3072.613
+"tap, then know what changed (one dump)",3105.872
+"tap, then know what changed (one dump)",3152.294
+"tap, then know what changed (one dump)",3009.719
+"tap, then know what changed (one dump)",3172.798
+"tap, then know what changed (one dump)",3138.213
+"tap, then know what changed (one dump)",3285.730
+"tap, then know what changed (one dump)",3483.554
+"tap, then know what changed (one dump)",3204.636
+"tap, then know what changed (one dump)",3142.379
+"tap, then know what changed (one dump)",3004.717
+"tap, then know what changed (one dump)",3131.482
+"tap, then know what changed (one dump)",3036.172
+"tap, then know what changed (one dump)",3109.414
+"tap, then know what changed (one dump)",3111.661
+"tap, then know what changed (one dump)",3036.302
+"tap, then know what changed (one dump)",3050.671
+"tap, then know what changed (one dump)",3175.378
+"tap, then know what changed (one dump)",3090.796
+"tap, then know what changed (one dump)",3125.263
+"tap, then know what changed (one dump)",3161.182
+"tap, then know what changed (one dump)",3192.139
+"tap, then know what changed (one dump)",3129.514
+"tap, then know what changed (one dump)",3060.885
+"tap, then know what changed (dump until two agree)",5750.499
+"tap, then know what changed (dump until two agree)",5668.216
+"tap, then know what changed (dump until two agree)",5745.740
+"tap, then know what changed (dump until two agree)",5667.931
+"tap, then know what changed (dump until two agree)",5939.132
+"tap, then know what changed (dump until two agree)",5836.462
+"tap, then know what changed (dump until two agree)",5646.744
+"tap, then know what changed (dump until two agree)",5681.422
+"tap, then know what changed (dump until two agree)",5809.399
+"tap, then know what changed (dump until two agree)",5735.051
+"tap, then know what changed (dump until two agree)",5618.320
+"tap, then know what changed (dump until two agree)",5787.668
+"tap, then know what changed (dump until two agree)",5651.126
+"tap, then know what changed (dump until two agree)",5759.711
+"tap, then know what changed (dump until two agree)",5745.741
+"tap, then know what changed (dump until two agree)",5768.103
+"tap, then know what changed (dump until two agree)",5752.085
+"tap, then know what changed (dump until two agree)",5622.573
+"tap, then know what changed (dump until two agree)",5776.226
+"tap, then know what changed (dump until two agree)",5687.714
+"tap, then know what changed (dump until two agree)",5626.347
+"tap, then know what changed (dump until two agree)",5793.939
+"tap, then know what changed (dump until two agree)",5813.150
+"tap, then know what changed (dump until two agree)",9375.074
+"tap, then know what changed (dump until two agree)",5617.686
+"tap, then know what changed (dump until two agree)",5840.287
+"tap, then know what changed (dump until two agree)",6594.140
+"tap, then know what changed (dump until two agree)",5689.952
+"tap, then know what changed (dump until two agree)",5674.551
+"tap, then know what changed (dump until two agree)",5732.681
+"tap, then know what changed (dump until two agree)",5622.872
+"tap, then know what changed (dump until two agree)",5833.231
+"tap, then know what changed (dump until two agree)",5614.275
+"tap, then know what changed (dump until two agree)",5607.423
+"tap, then know what changed (dump until two agree)",5524.755
+"tap, then know what changed (dump until two agree)",5484.383
+"tap, then know what changed (dump until two agree)",5736.216
+"tap, then know what changed (dump until two agree)",5769.048
+"tap, then know what changed (dump until two agree)",5653.036
+"tap, then know what changed (dump until two agree)",38213.287
+"tap, then know what changed (dump until two agree)",5582.681
+"tap, then know what changed (dump until two agree)",5638.472
+"tap, then know what changed (dump until two agree)",5674.510
+"tap, then know what changed (dump until two agree)",5680.969
+"tap, then know what changed (dump until two agree)",5705.343
+"tap, then know what changed (dump until two agree)",5786.648
+"tap, then know what changed (dump until two agree)",5729.271
+"tap, then know what changed (dump until two agree)",5725.491
+"tap, then know what changed (dump until two agree)",5486.766
+"tap, then know what changed (dump until two agree)",5883.979
+"UI tree, Settings main (exec-out)",2860.845
+"UI tree, Settings main (exec-out)",2795.965
+"UI tree, Settings main (exec-out)",2755.755
+"UI tree, Settings main (exec-out)",2790.340
+"UI tree, Settings main (exec-out)",2872.979
+"UI tree, Settings main (exec-out)",2762.256
+"UI tree, Settings main (exec-out)",2846.029
+"UI tree, Settings main (exec-out)",2866.366
+"UI tree, Settings main (exec-out)",2709.056
+"UI tree, Settings main (exec-out)",2753.636
+"UI tree, Settings main (exec-out)",2874.972
+"UI tree, Settings main (exec-out)",2803.910
+"UI tree, Settings main (exec-out)",2859.979
+"UI tree, Settings main (exec-out)",2858.484
+"UI tree, Settings main (exec-out)",2885.517
+"UI tree, Settings main (exec-out)",2801.253
+"UI tree, Settings main (exec-out)",2718.335
+"UI tree, Settings main (exec-out)",2790.827
+"UI tree, Settings main (exec-out)",2734.094
+"UI tree, Settings main (exec-out)",2795.449
+"UI tree, Settings main (exec-out)",2808.934
+"UI tree, Settings main (exec-out)",2800.528
+"UI tree, Settings main (exec-out)",2836.625
+"UI tree, Settings main (exec-out)",2933.374
+"UI tree, Settings main (exec-out)",2738.356
+"UI tree, Settings main (exec-out)",2831.403
+"UI tree, Settings main (exec-out)",2703.224
+"UI tree, Settings main (exec-out)",2807.687
+"UI tree, Settings main (exec-out)",2893.541
+"UI tree, Settings main (exec-out)",2758.723
+"UI tree, Settings main (exec-out)",2824.758
+"UI tree, Settings main (exec-out)",2810.374
+"UI tree, Settings main (exec-out)",2846.035
+"UI tree, Settings main (exec-out)",2866.378
+"UI tree, Settings main (exec-out)",2710.850
+"UI tree, Settings main (exec-out)",2765.906
+"UI tree, Settings main (exec-out)",2785.682
+"UI tree, Settings main (exec-out)",2844.583
+"UI tree, Settings main (exec-out)",2735.679
+"UI tree, Settings main (exec-out)",2831.938
+"UI tree, Settings main (exec-out)",2746.942
+"UI tree, Settings main (exec-out)",2793.939
+"UI tree, Settings main (exec-out)",2770.836
+"UI tree, Settings main (exec-out)",2792.317
+"UI tree, Settings main (exec-out)",2789.649
+"UI tree, Settings main (exec-out)",2848.744
+"UI tree, Settings main (exec-out)",2748.916
+"UI tree, Settings main (exec-out)",2715.068
+"UI tree, Settings main (exec-out)",2884.080
+"UI tree, Settings main (exec-out)",2872.660
+"UI tree, Settings main (dump + pull)",2906.367
+"UI tree, Settings main (dump + pull)",2998.882
+"UI tree, Settings main (dump + pull)",2904.582
+"UI tree, Settings main (dump + pull)",2796.659
+"UI tree, Settings main (dump + pull)",2939.305
+"UI tree, Settings main (dump + pull)",2914.661
+"UI tree, Settings main (dump + pull)",2933.084
+"UI tree, Settings main (dump + pull)",2826.025
+"UI tree, Settings main (dump + pull)",2864.215
+"UI tree, Settings main (dump + pull)",2818.271
+"UI tree, Settings main (dump + pull)",2979.610
+"UI tree, Settings main (dump + pull)",2898.024
+"UI tree, Settings main (dump + pull)",2888.875
+"UI tree, Settings main (dump + pull)",2775.885
+"UI tree, Settings main (dump + pull)",2900.243
+"UI tree, Settings main (dump + pull)",2917.785
+"UI tree, Settings main (dump + pull)",2886.379
+"UI tree, Settings main (dump + pull)",2865.886
+"UI tree, Settings main (dump + pull)",2905.849
+"UI tree, Settings main (dump + pull)",2874.040
+"UI tree, Settings main (dump + pull)",3036.212
+"UI tree, Settings main (dump + pull)",2858.638
+"UI tree, Settings main (dump + pull)",2823.954
+"UI tree, Settings main (dump + pull)",2859.285
+"UI tree, Settings main (dump + pull)",2862.599
+"UI tree, Settings main (dump + pull)",2761.049
+"UI tree, Settings main (dump + pull)",2899.351
+"UI tree, Settings main (dump + pull)",2894.743
+"UI tree, Settings main (dump + pull)",2863.586
+"UI tree, Settings main (dump + pull)",2890.335
+"UI tree, Settings main (dump + pull)",2871.498
+"UI tree, Settings main (dump + pull)",2891.099
+"UI tree, Settings main (dump + pull)",2937.520
+"UI tree, Settings main (dump + pull)",2892.034
+"UI tree, Settings main (dump + pull)",2874.211
+"UI tree, Settings main (dump + pull)",2763.720
+"UI tree, Settings main (dump + pull)",3076.435
+"UI tree, Settings main (dump + pull)",2841.340
+"UI tree, Settings main (dump + pull)",2806.239
+"UI tree, Settings main (dump + pull)",2974.198
+"UI tree, Settings main (dump + pull)",2908.853
+"UI tree, Settings main (dump + pull)",3907.054
+"UI tree, Settings main (dump + pull)",2915.519
+"UI tree, Settings main (dump + pull)",2895.378
+"UI tree, Settings main (dump + pull)",2915.141
+"UI tree, Settings main (dump + pull)",2964.552
+"UI tree, Settings main (dump + pull)",2904.583
+"UI tree, Settings main (dump + pull)",3000.352
+"UI tree, Settings main (dump + pull)",3022.866
+"UI tree, Settings main (dump + pull)",2908.529
+"UI tree, List tab (exec-out)",2649.559
+"UI tree, List tab (exec-out)",2772.971
+"UI tree, List tab (exec-out)",2666.577
+"UI tree, List tab (exec-out)",2719.085
+"UI tree, List tab (exec-out)",2684.310
+"UI tree, List tab (exec-out)",2561.481
+"UI tree, List tab (exec-out)",2659.892
+"UI tree, List tab (exec-out)",2681.406
+"UI tree, List tab (exec-out)",2668.082
+"UI tree, List tab (exec-out)",2582.847
+"UI tree, List tab (exec-out)",2832.880
+"UI tree, List tab (exec-out)",2645.152
+"UI tree, List tab (exec-out)",2664.292
+"UI tree, List tab (exec-out)",2799.953
+"UI tree, List tab (exec-out)",2674.032
+"UI tree, List tab (exec-out)",2683.618
+"UI tree, List tab (exec-out)",2685.101
+"UI tree, List tab (exec-out)",2684.430
+"UI tree, List tab (exec-out)",2635.533
+"UI tree, List tab (exec-out)",2691.625
+"UI tree, List tab (exec-out)",2717.479
+"UI tree, List tab (exec-out)",2703.372
+"UI tree, List tab (exec-out)",2696.582
+"UI tree, List tab (exec-out)",2752.152
+"UI tree, List tab (exec-out)",2722.102
+"UI tree, List tab (exec-out)",2774.605
+"UI tree, List tab (exec-out)",2587.777
+"UI tree, List tab (exec-out)",2714.783
+"UI tree, List tab (exec-out)",2686.803
+"UI tree, List tab (exec-out)",2677.853
+"UI tree, List tab (exec-out)",2709.684
+"UI tree, List tab (exec-out)",2671.104
+"UI tree, List tab (exec-out)",2662.741
+"UI tree, List tab (exec-out)",2562.732
+"UI tree, List tab (exec-out)",2629.667
+"UI tree, List tab (exec-out)",3114.250
+"UI tree, List tab (exec-out)",2684.513
+"UI tree, List tab (exec-out)",2667.346
+"UI tree, List tab (exec-out)",2656.466
+"UI tree, List tab (exec-out)",2627.741
+"UI tree, List tab (exec-out)",2621.145
+"UI tree, List tab (exec-out)",2695.038
+"UI tree, List tab (exec-out)",2645.201
+"UI tree, List tab (exec-out)",2583.695
+"UI tree, List tab (exec-out)",2592.942
+"UI tree, List tab (exec-out)",2676.516
+"UI tree, List tab (exec-out)",2626.111
+"UI tree, List tab (exec-out)",2749.787
+"UI tree, List tab (exec-out)",2679.674
+"UI tree, List tab (exec-out)",2710.262
+"type 100 ASCII chars",5204.353
+"type 100 ASCII chars",5193.742
+"type 100 ASCII chars",5260.051
+"type 100 ASCII chars",5557.260
+"type 100 ASCII chars",5453.032
+"type 100 ASCII chars",5467.042
+"type 100 ASCII chars",4947.152
+"type 100 ASCII chars",5206.434
+"type 100 ASCII chars",5170.395
+"type 100 ASCII chars",5014.959
+"type 100 ASCII chars",5153.605
+"type 100 ASCII chars",4892.039
+"type 100 ASCII chars",4923.931
+"type 100 ASCII chars",5022.472
+"type 100 ASCII chars",5288.339
+"type 100 ASCII chars",4869.669
+"type 100 ASCII chars",5330.177
+"type 100 ASCII chars",5270.987
+"type 100 ASCII chars",5094.817
+"type 100 ASCII chars",5316.172
+"type 100 ASCII chars",5262.756
+"type 100 ASCII chars",4656.479
+"type 100 ASCII chars",5180.811
+"type 100 ASCII chars",5332.287
+"type 100 ASCII chars",5069.318
+"type 100 ASCII chars",5155.252
+"type 100 ASCII chars",4560.772
+"type 100 ASCII chars",5559.891
+"type 100 ASCII chars",5338.252
+"type 100 ASCII chars",4992.574
+"type 100 ASCII chars",5567.622
+"type 100 ASCII chars",5129.771
+"type 100 ASCII chars",4944.201
+"type 100 ASCII chars",5238.092
+"type 100 ASCII chars",5570.997
+"type 100 ASCII chars",5676.037
+"type 100 ASCII chars",5748.404
+"type 100 ASCII chars",6031.949
+"type 100 ASCII chars",5135.163
+"type 100 ASCII chars",5209.089
+"type 100 ASCII chars",5123.689
+"type 100 ASCII chars",4513.836
+"type 100 ASCII chars",5105.859
+"type 100 ASCII chars",4852.505
+"type 100 ASCII chars",5374.301
+"type 100 ASCII chars",14248.531
+"type 100 ASCII chars",4802.038
+"type 100 ASCII chars",5997.560
+"type 100 ASCII chars",6002.275
+"type 100 ASCII chars",5858.971
