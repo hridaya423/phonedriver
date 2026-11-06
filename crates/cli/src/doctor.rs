@@ -84,6 +84,7 @@ pub fn run(home: &Path) -> bool {
     let checks = rt.block_on(async {
         let mut checks = android(&Adb::from_env()).await;
         checks.extend(ios(home).await);
+        checks.extend(physical(home).await);
         checks.extend(socket_permissions(&socket::socket_path()));
         checks
     });
@@ -491,4 +492,195 @@ mod tests {
         set(dir.path(), 0o755);
         assert_eq!(socket_permissions(&sock).unwrap().status, Status::Fail);
     }
+}
+
+/// Each wired iOS device: paired, Developer Mode, developer disk image, tier and services, and the runner with the
+/// expiry of the profile that signed the local build.
+pub async fn physical(home: &Path) -> Vec<Check> {
+    use phone_use_core::error::{Error, UserAction};
+    let wired = match phone_use_ios::transport::wired().await {
+        Ok(w) => w,
+        Err(_) => return Vec::new(),
+    };
+    let mut checks = Vec::new();
+    for device in wired {
+        let name = format!("ios:{}", device.udid);
+        let found = match phone_use_ios::discovery::describe(&device).await {
+            Ok(f) => f,
+            Err(Error::NeedsUser {
+                action: UserAction::TrustComputer,
+            }) => {
+                checks.push(Check::bad(
+                    Status::Fail,
+                    format!("{name} paired"),
+                    "this Mac is not trusted by the device",
+                    "Unlock the device and tap Trust when it asks, then run `phone-use ios setup`.",
+                ));
+                continue;
+            }
+            Err(e) => {
+                checks.push(Check::bad(
+                    Status::Fail,
+                    format!("{name} reachable"),
+                    format!("{e:?}"),
+                    "Unlock the device and reconnect the cable; `phone-use ios setup` shows what is missing.",
+                ));
+                continue;
+            }
+        };
+        checks.push(Check::ok(
+            format!("{name} paired"),
+            format!(
+                "{} ({}) iOS {}, tier {}",
+                found.name,
+                found.model,
+                found.os,
+                found.tier.name()
+            ),
+        ));
+        match phone_use_ios::setup::status(&device).await {
+            Ok(s) => {
+                checks.push(if s.developer_mode {
+                    Check::ok(format!("{name} developer mode"), "on")
+                } else {
+                    Check::bad(
+                        Status::Fail,
+                        format!("{name} developer mode"),
+                        "off",
+                        "Run `phone-use ios setup`, then turn on Settings > Privacy & Security > Developer Mode and restart the device.",
+                    )
+                });
+                checks.push(if s.image_mounted {
+                    Check::ok(format!("{name} developer disk image"), "mounted")
+                } else {
+                    Check::bad(
+                        Status::Fail,
+                        format!("{name} developer disk image"),
+                        "not mounted",
+                        "Run `phone-use ios setup`; it mounts the image with Xcode's tool.",
+                    )
+                });
+            }
+            Err(e) => checks.push(Check::bad(
+                Status::Fail,
+                format!("{name} developer services"),
+                format!("{e:?}"),
+                "Run `phone-use ios setup`.",
+            )),
+        }
+        checks.push(runner_expiry(&name, home));
+    }
+    checks
+}
+
+/// The expiry of the provisioning profile inside the newest device build of the runner under `home`.
+fn runner_expiry(name: &str, home: &Path) -> Check {
+    let label = format!("{name} runner");
+    let root = home.join("runner");
+    let profile = std::fs::read_dir(&root)
+        .into_iter()
+        .flatten()
+        .flatten()
+        .map(|e| {
+            e.path()
+                .join("dd/Build/Products/Debug-iphoneos/PhoneUseRunner-Runner.app/embedded.mobileprovision")
+        })
+        .find(|p| p.is_file());
+    let Some(profile) = profile else {
+        return Check::bad(
+            Status::Warn,
+            label,
+            "not built for devices yet",
+            "Set PHONE_USE_TEAM to your Apple developer team and run any phone-use command on the device; the first one builds and signs the runner.",
+        );
+    };
+    let decoded = std::process::Command::new("security")
+        .args(["cms", "-D", "-i"])
+        .arg(&profile)
+        .output();
+    let expiry = decoded.ok().and_then(|o| {
+        let text = String::from_utf8_lossy(&o.stdout).into_owned();
+        let after = text.split("<key>ExpirationDate</key>").nth(1)?;
+        let date = after.split("<date>").nth(1)?.split("</date>").next()?;
+        Some(date.to_string())
+    });
+    match expiry {
+        Some(date) => Check::ok(label, format!("signed, profile expires {date}")),
+        None => Check::bad(
+            Status::Warn,
+            label,
+            "the profile's expiry cannot be read",
+            "Run `security cms -D -i <runner>.app/embedded.mobileprovision` and read ExpirationDate.",
+        ),
+    }
+}
+
+/// `phone-use ios setup`: for each wired device, check pairing, Developer Mode and the developer disk image, and do
+/// what needs no one at the device. Prints `ok` for a step already done.
+pub fn ios_setup() -> bool {
+    use phone_use_core::error::{Error, UserAction};
+    let Ok(rt) = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+    else {
+        eprintln!("error: cannot start the async runtime");
+        return false;
+    };
+    rt.block_on(async {
+        let wired = match phone_use_ios::transport::wired().await {
+            Ok(w) if !w.is_empty() => w,
+            Ok(_) => {
+                println!("no iOS device is connected over USB");
+                return false;
+            }
+            Err(e) => {
+                println!("cannot list devices: {e}");
+                return false;
+            }
+        };
+        let mut all_ok = true;
+        for device in wired {
+            let name = device.udid.clone();
+            let status = match phone_use_ios::setup::status(&device).await {
+                Ok(s) => {
+                    println!("ok    {name} paired");
+                    s
+                }
+                Err(Error::NeedsUser {
+                    action: UserAction::TrustComputer,
+                }) => {
+                    println!("need  {name} paired: unlock the device and tap Trust, then run this again");
+                    all_ok = false;
+                    continue;
+                }
+                Err(e) => {
+                    println!("fail  {name}: {e:?}");
+                    all_ok = false;
+                    continue;
+                }
+            };
+            if status.developer_mode {
+                println!("ok    {name} developer mode");
+            } else {
+                match phone_use_ios::setup::reveal_developer_mode(&device).await {
+                    Ok(()) => println!("need  {name} developer mode: turn on Settings > Privacy & Security > Developer Mode, restart the device, confirm"),
+                    Err(e) => println!("fail  {name} developer mode: {e:?}"),
+                }
+                all_ok = false;
+            }
+            if status.image_mounted {
+                println!("ok    {name} developer disk image");
+            } else {
+                println!("      {name} developer disk image: mounting with Xcode's devicectl (talks to Apple's signing server)");
+                match phone_use_ios::setup::mount_image(&name).await {
+                    Ok(()) => println!("ok    {name} developer disk image"),
+                    Err(e) => {
+                        println!("fail  {name} developer disk image: {e:?}");
+                        all_ok = false;
+                    }
+                }
+            }
+        }
+        all_ok
+    })
 }

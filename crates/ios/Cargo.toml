@@ -7,7 +7,7 @@ edition.workspace = true
 async-trait = "0.1.92"
 base64 = "0.22"
 flate2 = "1.1.10"
-idevice = { version = "=0.1.68", default-features = false, features = ["ring", "usbmuxd", "pair", "core_device", "display_stream", "xctest", "tunnel_tcp_stack"] }
+idevice = { version = "=0.1.68", default-features = false, features = ["ring", "usbmuxd", "pair", "amfi", "mobile_image_mounter", "core_device", "display_stream", "xctest", "tunnel_tcp_stack"] }
 plist = "1.10.3"
 phone-use-core = { version = "0.1.0", path = "../core" }
 phone-use-video = { version = "0.1.0", path = "../video" }
