@@ -83,14 +83,18 @@ tasks:
     set: heldout
     prompt: "Create a folder named \"phone-use\" in the Files app."
     reset:
-      - shell: "find /sdcard -maxdepth 4 -type d -name phone-use -exec rm -rf {} +"
+      - shell: "find /sdcard/ -maxdepth 4 -type d -name phone-use -exec rm -rf {} +"
+      - shell: "pm clear com.google.android.providers.media.module"
       - shell: "pm clear com.google.android.documentsui"
+      - sleep_ms: 6000
       - press: home
     check:
-      - expect: {shell: {cmd: "find /sdcard -maxdepth 4 -type d -name phone-use", contains: "/phone-use"}}
+      - expect: {shell: {cmd: "find /sdcard/ -maxdepth 4 -type d -name phone-use", contains: "/phone-use"}}
     cleanup:
-      - shell: "find /sdcard -maxdepth 4 -type d -name phone-use -exec rm -rf {} +"
+      - shell: "find /sdcard/ -maxdepth 4 -type d -name phone-use -exec rm -rf {} +"
+      - shell: "pm clear com.google.android.providers.media.module"
       - shell: "pm clear com.google.android.documentsui"
+      - sleep_ms: 6000
 
   - name: chrome-heading
     set: heldout
@@ -125,7 +129,6 @@ tasks:
       - shell: "pm clear com.google.android.deskclock"
       - press: home
     check:
-      - expect: {shell: {cmd: "dumpsys notification --noredact", contains: "RUNNING|"}}
-      - expect: {shell: {cmd: "dumpsys notification --noredact", contains: "Σ0:03:00"}}
+      - expect: {shell: {cmd: "dumpsys alarm | grep -A4 TIMER_EXPIRED | grep -o 'origWhen=+[0-9]*m'", contains: "origWhen=+2m"}}
     cleanup:
       - shell: "pm clear com.google.android.deskclock"
