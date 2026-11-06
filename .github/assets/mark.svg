@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128" role="img" aria-label="phone-use mark">
+<g transform="translate(0 0) scale(1)">
+<rect width="128" height="128" rx="28" fill="#0F0F0C"/>
+<rect x="26" y="16" width="76" height="96" rx="12" fill="none" stroke="#F3F0E8" stroke-width="7"/>
+<rect x="40" y="38" width="34" height="7" fill="#F3F0E8"/>
+<rect x="40" y="60" width="34" height="9" fill="#FF5A2B"/>
+<rect x="40" y="84" width="22" height="7" fill="#F3F0E8"/>
+<circle cx="82" cy="64.5" r="13" fill="#FF5A2B" fill-opacity=".25"/>
+<circle cx="82" cy="64.5" r="13" fill="none" stroke="#FF5A2B" stroke-width="5"/>
+<circle cx="82" cy="64.5" r="4.5" fill="#FF5A2B"/>
+</g>
+</svg>
