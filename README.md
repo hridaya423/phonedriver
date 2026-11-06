@@ -13,10 +13,10 @@
 phone-use gives an AI agent a text view of an Android or iOS screen and the means to tap, type and swipe. Every action returns only the lines that changed.
 
 <p align="center">
-  <img alt="Claude Code on the left and the iOS Simulator on the right. The agent opens Settings, then Developer, and taps the Dark Appearance switch. The reply is one line, off to on, and the screen turns dark." src=".github/assets/demo.gif" width="100%">
+  <img alt="Claude Code on the left and the iOS Simulator on the right. The agent opens Settings, scrolls to Developer, opens it and taps the Dark Appearance switch. The reply is one line, off to on, and the screen turns dark." src=".github/assets/demo.gif" width="100%">
 </p>
 
-<sub>Claude Code driving the iOS Simulator through the phone-use MCP server, real timing, idle trimmed. The prompt names Settings > Developer: with only "Open Settings and turn on dark mode." the first attempt did not finish. Failed calls are shown.</sub>
+<sub>Claude Code driving the iOS Simulator through the phone-use MCP server, real timing, idle trimmed, 19 s end to end, no failed calls. The prompt names Settings > Developer because the Simulator's Settings has no Display & Brightness: with only "Open Settings and turn on dark mode." two runs ended with the agent reporting it could not find the setting, without opening Developer.</sub>
 
 ## Speed
 

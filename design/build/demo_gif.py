@@ -72,7 +72,9 @@ def video_map(src, n, calls):
         if i - last > 0.8 * FPS_SRC:
             starts.append(i / FPS_SRC)
         last = i
-    changing = [u for u in calls if "new screen" in u["out"] or "swiped" in u["out"] or "\n~ " in u["out"]]
+    changing = [u for u in calls if "new screen" in u["out"] or "swiped" in u["out"] or "scrolled" in u["out"] or "\n~ " in u["out"]]
+    if len(starts) == len(changing) + 1 and starts[1] - starts[0] < 1.5 and changing[0]["tool"] == "launch":
+        del starts[1]
     if len(starts) != len(changing):
         raise SystemExit(f"{len(starts)} bursts of motion in the video, {len(changing)} calls that change the screen")
     pts = [(u["start"] + 0.2, v) for u, v in zip(changing, starts)]
