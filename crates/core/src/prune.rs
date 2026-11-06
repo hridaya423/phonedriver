@@ -168,6 +168,11 @@ pub fn prune(tree: &RawTree) -> Vec<Node> {
             .iter()
             .filter_map(|&d| tree.nodes[d].label.as_deref())
             .collect();
+        let state_word = |l: &Option<String>| {
+            node.flags.contains(NodeFlags::CHECKABLE)
+                && l.as_deref()
+                    .is_some_and(|l| matches!(l.trim().to_lowercase().as_str(), "on" | "off"))
+        };
         let (label, hint) = match texts.split_first() {
             Some((first, rest)) => {
                 let mut hints: Vec<&str> = node.hint.as_deref().into_iter().collect();
@@ -179,6 +184,7 @@ pub fn prune(tree: &RawTree) -> Vec<Node> {
             }
             None => (node.label.clone(), node.hint.clone()),
         };
+        let label = if state_word(&label) { None } else { label };
         let scrollable =
             node.actions.intersects(Actions::SCROLL) || node.flags.contains(NodeFlags::SCROLLABLE);
         let keep = !node.actions.is_empty()
@@ -247,13 +253,14 @@ fn hide_repeats(
     let mut stack: Vec<usize> = children[control].clone();
     while let Some(d) = stack.pop() {
         let child = &tree.nodes[d];
-        if !child.actions.is_empty() {
-            continue;
-        }
         let repeats = child.label.as_deref().is_some_and(|l| {
             let l = l.trim().to_lowercase();
             !l.is_empty() && label.to_lowercase().contains(&l)
         });
+        // Android rows put a tappable TextView over the row's own label (the Clock alarm's time); it is the row.
+        if !child.actions.is_empty() && !(child.role == Role::Text && repeats) {
+            continue;
+        }
         if child.role == Role::Image || repeats {
             absorbed_by[d] = Some(control);
         }

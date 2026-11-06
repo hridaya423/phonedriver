@@ -520,6 +520,14 @@ mod tests {
     }
 
     #[test]
+    fn captured_clock_alarms() {
+        golden(
+            "captured_clock_alarms",
+            include_str!("../tests/fixtures/android/clock_alarms.json"),
+        );
+    }
+
+    #[test]
     fn captured_testbed_taps() {
         golden(
             "captured_testbed_taps",
