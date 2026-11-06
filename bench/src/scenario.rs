@@ -1,8 +1,10 @@
-//! Scenario runner: `phone-use-bench scenario --phone-use <binary> --serial <serial> [--dir bench/scenarios/android]
-//! [--only name] [--runs 3] [--out results.jsonl]`.
+//! Scenario runner: `phone-use-bench scenario --phone-use <binary> --device <android:serial|sim:udid>
+//! [--dir bench/scenarios/<android|ios>] [--only name] [--runs 3] [--out results.jsonl]`.
 //!
 //! A scenario is a list of verbs and expectations run through the real CLI, without an LLM (task 3.11). Steps run
-//! in order and stop at the first failure; `cleanup` always runs.
+//! in order and stop at the first failure; `cleanup` always runs. One schema serves both platforms and the device id
+//! picks the platform. `shell` is `adb shell` on Android and a host command on an iOS Simulator (`{udid}` is
+//! replaced); `testbed` and the testbed log are read through logcat on Android and the app container on iOS.
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -45,7 +47,76 @@ impl Texts {
 #[serde(untagged)]
 enum Target {
     Plain(Texts),
-    Full { text: Texts, role: Option<String> },
+    Full {
+        text: Option<Texts>,
+        role: Option<String>,
+        contains: Option<String>,
+        id: Option<String>,
+        selected: Option<bool>,
+    },
+}
+
+impl Target {
+    fn texts(&self) -> Vec<&str> {
+        match self {
+            Target::Plain(t) => t.all(),
+            Target::Full { text, .. } => text.as_ref().map(Texts::all).unwrap_or_default(),
+        }
+    }
+
+    fn role(&self) -> Option<&str> {
+        match self {
+            Target::Plain(_) => None,
+            Target::Full { role, .. } => role.as_deref(),
+        }
+    }
+
+    /// True when the CLI's own text target (with `--role`) says it all.
+    fn is_text_only(&self) -> bool {
+        match self {
+            Target::Plain(_) => true,
+            Target::Full {
+                text: Some(_),
+                contains: None,
+                id: None,
+                selected: None,
+                ..
+            } => true,
+            Target::Full { .. } => false,
+        }
+    }
+
+    fn matches(&self, el: &Value) -> bool {
+        let texts = self.texts();
+        let Target::Full {
+            contains,
+            id,
+            selected,
+            ..
+        } = self
+        else {
+            return self.role().is_none_or(|r| el["role"] == r) && any_field_has(el, &texts);
+        };
+        self.role().is_none_or(|r| el["role"] == r)
+            && id.as_deref().is_none_or(|i| el["id"] == i)
+            && selected
+                .is_none_or(|w| el["state"].as_str().is_some_and(|s| s.contains("SELECTED")) == w)
+            && contains.as_deref().is_none_or(|c| {
+                [&el["label"], &el["value"]]
+                    .iter()
+                    .any(|f| f.as_str().is_some_and(|s| s.contains(c)))
+            })
+            && (texts.is_empty() || any_field_has(el, &texts))
+    }
+}
+
+fn any_field_has(el: &Value, texts: &[&str]) -> bool {
+    texts.iter().any(|t| {
+        let q = t.to_lowercase();
+        [&el["label"], &el["hint"], &el["value"]]
+            .iter()
+            .any(|f| f.as_str().is_some_and(|s| s.to_lowercase().contains(&q)))
+    })
 }
 
 #[derive(Deserialize, Clone)]
@@ -64,7 +135,7 @@ enum Step {
     },
     Type {
         text: String,
-        into: Option<String>,
+        into: Option<Target>,
         mode: Option<String>,
     },
     Clear(String),
@@ -77,6 +148,7 @@ enum Step {
         from: Option<String>,
     },
     Testbed(String),
+    ClearLog,
     SetSwitch {
         text: String,
         state: String,
@@ -103,6 +175,7 @@ struct Expect {
     log: Option<Value>,
     no_log: Option<Value>,
     shell: Option<ShellCheck>,
+    timeout_ms: Option<u64>,
 }
 
 #[derive(Deserialize, Clone)]
@@ -111,11 +184,16 @@ struct ShellCheck {
     contains: String,
 }
 
+enum Platform {
+    Android { adb: Adb, serial: String },
+    Ios { udid: String },
+}
+
 struct Ctx {
     bin: PathBuf,
-    serial: String,
+    device: String,
+    platform: Platform,
     home: PathBuf,
-    adb: Adb,
     originals: HashMap<String, bool>,
 }
 
@@ -125,7 +203,7 @@ impl Ctx {
             .env("PHONE_USE_HOME", &self.home)
             .env_remove("PHONE_USE_SESSION")
             .arg("--device")
-            .arg(&self.serial)
+            .arg(&self.device)
             .args(args)
             .output()
             .map_err(|e| format!("cannot run {}: {e}", self.bin.display()))?;
@@ -142,11 +220,121 @@ impl Ctx {
     }
 
     async fn shell(&self, cmd: &str) -> Result<String, String> {
-        self.adb
-            .shell(&self.serial, cmd)
-            .await
-            .map(|o| o.stdout_text())
-            .map_err(|e| format!("adb shell {cmd}: {e}"))
+        match &self.platform {
+            Platform::Android { adb, serial } => adb
+                .shell(serial, cmd)
+                .await
+                .map(|o| o.stdout_text())
+                .map_err(|e| format!("adb shell {cmd}: {e}")),
+            Platform::Ios { udid } => {
+                let cmd = cmd.replace("{udid}", udid);
+                let out = Command::new("sh")
+                    .args(["-c", &cmd])
+                    .output()
+                    .map_err(|e| format!("{cmd}: {e}"))?;
+                if out.status.success() {
+                    Ok(String::from_utf8_lossy(&out.stdout).to_string())
+                } else {
+                    Err(format!(
+                        "{cmd}: {}",
+                        String::from_utf8_lossy(&out.stderr).trim()
+                    ))
+                }
+            }
+        }
+    }
+
+    fn simctl(&self, udid: &str, args: &[&str]) -> Result<String, String> {
+        let out = Command::new("xcrun")
+            .arg("simctl")
+            .args(args)
+            .output()
+            .map_err(|e| format!("simctl {udid}: {e}"))?;
+        if out.status.success() {
+            Ok(String::from_utf8_lossy(&out.stdout).trim().to_string())
+        } else {
+            Err(format!(
+                "simctl {}: {}",
+                args[0],
+                String::from_utf8_lossy(&out.stderr).trim()
+            ))
+        }
+    }
+
+    fn ios_log_path(&self, udid: &str) -> Result<PathBuf, String> {
+        let data = self.simctl(udid, &["get_app_container", udid, PACKAGE, "data"])?;
+        Ok(PathBuf::from(data).join("Documents/putb.log"))
+    }
+
+    async fn clear_log(&self) -> Result<(), String> {
+        match &self.platform {
+            Platform::Android { .. } => self.shell("logcat -c").await.map(drop),
+            Platform::Ios { udid } => {
+                let path = self.ios_log_path(udid)?;
+                if path.exists() {
+                    std::fs::OpenOptions::new()
+                        .write(true)
+                        .open(&path)
+                        .and_then(|f| f.set_len(0))
+                        .map_err(|e| format!("{}: {e}", path.display()))?;
+                }
+                Ok(())
+            }
+        }
+    }
+
+    async fn testbed(&self, tab: &str) -> Result<(), String> {
+        match &self.platform {
+            Platform::Android { .. } => {
+                self.shell(&format!(
+                    "am start -n {PACKAGE}/.MainActivity --es tab {tab}"
+                ))
+                .await?;
+                let started = Instant::now();
+                loop {
+                    let shown = self.cli(&["snapshot", "--no-settle"])?;
+                    if shown.contains(&format!("app {PACKAGE}")) && shown.matches('@').count() > 6 {
+                        break;
+                    }
+                    if started.elapsed() > EXPECT_WITHIN {
+                        return Err(format!("the testbed's {tab} tab did not show:\n{shown}"));
+                    }
+                    tokio::time::sleep(Duration::from_millis(500)).await;
+                }
+                tokio::time::sleep(Duration::from_millis(1000)).await;
+                self.clear_log().await
+            }
+            Platform::Ios { udid } => {
+                let _ = self.simctl(udid, &["terminate", udid, PACKAGE]);
+                self.simctl(udid, &["launch", udid, PACKAGE, "-tab", tab])?;
+                let want = serde_json::json!({"ev": "tab", "name": tab});
+                let started = Instant::now();
+                while !self.log().await.iter().any(|e| matches_pattern(e, &want)) {
+                    if started.elapsed() > EXPECT_WITHIN {
+                        return Err(format!("the testbed did not log the {tab} tab"));
+                    }
+                    tokio::time::sleep(Duration::from_millis(50)).await;
+                }
+                self.clear_log().await
+            }
+        }
+    }
+
+    fn target_arg(&self, target: &Target) -> Result<String, String> {
+        if let (true, [text]) = (target.is_text_only(), target.texts().as_slice()) {
+            return Ok(text.to_string());
+        }
+        let els = self.elements()?;
+        let found: Vec<&Value> = els.iter().filter(|e| target.matches(e)).collect();
+        match found.as_slice() {
+            [one] => Ok(format!("@{}", one["ref"].as_str().unwrap_or_default())),
+            _ => Err(format!(
+                "{} elements match {:?} with role {:?}",
+                found.len(),
+                target.texts(),
+                target.role()
+            )),
+        }
     }
 
     fn elements(&self) -> Result<Vec<Value>, String> {
@@ -156,10 +344,16 @@ impl Ctx {
     }
 
     async fn log(&self) -> Vec<Value> {
-        let out = self
-            .shell("logcat -d -s PUTB:I -v raw")
-            .await
-            .unwrap_or_default();
+        let out = match &self.platform {
+            Platform::Android { .. } => self
+                .shell("logcat -d -s PUTB:I -v raw")
+                .await
+                .unwrap_or_default(),
+            Platform::Ios { udid } => self
+                .ios_log_path(udid)
+                .and_then(|p| std::fs::read_to_string(p).map_err(|e| e.to_string()))
+                .unwrap_or_default(),
+        };
         out.lines()
             .filter_map(|l| serde_json::from_str::<Value>(l.trim()).ok())
             .collect()
@@ -182,7 +376,8 @@ impl Ctx {
                 .map(drop),
             Step::Type { text, into, mode } => {
                 let mut args = vec!["type", text.as_str()];
-                if let Some(i) = into {
+                let into = into.as_ref().map(|t| self.target_arg(t)).transpose()?;
+                if let Some(i) = &into {
                     args.extend(["--into", i]);
                 }
                 if let Some(m) = mode {
@@ -209,25 +404,8 @@ impl Ctx {
                 }
                 self.cli(&args).map(drop)
             }
-            Step::Testbed(tab) => {
-                self.shell(&format!(
-                    "am start -n {PACKAGE}/.MainActivity --es tab {tab}"
-                ))
-                .await?;
-                let started = Instant::now();
-                loop {
-                    let shown = self.cli(&["snapshot", "--no-settle"])?;
-                    if shown.contains(&format!("app {PACKAGE}")) && shown.matches('@').count() > 6 {
-                        break;
-                    }
-                    if started.elapsed() > EXPECT_WITHIN {
-                        return Err(format!("the testbed's {tab} tab did not show:\n{shown}"));
-                    }
-                    tokio::time::sleep(Duration::from_millis(500)).await;
-                }
-                tokio::time::sleep(Duration::from_millis(1000)).await;
-                self.shell("logcat -c").await.map(drop)
-            }
+            Step::Testbed(tab) => self.testbed(tab).await,
+            Step::ClearLog => self.clear_log().await,
             Step::SetSwitch { text, state } => {
                 let want = state == "on";
                 let (r, now) = self.find_switch(text)?;
@@ -275,14 +453,13 @@ impl Ctx {
     }
 
     fn tap(&self, target: &Target) -> Result<(), String> {
-        let (texts, role) = match target {
-            Target::Plain(t) => (t.all(), None),
-            Target::Full { text, role } => (text.all(), role.as_deref()),
-        };
+        if !target.is_text_only() {
+            return self.cli(&["tap", &self.target_arg(target)?]).map(drop);
+        }
         let mut last = String::new();
-        for t in &texts {
+        for t in target.texts() {
             let mut args = vec!["tap", t];
-            if let Some(r) = role {
+            if let Some(r) = target.role() {
                 args.extend(["--role", r]);
             }
             match self.cli(&args) {
@@ -309,10 +486,11 @@ impl Ctx {
 
     async fn expect(&self, e: &Expect) -> Result<(), String> {
         let started = Instant::now();
+        let within = e.timeout_ms.map_or(EXPECT_WITHIN, Duration::from_millis);
         loop {
             match self.check(e).await {
                 Ok(()) => return Ok(()),
-                Err(why) if started.elapsed() > EXPECT_WITHIN => return Err(why),
+                Err(why) if started.elapsed() > within => return Err(why),
                 Err(_) => tokio::time::sleep(Duration::from_millis(500)).await,
             }
         }
@@ -332,23 +510,15 @@ impl Ctx {
                 return Err(format!("{a:?} is still on screen:\n{shown}"));
             }
             if let Some(target) = &e.element {
-                let (texts, role) = match target {
-                    Target::Plain(t) => (t.all(), None),
-                    Target::Full { text, role } => (text.all(), role.as_deref()),
-                };
                 let els = self.elements()?;
-                let found = els.iter().find(|el| {
-                    role.is_none_or(|r| el["role"] == r)
-                        && texts.iter().any(|t| {
-                            let q = t.to_lowercase();
-                            [&el["label"], &el["hint"], &el["value"]]
-                                .iter()
-                                .any(|f| f.as_str().is_some_and(|s| s.to_lowercase().contains(&q)))
-                        })
-                });
-                let Some(el) = found else {
-                    return Err(format!("no element {texts:?} with role {role:?}"));
+                let Some(el) = els.iter().find(|el| target.matches(el)) else {
+                    return Err(format!(
+                        "no element {:?} with role {:?}",
+                        target.texts(),
+                        target.role()
+                    ));
                 };
+                let texts = target.texts();
                 if let Some(state) = &e.state {
                     let on = is_on(el);
                     if (state == "on") != on {
@@ -430,8 +600,8 @@ fn flatten(steps: &[Step], api: u32) -> Vec<Step> {
 
 struct Args {
     phone_use: PathBuf,
-    serial: String,
-    dir: PathBuf,
+    device: String,
+    dir: Option<PathBuf>,
     only: Option<String>,
     runs: usize,
     out: Option<PathBuf>,
@@ -439,20 +609,14 @@ struct Args {
 
 fn parse(args: &[String]) -> Result<Args, String> {
     let mut it = args.iter();
-    let (mut phone_use, mut serial, mut dir, mut only, mut runs, mut out) = (
-        None,
-        None,
-        PathBuf::from("bench/scenarios/android"),
-        None,
-        1usize,
-        None,
-    );
+    let (mut phone_use, mut device, mut dir, mut only, mut runs, mut out) =
+        (None, None, None, None, 1usize, None);
     while let Some(a) = it.next() {
         let mut value = || it.next().cloned().ok_or(format!("{a} needs a value"));
         match a.as_str() {
             "--phone-use" => phone_use = Some(PathBuf::from(value()?)),
-            "--serial" => serial = Some(value()?),
-            "--dir" => dir = PathBuf::from(value()?),
+            "--device" => device = Some(value()?),
+            "--dir" => dir = Some(PathBuf::from(value()?)),
             "--only" => only = Some(value()?),
             "--runs" => runs = value()?.parse().map_err(|e| format!("--runs: {e}"))?,
             "--out" => out = Some(PathBuf::from(value()?)),
@@ -461,7 +625,7 @@ fn parse(args: &[String]) -> Result<Args, String> {
     }
     Ok(Args {
         phone_use: phone_use.ok_or("--phone-use <binary> is required")?,
-        serial: serial.ok_or("--serial <adb serial> is required")?,
+        device: device.ok_or("--device <android:serial|sim:udid> is required")?,
         dir,
         only,
         runs,
@@ -494,7 +658,24 @@ pub async fn main(args: &[String]) -> i32 {
             return 2;
         }
     };
-    let scenarios = match load(&args.dir) {
+    let platform = match args.device.strip_prefix("sim:") {
+        Some(udid) => Platform::Ios {
+            udid: udid.to_string(),
+        },
+        None => Platform::Android {
+            adb: Adb::from_env(),
+            serial: args
+                .device
+                .strip_prefix("android:")
+                .unwrap_or(&args.device)
+                .to_string(),
+        },
+    };
+    let dir = args.dir.unwrap_or_else(|| match platform {
+        Platform::Android { .. } => PathBuf::from("bench/scenarios/android"),
+        Platform::Ios { .. } => PathBuf::from("bench/scenarios/ios"),
+    });
+    let scenarios = match load(&dir) {
         Ok(s) => s,
         Err(e) => {
             eprintln!("error: {e}");
@@ -503,20 +684,27 @@ pub async fn main(args: &[String]) -> i32 {
     };
     let home = std::env::temp_dir().join(format!("phone-use-scenarios-{}", std::process::id()));
     let _ = std::fs::create_dir_all(&home);
+    let device = match &platform {
+        Platform::Android { serial, .. } => format!("android:{serial}"),
+        Platform::Ios { udid } => format!("sim:{udid}"),
+    };
     let mut ctx = Ctx {
         bin: args.phone_use,
-        serial: args.serial,
+        device,
+        platform,
         home,
-        adb: Adb::from_env(),
         originals: HashMap::new(),
     };
     let _ = ctx.cli(&["release"]);
-    let api: u32 = ctx
-        .shell("getprop ro.build.version.sdk")
-        .await
-        .ok()
-        .and_then(|t| t.trim().parse().ok())
-        .unwrap_or(0);
+    let api: u32 = match ctx.platform {
+        Platform::Android { .. } => ctx
+            .shell("getprop ro.build.version.sdk")
+            .await
+            .ok()
+            .and_then(|t| t.trim().parse().ok())
+            .unwrap_or(0),
+        Platform::Ios { .. } => 0,
+    };
     let mut lines = Vec::new();
     let mut failed = 0;
     for run in 1..=args.runs {
@@ -620,5 +808,27 @@ cleanup:
     fn an_unknown_step_is_a_parse_error_not_a_silent_skip() {
         let yaml = "name: x\nsteps:\n  - teleport: home\n";
         assert!(serde_yaml::from_str::<Scenario>(yaml).is_err());
+    }
+
+    #[test]
+    fn every_shipped_scenario_parses() {
+        for platform in ["android", "ios"] {
+            let dir = Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("scenarios")
+                .join(platform);
+            let scenarios = load(&dir).unwrap();
+            assert!(!scenarios.is_empty(), "{platform}");
+        }
+    }
+
+    #[test]
+    fn a_target_matches_by_id_role_and_a_case_sensitive_contains() {
+        let el = serde_json::json!({"role": "text_field", "label": "Address", "value": "example.com", "id": "url"});
+        let t: Target = serde_yaml::from_str("{text: Address, contains: example.com}").unwrap();
+        assert!(t.matches(&el));
+        let t: Target = serde_yaml::from_str("{id: url, role: text_field}").unwrap();
+        assert!(t.matches(&el));
+        let t: Target = serde_yaml::from_str("{contains: Example}").unwrap();
+        assert!(!t.matches(&el));
     }
 }

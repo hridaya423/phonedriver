@@ -1,0 +1,7 @@
+name: testbed-text
+steps:
+  - testbed: text
+  - type: {text: "Hello phone-use", into: {id: text.plain}}
+  - expect: {log: {field: plain, value: "Hello phone-use"}}
+cleanup:
+  - shell: "xcrun simctl terminate {udid} dev.phoneuse.testbed || true"

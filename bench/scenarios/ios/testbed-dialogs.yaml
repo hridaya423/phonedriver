@@ -1,0 +1,10 @@
+name: testbed-dialogs
+steps:
+  - testbed: dialogs
+  - tap: "Show alert"
+  - expect: {element: {text: "Testbed alert"}}
+  - tap: OK
+  - expect: {log: {ev: dialog, choice: ok}}
+  - expect: {absent: '"Testbed alert"'}
+cleanup:
+  - shell: "xcrun simctl terminate {udid} dev.phoneuse.testbed || true"

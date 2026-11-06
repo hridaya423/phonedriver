@@ -1,0 +1,10 @@
+name: testbed-web
+steps:
+  - testbed: web
+  - expect: {element: {role: text_field, text: Name}}
+  - type: {text: "Ada", into: {role: text_field, text: Name}}
+  - expect: {log: {field: name, value: Ada}}
+  - tap: Submit
+  - expect: {log: {submit: true, name: Ada}}
+cleanup:
+  - shell: "xcrun simctl terminate {udid} dev.phoneuse.testbed || true"

@@ -12,6 +12,8 @@ path = "src/main.rs"
 phone-use = { version = "0.1.0", path = "../crates/cli" }
 phone-use-android = { version = "0.1.0", path = "../crates/android" }
 serde = { version = "1.0.229", features = ["derive"] }
+phone-use-core = { version = "0.1.0", path = "../crates/core" }
+phone-use-ios = { version = "0.1.0", path = "../crates/ios" }
 serde_json = "1.0.154"
 serde_yaml = "0.9.34"
 tokio = { version = "1.54.1", features = ["rt-multi-thread", "macros", "time", "process", "io-util"] }

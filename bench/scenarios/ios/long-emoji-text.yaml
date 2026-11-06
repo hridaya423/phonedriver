@@ -1,0 +1,7 @@
+name: long-emoji-text
+steps:
+  - testbed: text
+  - type: {text: "Family 👨‍👩‍👧‍👦 flags 🇯🇵🇧🇷🇰🇪 hands 👋🏽👍🏿🤝🏻 keycaps 1️⃣2️⃣3️⃣ coder 🧑🏽‍💻 rainbow 🏳️‍🌈 héllo 世界 مرحبا שלום नमस्ते", into: {id: text.multi}}
+  - expect: {log: {field: multi, value: "Family 👨‍👩‍👧‍👦 flags 🇯🇵🇧🇷🇰🇪 hands 👋🏽👍🏿🤝🏻 keycaps 1️⃣2️⃣3️⃣ coder 🧑🏽‍💻 rainbow 🏳️‍🌈 héllo 世界 مرحبا שלום नमस्ते"}}
+cleanup:
+  - shell: "xcrun simctl terminate {udid} dev.phoneuse.testbed || true"

@@ -1,0 +1,15 @@
+name: nav-back-twice
+steps:
+  - testbed: nav
+  - tap: "Open level 1"
+  - expect: {log: {ev: nav, level: 1}}
+  - tap: "Open level 2"
+  - expect: {log: {ev: nav, level: 2}}
+  - clear_log
+  - press: back
+  - expect: {log: {ev: nav, level: 1}}
+  - press: back
+  - expect: {log: {ev: nav, level: 0}}
+  - expect: {element: {text: "Level 0"}}
+cleanup:
+  - shell: "xcrun simctl terminate {udid} dev.phoneuse.testbed || true"

@@ -1325,3 +1325,140 @@ async fn a_text_shared_by_an_inert_label_and_one_field_resolves_to_the_field() {
     .await;
     assert_eq!(e.code, -32008, "two buttons are still ambiguous: {e:?}");
 }
+
+#[tokio::test(start_paused = true)]
+async fn press_back_on_a_device_with_one_way_back_presses_the_button_and_has_no_via() {
+    let (source, fake) = FakeSource::with(vec![tree(&["A"])]);
+    let (d, _home) = daemon(source);
+    let r = ok(
+        &d,
+        "s",
+        "act",
+        json!({"action": {"kind": "press", "key": "back"}, "settle": false}),
+    )
+    .await;
+    assert!(r.get("via").is_none(), "{r}");
+    assert!(
+        fake.calls()
+            .contains(&Call::Button(phone_use_core::device::Button::Back))
+    );
+}
+
+/// A device that polls for frames (no `FRAMES`) and whose gestures take 400 ms to be confirmed, like the iOS runner.
+struct SlowPolled {
+    inner: Arc<FakeDevice>,
+    info: phone_use_core::device::DeviceInfo,
+    after: RawTree,
+}
+
+#[async_trait]
+impl Device for SlowPolled {
+    fn info(&self) -> &phone_use_core::device::DeviceInfo {
+        &self.info
+    }
+    async fn tree(&self) -> Result<RawTree, Error> {
+        let moved = self
+            .inner
+            .frames()
+            .is_some_and(|f| f.borrow().changed_area_pt2 > 0.0);
+        if moved {
+            Ok(self.after.clone())
+        } else {
+            self.inner.tree().await
+        }
+    }
+    fn frames(&self) -> Option<tokio::sync::watch::Receiver<FrameRef>> {
+        self.inner.frames()
+    }
+    async fn screenshot(
+        &self,
+        q: phone_use_core::device::Quality,
+    ) -> Result<phone_use_core::device::Image, Error> {
+        self.inner.screenshot(q).await
+    }
+    fn events(&self) -> tokio::sync::broadcast::Receiver<DeviceEvent> {
+        self.inner.events()
+    }
+    async fn gesture(&self, g: phone_use_core::device::Gesture) -> Result<(), Error> {
+        tokio::time::sleep(Duration::from_millis(400)).await;
+        self.inner.gesture(g).await
+    }
+    async fn key(&self, k: phone_use_core::device::Key) -> Result<(), Error> {
+        self.inner.key(k).await
+    }
+    async fn button(&self, b: phone_use_core::device::Button) -> Result<(), Error> {
+        self.inner.button(b).await
+    }
+    async fn open_url(&self, u: &phone_use_core::device::Url) -> Result<(), Error> {
+        self.inner.open_url(u).await
+    }
+    async fn text(&self, t: phone_use_core::device::TextInput) -> Result<(), Error> {
+        self.inner.text(t).await
+    }
+    async fn clipboard(
+        &self,
+        op: phone_use_core::device::ClipboardOp,
+    ) -> Result<Option<String>, Error> {
+        self.inner.clipboard(op).await
+    }
+    async fn apps(&self) -> Result<Vec<phone_use_core::device::App>, Error> {
+        self.inner.apps().await
+    }
+    async fn launch(&self, app: &phone_use_core::device::AppId) -> Result<(), Error> {
+        self.inner.launch(app).await
+    }
+    async fn foreground(&self) -> Result<Option<phone_use_core::device::AppId>, Error> {
+        self.inner.foreground().await
+    }
+}
+
+struct OneDevice(Arc<dyn Device>);
+
+#[async_trait]
+impl DeviceSource for OneDevice {
+    async fn list(&self) -> Result<Vec<Listed>, Error> {
+        Ok(vec![Listed {
+            id: "fake:1".into(),
+            model: "Fake".into(),
+            os: None,
+            tier: "polled".into(),
+            capabilities: self.0.info().capabilities,
+        }])
+    }
+    async fn connect(&self, _id: &str) -> Result<Arc<dyn Device>, Error> {
+        Ok(self.0.clone())
+    }
+}
+
+#[tokio::test(start_paused = true)]
+async fn on_a_polled_device_the_first_change_window_starts_when_the_input_is_delivered() {
+    let fake = Arc::new(FakeDevice::new(vec![tree(&["One", "Two", "Three"])]));
+    let mut info = fake.info().clone();
+    info.capabilities -= Capabilities::FRAMES;
+    let slow = Arc::new(SlowPolled {
+        inner: fake.clone(),
+        info,
+        after: tree(&["One", "Two", "Three!"]),
+    });
+    let home = tempfile::tempdir().unwrap();
+    let d = Daemon::new(
+        Arc::new(OneDevice(slow)),
+        Config {
+            home: home.path().to_path_buf(),
+        },
+    );
+    ok(&d, "default", "snapshot", json!({})).await;
+    tokio::spawn(async move {
+        tokio::time::sleep(Duration::from_millis(650)).await;
+        fake.push_frame(big_frame(1));
+    });
+    let r = ok(&d, "default", "act", tap_point(10.0, 10.0)).await;
+    assert_eq!(r["changed"], true, "{r}");
+    assert!(
+        r["observation"]["text"]
+            .as_str()
+            .unwrap()
+            .contains("Three!"),
+        "{r}"
+    );
+}
