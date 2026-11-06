@@ -6,12 +6,17 @@
     python3 testbed.py clear <udid>
     python3 testbed.py log <udid>
     python3 testbed.py shot <udid> <tab> <out.png>
+    python3 testbed.py device-install <udid> <team>      (physical device, signed with the team)
+    python3 testbed.py device-launch <udid> [tab]
+    python3 testbed.py device-log <udid>
+    python3 testbed.py device-idle <udid>                (fails unless the app keeps the screen awake)
 """
 
 import json
 import os
 import subprocess
 import sys
+import tempfile
 import time
 
 BUNDLE_ID = "dev.phoneuse.testbed"
@@ -81,6 +86,46 @@ def screenshot(udid, out):
     run("xcrun", "simctl", "io", udid, "screenshot", out)
 
 
+def device_install(udid, team):
+    run("xcodegen", "generate", "--quiet", cwd=HERE)
+    run(
+        "xcodebuild", "-project", "Testbed.xcodeproj", "-scheme", "Testbed",
+        "-destination", f"id={udid}", "-derivedDataPath", BUILD, "-quiet", "-allowProvisioningUpdates",
+        f"DEVELOPMENT_TEAM={team}", "CODE_SIGN_STYLE=Automatic", "CODE_SIGN_IDENTITY=Apple Development", "build",
+        cwd=HERE,
+    )
+    app = os.path.join(BUILD, "Build", "Products", "Debug-iphoneos", "Testbed.app")
+    run("xcrun", "devicectl", "device", "install", "app", "--device", udid, app)
+
+
+def device_launch(udid, tab=None):
+    run(
+        "xcrun", "devicectl", "device", "process", "launch", "--device", udid, "--terminate-existing",
+        BUNDLE_ID, *(["-tab", tab] if tab else []),
+    )
+
+
+def device_log(udid):
+    with tempfile.TemporaryDirectory() as tmp:
+        out = os.path.join(tmp, "putb.log")
+        run(
+            "xcrun", "devicectl", "device", "copy", "from", "--device", udid, "--domain-type",
+            "appDataContainer", "--domain-identifier", BUNDLE_ID, "--source", "Documents/putb.log",
+            "--destination", out,
+        )
+        with open(out) as f:
+            return [json.loads(line) for line in f if line.strip()]
+
+
+def device_idle(udid):
+    device_launch(udid)
+    time.sleep(2)
+    idle = [e for e in device_log(udid) if e["ev"] == "idle_timer"]
+    if not idle or idle[-1]["disabled"] is not True:
+        sys.exit(f"idle timer is not disabled while the testbed is active: {idle[-3:]}")
+    print("idle timer disabled while active")
+
+
 def main(argv):
     cmd, udid, *rest = argv
     if cmd == "install":
@@ -92,6 +137,15 @@ def main(argv):
     elif cmd == "log":
         for e in read_log(udid):
             print(json.dumps(e, sort_keys=True))
+    elif cmd == "device-install":
+        device_install(udid, *rest)
+    elif cmd == "device-launch":
+        device_launch(udid, *rest)
+    elif cmd == "device-log":
+        for e in device_log(udid):
+            print(json.dumps(e, sort_keys=True))
+    elif cmd == "device-idle":
+        device_idle(udid)
     elif cmd == "shot":
         tab, out = rest
         launch(udid, tab)
