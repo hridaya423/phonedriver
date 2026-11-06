@@ -599,6 +599,24 @@ async fn a_malformed_type_action_does_not_echo_the_text_in_its_error() {
 }
 
 #[tokio::test(start_paused = true)]
+async fn a_malformed_action_names_the_missing_field_and_never_the_value() {
+    let (source, _) = FakeSource::with(vec![tree(&["One"])]);
+    let (d, _home) = daemon(source);
+    let e = err(&d, "default", "act", json!({"action": {"kind": "open"}})).await;
+    assert_eq!(e.code, -32602);
+    assert!(e.message.contains("missing field `url`"), "{}", e.message);
+    let e = err(
+        &d,
+        "default",
+        "act",
+        json!({"action": {"kind": "type", "text": "hunter2", "secret": "hunter2"}}),
+    )
+    .await;
+    assert!(e.message.contains("expected a boolean"), "{}", e.message);
+    assert!(!e.to_json().to_string().contains("hunter2"));
+}
+
+#[tokio::test(start_paused = true)]
 async fn an_action_the_daemon_does_not_know_says_the_daemon_is_older() {
     let (source, _) = FakeSource::with(vec![tree(&["One"])]);
     let (d, _home) = daemon(source);

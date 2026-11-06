@@ -435,5 +435,8 @@ fn act_error(e: &serde_json::Error, params: &Value) -> RpcError {
             expected.split(" at line").next().unwrap_or_default()
         ));
     }
-    RpcError::invalid_params("the action is malformed")
+    RpcError::invalid_params(format!(
+        "the {kind} action is malformed: {}",
+        crate::wire::malformed_reason(e)
+    ))
 }
