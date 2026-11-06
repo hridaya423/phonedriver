@@ -203,7 +203,7 @@ impl Ctx {
     fn cli(&self, args: &[&str]) -> Result<String, String> {
         let out = Command::new(&self.bin)
             .env("PHONE_USE_HOME", &self.home)
-            .env_remove("PHONE_USE_SESSION")
+            .env("PHONE_USE_SESSION", format!("scenario-{}", self.device))
             .arg("--device")
             .arg(&self.device)
             .args(args)
@@ -827,7 +827,10 @@ pub async fn main(args: &[String]) -> i32 {
             return 2;
         }
     };
-    let home = std::env::temp_dir().join(format!("phone-use-scenarios-{}", std::process::id()));
+    let shared_home = std::env::var_os("PHONE_USE_HOME").map(PathBuf::from);
+    let home = shared_home.clone().unwrap_or_else(|| {
+        std::env::temp_dir().join(format!("phone-use-scenarios-{}", std::process::id()))
+    });
     let _ = std::fs::create_dir_all(&home);
     let device = match &platform {
         Platform::Android { serial, .. } => format!("android:{serial}"),
@@ -892,7 +895,9 @@ pub async fn main(args: &[String]) -> i32 {
         }
     }
     let _ = ctx.cli(&["release"]);
-    stop_daemon(&ctx.home);
+    if shared_home.is_none() {
+        stop_daemon(&ctx.home);
+    }
     if let Some(out) = args.out {
         let text: String = lines.iter().map(|l| format!("{l}\n")).collect();
         if let Err(e) = std::fs::write(&out, text) {
