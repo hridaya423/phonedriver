@@ -7,6 +7,7 @@ pub mod actor;
 #[cfg(feature = "android")]
 pub mod android;
 pub mod ios;
+pub mod progress;
 pub mod rpc;
 pub mod session;
 pub mod socket;
@@ -314,6 +315,7 @@ impl Daemon {
         let (read, mut write) = split(stream);
         let mut lines = BufReader::new(read).lines();
         let mut mcp = false;
+        let mut wants_progress = false;
         let mut sessions: Vec<String> = Vec::new();
         while let Ok(Some(line)) = lines.next_line().await {
             let (id, result) = match rpc::parse(&line) {
@@ -325,12 +327,29 @@ impl Daemon {
                     if req.method == "hello" && req.params["client"] == "mcp" {
                         mcp = true;
                     }
+                    if req.method == "hello" {
+                        wants_progress = req.params["progress"] == true;
+                    }
                     if let Some(named) = req.params["session"].as_str()
                         && !sessions.iter().any(|s| s == named)
                     {
                         sessions.push(named.to_string());
                     }
-                    (req.id, self.call(&session, &req.method, req.params).await)
+                    let mut said = progress::subscribe();
+                    let call = self.call(&session, &req.method, req.params);
+                    tokio::pin!(call);
+                    let result = loop {
+                        tokio::select! {
+                            result = &mut call => break result,
+                            Ok(message) = said.recv(), if wants_progress => {
+                                let note = json!({"jsonrpc": "2.0", "method": "progress", "params": {"message": message}});
+                                if write.write_all(format!("{note}\n").as_bytes()).await.is_err() {
+                                    break call.await;
+                                }
+                            }
+                        }
+                    };
+                    (req.id, result)
                 }
                 Err(e) => (Value::Null, Err(e)),
             };

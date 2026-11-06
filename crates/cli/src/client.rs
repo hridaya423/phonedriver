@@ -1,5 +1,6 @@
 //! The CLI's side of the daemon socket, including starting the daemon on demand (architecture 5).
 
+use std::io::IsTerminal;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
@@ -12,6 +13,13 @@ use crate::daemon::socket::{self, Stream};
 use crate::wire::VERSION;
 
 const READY_WAIT: Duration = Duration::from_secs(3);
+
+/// The `hello` params. Only the CLI asks for progress lines, and only when its stderr is a terminal: an agent that
+/// reads the CLI's output through pipes gets none, and an MCP server keeps its streams to the protocol.
+fn hello(kind: &str) -> Value {
+    let progress = kind == "cli" && std::io::stderr().is_terminal();
+    json!({"version": VERSION, "client": kind, "progress": progress})
+}
 
 /// Why a command failed: the daemon said so, or the CLI could not reach it.
 #[derive(Debug)]
@@ -78,10 +86,7 @@ impl Client {
                 Self::open_with_retry(&path, &session).await?
             }
         };
-        match client
-            .call_raw("hello", json!({"version": VERSION, "client": kind}))
-            .await
-        {
+        match client.call_raw("hello", hello(kind)).await {
             Ok(_) => Ok(client),
             Err(e) if e.code == VERSION_MISMATCH => {
                 let _ = client.call_raw("shutdown", json!({})).await;
@@ -89,9 +94,7 @@ impl Client {
                 wait_until_gone(&path).await;
                 start_daemon().await?;
                 let mut fresh = Self::open_with_retry(&path, &session).await?;
-                fresh
-                    .call_raw("hello", json!({"version": VERSION, "client": kind}))
-                    .await?;
+                fresh.call_raw("hello", hello(kind)).await?;
                 Ok(fresh)
             }
             Err(e) => Err(e.into()),
@@ -107,9 +110,7 @@ impl Client {
         let mut client = Self::open(path, session)
             .await
             .map_err(|e| Failure::Local(format!("no daemon at {}: {e}", path.display())))?;
-        client
-            .call_raw("hello", json!({"version": VERSION, "client": kind}))
-            .await?;
+        client.call_raw("hello", hello(kind)).await?;
         Ok(client)
     }
 
@@ -160,22 +161,31 @@ impl Client {
             .write_all(format!("{request}\n").as_bytes())
             .await
             .map_err(lost)?;
-        let mut line = String::new();
-        let n = self.read.read_line(&mut line).await.map_err(lost)?;
-        if n == 0 {
-            return Err(RpcError::new(
-                -32603,
-                "the daemon closed the connection",
-                Value::Null,
-            ));
-        }
-        let reply: Value = serde_json::from_str(&line).map_err(|e| {
-            RpcError::new(
-                -32603,
-                format!("the daemon sent bad JSON: {e}"),
-                Value::Null,
-            )
-        })?;
+        let reply = loop {
+            let mut line = String::new();
+            let n = self.read.read_line(&mut line).await.map_err(lost)?;
+            if n == 0 {
+                return Err(RpcError::new(
+                    -32603,
+                    "the daemon closed the connection",
+                    Value::Null,
+                ));
+            }
+            let reply: Value = serde_json::from_str(&line).map_err(|e| {
+                RpcError::new(
+                    -32603,
+                    format!("the daemon sent bad JSON: {e}"),
+                    Value::Null,
+                )
+            })?;
+            match (
+                reply["method"].as_str(),
+                reply["params"]["message"].as_str(),
+            ) {
+                (Some("progress"), Some(message)) => eprintln!("{message}"),
+                _ => break reply,
+            }
+        };
         match reply.get("error") {
             Some(e) => Err(RpcError::new(
                 e["code"].as_i64().unwrap_or(-32603) as i32,
@@ -289,4 +299,19 @@ fn spawn_daemon(
         Err(_) => std::fs::OpenOptions::new().write(true).open("NUL")?,
     };
     crate::detach::spawn_daemon(exe, &log).map(tokio::fs::File::from_std)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn only_a_cli_on_a_terminal_asks_for_progress() {
+        assert_eq!(hello("mcp")["progress"], json!(false));
+        assert_eq!(hello("bench")["progress"], json!(false));
+        assert_eq!(
+            hello("cli")["progress"],
+            json!(std::io::stderr().is_terminal())
+        );
+    }
 }
