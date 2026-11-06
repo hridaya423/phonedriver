@@ -511,7 +511,7 @@ Measured in task 5.6 (`docs/bench/m4.md`, Mac mini M4, iPhone 17 simulator, iOS 
 
 ## 13. Security and privacy
 
-- No telemetry. Nothing leaves the machine except traffic to the device and, for iOS DDI mounting, Apple's TSS server.
+- No telemetry. Nothing leaves the machine except traffic to the device and, for iOS DDI mounting, Apple's TSS server. `crates/cli/tests/network.rs` checks it under a macOS sandbox (decision D24).
 - The daemon socket is user-only. No network listener.
 - Never executes agent-supplied code.
 - Secret text arrives on stdin or in `PHONE_USE_SECRET`, never on the command line (argv is visible in `ps` and shell history). It is never logged, traced, or echoed. Typing into a `SecureField` is treated as secret even without the flag. `SecureField` values never render.
