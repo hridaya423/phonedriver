@@ -24,6 +24,22 @@ pub struct Node {
     pub absorbed: Vec<usize>,
 }
 
+/// The system's "Content copied" confirmation: our paste sets the clipboard, so every typed text raises it.
+fn says_copied(tree: &RawTree, children: &[Vec<usize>], root: usize) -> bool {
+    let mut stack = children[root].clone();
+    while let Some(d) = stack.pop() {
+        if tree.nodes[d]
+            .label
+            .as_deref()
+            .is_some_and(|l| l.ends_with(" copied"))
+        {
+            return true;
+        }
+        stack.extend(&children[d]);
+    }
+    false
+}
+
 /// Prunes a raw tree into the nodes a snapshot shows, in preorder.
 pub fn prune(tree: &RawTree) -> Vec<Node> {
     let n = tree.nodes.len();
@@ -44,7 +60,7 @@ pub fn prune(tree: &RawTree) -> Vec<Node> {
         .iter()
         .find(|w| w.kind == "input_method")
         .map(|w| w.bounds);
-    let clipped: Vec<Option<Rect>> = tree
+    let mut clipped: Vec<Option<Rect>> = tree
         .nodes
         .iter()
         .map(|node| {
@@ -61,6 +77,16 @@ pub fn prune(tree: &RawTree) -> Vec<Node> {
             bounds.filter(|_| visible)
         })
         .collect();
+
+    for i in 0..n {
+        if tree.nodes[i].label.as_deref() == Some("Clipboard") && says_copied(tree, &children, i) {
+            let mut stack = vec![i];
+            while let Some(d) = stack.pop() {
+                clipped[d] = None;
+                stack.extend(&children[d]);
+            }
+        }
+    }
 
     let mut absorbed_by: Vec<Option<usize>> = vec![None; n];
     let mut merged: Vec<Vec<usize>> = vec![Vec::new(); n];
@@ -524,6 +550,27 @@ mod tests {
         assert_eq!(nodes.len(), 1);
         assert_eq!(nodes[0].label.as_deref(), Some("half"));
         assert_eq!(nodes[0].bounds.h, 10.0, "clipped to the screen");
+    }
+
+    #[test]
+    fn the_clipboard_confirmation_our_own_paste_raises_is_not_part_of_the_screen() {
+        let json = r#"{"windows":[{"id":1,"type":"application","bounds":[0,0,400,800]}],"nodes":[
+            {"p":-1,"w":1,"cls":"android.widget.FrameLayout","b":[0,0,400,800],"f":"vVe"},
+            {"p":0,"w":1,"cls":"android.widget.Button","text":"Save","a":["tap"],"b":[0,100,100,160],"f":"vVe"},
+            {"p":0,"w":1,"cls":"android.view.ViewGroup","desc":"Clipboard","b":[0,700,400,800],"f":"vVe"},
+            {"p":2,"w":1,"cls":"android.widget.Button","desc":"Clipboard","a":["tap"],"b":[0,700,100,800],"f":"vVe"},
+            {"p":2,"w":1,"cls":"android.view.ViewGroup","desc":"Content copied","b":[100,700,400,800],"f":"vVe"},
+            {"p":0,"w":1,"cls":"android.view.ViewGroup","desc":"Clipboard","b":[0,300,400,400],"f":"vVe"},
+            {"p":5,"w":1,"cls":"android.widget.Button","text":"Clipboard","a":["tap"],"b":[0,300,100,400],"f":"vVe"}
+        ]}"#;
+        let nodes = prune(&RawTree::from_android_json(json, Scale { density: 1.0 }).unwrap());
+        let labels: Vec<_> = nodes.iter().filter_map(|n| n.label.as_deref()).collect();
+        assert_eq!(
+            labels.iter().filter(|l| **l == "Clipboard").count(),
+            2,
+            "{labels:?}"
+        );
+        assert!(!labels.contains(&"Content copied"), "{labels:?}");
     }
 
     fn labels_and_roles(nodes: &[Node]) -> Vec<(Role, String)> {

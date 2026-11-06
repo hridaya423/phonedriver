@@ -11,7 +11,7 @@ use phone_use_core::device::{
     App, AppId, AppOp, Button, Capabilities, ClipboardOp, Device, DeviceEvent, FrameRef, Gesture,
     Key, Quality, ScreenState, ShellRequest, TextInput, TimedPoint, Url,
 };
-use phone_use_core::diff::{DiffOrFull, diff};
+use phone_use_core::diff::{Change, DiffOrFull, diff};
 use phone_use_core::element::{Actions, Element, ElementState, Ref, Role, Source};
 use phone_use_core::error::{Direction, Error, Op, ScrollEnd, UserAction};
 use phone_use_core::geometry::{Point, Rect, Size};
@@ -50,6 +50,7 @@ const TYPED_QUIET: Duration = Duration::from_millis(150);
 const TREE_STEP: Duration = Duration::from_millis(100);
 const TREE_STABLE_WAIT: Duration = Duration::from_secs(1);
 const LOADING_WAIT: Duration = Duration::from_secs(4);
+const CONTENT_WAIT: Duration = Duration::from_secs(2);
 const WEB_VIEW_WAIT: Duration = Duration::from_secs(10);
 const LEAVE_WAIT: Duration = Duration::from_millis(2500);
 const MASK: &str = "•••";
@@ -1682,11 +1683,22 @@ impl Actor {
         mask: Option<String>,
     ) -> Result<ActionResult, Error> {
         let mut tree = self.device()?.tree().await?;
-        if matches!(st, State::Done { changed: true, .. }) {
+        if matches!(st, State::Done { changed: true, .. }) || verify.is_some() || tree.loading() {
             tree = self.stabilize(tree).await?;
         }
         let st = Some(st);
-        let rendered = self.build(s, &tree, st.map(settle_line));
+        let mut rendered = self.build(s, &tree, st.map(settle_line));
+        if only_lost_lines(s, &rendered) {
+            let started = Instant::now();
+            while started.elapsed() < CONTENT_WAIT {
+                tokio::time::sleep(TREE_STEP).await;
+                let tree = self.device()?.tree().await?;
+                rendered = self.build(s, &tree, st.map(settle_line));
+                if !only_lost_lines(s, &rendered) {
+                    break;
+                }
+            }
+        }
         let verdict = verify.as_ref().map(|v| v.check(&rendered));
         let verified = verdict.as_ref().and_then(Verdict::verified);
         let unverified = match verdict {
@@ -2036,6 +2048,16 @@ impl Actor {
 /// For a target like "Row 500" among rows labelled "Row 12", "Row 13": whether the target lies against `direction`,
 /// how many rows away it is, and how many rows are visible. Lets the search fling across a long list and come back
 /// instead of dragging a screen at a time.
+/// A reply that only takes lines away is a window caught while it opens: the old screen is gone and the new one is
+/// not in the tree yet.
+fn only_lost_lines(s: &Session, now: &Rendered) -> bool {
+    matches!(
+        s.last.as_ref().map(|prev| diff(prev, now)),
+        Some(DiffOrFull::Diff(changes))
+            if !changes.is_empty() && changes.iter().all(|c| matches!(c, Change::Removed(_)))
+    )
+}
+
 fn numbered_distance(
     until: &Target,
     now: &Rendered,

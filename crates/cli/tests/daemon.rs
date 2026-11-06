@@ -358,6 +358,34 @@ async fn act_returns_a_diff_after_the_tree_changes_and_the_screen_goes_quiet() {
     );
 }
 
+#[tokio::test(start_paused = true)]
+async fn a_reply_that_only_removes_lines_waits_up_to_two_seconds_for_the_new_window_to_show() {
+    let mut trees = vec![tree(&["One", "Two"])];
+    trees.extend(vec![tree(&["One"]); 12]);
+    trees.push(tree(&["Select time", "OK"]));
+    let (source, _fake) = FakeSource::with(trees);
+    let (d, _home) = daemon(source);
+    ok(&d, "default", "snapshot", json!({})).await;
+    let r = ok(&d, "default", "act", tap_point(10.0, 10.0)).await;
+    let text = r["observation"]["text"].as_str().unwrap();
+    assert!(text.contains("Select time"), "{text}");
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_screen_that_really_lost_lines_and_gained_none_is_reported_after_two_seconds() {
+    let (source, _fake) = FakeSource::with(vec![tree(&["One", "Two"]), tree(&["One"])]);
+    let (d, _home) = daemon(source);
+    ok(&d, "default", "snapshot", json!({})).await;
+    let started = tokio::time::Instant::now();
+    let r = ok(&d, "default", "act", tap_point(10.0, 10.0)).await;
+    assert_eq!(r["observation"]["text"], "- @e2");
+    assert!(
+        started.elapsed() < Duration::from_secs(4),
+        "{:?}",
+        started.elapsed()
+    );
+}
+
 fn progress_tree(labels: &[&str]) -> RawTree {
     let mut nodes = vec![
         r#"{"p":-1,"w":1,"cls":"android.widget.FrameLayout","b":[0,0,360,800],"f":"vVe"}"#
@@ -1469,6 +1497,19 @@ async fn an_action_that_opens_a_cold_webview_waits_up_to_ten_seconds_for_its_pag
         tokio::time::sleep(Duration::from_millis(100)).await;
         fake.push_frame(big_frame(1));
     });
+    let r = ok(&d, "default", "act", tap_point(10.0, 10.0)).await;
+    let text = r["observation"]["text"].as_str().unwrap();
+    assert!(text.contains("Example Domain"), "{text}");
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_tap_the_pixels_barely_show_still_waits_for_the_web_view_it_opened() {
+    let mut trees = vec![tree(&["Web"])];
+    trees.extend(vec![web_tree(false); 20]);
+    trees.push(web_tree(true));
+    let (source, _fake) = FakeSource::with(trees);
+    let (d, _home) = daemon(source);
+    ok(&d, "default", "snapshot", json!({})).await;
     let r = ok(&d, "default", "act", tap_point(10.0, 10.0)).await;
     let text = r["observation"]["text"].as_str().unwrap();
     assert!(text.contains("Example Domain"), "{text}");
