@@ -13,10 +13,10 @@
 phone-use gives an AI agent a text view of an Android or iOS screen and the means to tap, type and swipe. Every action returns only the lines that changed.
 
 <p align="center">
-  <img alt="Claude Code on the left and the iOS Simulator on the right. The agent opens Settings, scrolls to Developer, opens it and taps the Dark Appearance switch. The reply is one line, off to on, and the screen turns dark." src=".github/assets/demo.gif" width="100%">
+  <img alt="The real Claude Code terminal on the left and the iPhone 17 Simulator on the right. Claude Code is asked to open Safari and go to example.com; it calls the phone-use tools, Safari loads example.com on the phone, and Claude Code reads the page back." src=".github/assets/demo.gif" width="100%">
 </p>
 
-<sub>Claude Code driving the iOS Simulator through the phone-use MCP server, real timing, idle trimmed, 19 s end to end, no failed calls. The prompt names Settings > Developer because the Simulator's Settings has no Display & Brightness: with only "Open Settings and turn on dark mode." two runs ended with the agent reporting it could not find the setting, without opening Developer.</sub>
+<sub>A real recording, not a re-rendering: Claude Code's own terminal UI (captured with VHS) running Sonnet 5.5 on a subscription, driving the iOS 26.5 Simulator through the phone-use MCP server, next to the Simulator's own screen video. The two are aligned by wall-clock start times and played at real speed, cut only at the start and end of the run (nothing trimmed between tool calls); 15 s from prompt to answer. The prompt is `Open Safari, go to example.com and tell me what the page says.` Two of its calls failed (`launch url` was rejected as malformed; `launch app` needed a `--device` because two Simulators were booted) and the agent recovered by itself. Safari already had example.com loaded from an earlier run. The first frame is the finished state; an <a href=".github/assets/demo.mp4">MP4</a> is at higher quality. Recorded by `design/build/demo_record.py` and `demo_compose.py`.</sub>
 
 ## Speed
 

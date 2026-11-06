@@ -14,7 +14,7 @@ The images are generated. `python3 design/build/build.py` rebuilds the banners, 
 | `design/logo/favicon.svg`, `app-icon.svg` | Ink tile with the mark, for favicon, app icon and avatar |
 | `design/logo/png/favicon-16.png`, `-32`, `-180`, `-512` | The tile as PNG; 16 and 32 are pixel-snapped |
 | `.github/assets/banner-light.svg`, `banner-dark.svg` | README banner, 1280 by 400 |
-| `.github/assets/demo.gif` | README demo: a real Claude Code run on the iOS Simulator through the phone-use MCP server. `design/build/demo_agent.py` records it, `design/build/demo_gif.py` composites it |
+| `.github/assets/demo.gif` | README demo: a real Claude Code run on the iOS Simulator through the phone-use MCP server. `design/build/demo_record.py` records it (VHS terminal + Simulator video), `design/build/demo_compose.py` composites it |
 | `.github/assets/social-preview.png` | GitHub social preview, 1280 by 640 |
 | `.github/assets/loop-*.svg`, `speed-*.svg`, `brand-*.svg` | Loop diagram, speed chart, brand sheet, each light and dark |
 
