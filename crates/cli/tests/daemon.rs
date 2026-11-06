@@ -513,6 +513,37 @@ async fn type_taps_the_field_pastes_and_verifies_the_text_by_reading_it_back() {
     assert_eq!(r["verified"], false);
 }
 
+fn page_tree() -> RawTree {
+    let json = r#"{"windows":[{"id":1,"type":"application","package":"com.example","bounds":[0,0,360,800]}],"nodes":[
+        {"p":-1,"w":1,"cls":"android.widget.FrameLayout","b":[0,0,360,800],"f":"vVe"},
+        {"p":0,"w":1,"cls":"android.widget.TextView","text":"Grace Hopper - Wikipedia","b":[0,0,360,60],"f":"vVe"}]}"#;
+    RawTree::from_android_json(json, Scale { density: 1.0 }).unwrap()
+}
+
+#[tokio::test(start_paused = true)]
+async fn typing_with_submit_into_a_field_that_closes_is_not_reported_as_unverified() {
+    let (source, _fake) = FakeSource::with(vec![
+        field_tree("", false),
+        field_tree("", false),
+        page_tree(),
+    ]);
+    let (d, _home) = daemon(source);
+    ok(&d, "default", "snapshot", json!({})).await;
+    let params = json!({"action": {"kind": "type", "text": "Grace Hopper", "into": {"ref": "e1"}, "submit": true}});
+    let r = ok(&d, "default", "act", params).await;
+    assert!(r["verified"].is_null(), "{r}");
+
+    let (source, _fake) = FakeSource::with(vec![
+        field_tree("", false),
+        field_tree("", false),
+        page_tree(),
+    ]);
+    let (d, _home) = daemon(source);
+    ok(&d, "default", "snapshot", json!({})).await;
+    let r = ok(&d, "default", "act", type_params("Grace Hopper", false)).await;
+    assert_eq!(r["verified"], false, "{r}");
+}
+
 #[tokio::test(start_paused = true)]
 async fn secret_text_never_reaches_the_trace_the_reply_or_the_debug_output() {
     let (source, fake) =
