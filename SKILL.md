@@ -41,7 +41,9 @@ Call `screenshot` when the snapshot does not hold what you need: a map, a drawin
 ## Typing
 
 - `type "hello" --into @e2` taps the field, types, and reports whether the field now holds the text. Read `verified`.
-- If the reply says `NOT verified`, retry with `--mode keys`.
+- If the reply says `NOT verified`, retry with `--mode keys`. `--mode set` works on Android only.
+- Calls act on one shared screen: send one at a time and read each reply before the next.
+- A `launch` reopens an app where it was left (Settings may open inside a sub-page). If a lease is held by another session, the error says how long it has been idle; wait or ask the user, never take it over.
 - `type` accepts `submit` to press enter afterwards.
 - Do not type with `secret` unless the user gave you the text for this task.
 
@@ -70,4 +72,4 @@ Each error has a hint that names the next step. Follow it. Common cases:
 
 ## Verbs
 
-`devices`, `snapshot`, `screenshot`, `tap`, `type`, `swipe`, `scroll`, `press`, `launch`, `wait`. On the command line there are also `find`, `clear`, `clipboard`, `apps`, `open`, `gesture` and `release`. `launch` takes an app name, a package or a bundle id. Give a web link or deep link to `open` on the command line, or as `url` to the `launch` tool.
+`devices`, `apps`, `snapshot`, `screenshot`, `tap`, `type`, `swipe`, `scroll`, `press`, `launch`, `wait`. On the command line there are also `find`, `clear`, `clipboard`, `open`, `gesture` and `release`. `launch` takes an app name, a package or a bundle id. Give a web link or deep link to `open` on the command line, or as `url` to the `launch` tool.
