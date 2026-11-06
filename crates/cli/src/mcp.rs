@@ -3,6 +3,7 @@
 
 use std::path::PathBuf;
 use std::process::ExitCode;
+use std::sync::Arc;
 
 use rmcp::handler::server::wrapper::Parameters;
 use rmcp::model::{CallToolResult, ContentBlock};
@@ -10,6 +11,7 @@ use rmcp::schemars::{self, JsonSchema};
 use rmcp::{ServerHandler, ServiceExt, tool, tool_handler, tool_router};
 use serde::Deserialize;
 use serde_json::json;
+use tokio::sync::Mutex;
 
 use crate::client::{Client, Failure};
 use crate::commands::{Globals, Verb, execute_with};
@@ -19,6 +21,7 @@ use crate::wire::ScreenshotResult;
 pub struct Mcp {
     socket: Option<PathBuf>,
     session: String,
+    client: Arc<Mutex<Option<Client>>>,
 }
 
 #[derive(Deserialize, JsonSchema)]
@@ -124,14 +127,36 @@ struct WaitArgs {
 impl Mcp {
     /// A server that talks to the daemon at `socket`, or starts the one at the default path when it is `None`.
     pub fn new(socket: Option<PathBuf>, session: String) -> Mcp {
-        Mcp { socket, session }
+        Mcp {
+            socket,
+            session,
+            client: Arc::default(),
+        }
     }
 
     async fn connect(&self) -> Result<Client, Failure> {
         match &self.socket {
-            Some(path) => Client::connect_to(path, &self.session).await,
-            None => Client::connect(self.session.clone()).await,
+            Some(path) => Client::connect_to_as(path, &self.session, "mcp").await,
+            None => Client::connect_as(self.session.clone(), "mcp").await,
         }
+    }
+
+    /// Runs `f` on the one connection this server keeps for its whole life, so the daemon sees the lease end when the
+    /// connection closes, and one call at a time, because the phone is one shared screen.
+    async fn with_client<T>(
+        &self,
+        f: impl AsyncFnOnce(&mut Client) -> Result<T, Failure>,
+    ) -> Result<T, Failure> {
+        let mut slot = self.client.lock().await;
+        let client = match slot.take() {
+            Some(c) => slot.insert(c),
+            None => slot.insert(self.connect().await?),
+        };
+        let result = f(client).await;
+        if matches!(&result, Err(Failure::Rpc(e)) if e.code == -32603) {
+            *slot = None;
+        }
+        result
     }
 
     fn globals(device: Option<String>) -> Globals {
@@ -160,11 +185,9 @@ impl Mcp {
         verb: Verb,
         secret: Option<String>,
     ) -> CallToolResult {
-        let result = async {
-            let mut client = self.connect().await?;
-            execute_with(&mut client, verb, secret, &globals).await
-        }
-        .await;
+        let result = self
+            .with_client(async |client| execute_with(client, verb, secret, &globals).await)
+            .await;
         match result {
             Ok(text) => CallToolResult::success(vec![ContentBlock::text(text)]),
             Err(f) => failure(&f),
@@ -214,17 +237,18 @@ impl Mcp {
     )]
     async fn screenshot(&self, Parameters(a): Parameters<DeviceArgs>) -> CallToolResult {
         let globals = Self::globals(a.device);
-        let shot = async {
-            let mut client = self.connect().await?;
-            let mut params = json!({"inline": true});
-            if let Some(d) = &globals.device {
-                params["device"] = json!(d);
-            }
-            let reply = client.call("screenshot", params).await?;
-            serde_json::from_value::<ScreenshotResult>(reply)
-                .map_err(|e| Failure::Local(format!("the daemon sent an unexpected reply: {e}")))
-        }
-        .await;
+        let shot = self
+            .with_client(async |client| {
+                let mut params = json!({"inline": true});
+                if let Some(d) = &globals.device {
+                    params["device"] = json!(d);
+                }
+                let reply = client.call("screenshot", params).await?;
+                serde_json::from_value::<ScreenshotResult>(reply).map_err(|e| {
+                    Failure::Local(format!("the daemon sent an unexpected reply: {e}"))
+                })
+            })
+            .await;
         let shot = match shot {
             Ok(s) => s,
             Err(f) => return failure(&f),

@@ -64,6 +64,12 @@ pub struct Client {
 impl Client {
     /// Connects to the daemon, starting it if it is not running, and checks that its version matches.
     pub async fn connect(session: String) -> Result<Client, Failure> {
+        Self::connect_as(session, "cli").await
+    }
+
+    /// Like `connect`, naming the kind of client in `hello`. A daemon releases the sessions of an `mcp` client when
+    /// its connection closes, because an MCP server keeps one connection for its whole life.
+    pub async fn connect_as(session: String, kind: &str) -> Result<Client, Failure> {
         let path = socket::socket_path();
         let mut client = match Self::open(&path, &session).await {
             Ok(c) => c,
@@ -73,7 +79,7 @@ impl Client {
             }
         };
         match client
-            .call_raw("hello", json!({"version": VERSION, "client": "cli"}))
+            .call_raw("hello", json!({"version": VERSION, "client": kind}))
             .await
         {
             Ok(_) => Ok(client),
@@ -84,7 +90,7 @@ impl Client {
                 start_daemon().await?;
                 let mut fresh = Self::open_with_retry(&path, &session).await?;
                 fresh
-                    .call_raw("hello", json!({"version": VERSION, "client": "cli"}))
+                    .call_raw("hello", json!({"version": VERSION, "client": kind}))
                     .await?;
                 Ok(fresh)
             }
@@ -94,11 +100,15 @@ impl Client {
 
     /// Connects to a daemon that is already listening at `path`, without starting one.
     pub async fn connect_to(path: &Path, session: &str) -> Result<Client, Failure> {
+        Self::connect_to_as(path, session, "bench").await
+    }
+
+    pub async fn connect_to_as(path: &Path, session: &str, kind: &str) -> Result<Client, Failure> {
         let mut client = Self::open(path, session)
             .await
             .map_err(|e| Failure::Local(format!("no daemon at {}: {e}", path.display())))?;
         client
-            .call_raw("hello", json!({"version": VERSION, "client": "bench"}))
+            .call_raw("hello", json!({"version": VERSION, "client": kind}))
             .await?;
         Ok(client)
     }

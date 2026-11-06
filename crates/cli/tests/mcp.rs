@@ -317,3 +317,48 @@ async fn scroll_over_mcp_reaches_the_daemon_with_every_argument_shape() {
         assert_ne!(r.is_error, Some(true), "{args}: {r:?}");
     }
 }
+
+async fn leased_by(socket: &Path) -> Value {
+    let mut c = Client::connect_to(socket, "probe").await.unwrap();
+    c.call("devices", json!({})).await.unwrap()[0]["leased_by"].clone()
+}
+
+#[tokio::test]
+async fn closing_the_mcp_connection_releases_its_lease_without_a_release_call() {
+    let rig = rig(vec![tree(&["One"])]).await;
+    rig.call("snapshot", json!({})).await;
+    assert_eq!(leased_by(&rig.socket).await, "mcp-test");
+    let Rig {
+        socket,
+        client,
+        home: _home,
+    } = rig;
+    client.cancel().await.unwrap();
+    for _ in 0..100 {
+        if leased_by(&socket).await.is_null() {
+            return;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+    }
+    panic!("the lease of the closed MCP server is still held");
+}
+
+#[tokio::test]
+async fn every_mcp_call_rides_one_connection_so_the_lease_survives_between_calls() {
+    let rig = rig(vec![tree(&["One"])]).await;
+    for _ in 0..3 {
+        rig.call("snapshot", json!({})).await;
+        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+        assert_eq!(leased_by(&rig.socket).await, "mcp-test");
+    }
+}
+
+#[tokio::test]
+async fn a_cli_connection_closing_keeps_its_lease_because_every_cli_call_is_a_new_connection() {
+    let rig = rig(vec![tree(&["One"])]).await;
+    let mut c = Client::connect_to(&rig.socket, "keeper").await.unwrap();
+    c.call("snapshot", json!({})).await.unwrap();
+    drop(c);
+    tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+    assert_eq!(leased_by(&rig.socket).await, "keeper");
+}

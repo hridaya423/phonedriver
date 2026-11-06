@@ -32,6 +32,8 @@ Version mismatch: the daemon replies with error code `-32010 version_mismatch` a
 | `clipboard` | `device?, set?: string` | `{text?: string}` (`{}` after a set; `text` is null when the clipboard is empty) |
 | `health` | `device?` | `{id, model, os, frames_ms}` (what `doctor` needs: connects, reads the tree once, then waits up to 1 s for the next frame; `frames_ms` is null when none came or the device has no frame stream) |
 
+`hello` takes `client` (`cli`, `bench` or `mcp`); the daemon ends the leases of every session an `mcp` connection used when it closes. `devices` entries carry `lease_idle_s` beside `leased_by`; `DeviceBusy` carries `idle_s` and `expires_s`.
+
 `device` is omitted when exactly one device is connected or a default is set. Every device method also takes `session` (string, default `"default"`); refs, diff baselines and leases belong to the session, not to the socket connection (architecture section 5).
 
 `open` and `launch` are `act` kinds, not methods. `share?: boolean` is accepted by every device method (architecture 5, leases). Typed text and secrets: a `type` action's text is masked (`•••`) in `observation.text` when `secret` is true, and the trace records only its length.

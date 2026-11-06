@@ -302,6 +302,22 @@ async fn a_second_session_gets_device_busy_until_release_or_share() {
 }
 
 #[tokio::test(start_paused = true)]
+async fn device_busy_says_how_long_the_holder_has_been_idle_and_when_its_lease_ends() {
+    let (source, _) = FakeSource::with(vec![tree(&["One"])]);
+    let (d, _home) = daemon(source);
+    ok(&d, "x", "snapshot", json!({})).await;
+    tokio::time::sleep(Duration::from_secs(3 * 60)).await;
+    let busy = err(&d, "y", "snapshot", json!({})).await;
+    let hint = busy.data["hint"].as_str().unwrap();
+    assert!(
+        hint.contains("idle 3m") && hint.contains("expires in 7m"),
+        "{hint}"
+    );
+    let listed = ok(&d, "y", "devices", json!({})).await;
+    assert_eq!(listed[0]["lease_idle_s"], 180);
+}
+
+#[tokio::test(start_paused = true)]
 async fn a_lease_expires_after_ten_minutes_without_calls() {
     let (source, _) = FakeSource::with(vec![tree(&["One"])]);
     let (d, _home) = daemon(source);

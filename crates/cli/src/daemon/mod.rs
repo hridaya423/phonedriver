@@ -231,14 +231,13 @@ impl Daemon {
                 .lock()
                 .unwrap_or_else(|e| e.into_inner())
                 .contains_key(&l.id);
-            let leased_by = if existing {
-                self.send(&l.id, "", false, Call::Leased)
-                    .await?
-                    .as_str()
-                    .map(str::to_string)
+            let lease = if existing {
+                self.send(&l.id, "", false, Call::Leased).await?
             } else {
-                None
+                Value::Null
             };
+            let leased_by = lease["session"].as_str().map(str::to_string);
+            let lease_idle_s = lease["idle_s"].as_u64();
             out.push(DeviceEntry {
                 id: l.id,
                 model: l.model,
@@ -246,6 +245,7 @@ impl Daemon {
                 tier: l.tier,
                 capabilities: l.capabilities,
                 leased_by,
+                lease_idle_s,
             });
         }
         Ok(serde_json::to_value(out).unwrap_or(Value::Null))
@@ -293,6 +293,8 @@ impl Daemon {
     async fn connection(self: Arc<Self>, stream: socket::Stream) {
         let (read, mut write) = split(stream);
         let mut lines = BufReader::new(read).lines();
+        let mut mcp = false;
+        let mut sessions: Vec<String> = Vec::new();
         while let Ok(Some(line)) = lines.next_line().await {
             let (id, result) = match rpc::parse(&line) {
                 Ok(req) => {
@@ -300,6 +302,14 @@ impl Daemon {
                         .as_str()
                         .unwrap_or("default")
                         .to_string();
+                    if req.method == "hello" && req.params["client"] == "mcp" {
+                        mcp = true;
+                    }
+                    if let Some(named) = req.params["session"].as_str()
+                        && !sessions.iter().any(|s| s == named)
+                    {
+                        sessions.push(named.to_string());
+                    }
                     (req.id, self.call(&session, &req.method, req.params).await)
                 }
                 Err(e) => (Value::Null, Err(e)),
@@ -308,6 +318,26 @@ impl Daemon {
             if write.write_all(out.as_bytes()).await.is_err() {
                 break;
             }
+        }
+        if mcp {
+            for session in sessions {
+                self.release_everywhere(&session).await;
+            }
+        }
+    }
+
+    /// Ends the leases a session holds on every device. An MCP client that exits or is killed never sends `release`,
+    /// and its lease would otherwise block the next agent until it lapses.
+    async fn release_everywhere(&self, session: &str) {
+        let ids: Vec<String> = self
+            .actors
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .keys()
+            .cloned()
+            .collect();
+        for id in ids {
+            let _ = self.send(&id, session, false, Call::Release).await;
         }
     }
 }

@@ -17,6 +17,8 @@ use crate::daemon::ios::{PhysicalSource, SimSource};
 use crate::daemon::sources::Sources;
 use crate::daemon::trace::TraceOptions;
 use crate::daemon::{Config, Daemon, socket};
+use phone_use_core::error::span;
+
 use crate::wire::{ActionResult, DeviceEntry, Kind, Observation, ScreenshotResult, VERSION};
 
 const USAGE: &str = "usage: phone-use <command>\n\ncommands:\n  devices\n  snapshot\n  screenshot\n  find\n  launch\n  open\n  apps\n  swipe\n  scroll\n  gesture\n  tap\n  type\n  clear\n  clipboard\n  press\n  wait\n  release\n  daemon\n  doctor\n  ios\n  mcp\n  skill\n  version";
@@ -655,7 +657,11 @@ fn device_table(result: &Value) -> String {
             d.model,
             if d.os.is_empty() { "-".into() } else { d.os },
             d.tier,
-            d.leased_by.unwrap_or_else(|| "-".into()),
+            match (d.leased_by, d.lease_idle_s) {
+                (Some(by), Some(idle)) => format!("{by} (idle {})", span(idle)),
+                (Some(by), None) => by,
+                (None, _) => "-".into(),
+            },
         ]);
     }
     let widths: Vec<usize> = (0..5)

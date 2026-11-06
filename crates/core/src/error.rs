@@ -57,6 +57,15 @@ pub enum ScrollEnd {
     Limit,
 }
 
+/// `45s`, or minutes rounded to the nearest from one minute on.
+pub fn span(secs: u64) -> String {
+    if secs < 60 {
+        format!("{secs}s")
+    } else {
+        format!("{}m", (secs + 30) / 60)
+    }
+}
+
 fn times(n: u32) -> String {
     if n == 1 {
         "1 time".into()
@@ -201,7 +210,14 @@ pub enum Error {
     #[error("device {id} disconnected")]
     DeviceGone { id: DeviceId },
     #[error("device {id} is leased by session {held_by}")]
-    DeviceBusy { id: DeviceId, held_by: SessionName },
+    DeviceBusy {
+        id: DeviceId,
+        held_by: SessionName,
+        /// Seconds since the holder last called.
+        idle_s: u64,
+        /// Seconds until the lease lapses without another call.
+        expires_s: u64,
+    },
     #[error("{}", action.message())]
     NeedsUser { action: UserAction },
     #[error("@{} is no longer on screen", r#ref)]
@@ -293,9 +309,16 @@ impl Error {
             Error::DeviceGone { .. } => {
                 "Reconnect the device, then run `phone-use devices`.".into()
             }
-            Error::DeviceBusy { held_by, .. } => {
-                format!("Wait for session {held_by} to release it, or use another device.")
-            }
+            Error::DeviceBusy {
+                held_by,
+                idle_s,
+                expires_s,
+                ..
+            } => format!(
+                "Wait for session {held_by} to release it (idle {}, lease expires in {}), or use another device.",
+                span(*idle_s),
+                span(*expires_s)
+            ),
             Error::NeedsUser { action } => action.hint(),
             Error::StaleRef { closest, .. } => match closest {
                 Some(line) => {
@@ -410,6 +433,8 @@ mod tests {
             Error::DeviceBusy {
                 id: "android:emulator-5554".into(),
                 held_by: "agent-2".into(),
+                idle_s: 180,
+                expires_s: 420,
             },
             Error::StaleRef {
                 r#ref: Ref(4),
