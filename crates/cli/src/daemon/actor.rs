@@ -47,6 +47,9 @@ const WAIT_DEBOUNCE: Duration = Duration::from_millis(100);
 /// Typed text is already in the field when the call returns (the paste waits for it), so unlike after a tap there is
 /// no effect still to come: the first-change wait and the quiet period after it are short.
 const TYPED_QUIET: Duration = Duration::from_millis(150);
+const TREE_STEP: Duration = Duration::from_millis(100);
+const TREE_STABLE_WAIT: Duration = Duration::from_secs(1);
+const LOADING_WAIT: Duration = Duration::from_secs(4);
 const MASK: &str = "•••";
 
 pub enum Call {
@@ -1639,6 +1642,26 @@ impl Actor {
         self.report(s, st, summary, via, verify, mask).await
     }
 
+    /// The accessibility tree can lag the pixels: a dialog or an expanding card appears a moment after the screen went
+    /// quiet, and a page keeps loading behind a progress bar. Reads again until two reads agree and nothing is loading.
+    async fn stabilize(&self, mut tree: RawTree) -> Result<RawTree, Error> {
+        let started = Instant::now();
+        loop {
+            tokio::time::sleep(TREE_STEP).await;
+            let next = self.device()?.tree().await?;
+            let same = next == tree;
+            tree = next;
+            let limit = if tree.loading() {
+                LOADING_WAIT
+            } else {
+                TREE_STABLE_WAIT
+            };
+            if (same && !tree.loading()) || started.elapsed() >= limit {
+                return Ok(tree);
+            }
+        }
+    }
+
     /// Reads the screen after a settle and answers with what changed since the agent last saw it.
     async fn report(
         &mut self,
@@ -1649,8 +1672,11 @@ impl Actor {
         verify: Option<Verify>,
         mask: Option<String>,
     ) -> Result<ActionResult, Error> {
+        let mut tree = self.device()?.tree().await?;
+        if matches!(st, State::Done { changed: true, .. }) {
+            tree = self.stabilize(tree).await?;
+        }
         let st = Some(st);
-        let tree = self.device()?.tree().await?;
         let rendered = self.build(s, &tree, st.map(settle_line));
         let verdict = verify.as_ref().map(|v| v.check(&rendered));
         let verified = verdict.as_ref().and_then(Verdict::verified);
