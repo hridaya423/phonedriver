@@ -291,7 +291,7 @@ pub fn privacy_service(name: &str) -> Result<&'static str> {
         .iter()
         .copied()
         .find(|s| *s == name)
-        .ok_or_else(|| Error::Unsupported {
+        .ok_or(Error::Unsupported {
             op: Op::Launch,
             reason: "the Simulator can grant all, calendar, contacts, contacts-limited, location, location-always, photos, photos-add, media-library, microphone, motion, reminders and siri; notifications and the camera cannot be pre-granted",
         })
