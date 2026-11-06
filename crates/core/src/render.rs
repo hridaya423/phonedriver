@@ -240,6 +240,9 @@ impl Rendered {
         {
             s.push_str(" under-keyboard");
         }
+        if e.source == Source::Ocr {
+            s.push_str(" (ocr)");
+        }
         s
     }
 

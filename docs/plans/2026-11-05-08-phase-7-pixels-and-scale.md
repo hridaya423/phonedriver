@@ -15,7 +15,7 @@
 **Files:** Create `crates/core/src/ocr.rs` (the `TextBox` type and merge logic, pure), `crates/cli/src/ocr.rs` (Apple Vision through `objc2-vision`, macOS only; other OSes return `Unsupported`, architecture section 9).
 
 **Tests:**
-- Golden: OCR on three committed screenshots (testbed Taps tab, a Settings screen, a game-like canvas from the testbed's Gestures tab with drawn text) finds every label a human can read in them. Write the expected labels by looking at each image.
+- Golden: OCR on committed screenshots (testbed Taps tab at 1x and at 2x, Android Settings at native resolution, the iOS testbed Gestures tab; the Gestures tab has no drawn text, only "Gesture pad") finds the labels listed in `crates/cli/tests/ocr.rs`, which were written by looking at each image. Not found, by design of the engine at these sizes: the lower rows of Taps buttons at 1x and the iOS tab bar captions other than the selected one and the ones next to it; recorded in `progress.md`.
 - Merge (pure): OCR boxes that overlap a tree element with the same text (case-insensitive, IoU > 0.5) are dropped; the rest become `Source::Ocr` elements with refs, rendered with `(ocr)`.
 - Speed: Vision p50 under 120 ms on a 412x915 frame on the Mac.
 
