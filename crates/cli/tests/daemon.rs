@@ -804,6 +804,36 @@ async fn scroll_until_stops_when_the_text_shows_and_reports_its_ref() {
 }
 
 #[tokio::test(start_paused = true)]
+async fn scroll_until_reports_unsettled_when_the_last_scroll_never_settled() {
+    let (source, fake) = FakeSource::with(vec![
+        list_tree(&["Row 0", "Row 1"]),
+        list_tree(&["Row 5", "Row 6"]),
+        list_tree(&["Row 9", "Row 10"]),
+    ]);
+    let (d, _home) = daemon(source);
+    let pusher = tokio::spawn({
+        let fake = fake.clone();
+        async move {
+            for seq in 1..400 {
+                tokio::time::sleep(Duration::from_millis(50)).await;
+                fake.push_frame(big_frame(seq));
+            }
+        }
+    });
+    let r = ok(
+        &d,
+        "default",
+        "act",
+        scroll(json!({"until": {"text": "Row 10"}})),
+    )
+    .await;
+    pusher.abort();
+    assert_eq!(r["ok"], true);
+    assert_eq!(r["settled"], false, "{r}");
+    assert!(r["summary"].as_str().unwrap().contains("Row 10"), "{r}");
+}
+
+#[tokio::test(start_paused = true)]
 async fn scroll_until_fails_not_found_after_two_scrolls_in_a_row_change_nothing() {
     let (source, fake) = FakeSource::with(vec![list_tree(&["Row 998", "Row 999"])]);
     let (d, _home) = daemon(source);
