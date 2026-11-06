@@ -7,8 +7,7 @@ use std::sync::Arc;
 
 use base64::Engine;
 use clap::builder::BoolishValueParser;
-use clap::error::ErrorKind;
-use clap::{CommandFactory, Parser, Subcommand};
+use clap::{Parser, Subcommand};
 use serde_json::{Value, json};
 
 use crate::client::{Client, Failure};
@@ -56,6 +55,8 @@ pub struct Cli {
     #[command(subcommand)]
     command: Option<Verb>,
 }
+
+const DIRECTIONS: [&str; 4] = ["up", "down", "left", "right"];
 
 #[derive(Subcommand)]
 pub(crate) enum Verb {
@@ -108,7 +109,8 @@ pub(crate) enum Verb {
     Apps,
     /// Drag from the middle of the screen, or of `--from`, the way a finger does.
     Swipe {
-        /// up, down, left or right: where the finger moves.
+        /// Where the finger moves.
+        #[arg(value_parser = DIRECTIONS)]
         direction: String,
         #[arg(long)]
         from: Option<String>,
@@ -120,6 +122,8 @@ pub(crate) enum Verb {
     },
     /// Scroll the content so more of it shows in `direction`, or until `--until` text shows.
     Scroll {
+        /// Which way more content should show.
+        #[arg(value_parser = DIRECTIONS)]
         direction: String,
         /// The element to scroll; the default is the largest scrollable one.
         #[arg(long = "in")]
@@ -236,9 +240,10 @@ pub fn run(cli: Cli) -> ExitCode {
         verb => {
             let secret = match secret_text(&verb) {
                 Ok(s) => s,
-                Err(message) => Cli::command()
-                    .error(ErrorKind::ArgumentConflict, message)
-                    .exit(),
+                Err(message) => {
+                    eprintln!("error: {message}");
+                    return ExitCode::from(2);
+                }
             };
             let Ok(rt) = tokio::runtime::Builder::new_current_thread()
                 .enable_all()
@@ -288,9 +293,9 @@ fn secret_text(verb: &Verb) -> Result<Option<String>, String> {
     };
     match (secret, text) {
         (true, Some(_)) => Err(
-            "with --secret the text must come from stdin or PHONE_USE_SECRET, not from the command line (arguments show in `ps` and shell history)".into(),
+            "with --secret the text must come from stdin or PHONE_USE_SECRET, not from the command line (arguments show in `ps` and shell history)\nexample: echo -n \"$PW\" | phone-use type --secret --into @e3".into(),
         ),
-        (false, None) => Err("type needs the text to type".into()),
+        (false, None) => Err("type needs the text to type\nexample: phone-use type \"hello\" --into @e3".into()),
         (true, None) => {
             let text = match std::env::var("PHONE_USE_SECRET") {
                 Ok(t) => t,

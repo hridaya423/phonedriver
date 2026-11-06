@@ -546,7 +546,7 @@ fn runner_expiry(name: &str, home: &Path) -> Check {
             Status::Warn,
             label,
             "not built for devices yet",
-            "Set PHONE_USE_TEAM to your Apple developer team and run any phone-use command on the device; the first one builds and signs the runner.",
+            "Set PHONE_USE_TEAM to your Apple developer team ID (Xcode > Settings > Accounts, or `security find-identity -v -p codesigning`) and run any phone-use command on the device; the first one builds and signs the runner. `phone-use ios setup` checks pairing and Developer Mode.",
         );
     };
     let decoded = std::process::Command::new("security")

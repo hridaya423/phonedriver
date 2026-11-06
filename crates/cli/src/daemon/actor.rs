@@ -1779,9 +1779,9 @@ async fn press(device: &dyn Device, key: &str) -> Result<Option<&'static str>, E
     if let Ok(k) = serde_json::from_value::<Key>(name) {
         return device.key(k).await.map(|()| None);
     }
-    Err(Error::NotFound {
-        query: key.to_string(),
-        similar: vec![
+    Err(Error::UnknownKey {
+        key: key.to_string(),
+        valid: vec![
             "home".into(),
             "back".into(),
             "recents".into(),

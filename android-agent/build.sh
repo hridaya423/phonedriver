@@ -30,7 +30,11 @@ if [ ${#problems[@]} -gt 0 ]; then
   {
     echo "error: cannot build the Android agent:"
     printf '  %s\n' "${problems[@]}"
-    echo "ANDROID_HOME is ${ANDROID_HOME:-unset}; without it the SDK is ${ANDROID_SDK_ROOT:-$DEFAULT_SDK}."
+    if [ -n "${ANDROID_HOME:-}" ]; then
+      echo "ANDROID_HOME=$ANDROID_HOME."
+    else
+      echo "ANDROID_HOME is unset, so the SDK defaults to ${ANDROID_SDK_ROOT:-$DEFAULT_SDK}."
+    fi
     echo "Do one of these:"
     echo "  install the tools:   sdkmanager \"build-tools;$BT_VERSION\" \"platforms;$PLATFORM_NAME\" (and JDK 17)"
     echo "  use another SDK:     ANDROID_HOME=<sdk directory>"

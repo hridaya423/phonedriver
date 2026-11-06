@@ -6,7 +6,7 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 use phone_use_core::device::Device;
-use phone_use_core::error::Error;
+use phone_use_core::error::{Error, UserAction};
 use phone_use_ios::coredevice::CoreDevice;
 use phone_use_ios::device::IosDevice;
 use phone_use_ios::simulator::Simulator;
@@ -144,6 +144,18 @@ impl DeviceSource for PhysicalSource {
             .collect())
     }
 
+    fn blocker(&self, id: &str) -> Option<&'static str> {
+        let udid = id.strip_prefix("ios:").unwrap_or(id);
+        let runner_tier = self.described.try_lock().map_or(true, |known| {
+            known
+                .iter()
+                .find(|f| f.udid == udid)
+                .is_none_or(|f| tier_of(f.tier) == discovery::Tier::Runner)
+        });
+        (runner_tier && std::env::var_os("PHONE_USE_TEAM").is_none())
+            .then_some("PHONE_USE_TEAM is not set")
+    }
+
     async fn connect(&self, id: &str) -> Result<Arc<dyn Device>, Error> {
         let udid = id.strip_prefix("ios:").unwrap_or(id);
         let (wired, found) = self
@@ -155,9 +167,8 @@ impl DeviceSource for PhysicalSource {
         if tier_of(found.tier) == discovery::Tier::CoreDevice {
             return Ok(Arc::new(CoreDevice::connect(&wired, &found.model).await?));
         }
-        let team = std::env::var("PHONE_USE_TEAM").map_err(|_| Error::Transport {
-            detail: "set PHONE_USE_TEAM to the Apple developer team that signs the runner (for example DV6NC6KRYL)"
-                .into(),
+        let team = std::env::var("PHONE_USE_TEAM").map_err(|_| Error::NeedsUser {
+            action: UserAction::SetSigningTeam,
         })?;
         Ok(Arc::new(
             IosDevice::connect_physical(&wired, &found.model, &team, &self.home).await?,
