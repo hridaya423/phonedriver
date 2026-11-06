@@ -20,7 +20,7 @@ Version mismatch: the daemon replies with error code `-32010 version_mismatch` a
 | Method | Params | Result |
 |---|---|---|
 | `hello` | `version, client` | `version, pid` |
-| `shutdown` | none | `{}` |
+| `shutdown` | none | `{pid}` (the daemon exits, ending the iOS runners it started) |
 | `devices` | none | `[DeviceSummary]` |
 | `release` | `device?` | `{}` |
 | `snapshot` | `device?, diff?, interactive?, within?, pixels?, max_lines?, no_settle?, elements?, capture?, timeout_ms?` | `Observation` |

@@ -165,8 +165,10 @@ pub(crate) enum Verb {
     Wait { condition: String },
     /// Give up this session's lease on the device.
     Release,
-    /// Run the daemon in the foreground, or detached.
+    /// Run the daemon in the foreground or detached; `daemon stop` ends the running one.
     Daemon {
+        #[command(subcommand)]
+        command: Option<DaemonCommand>,
         #[arg(long)]
         detach: bool,
         /// Keep observation text and text targets in the trace files.
@@ -191,6 +193,12 @@ pub(crate) enum Verb {
     Version,
 }
 
+#[derive(Subcommand)]
+pub(crate) enum DaemonCommand {
+    /// Stop the running daemon and the iOS runners it started. Succeeds when none is running.
+    Stop,
+}
+
 #[derive(Subcommand, Debug)]
 pub enum IosCommand {
     /// Check each wired device and do what needs no one at the device: show the Developer Mode switch, mount the
@@ -208,6 +216,10 @@ pub fn run(cli: Cli) -> ExitCode {
             println!("phone-use {VERSION}");
             ExitCode::SUCCESS
         }
+        Verb::Daemon {
+            command: Some(DaemonCommand::Stop),
+            ..
+        } => stop_daemon(),
         Verb::Daemon {
             trace_full,
             trace_screens,
@@ -770,6 +782,25 @@ async fn save_fixture_files(
     std::fs::copy(&shot.path, dir.join(format!("{name}.png")))
         .map_err(|e| Failure::Local(format!("cannot write the fixture screenshot: {e}")))?;
     Ok(())
+}
+
+fn stop_daemon() -> ExitCode {
+    let Ok(rt) = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+    else {
+        eprintln!("error: cannot start the async runtime");
+        return ExitCode::from(1);
+    };
+    match rt.block_on(crate::client::stop_daemon(&socket::socket_path())) {
+        Ok(Some(pid)) => println!("stopped the daemon (pid {pid})"),
+        Ok(None) => println!("no daemon is running"),
+        Err(f) => {
+            eprintln!("error: {}", f.message());
+            return ExitCode::from(f.exit_code());
+        }
+    }
+    ExitCode::SUCCESS
 }
 
 fn run_daemon(trace: TraceOptions) -> ExitCode {
