@@ -1,5 +1,6 @@
 //! Android devices through the adb server.
 
+use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
 use async_trait::async_trait;
@@ -20,6 +21,7 @@ struct Tracked {
 pub struct AdbSource {
     adb: Adb,
     tracked: Arc<Mutex<Tracked>>,
+    os: Mutex<HashMap<(String, Option<u32>), String>>,
 }
 
 impl AdbSource {
@@ -31,6 +33,7 @@ impl AdbSource {
         AdbSource {
             adb,
             tracked: Arc::default(),
+            os: Mutex::default(),
         }
     }
 
@@ -65,19 +68,42 @@ impl AdbSource {
 #[async_trait]
 impl DeviceSource for AdbSource {
     async fn list(&self) -> Result<Vec<Listed>, Error> {
-        Ok(self
+        let mut listed = Vec::new();
+        for d in self
             .devices()
             .await?
             .into_iter()
             .filter(|d| d.state == DeviceState::Device)
-            .map(|d| Listed {
+        {
+            let key = (d.serial.clone(), d.transport_id);
+            let known = self
+                .os
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .get(&key)
+                .cloned();
+            let os = match known {
+                Some(os) => Some(os),
+                None => match self.adb.os_label(&d.serial).await {
+                    Ok(os) => {
+                        self.os
+                            .lock()
+                            .unwrap_or_else(|e| e.into_inner())
+                            .insert(key, os.clone());
+                        Some(os)
+                    }
+                    Err(_) => None,
+                },
+            };
+            listed.push(Listed {
                 id: format!("android:{}", d.serial),
                 model: d.model.unwrap_or_else(|| "unknown".into()),
-                os: None,
+                os,
                 tier: "agent".into(),
                 capabilities: Capabilities::all(),
-            })
-            .collect())
+            });
+        }
+        Ok(listed)
     }
 
     async fn connect(&self, id: &str) -> Result<Arc<dyn Device>, Error> {
