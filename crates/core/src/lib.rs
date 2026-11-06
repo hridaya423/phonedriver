@@ -7,6 +7,7 @@ pub mod element;
 pub mod error;
 pub mod geometry;
 pub mod gesture;
+pub mod inject;
 pub mod ocr;
 pub mod prune;
 pub mod raw;
