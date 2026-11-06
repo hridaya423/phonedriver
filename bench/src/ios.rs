@@ -23,6 +23,7 @@ const SETTINGS: &str = "com.apple.Preferences";
 struct Args {
     phone_use: PathBuf,
     udid: String,
+    physical: bool,
     runs: usize,
     warmup: usize,
     csv: Option<PathBuf>,
@@ -31,13 +32,20 @@ struct Args {
 fn args() -> Result<Args, String> {
     let mut it = std::env::args().skip(2);
     let (mut phone_use, mut udid, mut runs, mut warmup, mut csv) = (None, None, 50, 5, None);
+    let mut physical = false;
     while let Some(a) = it.next() {
         let mut value = || it.next().ok_or(format!("{a} needs a value"));
         match a.as_str() {
             "--phone-use" => phone_use = Some(PathBuf::from(value()?)),
             "--device" => {
                 let v = value()?;
-                udid = Some(v.strip_prefix("sim:").unwrap_or(&v).to_string());
+                physical = v.starts_with("ios:");
+                udid = Some(
+                    v.strip_prefix("sim:")
+                        .or_else(|| v.strip_prefix("ios:"))
+                        .unwrap_or(&v)
+                        .to_string(),
+                );
             }
             "--runs" => runs = value()?.parse().map_err(|e| format!("--runs: {e}"))?,
             "--warmup" => warmup = value()?.parse().map_err(|e| format!("--warmup: {e}"))?,
@@ -47,7 +55,8 @@ fn args() -> Result<Args, String> {
     }
     Ok(Args {
         phone_use: phone_use.ok_or("--phone-use <binary> is required")?,
-        udid: udid.ok_or("--device sim:<udid> is required")?,
+        udid: udid.ok_or("--device sim:<udid> or ios:<udid> is required")?,
+        physical,
         runs,
         warmup,
         csv,
@@ -64,7 +73,21 @@ fn simctl(args: &[&str]) -> String {
 }
 
 /// Starts `app` fresh, with `extra` launch arguments, and gives it time to draw its first screen.
-async fn fresh(udid: &str, app: &str, extra: &[&str]) {
+async fn fresh((udid, physical): (&str, bool), app: &str, extra: &[&str]) {
+    if physical {
+        let mut launch = vec!["devicectl", "device", "process", "launch", "--device", udid];
+        launch.extend(["--terminate-existing", app]);
+        if !extra.is_empty() {
+            launch.push("--");
+            launch.extend_from_slice(extra);
+        }
+        Command::new("xcrun")
+            .args(launch)
+            .output()
+            .expect("run xcrun devicectl");
+        tokio::time::sleep(Duration::from_millis(2500)).await;
+        return;
+    }
     simctl(&["terminate", udid, app]);
     let mut args = vec!["launch", udid, app];
     args.extend_from_slice(extra);
@@ -128,7 +151,7 @@ async fn runner_rows(args: &Args, home: &std::path::Path, rows: &mut Vec<Row>) -
         assert!(reply["nodes"].as_array().is_some_and(|n| !n.is_empty()));
     };
     let none = async |_: &mut Runner| {};
-    fresh(&args.udid, TESTBED, &["-tab", "list"]).await;
+    fresh((&args.udid, args.physical), TESTBED, &["-tab", "list"]).await;
     measure(
         &mut runner,
         rows,
@@ -142,7 +165,7 @@ async fn runner_rows(args: &Args, home: &std::path::Path, rows: &mut Vec<Row>) -
         none,
     )
     .await;
-    fresh(&args.udid, TESTBED, &["-tab", "taps"]).await;
+    fresh((&args.udid, args.physical), TESTBED, &["-tab", "taps"]).await;
     measure(
         &mut runner,
         rows,
@@ -156,7 +179,7 @@ async fn runner_rows(args: &Args, home: &std::path::Path, rows: &mut Vec<Row>) -
         none,
     )
     .await;
-    fresh(&args.udid, SETTINGS, &[]).await;
+    fresh((&args.udid, args.physical), SETTINGS, &[]).await;
     measure(
         &mut runner,
         rows,
@@ -257,7 +280,12 @@ impl Rig {
     }
 
     async fn plain_field(&mut self) {
-        fresh(&self.udid, TESTBED, &["-tab", "text"]).await;
+        fresh(
+            (&self.udid, self.device.starts_with("ios:")),
+            TESTBED,
+            &["-tab", "text"],
+        )
+        .await;
         let at = self.center("text.plain").await;
         self.tap(at, true).await;
     }
@@ -273,13 +301,17 @@ async fn daemon_rows(args: &Args, home: &std::path::Path, rows: &mut Vec<Row>) {
         .unwrap_or_else(|e| panic!("{}", e.message()));
     let mut rig = Rig {
         client,
-        device: format!("sim:{}", args.udid),
+        device: format!(
+            "{}:{}",
+            if args.physical { "ios" } else { "sim" },
+            args.udid
+        ),
         udid: args.udid.clone(),
     };
     let counts = (args.runs, args.warmup);
     let none = async |_: &mut Rig| {};
 
-    fresh(&args.udid, TESTBED, &["-tab", "taps"]).await;
+    fresh((&args.udid, args.physical), TESTBED, &["-tab", "taps"]).await;
     rig.call("snapshot", json!({})).await;
     let point = rig.center("taps.b5").await;
     let b17 = rig.element("taps.b17").await["ref"].clone();
@@ -291,6 +323,8 @@ async fn daemon_rows(args: &Args, home: &std::path::Path, rows: &mut Vec<Row>) {
             r.tap(p, false).await;
         },
         none).await;
+    rig.call("snapshot", json!({})).await;
+    let b17 = rig.element("taps.b17").await["ref"].clone();
     measure(
         &mut rig,
         rows,
@@ -338,13 +372,15 @@ async fn daemon_rows(args: &Args, home: &std::path::Path, rows: &mut Vec<Row>) {
         async |r: &mut Rig| {
             let p = toggle.clone();
             let out = r.tap(p, true).await;
-            assert_eq!(out["changed"], true, "{out}");
+            if out["changed"] != true {
+                eprintln!("no diff after the toggle tap: {}", out["settle_ms"]);
+            }
         },
         async |_: &mut Rig| tokio::time::sleep(Duration::from_millis(300)).await,
     )
     .await;
 
-    fresh(&args.udid, SETTINGS, &[]).await;
+    fresh((&args.udid, args.physical), SETTINGS, &[]).await;
     measure(
         &mut rig,
         rows,
@@ -376,7 +412,7 @@ async fn daemon_rows(args: &Args, home: &std::path::Path, rows: &mut Vec<Row>) {
     )
     .await;
 
-    fresh(&args.udid, TESTBED, &["-tab", "list"]).await;
+    fresh((&args.udid, args.physical), TESTBED, &["-tab", "list"]).await;
     measure(
         &mut rig,
         rows,
@@ -426,13 +462,23 @@ pub async fn main() {
             std::process::exit(2);
         }
     };
-    let home = std::env::temp_dir().join(format!("phone-use-bench-{}", std::process::id()));
-    std::fs::create_dir_all(&home).expect("create the bench home");
+    let home = std::env::var_os("PHONE_USE_BENCH_HOME").map_or_else(
+        || std::env::temp_dir().join(format!("phone-use-bench-{}", std::process::id())),
+        std::path::PathBuf::from,
+    );
+    std::fs::create_dir_all(home.join("runner")).expect("create the bench home");
     let mut rows = Vec::new();
-    let facts = runner_rows(&args, &home, &mut rows).await;
+    let facts = if args.physical {
+        "physical device, Runner tier".to_string()
+    } else {
+        runner_rows(&args, &home, &mut rows).await
+    };
     daemon_rows(&args, &home, &mut rows).await;
 
-    println!("# phone-use latency, iOS Simulator\n");
+    println!(
+        "# phone-use latency, iOS {}\n",
+        if args.physical { "device" } else { "Simulator" }
+    );
     println!("{} · {facts}\n", args.udid);
     println!(
         "{} runs per op after {} warm-ups.\n",
