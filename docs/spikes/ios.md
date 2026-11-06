@@ -102,7 +102,24 @@ On the iPad (iOS 27.0), with idevice's default offer, the device sends **HEVC on
 - Buttons: Home (consumer usage page 0x0C, usage 0x40) sent the testbed to the background.
 - Keyboard: creating the HID keyboard makes iOS treat a hardware keyboard as attached, so the software keyboard does not appear (the runner's snapshot said "keyboard hidden" with the Plain field focused). Modifiers in the same report as the key are ignored; one report per key, modifiers first, 25 ms apart typed `Ab1!` exactly (10 ms dropped the character after a Shift).
 - Paste: Cmd+V raises "Testbed would like to paste from dtpasteboardd" every time; after "Allow Paste" the field received `héllo 😀 世界` intact.
-- Tap latency and glass-to-frame latency were not measured: the frame stream stops showing app changes after the first seconds (architecture 7.2), so there is no trustworthy frame to time against.
+- Tap latency and glass-to-frame latency: see I6 (measured once the stream fix of I6 was in).
+
+## I6: the frozen CoreDevice stream (2026-11-06, iPad iOS 27.0, USB)
+
+Root cause: a receiver backlog, not stale content. Method: spike code with environment switches in `coredevice.rs` (deleted), the testbed's event log as truth, a hash of the app area and screenshots after taps on B3 and B7 (the Taps tab shows "Last tap: bN").
+
+| # | Hypothesis | Experiment | Result |
+|---|---|---|---|
+| 1 | The depacketizer drops or merges slices | Parsed `ipad_testbed_h264.rtp` independently: NAL types, FU-A, slices, `first_mb_in_slice`, markers per RTP timestamp | Every access unit is one slice (`first_mb=0`), no STAP-A in pictures, markers and timestamps group as our depacketizer does. Ruled out for the 200 packets of the fixture. |
+| 2 | Acks need the frame counter in the RTP header extension (profile 0x9311, one word: high 16 bits packet count of the frame, low 16 bits a per-frame counter) | `PU_ACK=ext` and `extcount` against the baseline (acks carry the RTP timestamp, as Apple's capture shows) | No change: same stale app area. |
+| 3 | The device waits for acknowledgments | no acks; no RCTL reports; both | No change. |
+| 4 | The audio stream or the offer matters | H.264 offer vs idevice's default HEVC offer (packet log only) | HEVC arrives in real time: a picture every 50 ms with RTP timestamps advancing 1200 (24 kHz) per 50 ms. H.264 arrives at the same rate. |
+| 5 | The device sends stale content | Compared packet arrival time with the time our decoder finished each picture | Lag grew 2 s per 10 s, 34 s at 40 s: pictures arrive on time and are processed 5 per second. |
+| 6 | Where the time goes | Timed each step | decode 11 ms; `Frame::rotated_cw` 115 ms; `FrameStore::publish` 71 ms (unoptimized build): 190 ms per picture against a 50 ms arrival interval. |
+
+Fix (commit "fix(ios): the CoreDevice stream was a backlog..."): `decode_stream` decodes everything and publishes only when the queue is empty; test `a_decoder_that_falls_behind_publishes_only_the_newest_picture...` was red (no `receive` module), then green. Live: taps on B3 and B7 every 2.2 s for 30 s, the screenshot's "Last tap" followed the taps in every shot checked (b3 on even, b7 on odd taps; before the fix it stayed on the first value).
+
+Measured on the iPad after the fix (development build with `CARGO_PROFILE_DEV_PACKAGE_*_OPT_LEVEL=3` for openh264, video and ios, `watch` and `latency` spike tests, 800 ms between taps, 3 warm-ups): 23 taps, 0 timeouts, tap (HID touch down and up) p50 31.3 ms p95 32.3 ms, tap to the first changed frame p50 377.8 ms p95 1102.7 ms. Not met: stability. Runs of 40, 60, 70 and 100 taps at 1.8 s spacing (up to 3 min) had stretches with no changed frame within 3 s (0 of 40, 20 of 60, 16 of 70, 75 of 100). With a per-second counter in the decoder, those stretches showed 3 to 15 pictures decoded per second while the device sent about 20 and the queue growing from 75 to 245 datagrams: the decode thread was starved while other agents' builds kept the load average at 20 to 30. It is not proven that a release build on an idle host keeps up (decode alone is 11 ms); that is the next measurement. If it does not, the options are to drop the queue and wait for a keyframe when it grows past a bound (keyframe requests were ignored in Phase 6, so this needs a test) or to move the decode off the shared pool.
 
 ## I5: signing-free tree from the audit service (not run)
 

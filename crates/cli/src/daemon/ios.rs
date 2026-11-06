@@ -86,7 +86,7 @@ impl DeviceSource for SimSource {
 }
 
 /// An iOS 27 device is driven through the runner unless `PHONE_USE_IOS_TIER=coredevice` asks for the CoreDevice
-/// services: that tier's screen stream stops showing app changes after the first seconds (progress.md, 2026-11-06).
+/// services: that tier's screen can fall behind when the host is starved of CPU (architecture 7.2, spike I6).
 fn tier_of(found: discovery::Tier) -> discovery::Tier {
     match (found, std::env::var("PHONE_USE_IOS_TIER").as_deref()) {
         (discovery::Tier::CoreDevice, Ok("coredevice")) => discovery::Tier::CoreDevice,
