@@ -17,3 +17,7 @@ version = "0.20261030.1"
 
 [workspace.metadata.blaze.sandbox]
 unsandboxed-build-scripts = ["phone-use-android"]
+
+[profile.dist]
+inherits = "release"
+lto = "thin"
