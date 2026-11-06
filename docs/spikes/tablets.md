@@ -1,19 +1,22 @@
-# Tablets and large screens (task 7.3, iOS half)
+# Android tablet (task 7.3, Android half)
 
-Device: simulator `iPad Pro 13 phone-use`, type `iPad-Pro-13-inch-M5-16GB`, iOS 26.5, created on the Mac mini with `xcrun simctl create` (no new runtime). Screen 1032x1376 pt portrait, 1376x1032 pt landscape. The Android tablet half of 7.3 is not done here (the win-pc emulators were in use by another agent).
+AVD `Pixel_Tablet_API_37` (device `pixel_tablet`, image `system-images;android-37.0;google_apis;x86_64`, 2560x1600 at 320 dpi, 3 GB RAM, `-gpu swangle_indirect`, port 5558). Its home is `D:\avd` on win-pc because C: had 5 GB free and the emulator wants a 7 GB userdata partition (`ANDROID_AVD_HOME=D:\avd`, data partition set to 3G). The header reads `1280x800pt · landscape`; the natural orientation is landscape, so `user_rotation 0` is landscape and `1` is portrait (the phone scenario `rotation-mid-task` assumes the reverse; `bench/scenarios/android-tablet/rotation-mid-task-tablet.yaml` is the tablet version).
 
-## Rotating the simulator
+## Results (one run each, 2026-11-06)
 
-`simctl` has no rotate verb, and Xcode 27 ships no Simulator.app (DeviceHub.app opened with no window to drive over ssh). Rotation here came from a throwaway XCUITest bundle (`~/phone-use-work/spikes/rotate` on the mini, not in the repo) that sets `XCUIDevice.sharedDevice.orientation` and exits; the orientation stays after the test ends. The product has no rotate verb; this stays a test fixture. Upside-down did not take effect on the testbed (header stayed portrait), so it is not claimed.
+| Run | Result |
+|---|---|
+| Full suite, landscape | 20 of 21; the failure is `rotation-mid-task`, whose phone assumption is wrong here (the header said `800x1280pt · portrait` after `user_rotation 1`, which is correct) |
+| `rotation-mid-task-tablet`, portrait then landscape, a testbed tap logged in each | pass |
+| Portrait suite (17 scenarios: without Chrome, Clock and Files first-run flows and the phone rotation scenario) | 15 of 17; `testbed-busy` and `testbed-web-form` timed out with an empty tree for 8 s after `am start` |
 
-## Gaps found and fixed
+The first portrait attempts failed while win-pc's adb server died (`early eof`) and while the freshly booted tablet's System UI was not ready (`registerUiTestAutomationService` NullPointerException); the numbers above are from a tablet that had been up for 90 s. The two portrait failures are not explained; both were the first read after a cold start of a screen on a 2560x1600 software-rendered display.
 
-1. Header and swipes used the size from connect. After rotation `phone-use snapshot` printed `1032x1376pt · portrait` while the screenshot was 1376x1032. Fix: the screen comes from the application element's frame on each snapshot; the daemon asks the device (`Device::current_screen`, default `None` so Android keeps its `DisplayChanged` events). Test: `daemon::the_header_follows_a_device_that_reports_its_own_rotation`; map unit test `the_screen_is_the_application_frame`.
-2. Taps landed in the wrong place in landscape. Testbed log with the device in landscape: `tap B5` at (519, 438) logged `touch began x 438 y 513`; with the fix `x 519 y 438`, `{"ev":"tap","id":"b5"}`. Checked in landscape left, landscape right and portrait: the logged touch equals the requested point and the right button logs (`B17` at 519,630; `B9` at 519,502; `B2` at 642,546). Fix in `ios-runner/Runner/Gesture.m`.
-3. The testbed supported only portrait. `UISupportedInterfaceOrientations~ipad` now lists all four; the iPhone list is unchanged.
+## Two panes
 
-## Gaps recorded, not fixed
+Settings on this API 37 image is single pane on the tablet (the list is full width, the detail replaces it); the plan's example does not happen here. Files is two-pane: the roots list on the left and the folder on the right. `snapshot` lists both (`Recent`, `Images`, `Videos`, `Audio`, `Documents`, `Downloads`, `sdk_gphone64_x86_64`, then `Images off` ... `Files in Downloads`, `No items`) and I compared it with a screenshot of the same screen.
 
-- `bench/scenarios/ios/testbed-list.yaml` assumes two swipes reach "Row 45", which holds on a 874 pt phone and not on a 1376 pt tablet (two swipes end at rows 56 to 83). It is a scenario assumption, not a product defect: `scroll down --until "Row 45"` reaches the row in one call on the iPad.
-- Split View and Slide Over: not checked.
-- Rotation is not a product verb or MCP tool; an agent cannot rotate a simulator through phone-use.
+## Gaps
+
+- `screenshot` taken within a few seconds of `launch Files` returned the app's splash frame while the tree already showed the loaded screen (video frames arrive slowly from this display); a second screenshot 4 s later was right. Not fixed.
+- Split-screen was not tested.
