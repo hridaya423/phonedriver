@@ -24,7 +24,7 @@ use crate::wire::{ActionResult, DeviceEntry, Kind, Observation, ScreenshotResult
 const USAGE: &str = "usage: phone-use <command>\n\ncommands:\n  devices\n  snapshot\n  screenshot\n  find\n  launch\n  open\n  apps\n  swipe\n  scroll\n  gesture\n  tap\n  type\n  clear\n  clipboard\n  press\n  wait\n  release\n  daemon\n  doctor\n  ios\n  mcp\n  skill\n  version";
 
 #[derive(Parser)]
-#[command(name = "phone-use", disable_help_subcommand = true)]
+#[command(name = "phone-use", version, disable_help_subcommand = true)]
 pub struct Cli {
     /// The device id or serial; with one device connected it is the default.
     #[arg(long, global = true, env = "PHONE_USE_DEVICE")]
