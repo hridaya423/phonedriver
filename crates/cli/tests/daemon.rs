@@ -1897,3 +1897,112 @@ async fn press_hide_keyboard_fails_with_a_way_forward_when_the_keyboard_stays() 
     assert!(e.message.contains("kept the keyboard"), "{}", e.message);
     assert!(e.data["hint"].as_str().unwrap().contains("press enter"));
 }
+
+fn batch(steps: Value) -> Value {
+    json!({"steps": steps})
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_batch_runs_its_steps_in_order_and_answers_with_one_diff_from_where_the_agent_last_looked()
+ {
+    let (source, fake) = FakeSource::with(vec![
+        tree(&["One", "Two", "Three"]),
+        tree(&["One", "Two", "Three"]),
+        tree(&["One", "Two", "Three!"]),
+    ]);
+    let (d, _home) = daemon(source);
+    ok(&d, "default", "snapshot", json!({})).await;
+    let r = ok(
+        &d,
+        "default",
+        "batch",
+        batch(json!([
+            {"kind": "tap", "target": {"point": {"x": 10.0, "y": 10.0}}},
+            {"kind": "tap", "target": {"point": {"x": 20.0, "y": 20.0}}},
+        ])),
+    )
+    .await;
+    assert_eq!(r["ok"], true, "{r}");
+    let steps = r["steps"].as_array().unwrap();
+    assert_eq!(steps.len(), 2);
+    assert!(
+        steps[0]["summary"]
+            .as_str()
+            .unwrap()
+            .starts_with("tapped at 10,10")
+    );
+    assert!(
+        steps[1]["summary"]
+            .as_str()
+            .unwrap()
+            .starts_with("tapped at 20,20")
+    );
+    assert_eq!(r["observation"]["kind"], "diff");
+    assert_eq!(
+        r["observation"]["text"],
+        "- @e3
++ @e4 button \"Three!\""
+    );
+    let taps = fake
+        .calls()
+        .iter()
+        .filter(|c| matches!(c, Call::Gesture(_)))
+        .count();
+    assert_eq!(taps, 2);
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_batch_stops_at_the_first_failing_step_and_says_which_one_failed_and_what_is_on_screen() {
+    let (source, fake) = FakeSource::with(vec![tree(&["One", "Two"])]);
+    let (d, _home) = daemon(source);
+    ok(&d, "default", "snapshot", json!({})).await;
+    let r = ok(
+        &d,
+        "default",
+        "batch",
+        batch(json!([
+            {"kind": "tap", "target": {"point": {"x": 10.0, "y": 10.0}}},
+            {"kind": "tap", "target": {"ref": "e99"}},
+            {"kind": "tap", "target": {"point": {"x": 30.0, "y": 30.0}}},
+        ])),
+    )
+    .await;
+    assert_eq!(r["ok"], false, "{r}");
+    assert_eq!(r["steps"].as_array().unwrap().len(), 1);
+    assert_eq!(r["failed"]["step"], 2);
+    assert_eq!(r["failed"]["error"]["code"], -32006);
+    assert!(
+        r["failed"]["error"]["data"]["hint"]
+            .as_str()
+            .unwrap()
+            .contains("snapshot")
+    );
+    assert!(r["observation"]["text"].is_string());
+    let taps = fake
+        .calls()
+        .iter()
+        .filter(|c| matches!(c, Call::Gesture(_)))
+        .count();
+    assert_eq!(taps, 1, "the step after the failure must not run");
+}
+
+#[tokio::test]
+async fn a_batch_with_a_malformed_step_runs_nothing_and_names_the_step() {
+    let (source, fake) = FakeSource::with(vec![tree(&["One"])]);
+    let (d, _home) = daemon(source);
+    let e = err(
+        &d,
+        "default",
+        "batch",
+        batch(json!([
+            {"kind": "tap", "target": {"point": {"x": 10.0, "y": 10.0}}},
+            {"kind": "teleport"},
+        ])),
+    )
+    .await;
+    assert_eq!(e.code, -32602);
+    assert!(e.message.contains("step 2"), "{}", e.message);
+    assert!(fake.calls().is_empty());
+    let e = err(&d, "default", "batch", batch(json!([]))).await;
+    assert_eq!(e.code, -32602);
+}

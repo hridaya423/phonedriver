@@ -42,7 +42,7 @@ Call `screenshot` when the snapshot does not hold what you need: a map, a drawin
 
 - `type "hello" --into @e2` taps the field, types, and reports whether the field now holds the text. Read `verified`.
 - If the reply says `NOT verified`, retry with `--mode keys`. `--mode set` works on Android only.
-- Calls act on one shared screen: send one at a time and read each reply before the next.
+- Calls act on one shared screen: send one at a time and read each reply before the next. To do several things in a row (tap a field, type, press enter), use `batch`: one call, one diff, and it stops at the first step that fails and says which.
 - A `launch` reopens an app where it was left (Settings may open inside a sub-page). If a lease is held by another session, the error says how long it has been idle; wait or ask the user, never take it over.
 - `type` accepts `submit` to press enter afterwards.
 - Do not type with `secret` unless the user gave you the text for this task.

@@ -19,9 +19,11 @@ use crate::daemon::trace::TraceOptions;
 use crate::daemon::{Config, Daemon, socket};
 use phone_use_core::error::span;
 
-use crate::wire::{ActionResult, DeviceEntry, Kind, Observation, ScreenshotResult, VERSION};
+use crate::wire::{
+    ActionResult, BatchResult, DeviceEntry, Kind, Observation, ScreenshotResult, VERSION,
+};
 
-const USAGE: &str = "usage: phone-use <command>\n\nrun `phone-use --help` for the options and exit codes\n\ncommands:\n  devices\n  snapshot\n  screenshot\n  find\n  launch\n  open\n  apps\n  swipe\n  scroll\n  gesture\n  tap\n  type\n  clear\n  clipboard\n  press\n  wait\n  release\n  daemon\n  doctor\n  ios\n  mcp\n  skill\n  version";
+const USAGE: &str = "usage: phone-use <command>\n\nrun `phone-use --help` for the options and exit codes\n\ncommands:\n  devices\n  snapshot\n  screenshot\n  find\n  launch\n  open\n  apps\n  swipe\n  scroll\n  gesture\n  tap\n  type\n  clear\n  clipboard\n  press\n  wait\n  batch\n  release\n  daemon\n  doctor\n  ios\n  mcp\n  skill\n  version";
 
 const AFTER_HELP: &str = "Examples:
   phone-use devices
@@ -284,6 +286,9 @@ pub(crate) enum Verb {
         /// `settled`, a text or `@ref` to appear, or `gone:<text>` (or `gone:@ref`) to leave.
         condition: String,
     },
+    /// Run steps in order and print one diff at the end; stops at the first step that fails. Each step is a
+    /// command line in quotes, such as `batch "tap @e3" "type hello --submit" "press enter"`.
+    Batch { steps: Vec<String> },
     /// Give up this session's lease on the device.
     Release,
     /// Run the daemon in the foreground or detached; `daemon stop` ends the running one.
@@ -573,79 +578,40 @@ pub(crate) async fn execute_with(
             }
             Ok(format!("{path} {}x{}", shot.width, shot.height))
         }
-        Verb::Tap {
-            target,
-            role,
-            count,
-            long,
-        } => {
-            let mut t = parse_target(&target);
-            if let Some(role) = role {
-                t["role"] = role_json(&role)?;
+        Verb::Wait { condition } => {
+            let mut p = json!({"condition": wait_condition(&condition)});
+            if let Some(t) = g.timeout {
+                p["timeout_ms"] = json!(t);
             }
-            let mut a = json!({"kind": "tap", "target": t});
-            if let Some(c) = count {
-                a["count"] = json!(c);
+            if let Some(t) = g.expect_change {
+                p["expect_change_ms"] = json!(t);
             }
-            if let Some(l) = long {
-                a["long"] = json!(l);
-            }
-            let r = client.call("act", act(a)).await?;
+            let r = client.call("wait", with(p)).await?;
             show_action(&r, g.json)
         }
-        Verb::Gesture { spec } => {
-            let mut a: Value = serde_json::from_str(&spec)
-                .map_err(|e| Failure::Local(format!("the gesture is not JSON: {e}")))?;
-            a["kind"] = json!("gesture");
-            let r = client.call("act", act(a)).await?;
+        verb @ (Verb::Tap { .. }
+        | Verb::Gesture { .. }
+        | Verb::Swipe { .. }
+        | Verb::Scroll { .. }
+        | Verb::Launch { .. }
+        | Verb::Open { .. }
+        | Verb::Type { .. }
+        | Verb::Clear { .. }
+        | Verb::Press { .. }) => {
+            let action = step_json(&verb, secret.as_deref())?;
+            let r = client.call("act", act(action)).await?;
             show_action(&r, g.json)
         }
-        Verb::Swipe {
-            direction,
-            from,
-            distance,
-            fast,
-        } => {
-            let mut a = json!({"kind": "swipe", "direction": direction, "fast": fast});
-            if let Some(f) = from {
-                a["from"] = parse_target(&f);
-            }
-            if let Some(d) = distance {
-                a["distance"] = json!(d);
-            }
-            let r = client.call("act", act(a)).await?;
-            show_action(&r, g.json)
-        }
-        Verb::Scroll {
-            direction,
-            within,
-            until,
-            max,
-        } => {
-            let mut a = json!({"kind": "scroll", "direction": direction});
-            if let Some(w) = within {
-                a["in"] = parse_target(&w);
-            }
-            if let Some(u) = until {
-                a["until"] = parse_target(&u);
-            }
-            if let Some(m) = max {
-                a["max"] = json!(m);
-            }
-            let r = client.call("act", act(a)).await?;
-            show_action(&r, g.json)
-        }
-        Verb::Launch { app } => {
-            let r = client
-                .call("act", act(json!({"kind": "launch", "app": app})))
-                .await?;
-            show_action(&r, g.json)
-        }
-        Verb::Open { url } => {
-            let r = client
-                .call("act", act(json!({"kind": "open", "url": url})))
-                .await?;
-            show_action(&r, g.json)
+        Verb::Batch { steps } => {
+            let steps = steps
+                .iter()
+                .enumerate()
+                .map(|(i, line)| {
+                    parse_step_line(line)
+                        .map_err(|why| Failure::Local(format!("step {}: {why}", i + 1)))
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+            run_batch(client, steps, g).await
         }
         Verb::Apps => {
             let r = client.call("apps", with(json!({}))).await?;
@@ -684,34 +650,6 @@ pub(crate) async fn execute_with(
                 lines.join("\n")
             })
         }
-        Verb::Type {
-            text,
-            into,
-            mode,
-            submit,
-            secret: is_secret,
-        } => {
-            let text = secret.or(text).unwrap_or_default();
-            let mut action =
-                json!({"kind": "type", "text": text, "secret": is_secret, "submit": submit});
-            if let Some(i) = into {
-                action["into"] = parse_target(&i);
-            }
-            if let Some(m) = mode {
-                action["mode"] = json!(m);
-            }
-            let r = client.call("act", act(action)).await?;
-            show_action(&r, g.json)
-        }
-        Verb::Clear { target } => {
-            let r = client
-                .call(
-                    "act",
-                    act(json!({"kind": "clear", "target": parse_target(&target)})),
-                )
-                .await?;
-            show_action(&r, g.json)
-        }
         Verb::Clipboard { action, text } => {
             let mut p = json!({});
             if action.as_deref() == Some("set") {
@@ -729,28 +667,6 @@ pub(crate) async fn execute_with(
                 None => String::new(),
             })
         }
-        Verb::Press { key } => {
-            let r = client
-                .call("act", act(json!({"kind": "press", "key": key})))
-                .await?;
-            show_action(&r, g.json)
-        }
-        Verb::Wait { condition } => {
-            let condition = match condition.strip_prefix("gone:") {
-                Some(rest) => json!({"gone": parse_target(rest)}),
-                None if condition == "settled" => json!({"settled": true}),
-                None => json!({"appears": parse_target(&condition)}),
-            };
-            let mut p = json!({"condition": condition});
-            if let Some(t) = g.timeout {
-                p["timeout_ms"] = json!(t);
-            }
-            if let Some(t) = g.expect_change {
-                p["expect_change_ms"] = json!(t);
-            }
-            let r = client.call("wait", with(p)).await?;
-            show_action(&r, g.json)
-        }
         Verb::Release => {
             let r = client.call("release", with(json!({}))).await?;
             Ok(if g.json {
@@ -766,6 +682,236 @@ pub(crate) async fn execute_with(
         | Verb::Skill
         | Verb::Version => Ok(String::new()),
     }
+}
+
+fn wait_condition(condition: &str) -> Value {
+    match condition.strip_prefix("gone:") {
+        Some(rest) => json!({"gone": parse_target(rest)}),
+        None if condition == "settled" => json!({"settled": true}),
+        None => json!({"appears": parse_target(condition)}),
+    }
+}
+
+/// The wire form of a verb that acts on the screen: an `act` action, or `{"kind": "wait", ...}` for `wait`, which a
+/// batch carries as a step. `secret` is the text of a `type --secret`.
+pub(crate) fn step_json(verb: &Verb, secret: Option<&str>) -> Result<Value, Failure> {
+    Ok(match verb {
+        Verb::Tap {
+            target,
+            role,
+            count,
+            long,
+        } => {
+            let mut t = parse_target(target);
+            if let Some(role) = role {
+                t["role"] = role_json(role)?;
+            }
+            let mut a = json!({"kind": "tap", "target": t});
+            if let Some(c) = count {
+                a["count"] = json!(c);
+            }
+            if let Some(l) = long {
+                a["long"] = json!(l);
+            }
+            a
+        }
+        Verb::Gesture { spec } => {
+            let mut a: Value = serde_json::from_str(spec)
+                .map_err(|e| Failure::Local(format!("the gesture is not JSON: {e}")))?;
+            a["kind"] = json!("gesture");
+            a
+        }
+        Verb::Swipe {
+            direction,
+            from,
+            distance,
+            fast,
+        } => {
+            let mut a = json!({"kind": "swipe", "direction": direction, "fast": fast});
+            if let Some(f) = from {
+                a["from"] = parse_target(f);
+            }
+            if let Some(d) = distance {
+                a["distance"] = json!(d);
+            }
+            a
+        }
+        Verb::Scroll {
+            direction,
+            within,
+            until,
+            max,
+        } => {
+            let mut a = json!({"kind": "scroll", "direction": direction});
+            if let Some(w) = within {
+                a["in"] = parse_target(w);
+            }
+            if let Some(u) = until {
+                a["until"] = parse_target(u);
+            }
+            if let Some(m) = max {
+                a["max"] = json!(m);
+            }
+            a
+        }
+        Verb::Launch { app } => json!({"kind": "launch", "app": app}),
+        Verb::Open { url } => json!({"kind": "open", "url": url}),
+        Verb::Type {
+            text,
+            into,
+            mode,
+            submit,
+            secret: is_secret,
+        } => {
+            let text = secret.or(text.as_deref()).unwrap_or_default();
+            let mut a =
+                json!({"kind": "type", "text": text, "secret": is_secret, "submit": submit});
+            if let Some(i) = into {
+                a["into"] = parse_target(i);
+            }
+            if let Some(m) = mode {
+                a["mode"] = json!(m);
+            }
+            a
+        }
+        Verb::Clear { target } => json!({"kind": "clear", "target": parse_target(target)}),
+        Verb::Press { key } => json!({"kind": "press", "key": key}),
+        Verb::Wait { condition } => {
+            json!({"kind": "wait", "condition": wait_condition(condition)})
+        }
+        _ => {
+            return Err(Failure::Local(
+                "that command cannot be a step of a batch".into(),
+            ));
+        }
+    })
+}
+
+/// Splits a command line into words: spaces separate them, single or double quotes keep spaces in one, a backslash
+/// quotes the next character outside single quotes.
+fn split_words(line: &str) -> Result<Vec<String>, String> {
+    let mut words = Vec::new();
+    let mut cur = String::new();
+    let mut started = false;
+    let mut quote: Option<char> = None;
+    let mut chars = line.chars();
+    while let Some(c) = chars.next() {
+        match (quote, c) {
+            (Some(q), c) if c == q => quote = None,
+            (Some('"'), '\\') | (None, '\\') => {
+                cur.push(chars.next().ok_or("the line ends with a backslash")?);
+            }
+            (Some(_), c) => cur.push(c),
+            (None, '\'' | '"') => {
+                quote = Some(c);
+                started = true;
+            }
+            (None, c) if c.is_whitespace() => {
+                if started || !cur.is_empty() {
+                    words.push(std::mem::take(&mut cur));
+                    started = false;
+                }
+            }
+            (None, c) => cur.push(c),
+        }
+    }
+    if quote.is_some() {
+        return Err("a quote is not closed".into());
+    }
+    if started || !cur.is_empty() {
+        words.push(cur);
+    }
+    Ok(words)
+}
+
+/// One step of `phone-use batch`, written as the command line it would be on its own.
+fn parse_step_line(line: &str) -> Result<Value, String> {
+    let words = split_words(line)?;
+    let cli = Cli::try_parse_from(std::iter::once("phone-use".to_string()).chain(words))
+        .map_err(|e| e.to_string().lines().next().unwrap_or_default().to_string())?;
+    let verb = cli.command.ok_or("the step is empty")?;
+    if matches!(&verb, Verb::Type { secret: true, .. }) {
+        return Err("secret text cannot go in a batch; run `type --secret` on its own".into());
+    }
+    step_json(&verb, None).map_err(|f| f.message())
+}
+
+/// Sends the steps as one `batch` call and prints the numbered steps and the one diff, or fails naming the step.
+pub(crate) async fn run_batch(
+    client: &mut Client,
+    steps: Vec<Value>,
+    g: &Globals,
+) -> Result<String, Failure> {
+    let sent = steps.len();
+    let mut p = json!({"steps": steps});
+    if let Some(d) = &g.device {
+        p["device"] = json!(d);
+    }
+    if g.share {
+        p["share"] = json!(true);
+    }
+    if let Some(t) = g.timeout {
+        p["timeout_ms"] = json!(t);
+    }
+    if let Some(t) = g.expect_change {
+        p["expect_change_ms"] = json!(t);
+    }
+    let r = client.call("batch", p).await?;
+    show_batch(&r, g.json, sent)
+}
+
+fn show_batch(result: &Value, json: bool, sent: usize) -> Result<String, Failure> {
+    let r: BatchResult = decode(result)?;
+    let total = result["steps"].as_array().map_or(0, Vec::len);
+    let mut lines = Vec::new();
+    for (i, s) in r.steps.iter().enumerate() {
+        let verified = match s.verified {
+            Some(true) => " · verified",
+            Some(false) => " · NOT verified",
+            None => "",
+        };
+        lines.push(format!("{}. {}{verified}", i + 1, s.summary));
+    }
+    if let Some(f) = &r.failed {
+        let code = f.error["code"].as_i64().unwrap_or(-32603) as i32;
+        let message = f.error["message"].as_str().unwrap_or_default();
+        let mut text = format!("step {} of {sent} failed: {message}", f.step);
+        for l in &lines {
+            text.push('\n');
+            text.push_str(l);
+        }
+        if !r.observation.text.is_empty() {
+            text.push_str("\nscreen now, against what you last saw:\n");
+            text.push_str(&r.observation.text);
+        }
+        return Err(Failure::Rpc(crate::daemon::rpc::RpcError::new(
+            code,
+            text,
+            f.error["data"].clone(),
+        )));
+    }
+    if json {
+        return Ok(result.to_string());
+    }
+    let mut head = format!("ok {total} steps");
+    if !r.settled {
+        head.push_str(&format!(" · not settled after {}ms", r.settle_ms));
+    } else if !r.changed {
+        head.push_str(&format!(" · no change after {}ms", r.settle_ms));
+    } else {
+        head.push_str(&format!(" · settled in {}ms", r.settle_ms));
+        if r.observation.kind == Kind::Full {
+            head.push_str(" · new screen");
+        } else if r.observation.text.is_empty() {
+            head.push_str(" · no element changed");
+        }
+    }
+    let mut out = vec![head];
+    out.extend(lines);
+    if !r.observation.text.is_empty() {
+        out.push(r.observation.text);
+    }
+    Ok(out.join("\n"))
 }
 
 fn role_json(word: &str) -> Result<Value, Failure> {
@@ -991,6 +1137,33 @@ mod tests {
         );
         let shown = show_action(&action(true, "diff", "~ @e1 x → y"), false).unwrap();
         assert!(!shown.contains("no element changed"), "{shown}");
+    }
+
+    #[test]
+    fn a_step_line_splits_like_a_shell_line_and_parses_as_the_verb_it_names() {
+        assert_eq!(
+            split_words(r#"type "hello world" --into 'Name field' a\ b"#).unwrap(),
+            ["type", "hello world", "--into", "Name field", "a b"]
+        );
+        assert_eq!(split_words(r#"tap """#).unwrap(), ["tap", ""]);
+        assert!(split_words("tap 'x").is_err());
+        let step = parse_step_line(r#"type "hello world" --into @e3 --submit"#).unwrap();
+        assert_eq!(step["kind"], "type");
+        assert_eq!(step["text"], "hello world");
+        assert_eq!(step["into"], json!({"ref": "e3"}));
+        assert_eq!(step["submit"], true);
+        assert_eq!(
+            parse_step_line("wait gone:Loading").unwrap(),
+            json!({"kind": "wait", "condition": {"gone": {"text": "Loading"}}})
+        );
+        assert!(
+            parse_step_line("type --secret")
+                .unwrap_err()
+                .contains("secret")
+        );
+        assert!(parse_step_line("devices").unwrap_err().contains("batch"));
+        assert!(parse_step_line("").is_err());
+        assert!(parse_step_line("tap").is_err());
     }
 
     #[test]

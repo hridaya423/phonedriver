@@ -254,3 +254,72 @@ pub struct WaitParams {
     pub timeout_ms: Option<u64>,
     pub expect_change_ms: Option<u64>,
 }
+
+/// One step of a batch: an action, or a wait (`{"kind": "wait", "condition": ...}`).
+#[derive(Debug, Clone, PartialEq)]
+pub enum Step {
+    Act(Action),
+    Wait(WaitCondition),
+}
+
+impl Step {
+    pub fn parse(v: &serde_json::Value) -> Result<Step, String> {
+        if v["kind"] == "wait" {
+            let condition = serde_json::from_value(v["condition"].clone())
+                .map_err(|_| "the wait condition is malformed".to_string())?;
+            return Ok(Step::Wait(condition));
+        }
+        serde_json::from_value(v.clone())
+            .map(Step::Act)
+            .map_err(|e| {
+                if e.to_string().starts_with("unknown variant") {
+                    format!(
+                        "the action `{}` is unknown to this daemon, which is older than the client",
+                        v["kind"]
+                            .as_str()
+                            .unwrap_or_default()
+                            .chars()
+                            .take(32)
+                            .collect::<String>()
+                    )
+                } else {
+                    "the action is malformed".to_string()
+                }
+            })
+    }
+}
+
+#[derive(Debug, Deserialize)]
+pub struct BatchParams {
+    pub steps: Vec<serde_json::Value>,
+    pub timeout_ms: Option<u64>,
+    pub expect_change_ms: Option<u64>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct StepResult {
+    pub summary: String,
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub verified: Option<bool>,
+}
+
+/// The step that failed: its 1-based position and the error as `Error::to_rpc` builds it.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct StepFailure {
+    pub step: usize,
+    pub error: serde_json::Value,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct BatchResult {
+    pub ok: bool,
+    /// The steps that ran and succeeded, in order.
+    pub steps: Vec<StepResult>,
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub failed: Option<StepFailure>,
+    pub settled: bool,
+    pub settle_ms: u32,
+    pub changed: bool,
+    /// What changed from where the agent last looked to the end of the last step that ran.
+    pub observation: Observation,
+}
