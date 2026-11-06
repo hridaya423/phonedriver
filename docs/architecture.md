@@ -439,7 +439,7 @@ Text targets resolve by: exact label, then case-insensitive exact, then substrin
 
 ### 10.2 MCP
 
-`phone-use mcp` with `rmcp`, stdio. Ten tools: `devices`, `snapshot`, `screenshot` (returns an image content block), `tap`, `type`, `swipe`, `scroll`, `press`, `launch` (takes `app` or `url`; a URL maps to the `open` verb), `wait`. Each tool's input schema mirrors the CLI verb; outputs are the same text the CLI prints. Few, well-described tools beat many.
+`phone-use mcp` with `rmcp`, stdio. Ten tools: `devices`, `snapshot`, `screenshot` (returns an image content block), `tap`, `type`, `swipe`, `scroll`, `press`, `launch` (takes `app` or `url`; a URL maps to the `open` verb), `wait`. Each tool's input schema mirrors the CLI verb; outputs are the same text the CLI prints. Few, well-described tools beat many. Every tool also takes an optional `device` (default `PHONE_USE_DEVICE`). `type` takes `secret: true` instead of the CLI's stdin route, since the text already crossed the MCP channel to reach the server; it is masked in the reply and traced by length only. A failed call returns `isError: true` with the message and `hint: ...` as one text block. `screenshot` returns an `image/png` block and a text block `WxH at scale S`. The server is one session `mcp-<pid>` on the daemon (started on demand like for the CLI) and releases it when stdio closes. `find`, `clear`, `clipboard`, `gesture` and `apps` stay CLI-only until an agent run shows a need.
 
 ### 10.3 Skill
 

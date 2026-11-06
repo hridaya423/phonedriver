@@ -9,11 +9,14 @@ path = "src/main.rs"
 
 [dependencies]
 async-trait = "0.1.92"
+base64 = "0.23.1"
 clap = { version = "4.6.7", features = ["derive", "env"] }
 interprocess = { version = "2.4.7", features = ["tokio"] }
 phone-use-android = { version = "0.1.0", path = "../android" }
 phone-use-core = { version = "0.1.0", path = "../core" }
 phone-use-ios = { version = "0.1.0", path = "../ios" }
+rmcp = { version = "3.9.0", features = ["server", "macros", "transport-io"] }
+schemars = "1.2.3"
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.154"
 tokio = { version = "1.54.1", features = ["rt-multi-thread", "macros", "time", "io-util", "sync", "net", "process", "signal"] }
@@ -25,6 +28,7 @@ windows-sys = { version = "0.61.2", features = ["Win32_Foundation", "Win32_Secur
 [dev-dependencies]
 assert_cmd = "2.2.2"
 phone-use-core = { path = "../core", features = ["testing"] }
+rmcp = { version = "3.9.0", features = ["client"] }
 tempfile = "3.27.0"
 tokio = { version = "1.54.1", features = ["io-util", "macros", "net", "rt-multi-thread", "test-util", "time"] }
 

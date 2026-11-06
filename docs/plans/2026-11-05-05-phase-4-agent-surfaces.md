@@ -6,7 +6,7 @@
 
 **Architecture:** `docs/architecture.md` sections 5 (traces), 10.2, 10.3, 13.
 
-**Tech Stack:** `rmcp` 3.8 (stdio server), Claude Code headless (`claude -p`) for the evaluation.
+**Tech Stack:** `rmcp` 3.9 (stdio server; 3.8 was current when this was written), Claude Code headless (`claude -p`) for the evaluation.
 
 ---
 
