@@ -7,4 +7,5 @@ pub mod daemon;
 mod detach;
 pub mod doctor;
 pub mod mcp;
+pub mod ocr;
 pub mod wire;

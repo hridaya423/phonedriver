@@ -246,7 +246,7 @@ pub trait Device: Send + Sync {
 
 ## 5. Daemon (`crates/cli/src/daemon`)
 
-- **Socket.** `$XDG_RUNTIME_DIR/phone-use/daemon.sock`, else `~/.phone-use/run/daemon.sock` (Unix), or the named pipe `\\.\pipe\phone-use-<user>` (Windows), via the `interprocess` crate. Directory mode 0700; on Windows the pipe's security descriptor grants only the current user. No TCP listener. `PHONE_USE_SOCKET` overrides the path. Remote use goes through `ssh -L` socket forwarding (Phase 7, zero network code).
+- **Socket.** `$XDG_RUNTIME_DIR/phone-use/daemon.sock`, else `~/.phone-use/run/daemon.sock` (Unix), or the named pipe `\\.\pipe\phone-use-<user>` (Windows), via the `interprocess` crate. Directory mode 0700; on Windows the pipe's security descriptor grants only the current user. No TCP listener. `PHONE_USE_SOCKET` overrides the path. Remote use goes through `ssh -L` socket forwarding (zero network code, README).
 - **Start.** The CLI connects; on `ENOENT`/`ECONNREFUSED` it spawns `phone-use daemon --detach`, then waits for the daemon's readiness line on an inherited pipe (not a sleep), up to 3 s.
 - **Version.** First message is `hello { version }`. On mismatch the CLI sends `shutdown` and starts its own version.
 - **Idle exit.** No clients and no leases for 15 minutes.
@@ -388,7 +388,7 @@ Signing: built with Xcode automatic signing for the user's team. A free Apple ID
 For canvases, games, WebViews without accessibility, and CoreDevice devices without the runner.
 
 - `Source::Ocr` elements carry `role: Text`, a label, bounds, and confidence. They get refs like any element.
-- Engine: Apple Vision on macOS (`objc2-vision`). On Linux and Windows, `snapshot --pixels` returns `Unsupported` in v1; add `ocrs` when a user needs it there.
+- Engine: Apple Vision on macOS (`objc2-vision`), `VNRecognizeTextRequest` revision 2 at the Accurate level (revisions 1 and 3 take 18 to 36 s and often fail on macOS 27.0.1; revision 2 takes about 45 ms on a 411x923 frame). The first call after a long idle can take about 20 s while the Neural Engine loads. Accuracy depends on resolution: at 1 pixel per point small gray text (13 pt button labels, tab bar captions) is misread, at twice that most is read, so OCR should be fed `--native` frames. `core::ocr::merge` drops a box whose text matches a tree element over it (IoU > 0.5) and appends the rest as `Source::Ocr` elements with `TAP`, printed with `(ocr)`. On Linux and Windows, `snapshot --pixels` returns `Unsupported` in v1; add `ocrs` when a user needs it there.
 - `snapshot --pixels` forces OCR. When the tree is empty or a `WebView` has no children, the session merges OCR boxes into the snapshot automatically and marks them `(ocr)`.
 
 ## 10. Agent surfaces
