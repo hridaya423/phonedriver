@@ -8,6 +8,9 @@ use crate::raw::RawTree;
 /// Bounds may move this far, in points, while a relabeled platform identity stays the same element.
 const SAME_PLACE_PT: f32 = 8.0;
 
+/// How many elements that left the screen stay claimable by the same element coming back.
+const RETIRED_KEPT: usize = 400;
+
 type Identity = (i32, String);
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -38,6 +41,7 @@ pub struct RefTable {
     next: u32,
     by_identity: HashMap<Identity, usize>,
     last: Vec<Seen>,
+    retired: Vec<Seen>,
 }
 
 impl RefTable {
@@ -168,6 +172,35 @@ impl RefTable {
             }
         }
 
+        let mut taken: HashSet<Ref> = out.iter().flatten().copied().collect();
+        for place_only in [false, true] {
+            for (i, n) in nodes.iter().enumerate() {
+                if out[i].is_some() {
+                    continue;
+                }
+                let center = n.bounds.center();
+                let best = self
+                    .retired
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, s)| {
+                        let same = if place_only {
+                            (s.key.role, &s.key.id, &s.key.label)
+                                == (keys[i].role, &keys[i].id, &keys[i].label)
+                        } else {
+                            s.key == keys[i]
+                        };
+                        same && s.center.distance(center) < SAME_PLACE_PT && !taken.contains(&s.r)
+                    })
+                    .map(|(j, _)| j)
+                    .next();
+                if let Some(j) = best {
+                    taken.insert(self.retired[j].r);
+                    out[i] = Some(self.retired[j].r);
+                }
+            }
+        }
+
         let refs: Vec<Ref> = out
             .into_iter()
             .map(|r| {
@@ -177,6 +210,17 @@ impl RefTable {
                 })
             })
             .collect();
+
+        let kept: HashSet<Ref> = refs.iter().copied().collect();
+        self.retired.retain(|s| !kept.contains(&s.r));
+        let gone: Vec<Seen> = self
+            .last
+            .drain(..)
+            .filter(|s| !kept.contains(&s.r))
+            .collect();
+        self.retired.extend(gone);
+        let over = self.retired.len().saturating_sub(RETIRED_KEPT);
+        self.retired.drain(..over);
 
         self.by_identity.clear();
         for (i, id) in identities.into_iter().enumerate() {
@@ -501,5 +545,74 @@ mod tests {
                 .collect()
         };
         assert_eq!(edits(&after), edits(&before));
+    }
+
+    fn android_windows(windows: &[&[(&str, &str, [f32; 4])]]) -> RawTree {
+        let mut nodes = Vec::new();
+        for (w, children) in windows.iter().enumerate() {
+            let w = w + 1;
+            nodes.push(format!(
+                r#"{{"p":-1,"w":{w},"cls":"android.widget.FrameLayout","b":[0,0,400,800],"f":"vVe","n":"root{w}"}}"#
+            ));
+            let root = nodes.len() - 1;
+            for (n, label, b) in *children {
+                nodes.push(format!(
+                    r#"{{"p":{root},"w":{w},"cls":"android.widget.Button","text":"{label}","b":[{},{},{},{}],"f":"vVe","a":["tap"],"n":"{n}{w}"}}"#,
+                    b[0], b[1], b[2], b[3]
+                ));
+            }
+        }
+        RawTree::from_android_json(
+            &format!(r#"{{"windows":[],"nodes":[{}]}}"#, nodes.join(",")),
+            Scale { density: 1.0 },
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn a_dialog_comes_back_from_a_popup_with_the_refs_it_had() {
+        let dialog = || {
+            android_windows(&[&[
+                ("h", "Hour", [10.0, 100.0, 100.0, 150.0]),
+                ("m", "Minute", [120.0, 100.0, 220.0, 150.0]),
+                ("ap", "AM", [240.0, 100.0, 300.0, 150.0]),
+            ]])
+        };
+        let popup = || android_windows(&[&[("pm", "PM", [240.0, 160.0, 300.0, 200.0])]]);
+        let mut t = RefTable::default();
+        let before = refs(&mut t, &dialog());
+        refs(&mut t, &popup());
+        assert_eq!(refs(&mut t, &dialog()), before);
+    }
+
+    #[test]
+    fn a_tab_bar_keeps_its_refs_across_a_dialog_that_hid_it() {
+        let screen = |dialog: bool| {
+            if dialog {
+                android_windows(&[&[("ok", "OK", [200.0, 600.0, 300.0, 650.0])]])
+            } else {
+                android_windows(&[&[
+                    ("t1", "ALARM", [0.0, 700.0, 100.0, 760.0]),
+                    ("t2", "CLOCK", [100.0, 700.0, 200.0, 760.0]),
+                ]])
+            }
+        };
+        let mut t = RefTable::default();
+        let tabs = refs(&mut t, &screen(false));
+        refs(&mut t, &screen(true));
+        refs(&mut t, &screen(true));
+        assert_eq!(refs(&mut t, &screen(false)), tabs);
+    }
+
+    #[test]
+    fn an_element_that_returns_elsewhere_is_a_new_element() {
+        let screen = |x: f32| android_windows(&[&[("b", "Edit", [x, 100.0, x + 50.0, 150.0])]]);
+        let mut t = RefTable::default();
+        refs(&mut t, &screen(0.0));
+        refs(
+            &mut t,
+            &android_windows(&[&[("z", "Other", [0.0, 300.0, 50.0, 350.0])]]),
+        );
+        assert_eq!(refs(&mut t, &screen(200.0)), ["e3"]);
     }
 }
