@@ -1,0 +1,104 @@
+# Agent-experience audit (2026-11-06, main at 90b667e)
+
+Question: is phone-use as optimized for agents as possible? Short answer: the snapshot format is already small and the tool surface is sound, but on iOS the agent loses most of its time and calls to a handful of specific defects (a no-op fling inside `scroll --until`, leaked leases, ambiguous by-name taps on list rows, a keyboard dumped into every snapshot). None of the fixes are large.
+
+## Method
+
+- Device: iPhone 17 Simulator, iOS 26.5, on the Mac mini. Daemon: `~/phone-use-work/target-fix/release/phone-use` (its source tree `~/phone-use-work/fix/crates` is byte-identical to main's `crates/`). Client: this MacBook's `target/debug/phone-use mcp` (built after 90b667e from a clean tree), reaching the daemon through `ssh -L /tmp/pu-ax.sock:...daemon.sock` and `PHONE_USE_SOCKET`, as `design/build/demo_agent.py` does.
+- Agent: headless `claude -p` with `claude-sonnet-5-5`, `--strict-mcp-config`, `--allowedTools "mcp__phone-use__*"`, `--tools ""`, `--setting-sources ""`, no SKILL.md and no system prompt: the same conditions as the M3 eval (`docs/bench/m3.md`). The agent sees ten tools and the one-paragraph server instructions. Plain one-sentence prompts, no hints. Runner: `run_task.py` in the scratchpad dir below (resets the simulator, runs the agent, runs a check on the Mac mini).
+- One run per task. These are single samples: they show what can go wrong, not rates.
+- Raw transcripts (stream-json), mcp configs, check output, snapshot samples and `tools/list`: `/private/tmp/claude-501/-Users-hridyaagrawal-Honey-phone-use/4cb1136a-fafb-4ccd-b147-78d0e944ff9f/scratchpad/ax/`. `invalid*/` holds 4 runs thrown away because of finding 2 (they never reached the device) plus one run from an overlapping batch.
+- Tokens = input + output + cache creation + cache read from the result event (the M3 definition). About 13k of every run is the fixed prompt (Claude Code's system prompt plus the 10 tool schemas, which are about 1.8k tokens on their own); each further call re-reads the whole context from cache.
+- Not measured: runs with SKILL.md in the prompt (the harness supports it; I did not run it), Android, physical devices.
+
+## Results
+
+| Task (plain prompt) | Outcome | Calls (errors) | Wall s | Tokens | Cost | Where it hesitated |
+|---|---|---|---|---|---|---|
+| about: "What iOS version is this phone running, and what is its model name?" | success | 1 (0) | 7 | 13,085 | $0.028 | Answered from `devices` alone. |
+| autolock: "Set the phone's Auto-Lock to 5 minutes." | cannot be done: the Simulator's Settings has no Display & Brightness. Agent said so and changed nothing (correct) | 14 (3) | 41 | 114,940 | $0.057 | Typed into a stale ref; `type mode=set` rejected; `scroll --until` gave no information; 2 screenshots. |
+| contact: "Add a new contact named Grace Hopper with the phone number 555-0142." | success (checked in Contacts; the card shows `55 5014 2`, iOS formatting; contact deleted afterwards) | 22 (4) | 52 | 226,523 | $0.082 | Stray "W" and "y" typed into the last name; keyboard hid the next field; no hide-keyboard action; fell back to tapping x,y on the keyboard. |
+| safari-settings: "Which search engine is Safari set to use on this phone?" | success (answer Google, not independently checked) | 9 (2) | 27 | 71,525 | $0.031 | Stale ref after launch; looked for Safari in the root list (it is under Apps). |
+| safari-read: "Open example.com in Safari and tell me what the page's main heading says." | partial: gave the page text and said the tree labels a group "Example Domain", no heading node | 4 (1) | 29 | 36,592 | $0.020 | `launch url` returned a blank page; `pixels:true` failed; screenshot; swiped to get a tree. |
+| recovery-dark: "Turn on dark mode." starting inside Settings > Accessibility > Display & Text Size | success (`simctl ui appearance` = dark) | 13 (3) | 42 | 102,870 | $0.047 | Searched Settings (search returns nothing on the Simulator) before finding Developer > Dark Appearance. |
+| dark-mode: "Turn on dark mode." from the home screen | success (checked) | 19 (3) | 56 | 165,037 | $0.063 | Same search dead end, a `launch url App-prefs:DISPLAY`, then two taps on Developer that hit the search bar. |
+| testbed-form: "In the phone-use testbed app, fill in the web form with the name Ada Lovelace, tick the agreement box and submit it." | task invalid on iOS: the iOS testbed form has no agreement box. Agent typed the name (logged), did not submit, asked the user (right call) | 7 (1) | 18 | 47,912 | $0.031 | `launch "phone-use testbed"` failed (the app is called Testbed). |
+| testbed-row: "In the phone-use testbed app, find the list, scroll to the row called Row 640 and open it." | success: tapped Row 640 (the testbed log shows the touch at its y; rows give no visual feedback, so the agent could not confirm and said so) | 47 (5) | 169 | 361,573 | $0.168 | `scroll --until "Row 640"` failed 6 times without moving the list; the agent then scrolled by hand about 40 times. |
+
+Totals for the 9 counted runs: 136 calls, 531k tokens, $0.52, mean 5 s per call of wall time. Median run: 13 calls, 42 s. Four earlier runs (not counted, $0.05) failed only because of finding 2.
+
+Two things stand out. First, snapshots are not the cost: real screens are 180 to 820 tokens (below), and a call costs 6k to 28k tokens of re-read context. The number of calls is the cost, so every defect below is a calls problem. Second, 7 of 9 agents issued parallel tool calls (tap and type in one turn; testbed-row sent 8 scrolls in one turn), which a stateful device does not tolerate (finding 5).
+
+Snapshot sizes measured on real screens (chars/4): testbed Taps 38 lines 237 tok (`--interactive` 208), testbed List 183, Settings 33 lines 385 (`--interactive` 186), Contacts list 288, New Contact with keyboard up 85 lines 617, Safari example.com 20 lines 822 (a tap reply carrying the whole new screen).
+
+## Findings, ranked by effect on success and tokens
+
+### 1. `scroll --until` is a no-op for far targets on iOS and says "no element matches" (L effect: 1 task 8x over budget)
+Evidence: testbed-row calls 4, 6, 11, 14: `no element matches "Row 640"` with the list unmoved (agent: "the list is still at the top"); 47 calls, 169 s, $0.168 against about 6 calls. Reproduced from the CLI: `scroll down --until "Row 30"` and `"Row 100"` work (2 and 3 scrolls), `"Row 300"`/`"Row 640"` fail in 1.6 s without moving. Cause (`crates/cli/src/daemon/actor.rs` `fn scroll`): a target more than `3 * span` rows away uses `gesture::fling`; on the iOS runner a fling moves nothing (the agent's own `swipe fast:true` also returned "no change", calls 7 and 15), so two idle iterations end the search as `NotFound`. The same error text appears when the target does not exist (autolock, safari-settings), so the agent cannot tell "not there" from "did not move".
+Fix (S): on a polled/iOS device never fling, or when a fling changes nothing retry with `gesture::scroll` before counting idle. Fix (S): make the end-of-search error say what happened: `scrolled 3 times, list ended at "Developer"; "Safari" not found` or `list did not move`, and return the final screen as a diff (the scroll did happen; the agent currently pays a snapshot to see it).
+
+### 2. Leases leak when the MCP client exits, and the next agent is locked out for up to 10 minutes (high; 4 of my first 7 runs)
+Evidence: `claude -p` ended, its `mcp-<pid>` process was gone, `devices` still showed `LEASE mcp-18324`. Every following run failed on its first call: `device ... is leased by session mcp-18324 / hint: Wait for session mcp-18324 to release it` (`invalid/contact.jsonl`, `invalid/safari-settings.jsonl`, 4 to 7 wasted calls each). Reproduced on every run that touched the device (5 of 5); architecture 5 says the session is released when stdio closes, but the client kills the server before `held.run(Verb::Release)` completes. The agent behaved well (it did not try to steal) and had no tool to release: `release` is CLI-only. The agent's final answers ("tell me the lease is yours and should be taken over, if there's a way") show it wanted one.
+Fix (M): the daemon releases an `mcp-*` session when the MCP's connection closes (the MCP holds one connection for its life), or the MCP server handles SIGTERM/SIGPIPE. Fix (S): `DeviceBusy` names how long ago the holder last called (`idle 3m, expires in 7m`) and `devices` shows it; add `release` to the MCP tools or an optional `take_over` on `devices`, and tell the agent to ask the user first.
+
+### 3. By-name taps on iOS list rows are ambiguous (high; one extra call each time, hits any agent that taps by name)
+Evidence: from the CLI in Settings > Accessibility: `tap "Display & Text Size"` gives `2 elements match ... Use a ref instead: @e451 cell "Display & Text Size"; @e452 button "Display & Text Size"`. It also broke my own reset. The same thing is the "ambiguous by-name tap" seen in the demo. Cause: `render.rs resolve_text` collects every element with the label and resolves each to its pressable ancestor; a `cell` and its same-label `button` child are both pressable and both kept. The agents mostly avoided it by using refs, or by `role: "button"`, which the tool does not advertise as the fix.
+Fix (S, in `resolve_text`): when two hits are an ancestor and a descendant with the same label, keep one (the descendant) and report `One`. Same fix at render time (S): fold a `cell` whose only child is a same-label `button` into one line; today every iOS row prints as `cell` + `button "X"` + `button "chevron" disabled` (3 lines, see General in autolock call 12), roughly 3x the tokens needed.
+
+### 4. The first snapshot after `launch` is taken too early: refs go stale at once and URLs show a blank page (high; 5 of 9 runs)
+Evidence: `launch Settings` returns after `settled in 250ms` with the search field as `@e26`; the iOS Settings then inserts a `Toolbar` group, and the next call is `@e26 is no longer on screen ... closest now: @e30` (autolock call 2, safari-settings call 4, dark-mode call 3, contact call 2). `launch url https://example.com` returned a tree with an empty `webview` (safari-read call 1), after which the agent tried OCR, a screenshot and a swipe (3 calls). Architecture 4.6 describes waiting for a stable application tree for `launch`, but on the polled iOS path it settled on pixels at 250 ms.
+Fix (M): for `launch`/`open` on iOS read the tree until the node count is the same on two reads 100 ms apart (cap 3 s), and add `loading` to the header while a webview has no children. Fix (S): in `refs::assign` match on `(role, label)` ignoring a new wrapper ancestor, so the search field keeps `@e26` when a `Toolbar` group appears (the same case as the `Last tap` rule in 4.3).
+
+### 5. Agents send parallel tool calls and the device is stateful (medium-high)
+Evidence: tap + type in one turn: autolock calls 2 and 3, dark-mode 3 and 4, safari-settings 4 and 5 (type landed first: `typed 9 chars · NOT verified`, the text went nowhere). contact calls 4 to 6 sent two `type` calls and a `tap` together; after the keyboard rose, the tap at the "add phone" row landed on a key and typed `W` (calls 6, 7). testbed-row sent 8 scrolls in one turn (works only because the daemon serializes).
+Fix (S): say it in the tool descriptions and server instructions ("Calls act on one shared screen: send one at a time and read each reply"). Fix (M): the MCP server serializes calls itself and rejects a second in-flight call with that sentence.
+
+### 6. iOS snapshots list the keyboard's keys; there is no way to hide the keyboard (medium)
+Evidence: every keyboard appearance adds 26 to 40 `button "q"` lines (~190 tokens) and the next diff removes them as `- @e75 @e76 ...` (contact calls 6, 16; autolock call 5). Architecture 4.4 says the keyboard window is one `keyboard` node without keys; that is true for Android only. Tapping a key by name fails (`@e102 is under the keyboard`, contact call 8) even though the keys are the keyboard. `press back` on iOS is `edge-swipe · no change` with the keyboard up (contact call 17); the agent hid it by swiping the form (call 18). The hint for "under the keyboard" tells the agent to `press back`, which does not work.
+Fix (S): collapse the iOS keyboard to one node like Android; resolve key taps by name inside it. Fix (S): `press` accepts `hide-keyboard` (tap Done/return or drag the sheet), and the under-keyboard hint names it. Fix (S): `type` already has `submit`; mention it in the `type` description for search fields.
+
+### 7. Covered or off-screen elements report success; scroll affordances are missing (medium)
+Evidence: dark-mode calls 14 and 15: `tapped @e35 "Developer" at 201,796 · no change after 500ms` twice, then a screenshot; the row sits under the floating iOS 26 search bar, and the tap hit the bar. iOS `list` lines carry no `scrollable↓` word and no row count (`@e37 list` for a 1000-row list), although architecture 4.4 specifies both; so agents never learn the Settings root continues below the fold. The "no change" hint (`wait settled ... snapshot`) is the wrong advice here.
+Fix (M): when an element's centre lies inside another window or `Toolbar` group above it, report `OffScreen` (hint: scroll) instead of tapping. Fix (S): emit `scrollable↓/↑` for iOS lists (derive from the first/last child versus the list bounds), and `list N rows` when known.
+
+### 8. Errors and hints speak the CLI, and several are wrong for iOS or MCP (medium)
+- `type mode=set` on iOS: `text is not supported on this device: this device cannot set field values / hint: Run phone-use doctor` (autolock call 4, contact 9, dark-mode 8, recovery-dark 8; the schema advertises `set`). Fix (S): hint "use mode paste or keys"; the schema line says `set` is Android-only.
+- `type` not verified: `retry with --mode keys` (CLI spelling; the MCP argument is `mode: "keys"`). The same CLI spelling is in `Error::hint` (`--no-settle`, `--timeout`, `--device`) and `wait settled`. Fix (S): print the hint in the surface's own vocabulary (the MCP server rewrites `phone-use X --flag` to the tool and argument).
+- `launch "phone-use testbed"`: `no element matches "phone-use testbed" / hint: Run phone-use snapshot` (testbed-form call 1, testbed-row call 1). It is an app lookup, not an element lookup, and the near miss `Testbd` does list `Testbed`. Fix (S): app-not-found says `no app named ..., installed apps close to it: Testbed (dev.phoneuse.testbed)` using a word-level match; expose `apps` over MCP (the agent had no way to list apps).
+- `snapshot pixels:true`: `connection error: Vision failed ... hint: Run phone-use doctor to check the connection` (safari-read call 2). Fix (S): classify OCR failure as `Unsupported` with "use screenshot".
+- Stale ref and ambiguous errors are good: they name the closest element and the candidates, and agents recovered in one call every time. The `NeedsUser` path and DeviceGone were not hit.
+- Stale daemon: `act_error` says the daemon is older than the client, "stop it and run the command again", but no `daemon stop` verb exists and `VERSION` is the crate version, so only a same-version older build reaches it (a different version auto-restarts through `shutdown`, `client.rs`). Fix (S): include a build hash in the handshake so a stale daemon is always restarted by the client, and carry a `hint:` on that error. Low impact for agents today.
+
+### 9. Snapshot lines carry avoidable text (medium for tokens, small per call)
+Evidence: web text prints its string twice (`text "<200 chars>" "<same 200 chars>"`, safari-read result 4, 3.3k chars for a 20-line screen). Typing in a web form prints 8 `~ group "..." focused → (none)` lines (testbed-form result 4). `button "chevron" disabled` follows every row. `Dictate` buttons print twice.
+Fix (S): drop the second quoted string when it equals the label; do not diff the `focused` state of non-input groups; drop disabled chevrons. Expected cut: 25 to 40% of iOS tokens on lists and web.
+
+### 10. Wasted discovery on a screen that cannot answer (low for the product, high for cost)
+Evidence: five runs searched Settings for a pane that the Simulator does not have (autolock 14 calls, dark-mode 19, recovery-dark 13). Settings search returns `No Results` for everything on this Simulator, so the agent trusts a dead tool. README already notes this limitation. Not a product defect, but a `launch` of an app that resumes deep state (Settings reopened inside Accessibility) is not stated anywhere; the `launch` description should say "reopens where the app was left".
+
+## Tool surface
+
+Ten tools, 7.0k characters of schema (about 1.8k tokens), `required` is minimal (target, key, direction, condition, text). The first call was `launch`, `devices` or `snapshot` in 9 of 9 runs, so the entry path is obvious. Never used by any agent: `snapshot diff`, `snapshot within`, `tap count`, `tap long`, `type secret`, `type submit`, `wait`. Used once and misused: `pixels` (failed), `max_lines` (ok). `role` was used correctly after an ambiguity. Missing: `apps`, `release`, `find` (CLI-only); the agent tried to guess the app name and the lease owner. The server instructions do not tell the agent about the iOS differences above or that calls are sequential. `devices` is called first by agents that do not know which device they have; the M3 default-device line already helps.
+
+## Speed as the agent feels it
+
+- Settle: 250 to 1,000 ms per ordinary action; `launch` 250 ms (too early, finding 4); scroll 2.5 to 2.7 s each on the iOS list (testbed-row: about 40 scrolls, about 105 s of 169 s). Hidden cause worth checking: the scroll gesture is 250 ms plus a 150 ms hold, then the settle polls until quiet; the list is still decelerating. Fix (M): on iOS end a scroll's settle as soon as two frames match.
+- Round trips: agents spend one call to read what `tap`/`type` already returned in most runs, which is good (the diff design works: results of 16 to 100 tokens). Where they ask for `snapshot` it is after a stale ref (finding 4) or an ambiguous error (3).
+- Batching: tap-then-type is one call already when `type into` is given; agents used it. A `scroll` that returns the diff of its final position (finding 1) removes the follow-up snapshot. A general `steps` batch (L) is not justified yet: no run needed more than two dependent steps without reading the screen.
+- Mean cost per call is about $0.004 and 3.8k tokens of new context, so removing 100 wasted calls matters more than shaving the 200-token snapshot.
+
+## Onboarding
+
+MCP agents get one paragraph and ten tool schemas, not SKILL.md (`phone-use skill` and the README tell humans). Things an agent must know and is not told: calls must be sequential; leases exist and a stale one blocks for 10 minutes; iOS has no `set` mode and no fling; `launch` resumes where the app was; a URL load may need `wait`; `find`/`apps`/`release` exist only on the CLI. SKILL.md itself is accurate and short (it already says `wait` and `under-keyboard`), but it recommends `--mode keys` and `scroll --until`, which fail on iOS in the ways above, and says "Press `back` to close the keyboard", which does nothing on iOS. Fix (S): fold the sequential-calls sentence and the three iOS exceptions into the server `instructions` (about 80 tokens) and SKILL.md; fix after the code fixes land. `phone-use doctor` is cited in 6 error hints where it does not help (set mode, Vision, stale device state).
+
+## Comparison, only where it gives a change
+
+- Playwright MCP returns the new snapshot as part of every action and numbers refs per snapshot; phone-use returns diffs, which measured well (16 to 100 tokens per action). Keep. Playwright's action schema marks that tool calls run one at a time; adopt the sentence (finding 5).
+- mobile-mcp exposes `list_apps` and `launch_app` by package; our `launch` by name is better but lacks `apps` over MCP (finding 8).
+- browser-use inlines the screenshot with the state each step; here agents asked for a screenshot 8 times in 136 calls, almost always to confirm a tap that gave no visible change (testbed rows, `no change after 500ms`). Not worth inlining; the better fix is to tell the agent why nothing changed (findings 7, 1).
+
+## Fix list by effort
+
+One-line or small (S): 1b end-of-search message, 3 ambiguity collapse, 5 sentence in descriptions, 6 collapse iOS keyboard and `hide-keyboard`, 7b scrollable words, 8 all hint rewrites and `apps` over MCP, 9 text dedupe, 2b busy hint and `release` tool. Medium (M): 1a fling fallback (S if iOS never flings), 2a release on disconnect, 4 launch tree stability, 7a occlusion check. Large (L): none.
+
+Order I would do them in: 1, 2a, 3, 4, 5, 6, 7, 8, 9. After 1 to 4 the testbed-row task should drop from 47 calls to about 6 and the contact task from 22 to about 10; re-run these nine tasks with the same runner to prove it.
