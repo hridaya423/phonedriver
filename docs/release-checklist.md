@@ -8,7 +8,7 @@ Task 8.3. This list is prepared and not executed. Nothing here has been publishe
 - Built and proven here: macOS arm64 only (`progress.md`, "Release packaging"). The other four targets are configured and never compiled.
 - There is no remote. The only other CI is `ci.yml`, which has not run anywhere.
 - Phase 6 (physical iOS devices) is stopped, so the first release has no iOS device support. The README already says "iOS device: Not built yet".
-- Phase 8 task 8.1 (AndroidWorld) has no result. Release notes can use only the benchmarks that exist.
+- Phase 8 task 8.1 (AndroidWorld) was dropped by the user. Release notes can use only the benchmarks that exist.
 
 ## 0. What remains for you, in order
 
