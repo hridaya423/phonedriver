@@ -28,7 +28,7 @@ The claim we want to make is "same model, higher success, fewer tokens, less tim
 
 ### Task 8.2: Packaging
 
-`cargo-dist` for macOS (arm64, x86_64), Linux (x86_64, arm64), Windows (x86_64). The binary embeds the Android agent jar. The iOS runner ships as source plus a build command (signing is per user). Test each artifact on a clean machine or VM: install, `phone-use doctor`, Android e2e against the emulator.
+`cargo-dist` for macOS (arm64, x86_64), Linux (x86_64, arm64), Windows (x86_64). The binary embeds the Android agent jar. The iOS runner ships as source plus a build command (signing is per user). The release workflow builds the agent jar in a step (`.github/workflows/release-build-setup.yml`) and passes it as `PHONE_USE_AGENT_JAR`; the runner sources are compiled into the binary. Installers: shell, PowerShell, Homebrew (local half done 2026-11-06, see `progress.md`). Test each artifact on a clean machine or VM: install, `phone-use doctor`, Android e2e against the emulator.
 
 ### Task 8.3: Release checklist (stop here)
 
