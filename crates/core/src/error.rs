@@ -139,7 +139,7 @@ impl UserAction {
             UserAction::EnableDeveloperMode => {
                 "Turn on Settings > Privacy & Security > Developer Mode, then restart the device."
             }
-            UserAction::MountDeveloperImage => "Run `phone-use doctor` to mount the image.",
+            UserAction::MountDeveloperImage => "Run `phone-use ios setup` to mount the image.",
             UserAction::ResignRunner => {
                 "Run `phone-use doctor` to re-sign and reinstall the runner."
             }
