@@ -117,12 +117,13 @@ async fn tools_list_is_the_tools_with_short_descriptions_and_the_cli_required_ar
         ("screenshot", vec![]),
         ("tap", vec!["target"]),
         ("type", vec!["text"]),
-        ("swipe", vec!["direction"]),
+        ("swipe", vec![]),
         ("scroll", vec!["direction"]),
         ("press", vec!["key"]),
         ("launch", vec![]),
         ("wait", vec!["condition"]),
         ("batch", vec!["steps"]),
+        ("clipboard", vec![]),
     ]
     .into_iter()
     .map(|(n, r)| (n.to_string(), r.into_iter().map(String::from).collect()))
@@ -562,4 +563,44 @@ async fn text_typed_in_a_batch_stays_out_of_the_trace() {
             f.display()
         );
     }
+}
+
+#[tokio::test]
+async fn clipboard_find_release_clear_and_drag_are_reachable_from_existing_tools() {
+    let rig = rig(vec![field_tree("hello", false), field_tree("", false)]).await;
+    let r = rig.call("clipboard", json!({"set": "copied"})).await;
+    assert_ne!(r.is_error, Some(true), "{r:?}");
+    let r = rig.call("clipboard", json!({})).await;
+    assert_eq!(texts(&r), ["copied"]);
+
+    let r = rig.call("snapshot", json!({"find": "FIELD"})).await;
+    assert_ne!(r.is_error, Some(true), "{r:?}");
+    assert!(texts(&r)[0].contains("textbox"), "{r:?}");
+
+    let r = rig.call("type", json!({"text": "", "into": "@e1"})).await;
+    assert_ne!(r.is_error, Some(true), "{r:?}");
+    assert!(texts(&r)[0].starts_with("ok cleared"), "{r:?}");
+    let r = rig.call("type", json!({"text": ""})).await;
+    assert_eq!(r.is_error, Some(true));
+
+    let r = rig
+        .call("swipe", json!({"from": "@e1", "to": "200,500"}))
+        .await;
+    assert_ne!(r.is_error, Some(true), "{r:?}");
+    assert!(texts(&r)[0].starts_with("ok dragged"), "{r:?}");
+    let r = rig.call("swipe", json!({"pinch": "out"})).await;
+    assert!(texts(&r)[0].starts_with("ok pinched out"), "{r:?}");
+    for bad in [
+        json!({}),
+        json!({"to": "200,500"}),
+        json!({"pinch": "sideways"}),
+    ] {
+        let r = rig.call("swipe", bad.clone()).await;
+        assert_eq!(r.is_error, Some(true), "{bad}");
+    }
+
+    assert_eq!(leased_by(&rig.socket).await, "mcp-test");
+    let r = rig.call("devices", json!({"release": true})).await;
+    assert_eq!(texts(&r), ["released"]);
+    assert_eq!(leased_by(&rig.socket).await, Value::Null);
 }

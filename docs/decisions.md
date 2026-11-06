@@ -152,6 +152,16 @@ Each decision records the choice, the alternatives it beat, and the evidence tha
 
 **Reopen if.** Agents use batches of one step, or a batch that fails halfway too often to be worth the saved calls.
 
+## D18. CLI verbs the MCP lacked are folded into existing tools, except the clipboard
+
+**Choice.** `drag` and `pinch` are new daemon actions and CLI verbs; on MCP they are arguments of `swipe` (`to`, `pinch`). `clear` is `type` with empty text, `find` is `snapshot` with `find`, `release` is `devices` with `release`. Only `clipboard` became a tool (13 tools), because reading and writing the device clipboard fits no other tool.
+
+**Why.** Every tool's schema is paid for in every session (the audit measured about 1.8k tokens for ten tools), and the audit found agents never used most optional arguments, so an argument costs a few tokens where a tool costs 40 to 100. Competitors' own multiplexing (Appium's `appium_gesture` has eight actions) agrees.
+
+**Rejected.** One MCP tool per CLI verb (`find`, `clear`, `release`, `gesture`, `drag`, `pinch`): +6 tools. Exposing the raw `gesture` JSON on MCP: an agent would compute finger coordinates itself, which `drag` and `pinch` do from targets.
+
+**Reopen if.** An agent run shows models failing to find `drag` under `swipe`.
+
 ## D16. Traces keep typed text only as a length, and text from the screen only with `--trace-full`
 
 **Choice.** A trace line holds the request's params, the reply's summary, `ms` and the settle time. A `type` action's text, secret or not, becomes `{"secret_len": n}` (flag set) or `{"text_len": n}`; so does the text of `clipboard set`. Text targets (`tap "Save"`, `wait gone:"Loading"`, `find`) become `{"text_len": n}` unless the daemon runs with `--trace-full` (env `PHONE_USE_TRACE_FULL`), which also adds the observation text. An `open` URL loses its query and fragment. `--trace-screens` (env `PHONE_USE_TRACE_SCREENS`) copies each `screenshot` next to the trace file. The trace directory is mode 0700 and its files 0600.

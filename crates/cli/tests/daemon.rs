@@ -2006,3 +2006,62 @@ async fn a_batch_with_a_malformed_step_runs_nothing_and_names_the_step() {
     let e = err(&d, "default", "batch", batch(json!([]))).await;
     assert_eq!(e.code, -32602);
 }
+
+#[tokio::test(start_paused = true)]
+async fn drag_presses_at_the_first_target_holds_then_moves_to_the_second_and_pinch_plays_two_fingers()
+ {
+    let (source, fake) = FakeSource::with(vec![tree(&["One", "Two"])]);
+    let (d, _home) = daemon(source);
+    ok(&d, "default", "snapshot", json!({})).await;
+    let r = ok(
+        &d,
+        "default",
+        "act",
+        act_with(json!({"kind": "drag", "from": {"ref": "e1"}, "to": {"point": {"x": 300.0, "y": 700.0}}})),
+    )
+    .await;
+    assert!(
+        r["summary"].as_str().unwrap().starts_with("dragged @e1"),
+        "{r}"
+    );
+    let Call::Gesture(g) = fake.calls().pop().unwrap() else {
+        panic!("no gesture");
+    };
+    assert_eq!(g.fingers.len(), 1);
+    let path = &g.fingers[0];
+    assert_eq!((path[0].at.x, path[0].at.y), (180.0, 130.0));
+    assert!(path.iter().find(|p| p.at != path[0].at).unwrap().t_ms >= 400);
+    let end = path.last().unwrap().at;
+    assert_eq!((end.x, end.y), (300.0, 700.0));
+
+    let r = ok(
+        &d,
+        "default",
+        "act",
+        act_with(json!({"kind": "pinch", "direction": "out"})),
+    )
+    .await;
+    assert_eq!(r["summary"], "pinched out");
+    let Call::Gesture(g) = fake.calls().pop().unwrap() else {
+        panic!("no gesture");
+    };
+    assert_eq!(g.fingers.len(), 2);
+    let gap = |i: usize| g.fingers[1][i].at.x - g.fingers[0][i].at.x;
+    assert!(gap(10) > gap(0) * 4.0);
+    assert_eq!(g.fingers[0][0].at.x + g.fingers[1][0].at.x, 360.0);
+}
+
+#[tokio::test]
+async fn pinch_needs_multi_touch() {
+    let (source, _) =
+        FakeSource::of(FakeDevice::new(vec![tree(&["One"])]).lacking(Capabilities::MULTI_TOUCH));
+    let (d, _home) = daemon(source);
+    let e = err(
+        &d,
+        "default",
+        "act",
+        act_with(json!({"kind": "pinch", "direction": "in"})),
+    )
+    .await;
+    assert_eq!(e.code, -32011);
+}

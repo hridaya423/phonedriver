@@ -70,6 +70,15 @@ pub enum Action {
         #[serde(default)]
         fast: bool,
     },
+    Drag {
+        from: Target,
+        to: Target,
+    },
+    Pinch {
+        direction: PinchDirection,
+        at: Option<Target>,
+        distance: Option<f32>,
+    },
     Scroll {
         direction: Direction,
         #[serde(rename = "in")]
@@ -96,11 +105,21 @@ impl std::fmt::Debug for Action {
             Action::Press { key } => write!(f, "Press({key})"),
             Action::Clear { target } => write!(f, "Clear({target:?})"),
             Action::Swipe { direction, .. } => write!(f, "Swipe({direction:?})"),
+            Action::Drag { from, to } => write!(f, "Drag({from:?} to {to:?})"),
+            Action::Pinch { direction, .. } => write!(f, "Pinch({direction:?})"),
             Action::Scroll {
                 direction, until, ..
             } => write!(f, "Scroll({direction:?}, until {until:?})"),
         }
     }
+}
+
+/// `out` spreads the fingers to zoom in; `in` brings them together to zoom out.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum PinchDirection {
+    In,
+    Out,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

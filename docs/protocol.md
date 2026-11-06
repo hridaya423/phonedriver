@@ -49,6 +49,8 @@ type Action =
     // the CLI reads secret text from stdin or PHONE_USE_SECRET and sends it here over the user-only socket
   | {kind: "clear", target: Target}
   | {kind: "swipe", direction: Dir, from?: Target, distance?: number, fast?: boolean}
+  | {kind: "drag", from: Target, to: Target}                       // press and hold, move, hold, lift
+  | {kind: "pinch", direction: "in"|"out", at?: Target, distance?: number}  // two fingers; `out` zooms in
   | {kind: "scroll", direction: Dir, in?: Target, until?: Target, max?: number}
   | {kind: "gesture", fingers: Array<Array<{x: number, y: number, t_ms: number}>>}
   | {kind: "press", key: Key}

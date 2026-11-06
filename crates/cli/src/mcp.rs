@@ -40,6 +40,20 @@ struct DeviceArgs {
 }
 
 #[derive(Deserialize, JsonSchema)]
+struct DevicesArgs {
+    device: Option<String>,
+    /// Give up this session's hold on the device so another session can use it.
+    release: Option<bool>,
+}
+
+#[derive(Deserialize, JsonSchema)]
+struct ClipboardArgs {
+    device: Option<String>,
+    /// Put this text on the clipboard. Omit it to read the clipboard.
+    set: Option<String>,
+}
+
+#[derive(Deserialize, JsonSchema)]
 struct SnapshotArgs {
     device: Option<String>,
     /// Print only what changed since the last observation.
@@ -52,6 +66,8 @@ struct SnapshotArgs {
     max_lines: Option<u32>,
     /// Read the pixels with OCR and add text the tree lacks (automatic when the tree is empty).
     pixels: Option<bool>,
+    /// List only the elements whose text contains this, in any case.
+    find: Option<String>,
 }
 
 #[derive(Deserialize, JsonSchema)]
@@ -88,10 +104,14 @@ struct TypeArgs {
 #[serde(deny_unknown_fields)]
 struct SwipeArgs {
     device: Option<String>,
-    /// up, down, left or right: where the finger moves.
-    direction: String,
+    /// up, down, left or right: where the finger moves. Needed unless `to` or `pinch` is given.
+    direction: Option<String>,
     /// Start at this target's center instead of the screen's.
     from: Option<String>,
+    /// Drag from `from` to this target (press, hold, move, lift) to reorder or move an item.
+    to: Option<String>,
+    /// `out` zooms in, `in` zooms out: two fingers, centered on `from` or the screen.
+    pinch: Option<String>,
     /// Share of the screen to cross, 0 to 1. Default 0.5.
     distance: Option<f32>,
     /// A quick flick that may fling.
@@ -152,12 +172,30 @@ impl TapArgs {
 }
 
 impl SwipeArgs {
-    fn verb(self) -> Verb {
-        Verb::Swipe {
-            direction: self.direction,
-            from: self.from,
-            distance: self.distance,
-            fast: self.fast.unwrap_or(false),
+    fn verb(self) -> Result<Verb, &'static str> {
+        match (self.direction, self.to, self.pinch) {
+            (_, Some(to), None) => Ok(Verb::Drag {
+                from: self
+                    .from
+                    .ok_or("`to` needs `from`: where the drag starts")?,
+                to,
+            }),
+            (_, None, Some(direction)) if direction == "in" || direction == "out" => {
+                Ok(Verb::Pinch {
+                    direction,
+                    at: self.from,
+                    distance: self.distance,
+                })
+            }
+            (_, None, Some(_)) => Err("`pinch` is `in` or `out`"),
+            (Some(direction), None, None) => Ok(Verb::Swipe {
+                direction,
+                from: self.from,
+                distance: self.distance,
+                fast: self.fast.unwrap_or(false),
+            }),
+            (None, None, None) => Err("pass `direction`, `to` or `pinch`"),
+            _ => Err("pass one of `direction`, `to` or `pinch`"),
         }
     }
 }
@@ -198,9 +236,10 @@ fn step_verb(step: serde_json::Value) -> Result<Verb, String> {
         "tap" => Ok(serde_json::from_value::<TapArgs>(rest)
             .map_err(args)?
             .verb()),
-        "swipe" => Ok(serde_json::from_value::<SwipeArgs>(rest)
+        "swipe" => serde_json::from_value::<SwipeArgs>(rest)
             .map_err(args)?
-            .verb()),
+            .verb()
+            .map_err(String::from),
         "scroll" => Ok(serde_json::from_value::<ScrollArgs>(rest)
             .map_err(args)?
             .verb()),
@@ -218,6 +257,12 @@ fn step_verb(step: serde_json::Value) -> Result<Verb, String> {
             .map_err(String::from),
         "type" => {
             let a = serde_json::from_value::<TypeArgs>(rest).map_err(args)?;
+            if a.text.is_empty() {
+                return match a.into {
+                    Some(target) => Ok(Verb::Clear { target }),
+                    None => Err("to clear a field pass `into`: the field to empty".into()),
+                };
+            }
             if a.secret.unwrap_or(false) {
                 return Err(
                     "secret text cannot go in a batch; call `type` with secret on its own".into(),
@@ -388,10 +433,22 @@ fn bad(message: &str) -> CallToolResult {
 #[tool_router]
 impl Mcp {
     #[tool(
-        description = "List connected devices with their id, model, OS, tier and which session holds each. Call it first when unsure which device to use."
+        description = "List connected devices with their id, model, OS, tier and which session holds each. Call it first when unsure which device to use. With `release`, give up this session's hold on a device."
     )]
-    async fn devices(&self, Parameters(_): Parameters<DeviceArgs>) -> CallToolResult {
+    async fn devices(&self, Parameters(a): Parameters<DevicesArgs>) -> CallToolResult {
+        if a.release.unwrap_or(false) {
+            return self.run(a.device, Verb::Release, None).await;
+        }
         self.run(None, Verb::Devices, None).await
+    }
+
+    #[tool(description = "Read the device clipboard, or set it with `set`.")]
+    async fn clipboard(&self, Parameters(a): Parameters<ClipboardArgs>) -> CallToolResult {
+        let verb = Verb::Clipboard {
+            action: a.set.as_ref().map(|_| "set".to_string()),
+            text: a.set,
+        };
+        self.run(a.device, verb, None).await
     }
 
     #[tool(
@@ -405,6 +462,11 @@ impl Mcp {
         description = "Show what is on screen as lines like `@e4 button \"Save\"`, or only what changed with diff. Refs name elements for tap, type, swipe and scroll."
     )]
     async fn snapshot(&self, Parameters(a): Parameters<SnapshotArgs>) -> CallToolResult {
+        if let Some(text) = a.find {
+            return self
+                .run(a.device, Verb::Find { text, role: None }, None)
+                .await;
+        }
         let verb = Verb::Snapshot {
             diff: a.diff.unwrap_or(false),
             interactive: a.interactive.unwrap_or(false),
@@ -460,10 +522,16 @@ impl Mcp {
 
     #[tool(
         name = "type",
-        description = "Type text into a field and report whether the field now holds it. Set secret for passwords and codes; only type those when the user gave them for this task. One call at a time."
+        description = "Type text into a field and report whether the field now holds it. Empty text with `into` clears the field. Set secret for passwords and codes; only type those when the user gave them for this task. One call at a time."
     )]
     async fn r#type(&self, Parameters(a): Parameters<TypeArgs>) -> CallToolResult {
         let secret = a.secret.unwrap_or(false);
+        if a.text.is_empty() && !secret {
+            return match a.into {
+                Some(target) => self.run(a.device, Verb::Clear { target }, None).await,
+                None => bad("to clear a field pass `into`: the field to empty"),
+            };
+        }
         let verb = Verb::Type {
             text: if secret { None } else { Some(a.text.clone()) },
             into: a.into,
@@ -475,11 +543,14 @@ impl Mcp {
     }
 
     #[tool(
-        description = "Drag one finger across the screen the way a user swipes: to flip pages, pull down, dismiss. To read more of a list use scroll instead. One call at a time."
+        description = "Drag one finger across the screen the way a user swipes: to flip pages, pull down, dismiss. With `to`, drag an item to a target; with `pinch`, zoom with two fingers. To read more of a list use scroll instead. One call at a time."
     )]
     async fn swipe(&self, Parameters(a): Parameters<SwipeArgs>) -> CallToolResult {
         let device = a.device.clone();
-        self.run(device, a.verb(), None).await
+        match a.verb() {
+            Ok(verb) => self.run(device, verb, None).await,
+            Err(why) => bad(why),
+        }
     }
 
     #[tool(

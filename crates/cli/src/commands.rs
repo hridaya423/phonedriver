@@ -23,7 +23,7 @@ use crate::wire::{
     ActionResult, BatchResult, DeviceEntry, Kind, Observation, ScreenshotResult, VERSION,
 };
 
-const USAGE: &str = "usage: phone-use <command>\n\nrun `phone-use --help` for the options and exit codes\n\ncommands:\n  devices\n  snapshot\n  screenshot\n  find\n  launch\n  open\n  apps\n  swipe\n  scroll\n  gesture\n  tap\n  type\n  clear\n  clipboard\n  press\n  wait\n  batch\n  release\n  daemon\n  doctor\n  ios\n  mcp\n  skill\n  version";
+const USAGE: &str = "usage: phone-use <command>\n\nrun `phone-use --help` for the options and exit codes\n\ncommands:\n  devices\n  snapshot\n  screenshot\n  find\n  launch\n  open\n  apps\n  swipe\n  drag\n  pinch\n  scroll\n  gesture\n  tap\n  type\n  clear\n  clipboard\n  press\n  wait\n  batch\n  release\n  daemon\n  doctor\n  ios\n  mcp\n  skill\n  version";
 
 const AFTER_HELP: &str = "Examples:
   phone-use devices
@@ -195,6 +195,18 @@ pub(crate) enum Verb {
     Gesture {
         /// The fingers as JSON.
         spec: String,
+    },
+    /// Press at `from`, hold, drag to `to` and lift: reorder a list, move an item, drag a handle. Targets are `@ref`, `x,y` or text.
+    Drag { from: String, to: String },
+    /// Two fingers: `out` spreads them to zoom in, `in` closes them to zoom out. At the screen's center, or at `--at`.
+    Pinch {
+        #[arg(value_parser = ["in", "out"])]
+        direction: String,
+        #[arg(long)]
+        at: Option<String>,
+        /// How far apart the fingers end (out) or start (in), as a share of the screen's shorter side; default 0.5.
+        #[arg(long)]
+        distance: Option<f32>,
     },
     /// Open an app by name or package and show its first screen.
     Launch {
@@ -592,6 +604,8 @@ pub(crate) async fn execute_with(
         verb @ (Verb::Tap { .. }
         | Verb::Gesture { .. }
         | Verb::Swipe { .. }
+        | Verb::Drag { .. }
+        | Verb::Pinch { .. }
         | Verb::Scroll { .. }
         | Verb::Launch { .. }
         | Verb::Open { .. }
@@ -751,6 +765,23 @@ pub(crate) fn step_json(verb: &Verb, secret: Option<&str>) -> Result<Value, Fail
             }
             if let Some(m) = max {
                 a["max"] = json!(m);
+            }
+            a
+        }
+        Verb::Drag { from, to } => {
+            json!({"kind": "drag", "from": parse_target(from), "to": parse_target(to)})
+        }
+        Verb::Pinch {
+            direction,
+            at,
+            distance,
+        } => {
+            let mut a = json!({"kind": "pinch", "direction": direction});
+            if let Some(t) = at {
+                a["at"] = parse_target(t);
+            }
+            if let Some(d) = distance {
+                a["distance"] = json!(d);
             }
             a
         }

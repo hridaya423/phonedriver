@@ -30,9 +30,9 @@ Use `wait` when the screen needs time: `wait "Row 640"`, `wait gone:"Loading"`, 
 ## Finding things
 
 - To read more of a list, call `scroll down`. To reach a known row, call `scroll down --until "Row 640"`.
-- Use `swipe` for gestures that are not scrolling, such as pulling a sheet down.
+- Use `swipe` for gestures that are not scrolling, such as pulling a sheet down. `swipe` with `to` drags an item from `from` to a target (reorder, move); with `pinch` `out` or `in` it zooms.
 - A line ending in `under-keyboard` is hidden by the keyboard. Run `press hide-keyboard`, then tap (on iOS `back` does not close it unless the keyboard is up, then it does the same).
-- `find "text"` (command line) lists the elements that contain the text.
+- `snapshot` with `find` (`find "text"` on the command line) lists only the elements that contain the text.
 
 ## Screenshots
 
@@ -44,7 +44,7 @@ Call `screenshot` when the snapshot does not hold what you need: a map, a drawin
 - If the reply says `NOT verified`, retry with `--mode keys`. `--mode set` works on Android only.
 - Calls act on one shared screen: send one at a time and read each reply before the next. To do several things in a row (tap a field, type, press enter), use `batch`: one call, one diff, and it stops at the first step that fails and says which.
 - A `launch` reopens an app where it was left (Settings may open inside a sub-page). If a lease is held by another session, the error says how long it has been idle; wait or ask the user, never take it over.
-- `type` accepts `submit` to press enter afterwards.
+- `type` accepts `submit` to press enter afterwards. Empty text with `into` clears the field (Android).
 - Do not type with `secret` unless the user gave you the text for this task.
 
 ## When the user must act

@@ -32,8 +32,8 @@ use super::DeviceSource;
 use super::session::{Resolved, Session};
 use crate::wire::{
     ActParams, Action, ActionResult, BatchParams, BatchResult, ClipboardParams, FindParams, Kind,
-    Observation, ScreenshotParams, ScreenshotResult, SnapshotParams, Step, StepFailure, StepResult,
-    Target, TypeMode, WaitCondition, WaitParams,
+    Observation, PinchDirection, ScreenshotParams, ScreenshotResult, SnapshotParams, Step,
+    StepFailure, StepResult, Target, TypeMode, WaitCondition, WaitParams,
 };
 
 pub const LEASE_TTL: Duration = Duration::from_secs(600);
@@ -855,6 +855,56 @@ impl Actor {
                     .map(|l| format!(" from {}", short(&l)))
                     .unwrap_or_default();
                 let summary = format!("swiped {}{from_text}", direction.name());
+                self.finish(s, p.settle, cfg, started, summary, None, None, None)
+                    .await
+            }
+            Action::Drag { from, to } => {
+                self.need(
+                    Capabilities::GESTURE,
+                    Op::Gesture,
+                    "this device cannot inject touches",
+                )?;
+                let a = self.resolve_target(s, &from).await?;
+                let b = self.resolve_target(s, &to).await?;
+                let started = self.begin_action();
+                device.gesture(gesture::press_drag(a.at, b.at)).await?;
+                let label = |r: &Resolved| {
+                    r.line.as_deref().map_or_else(
+                        || format!("{},{}", r.at.x.round(), r.at.y.round()),
+                        |l| short(l).to_string(),
+                    )
+                };
+                let summary = format!("dragged {} to {}", label(&a), label(&b));
+                self.finish(s, p.settle, cfg, started, summary, None, None, None)
+                    .await
+            }
+            Action::Pinch {
+                direction,
+                at,
+                distance,
+            } => {
+                self.need(
+                    Capabilities::MULTI_TOUCH,
+                    Op::Gesture,
+                    "this device cannot inject two-finger touches",
+                )?;
+                let screen = self.screen_rect();
+                let (center, line) = match &at {
+                    Some(t) => {
+                        let r = self.resolve_target(s, t).await?;
+                        (r.at, r.line)
+                    }
+                    None => (screen.center(), None),
+                };
+                let out = direction == PinchDirection::Out;
+                let started = self.begin_action();
+                device
+                    .gesture(gesture::pinch(center, screen, out, distance.unwrap_or(0.5)))
+                    .await?;
+                let on = line
+                    .map(|l| format!(" on {}", short(&l)))
+                    .unwrap_or_default();
+                let summary = format!("pinched {}{on}", if out { "out" } else { "in" });
                 self.finish(s, p.settle, cfg, started, summary, None, None, None)
                     .await
             }
