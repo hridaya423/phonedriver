@@ -28,7 +28,7 @@ def ssh(cmd):
 
 user = ssh("whoami").stdout.strip()
 Path(SOCK).unlink(missing_ok=True)
-fwd = subprocess.Popen(["ssh", "-N", "-o", "ExitOnForwardFailure=yes", "-L", f"{SOCK}:/Users/{user}/.phone-use/run/daemon.sock", HOST])
+fwd = subprocess.Popen(["ssh", "-N", "-o", "ExitOnForwardFailure=yes", "-L", f"{SOCK}:/Users/{user}/pu-take/run/daemon.sock", HOST])
 time.sleep(1.5)
 (OUT / "mcp.json").write_text(json.dumps({"mcpServers": {"phone-use": {"command": LOCAL_BIN, "args": ["mcp"], "env": {"PHONE_USE_SOCKET": SOCK}}}}))
 tape = (Path(__file__).parent / "demo.tape").read_text()
@@ -36,7 +36,7 @@ for k, v in {"OUT": str(OUT), "PROMPT": PROMPT, "WAIT": str(WAIT)}.items():
     tape = tape.replace("{{" + k + "}}", v)
 (OUT / "run.tape").write_text(tape)
 
-ssh(f"xcrun simctl ui {UDID} appearance light; xcrun simctl terminate {UDID} com.apple.mobilecal; {HOST_BIN} press home; {HOST_BIN} release")
+ssh(f"xcrun simctl terminate {UDID} com.apple.mobilesafari; rm -f ~/Library/Developer/CoreSimulator/Devices/{UDID}/data/Library/Safari/SafariTabs.db* ~/Library/Developer/CoreSimulator/Devices/{UDID}/data/Library/Safari/BrowserState.db*; xcrun simctl ui {UDID} appearance light; {HOST_BIN} press home; {HOST_BIN} release")
 for row in ssh(f"{HOST_BIN} devices").stdout.splitlines()[1:]:
     dev, lease = row.split()[0], row.split()[-1]
     if lease != "-":

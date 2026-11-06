@@ -10,7 +10,7 @@ Set TypingSpeed 45ms
 Set Theme { "name": "Sodium", "black": "#141412", "red": "#ff6b57", "green": "#8cc79a", "yellow": "#ffd400", "blue": "#7f9fc4", "magenta": "#c49fc4", "cyan": "#7fc4bf", "white": "#c4c0b6", "brightBlack": "#736d61", "brightRed": "#ff8a79", "brightGreen": "#a8dcb3", "brightYellow": "#ffe14d", "brightBlue": "#a3bfe0", "brightMagenta": "#dcbfdc", "brightCyan": "#a3dcd7", "brightWhite": "#f5f3ee", "background": "#141412", "foreground": "#f5f3ee", "selection": "#3a3107", "cursor": "#ffd400" }
 
 Hide
-Type "unset ANTHROPIC_API_KEY; export PS1='$ '; cd {{OUT}}/cwd" Enter
+Type "unset ANTHROPIC_API_KEY; export DISABLE_COST_WARNINGS=1; export PS1='$ '; cd {{OUT}}/cwd" Enter
 Type `claude() { command claude --model sonnet --verbose --mcp-config {{OUT}}/mcp.json --strict-mcp-config --allowedTools 'mcp__phone-use__*' --tools ToolSearch --append-system-prompt 'You operate a phone with the phone-use MCP tools. Use only those tools.' "$@"; }` Enter
 Type "clear" Enter
 Sleep 500ms
