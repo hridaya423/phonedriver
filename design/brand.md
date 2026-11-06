@@ -14,6 +14,7 @@ The images are generated. `python3 design/build/build.py` rebuilds the banners, 
 | `design/logo/favicon.svg`, `app-icon.svg` | Ink tile with the mark, for favicon, app icon and avatar |
 | `design/logo/png/favicon-16.png`, `-32`, `-180`, `-512` | The tile as PNG; 16 and 32 are pixel-snapped |
 | `.github/assets/banner-light.svg`, `banner-dark.svg` | README banner, 1280 by 400 |
+| `.github/assets/demo.gif` | README demo: a real Claude Code run on the iOS Simulator through the phone-use MCP server. `design/build/demo_agent.py` records it, `design/build/demo_gif.py` composites it |
 | `.github/assets/social-preview.png` | GitHub social preview, 1280 by 640 |
 | `.github/assets/loop-*.svg`, `speed-*.svg`, `brand-*.svg` | Loop diagram, speed chart, brand sheet, each light and dark |
 
@@ -52,7 +53,7 @@ Tokens are Sodium's. Use roles, never new hex values.
 | `--ok` | `#2c6a3a` | `#8cc79a` | Success and the new value in a diff |
 | `--data-1` to `--data-5` | `#ffd400`, `#8c7a3c`, `#9a937c`, `#5b4a1a`, `#2e3a4a` | `#ffd400`, `#ebdc9c`, `#8f8a76`, `#8a6d1f`, `#5d7290` | Chart series |
 
-Yellow is `--data-1` for phone-use in charts and `--data-5` for the other series. Yellow on white is 1.4:1, so yellow is never text on light: use `--accent-text`. Yellow appears once per composition, on the thing that was selected. In the banner the mark's row and the selected ref are the same idea, a selected row, and are the only yellow.
+Yellow is `--data-1` for phone-use in charts and `--data-5` for the other series. Yellow on white is 1.4:1, so yellow is never text on light: use `--accent-text`. Yellow appears once per composition, on the thing that was selected. In the banner and the social preview the lockup uses the one-colour mark (solid middle row), so the selected row is the only yellow. The demo GIF follows the same rule: its one yellow is the diff line, and its first frame is the finished state.
 
 ## Type
 

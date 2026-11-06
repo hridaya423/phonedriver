@@ -1,47 +1,75 @@
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset=".github/assets/banner-dark.svg">
-    <img alt="phone-use: Read the screen as text. Tap a ref. Get the diff." src=".github/assets/banner-light.svg" width="100%">
+    <img alt="phone-use: Let your AI agent use a phone. Android and iOS, CLI and MCP, up to 153 times faster than phone-harness." src=".github/assets/banner-light.svg" width="100%">
   </picture>
 </p>
 
-<p align="center"><b>One Rust binary. Your agent reads an Android or iOS screen as text, taps a ref, and gets back what changed.</b></p>
-
 <p align="center">
   <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-6b675e?style=flat-square&labelColor=161512"></a>
-  <img alt="Rust 1.99 or later" src="https://img.shields.io/badge/rust-1.99%2B-6b675e?style=flat-square&labelColor=161512">
-  <img alt="Tested on Android emulators and the iOS Simulator" src="https://img.shields.io/badge/tested-android%20%7C%20ios%20simulator-6b675e?style=flat-square&labelColor=161512">
+  <img alt="Tested on Android emulators, the iOS Simulator and iOS devices" src="https://img.shields.io/badge/tested-android%20emulator%20%7C%20ios-6b675e?style=flat-square&labelColor=161512">
 </p>
+
+phone-use gives an AI agent a text view of an Android or iOS screen and the means to tap, type and swipe. Every action returns only the lines that changed.
 
 <p align="center">
-  <a href="docs/architecture.md">Architecture</a> · <a href="docs/decisions.md">Decisions</a> · <a href="docs/protocol.md">Protocol</a> · <a href="docs/bench">Benchmarks</a> · <a href="progress.md">Progress</a>
+  <img alt="Claude Code on the left and the iOS Simulator on the right. The agent opens Settings, then Developer, and taps the Dark Appearance switch. The reply is one line, off to on, and the screen turns dark." src=".github/assets/demo.gif" width="100%">
 </p>
 
-<hr>
+<sub>Claude Code driving the iOS Simulator through the phone-use MCP server, real timing, idle trimmed. The prompt names Settings > Developer: with only "Open Settings and turn on dark mode." the first attempt did not finish. Failed calls are shown.</sub>
 
-phone-use lets an AI agent see and operate Android and iOS devices through a CLI or an MCP server. A daemon keeps the device connection open, so each call costs milliseconds. Every action waits for the screen to settle and returns the lines that changed. The agent does not poll or sleep.
+## Speed
 
-This is the shape of a snapshot. It is the golden file for a captured Settings tree (`crates/core/src/snapshots/phone_use_core__render__tests__real_settings_main.snap`), shortened to eight lines.
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset=".github/assets/speed-dark.svg">
+    <img alt="Bar chart, log scale: phone-use against phone-harness 0.3.3 on tap, screenshot, two snapshots and typing 100 characters. phone-use is 3.0 to 153 times faster." src=".github/assets/speed-light.svg" width="100%">
+  </picture>
+</p>
 
-```console
-$ phone-use snapshot
-device android:emulator-5554 · Pixel 9 · Android 17 · 360x800pt · portrait
-app com.android.settings (Settings) · keyboard hidden · settled in 212ms
-@e1 button "Search Settings"
-@e2 group scrollable↓
-  @e3 button "Google" "Services & preferences"
-  @e4 button "Network & internet" "Mobile, Wi‑Fi, hotspot"
-  @e5 button "Connected devices" "Bluetooth, pairing"
-  @e6 button "Apps" "Assistant, recent apps, default apps"
-```
+phone-use against phone-harness 0.3.3 on an Android 17 emulator (API 37, headless, software rendering) on win-pc, median of 50 runs after 5 warm-ups ([`docs/bench/m1.md`](docs/bench/m1.md)). Each phone-use figure is the slower of two runs. phone-harness ran in process, so its Python start is not counted.
 
-An action returns `+`, `-` and `~` lines instead of the whole screen. This is the design from `docs/architecture.md` section 1, shortened. The `~` line for a switch is also what the live suite saw on an API 37 emulator.
+> [!NOTE]
+> phone-use misses two of its five Android latency budgets. Tap is 29.7 and 36.5 ms against a 15 ms budget (D14). Typing 100 characters is 253 and 288 ms against 150 ms. On the iOS 26.5 Simulator, tap is 357 ms against 80 ms, because XCTest takes about 240 ms to confirm the event (D15). M2 and M4 ran on emulators and the Simulator. On an iPhone 14 Plus and an iPad Pro (M5), tap is 534 and 454 ms against 80 ms, and typing 100 characters on the iPad is 404 ms against 400. No physical Android phone has been measured.
 
-```console
-$ phone-use tap @e10
-ok tapped @e10 "Dark theme" · settled in 410ms
-~ @e10 switch "Dark theme" off → on
-```
+<details>
+<summary>All figures</summary>
+
+| Operation | phone-use | phone-harness | Factor |
+|---|---|---|---|
+| tap | 36.5 ms | 110.7 ms | 3.0x |
+| screenshot | 15.2 ms | 390.1 ms | 26x |
+| snapshot, Settings | 67.7 ms | 2426.4 ms | 36x |
+| snapshot, 1,000-row list | 15.5 ms | 2370.0 ms | 153x |
+| type 100 characters | 288.3 ms | 2104.5 ms | 7.3x |
+| tap, then the settled diff | 419.5 to 544.0 ms | not supported | |
+
+phone-harness cannot type Unicode through `adb input text`. phone-use typed mixed-script text in the last typing row.
+
+</details>
+
+## Try it
+
+1. Build phone-use (see [Install](#install)), then add it to Claude Code as an MCP server.
+
+   ```sh
+   claude mcp add phone-use -- /path/to/phone-use mcp
+   ```
+
+2. Boot a simulator or connect a device, then ask the agent.
+
+   > Open Settings and turn on dark mode.
+
+3. The agent calls the tools, for example `launch`, `swipe` and `tap`. Each reply is plain text. The tap that turns the switch on returns this (iOS Simulator):
+
+   ```console
+   ok tapped @e41 "Dark Appearance" at 337,198 · settled in 607ms
+   - @e65 @e66 @e67
+   ~ @e41 switch "Dark Appearance" off → on
+   + @e68 button "L4S"
+   ```
+
+   `+`, `-` and `~` mark lines that appeared, left and changed. The agent does not poll or sleep: every action waits for the screen to settle.
 
 ## Install
 
@@ -58,8 +86,6 @@ $ target/release/phone-use version
 phone-use 0.1.0
 ```
 
-## Quickstart
-
 Run `phone-use doctor`. It checks adb, each Android device, the agent, UiAutomation, the video stream, Xcode, the simulators, and the permissions of the daemon socket. Each line says `ok`, `warn` or `fail`, and a fix follows every line that is not `ok`.
 
 ```console
@@ -74,7 +100,7 @@ warn  simulators       none booted
 ok    daemon socket    /Users/you/.phone-use/run/daemon.sock mode 600 in a directory of mode 700
 ```
 
-Connect a device or boot an emulator, then run the loop.
+The CLI runs the same loop. `phone-use skill` prints [`SKILL.md`](SKILL.md), the instructions an agent reads before it uses the tools.
 
 ```sh
 phone-use devices
@@ -83,8 +109,6 @@ phone-use tap "Dark theme"
 phone-use wait settled
 ```
 
-`phone-use skill` prints [`SKILL.md`](SKILL.md), the instructions an agent reads before it uses the tools.
-
 ## Supported devices
 
 | Device | Status | Needs |
@@ -92,31 +116,9 @@ phone-use wait settled
 | Android emulator, API 26 and 37 | Tested. The 21-scenario suite passes on both (M2, `docs/bench/m2.md`). | adb |
 | Android phone or tablet | Built on the same path. Not tested on hardware. | adb, USB debugging on |
 | iOS Simulator (iOS 26.5) | Tested. The 12-scenario suite passes (M4, `docs/bench/m4.md`). One flake in `settings-dark-appearance` is unexplained. | A Mac with Xcode 27 and XcodeGen |
-| iOS device | In progress. Unit tests pass. Nothing is verified on hardware (M5 is not met). | |
+| iPhone or iPad (Runner tier) | Tested on an iPhone 14 Plus (iOS 26.1) and an iPad Pro (iOS 27.0) through the CLI and MCP (M5, `docs/bench/m5.md`). Screenshot, snapshot and the settled tap diff are within budget. A tap misses its 80 ms budget (454 to 534 ms at p50). The 12-scenario suite was not run on devices. | A Mac with Xcode and a signing team (`PHONE_USE_TEAM`) |
 
 The iOS Simulator tier builds and runs a small XCTest runner. Android needs no install on the phone: the daemon pushes and starts its agent.
-
-## Use with an agent
-
-Add the MCP server. For Claude Code:
-
-```sh
-claude mcp add phone-use -- /path/to/phone-use mcp
-```
-
-For other clients, use this entry:
-
-```json
-{
-  "mcpServers": {
-    "phone-use": { "command": "/path/to/phone-use", "args": ["mcp"], "env": { "PHONE_USE_DEVICE": "android:emulator-5554" } }
-  }
-}
-```
-
-The server has ten tools: `devices`, `snapshot`, `screenshot`, `tap`, `type`, `swipe`, `scroll`, `press`, `launch`, `wait`. Each prints the same text as the CLI verb of the same name. `PHONE_USE_DEVICE` is optional when one device is connected.
-
-Typed secrets (`phone-use type --secret`, or `secret: true` over MCP) never reach logs, traces or replies. phone-use sends no telemetry. It talks to the device and nothing else.
 
 ## How it works
 
@@ -127,7 +129,29 @@ Typed secrets (`phone-use type --secret`, or `secret: true` over MCP) never reac
   </picture>
 </p>
 
-The CLI and the MCP server are thin clients. The daemon owns the device connection, the ref table and the settle logic. Refs such as `@e10` are re-located when the tap happens, so a list that shifted by a row still gets the right tap. See [`docs/architecture.md`](docs/architecture.md).
+The CLI and the MCP server are thin clients. A daemon keeps the device connection open, so each call costs milliseconds. The daemon owns the ref table and the settle logic. Refs such as `@e10` are re-located when the tap happens, so a list that shifted by a row still gets the right tap. Design notes: [`docs/architecture.md`](docs/architecture.md), [`docs/protocol.md`](docs/protocol.md), [`docs/decisions.md`](docs/decisions.md).
+
+A snapshot lists the screen as text. This is the Android Settings app, cut to eight lines.
+
+```console
+$ phone-use snapshot
+device android:emulator-5554 · Pixel 9 · Android 17 · 360x800pt · portrait
+app com.android.settings (Settings) · keyboard hidden · settled in 212ms
+@e1 button "Search Settings"
+@e2 group scrollable↓
+  @e3 button "Google" "Services & preferences"
+  @e4 button "Network & internet" "Mobile, Wi‑Fi, hotspot"
+  @e5 button "Connected devices" "Bluetooth, pairing"
+  @e6 button "Apps" "Assistant, recent apps, default apps"
+```
+
+A tap returns the lines that changed instead of the whole screen.
+
+```console
+$ phone-use tap @e10
+ok tapped @e10 "Dark theme" · settled in 410ms
+~ @e10 switch "Dark theme" off → on
+```
 
 ### Use a device on another machine
 
@@ -143,30 +167,21 @@ On the other machine, run any `phone-use` command once, or `phone-use daemon`, s
 
 Two things differ from a local run. `phone-use screenshot` prints a path on the machine that has the device; fetch the file with `ssh mini cat <path> > shot.png`. The MCP `screenshot` tool returns the image itself, so it works unchanged.
 
-## Speed
+## Use with other MCP clients
 
-<p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset=".github/assets/speed-dark.svg">
-    <img alt="Bar chart, log scale: phone-use against phone-harness 0.3.3 on tap, screenshot, two snapshots and typing 100 characters. phone-use is 3.0 to 153 times faster." src=".github/assets/speed-light.svg" width="100%">
-  </picture>
-</p>
+Any client that starts a stdio server can use this entry.
 
-phone-use against phone-harness 0.3.3 on an Android 17 emulator (API 37, headless, software rendering) on win-pc, median of 50 runs after 5 warm-ups (`docs/bench/m1.md`). Each phone-use figure is the slower of two runs. phone-harness ran in process, so its Python start is not counted.
+```json
+{
+  "mcpServers": {
+    "phone-use": { "command": "/path/to/phone-use", "args": ["mcp"], "env": { "PHONE_USE_DEVICE": "android:emulator-5554" } }
+  }
+}
+```
 
-| Operation | phone-use | phone-harness | Factor |
-|---|---|---|---|
-| tap | 36.5 ms | 110.7 ms | 3.0x |
-| screenshot | 15.2 ms | 390.1 ms | 26x |
-| snapshot, Settings | 67.7 ms | 2426.4 ms | 36x |
-| snapshot, 1,000-row list | 15.5 ms | 2370.0 ms | 153x |
-| type 100 characters | 288.3 ms | 2104.5 ms | 7.3x |
-| tap, then the settled diff | 419.5 to 544.0 ms | not supported | |
+The server has ten tools: `devices`, `snapshot`, `screenshot`, `tap`, `type`, `swipe`, `scroll`, `press`, `launch`, `wait`. Each prints the same text as the CLI verb of the same name. `PHONE_USE_DEVICE` is optional when one device is connected.
 
-phone-harness cannot type Unicode through `adb input text`. phone-use typed mixed-script text in the last typing row.
-
-> [!NOTE]
-> phone-use misses two of its five Android latency budgets. Tap is 29.7 and 36.5 ms against a 15 ms budget (D14). Typing 100 characters is 253 and 288 ms against 150 ms. On the iOS 26.5 Simulator, tap is 357 ms against 80 ms, because XCTest takes about 240 ms to confirm the event (D15). Both M2 and M4 ran on emulators and the Simulator. No physical Android phone or iOS device has been measured.
+Typed secrets (`phone-use type --secret`, or `secret: true` over MCP) never reach logs, traces or replies. phone-use sends no telemetry. It talks to the device and nothing else.
 
 ## Development
 
@@ -176,7 +191,7 @@ BLAZE_TESTS=all blaze test
 cargo clippy --all-targets -- -D warnings
 ```
 
-Tests that need a device are ignored by default. Set `PHONE_USE_TEST_DEVICE` (for example `android:emulator-5554` or `sim:<udid>`) and pass `--ignored`. [`AGENTS.md`](AGENTS.md) holds the rules for working in this repository. [`progress.md`](progress.md) records what was built, with the evidence.
+Tests that need a device are ignored by default. Set `PHONE_USE_TEST_DEVICE` (for example `android:emulator-5554` or `sim:<udid>`) and pass `--ignored`. [`AGENTS.md`](AGENTS.md) holds the rules for working in this repository.
 
 <details>
 <summary>Brand</summary>
