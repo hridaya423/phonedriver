@@ -33,6 +33,10 @@ fn main() {
     println!("cargo:rerun-if-changed=../../android-agent/build.sh");
 
     if let Ok(jar) = std::env::var("PHONE_USE_AGENT_JAR") {
+        assert!(
+            Path::new(&jar).is_file(),
+            "PHONE_USE_AGENT_JAR={jar} is not a file; point it at a built phone-use-agent.jar (bash android-agent/build.sh makes one) or unset it"
+        );
         println!("cargo:rustc-env=PHONE_USE_AGENT_JAR={jar}");
         return;
     }
@@ -54,7 +58,10 @@ fn main() {
             .arg(agent.join("build.sh"))
             .status()
             .expect("run android-agent/build.sh");
-        assert!(status.success(), "android-agent/build.sh failed");
+        assert!(
+            status.success(),
+            "android-agent/build.sh failed (its message is above). For a build without Android: cargo build --release -p phone-use --no-default-features"
+        );
     }
     let jar = jar.canonicalize().expect("agent jar after build");
     println!("cargo:rustc-env=PHONE_USE_AGENT_JAR={}", jar.display());
