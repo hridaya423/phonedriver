@@ -80,3 +80,18 @@ Not I2 yet: nothing could be paired or tunneled. What was observed, with `xcrun 
 - It is reachable **only over the network**, not USB: `devicectl` reports `transportType: localNetwork`, `tunnelState: disconnected` when idle (the CoreDevice tunnel exists only while a `devicectl` or `xcodebuild` command holds it), `system_profiler SPUSBDataType` and `ioreg -p IOUSB` list no iPhone, `dns-sd` finds a `_remotepairing._tcp` advertisement and no `_apple-mobdev2._tcp`, and idevice's `UsbmuxdConnection::get_devices()` returned an empty list. The usbmuxd and lockdown path that `crates/ios/src/transport.rs` assumes therefore cannot see this phone. idevice also has a `remote_pairing` module for the network path; it needs its own pairing record, created by a person approving a prompt on the phone, and was not tried.
 - Signing works: the testbed built for `generic/platform=iOS` with `-allowProvisioningUpdates DEVELOPMENT_TEAM=DV6NC6KRYL CODE_SIGN_STYLE=Automatic CODE_SIGN_IDENTITY="Apple Development"` in 10 s, signed by "Apple Development: Mukesh Agrawal (HSLSDPZZDT)", profile "iOS Team Provisioning Profile: *" (wildcard, team Mukesh Agrawal, expires 2027-10-20, lists this UDID). `devicectl device install app` installed `dev.phoneuse.testbed` without a prompt.
 - `devicectl device process launch dev.phoneuse.testbed` failed: `Locked ("Unable to launch dev.phoneuse.testbed because the device was not, or could not be, unlocked")`. The phone is locked with a passcode, and phone-use never enters passcodes, so work stopped here.
+
+## I2: RSD services by iOS version (2026-11-06, task 6.2)
+
+Both devices wired over USB, usbmuxd and lockdown, then `CoreDeviceProxy` over the userspace TCP stack and `RsdHandshake` (`crates/ios/src/transport.rs`, `Tunnel::open`).
+
+| Device | iOS | RSD services | `coredevice.displayservice` | `hid.universalhidservice` | `hid.indigo` | `pasteboardservice` | `axAuditDaemon.remoteAXService` |
+|---|---|---|---|---|---|---|---|
+| iPhone 14 Plus | 26.1 | 83 | listed | listed | listed | listed | listed |
+| iPad Pro 13-inch (M5) | 27.0 | 84 | listed | listed | listed | listed | listed |
+
+Listing is not availability. Starting the display stream on the iPhone (iOS 26.1) fails with "Remote control requires iOS 27.0 or later on this device", so the CoreDevice tier needs iOS 27 and `choose_tier` keeps its `major >= 27` condition. The planning notes' "expect no `universalhidservice` below 27" was wrong: the service is listed on 26.1 and refuses to work. Live discovery (`crates/ios/tests/physical_live.rs`) returns the iPad as `coredevice` and the iPhone as `runner`.
+
+## I3: which codec the device sends (2026-11-06, task 6.2)
+
+On the iPad (iOS 27.0), with idevice's default offer, the device sends **HEVC on payload type 100** (NAL header test of the task plan): idevice is right, go-ios's labels are wrong. With an offer that lists only the H.264 bank, the device accepts and sends **H.264 on payload type 123** at 2736 x 2064 (High profile, level 5.2), and `openh264` decodes it. Decision (D3, architecture 7.2 and 8): offer H.264 only, so one decoder (`openh264`) serves every OS and VideoToolbox is not needed.

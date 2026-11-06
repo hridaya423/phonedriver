@@ -2,6 +2,8 @@
 
 use phone_use_core::error::{Error, Op};
 
+use crate::transport::{self, Identity, Tunnel, Wired};
+
 pub const HID_SERVICE: &str = "com.apple.coredevice.hid.universalhidservice";
 pub const DISPLAY_SERVICE: &str = "com.apple.coredevice.displayservice";
 
@@ -20,15 +22,61 @@ impl Tier {
     }
 }
 
-/// `os_version` is the lockdown `ProductVersion`; `services` are the RSD service names the device lists.
-pub fn choose_tier(os_version: &str, services: &[String]) -> Result<Tier, Error> {
-    let major: u32 = os_version
+/// A wired physical device and the tier phone-use drives it with.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Found {
+    pub udid: String,
+    pub name: String,
+    pub model: String,
+    pub os: String,
+    pub tier: Tier,
+}
+
+/// Every device usbmuxd sees over USB. Only iOS 27 or later devices get a tunnel here, to read their services.
+pub async fn list() -> Result<Vec<Found>, Error> {
+    let gone = |e: &idevice::IdeviceError| transport::classify(&"ios".to_string(), e);
+    let mut out = Vec::new();
+    for device in transport::wired().await.map_err(|e| gone(&e))? {
+        out.push(describe(&device).await?);
+    }
+    Ok(out)
+}
+
+pub async fn describe(device: &Wired) -> Result<Found, Error> {
+    let id = format!("ios:{}", device.udid);
+    let Identity { name, model, os } = transport::identity(device)
+        .await
+        .map_err(|e| transport::classify(&id, &e))?;
+    let services = if major(&os)? >= 27 {
+        Tunnel::open(device)
+            .await
+            .map_err(|e| transport::classify(&id, &e))?
+            .services()
+    } else {
+        Vec::new()
+    };
+    Ok(Found {
+        udid: device.udid.clone(),
+        tier: choose_tier(&os, &services)?,
+        name,
+        model,
+        os,
+    })
+}
+
+fn major(os_version: &str) -> Result<u32, Error> {
+    os_version
         .split('.')
         .next()
         .and_then(|m| m.parse().ok())
         .ok_or_else(|| Error::Transport {
             detail: format!("unreadable iOS version \"{os_version}\""),
-        })?;
+        })
+}
+
+/// `os_version` is the lockdown `ProductVersion`; `services` are the RSD service names the device lists.
+pub fn choose_tier(os_version: &str, services: &[String]) -> Result<Tier, Error> {
+    let major = major(os_version)?;
     let has = |name: &str| services.iter().any(|s| s == name);
     if major >= 27 && has(HID_SERVICE) && has(DISPLAY_SERVICE) {
         Ok(Tier::CoreDevice)
