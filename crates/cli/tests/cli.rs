@@ -77,6 +77,7 @@ impl Env {
                         let mut cmd = vec![0u8; n];
                         s.read_exact(&mut cmd).await.unwrap();
                         let reply = match String::from_utf8(cmd).unwrap().as_str() {
+                            "host:version" => "OKAY00040029".to_string(),
                             "host:devices-l" => format!("OKAY{:04x}{devices}", devices.len()),
                             other if other.starts_with("host:transport:") => {
                                 let msg = "no fake transport";
@@ -267,4 +268,60 @@ fn skill_prints_skill_md_exactly() {
     );
     assert!(want.starts_with("---\nname: phone-use\ndescription: "));
     assert!(want.lines().count() < 150);
+}
+
+fn doctor_output(env: &Env) -> (String, Option<i32>) {
+    let out = env.cmd().arg("doctor").output().unwrap();
+    (String::from_utf8(out.stdout).unwrap(), out.status.code())
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn doctor_fails_the_adb_line_and_names_the_address_it_tried() {
+    let mut env = Env::new("").await;
+    env.adb = "tcp:127.0.0.1:1".into();
+    let (out, code) = doctor_output(&env);
+    let line = out.lines().find(|l| l.contains("adb server")).expect(&out);
+    assert!(line.starts_with("fail"), "{out}");
+    assert!(line.contains("ADB_SERVER_SOCKET=tcp:127.0.0.1:1"), "{out}");
+    assert!(out.contains("fix:"), "{out}");
+    assert_eq!(code, Some(1));
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn doctor_tells_the_user_to_accept_the_usb_debugging_prompt() {
+    let env = Env::new("R5CT123 unauthorized usb:1-1 transport_id:3\n").await;
+    let (out, code) = doctor_output(&env);
+    let adb = out.lines().find(|l| l.contains("adb server")).expect(&out);
+    assert!(adb.starts_with("ok"), "{out}");
+    assert!(
+        adb.contains(&format!("0029 at {}", env.adb.trim_start_matches("tcp:"))),
+        "{out}"
+    );
+    let line = out
+        .lines()
+        .find(|l| l.contains("android:R5CT123"))
+        .expect(&out);
+    assert!(
+        line.starts_with("fail") && line.contains("unauthorized"),
+        "{out}"
+    );
+    assert!(
+        out.contains("accept the USB debugging prompt on the phone"),
+        "{out}"
+    );
+    assert_eq!(code, Some(1));
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn doctor_says_which_step_failed_when_the_agent_cannot_start() {
+    let env = Env::new(DEVICES).await;
+    let (out, code) = doctor_output(&env);
+    assert!(out.contains("ok    android:emulator-5554"), "{out}");
+    let line = out
+        .lines()
+        .find(|l| l.contains("agent android:emulator-5554"))
+        .expect(&out);
+    assert!(line.starts_with("fail"), "{out}");
+    assert!(!out.contains("video android:emulator-5554"), "{out}");
+    assert_eq!(code, Some(1));
 }

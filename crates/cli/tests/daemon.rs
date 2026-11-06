@@ -1462,3 +1462,30 @@ async fn on_a_polled_device_the_first_change_window_starts_when_the_input_is_del
         "{r}"
     );
 }
+
+#[tokio::test(start_paused = true)]
+async fn health_reads_the_tree_and_times_the_next_frame() {
+    let (source, fake) = FakeSource::with(vec![tree(&["One"])]);
+    let (d, _home) = daemon(source);
+    let probe = {
+        let d = d.clone();
+        tokio::spawn(async move { ok(&d, "doctor", "health", json!({})).await })
+    };
+    tokio::time::sleep(Duration::from_millis(150)).await;
+    fake.push_frame(big_frame(1));
+    let r = probe.await.unwrap();
+    assert_eq!(r["id"], "fake:1", "{r}");
+    assert_eq!(r["model"], "Fake");
+    assert_eq!(r["os"], "FakeOS 1");
+    let ms = r["frames_ms"].as_u64().expect("a frame arrived");
+    assert!(ms < 1000, "{r}");
+}
+
+#[tokio::test(start_paused = true)]
+async fn health_says_null_when_no_frame_arrives_within_a_second() {
+    let (source, _fake) = FakeSource::with(vec![tree(&["One"])]);
+    let (d, _home) = daemon(source);
+    let r = ok(&d, "doctor", "health", json!({})).await;
+    assert!(r["frames_ms"].is_null(), "{r}");
+    assert_eq!(r["id"], "fake:1");
+}

@@ -30,6 +30,7 @@ Version mismatch: the daemon replies with error code `-32010 version_mismatch` a
 | `wait` | `device?, condition: WaitCondition, timeout_ms?, expect_change_ms?` | `ActionResult` |
 | `apps` | `device?` | `[App]` (launchable apps: `{id, name, system}`) |
 | `clipboard` | `device?, set?: string` | `{text?: string}` (`{}` after a set; `text` is null when the clipboard is empty) |
+| `health` | `device?` | `{id, model, os, frames_ms}` (what `doctor` needs: connects, reads the tree once, then waits up to 1 s for the next frame; `frames_ms` is null when none came or the device has no frame stream) |
 
 `device` is omitted when exactly one device is connected or a default is set. Every device method also takes `session` (string, default `"default"`); refs, diff baselines and leases belong to the session, not to the socket connection (architecture section 5).
 

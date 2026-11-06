@@ -48,6 +48,8 @@ pub enum Call {
     Find(FindParams),
     Apps,
     Clipboard(ClipboardParams),
+    /// What `doctor` needs: the device answers a tree read, and a frame arrives.
+    Health,
     Release,
     /// Who holds the lease, without taking it.
     Leased,
@@ -350,9 +352,28 @@ impl Actor {
                     None => json!({"text": device.clipboard(ClipboardOp::Get).await?}),
                 }
             }
+            Call::Health => self.health().await?,
             Call::Release | Call::Leased => json!({}),
         };
         Ok(value)
+    }
+
+    async fn health(&mut self) -> Result<Value, Error> {
+        let device = self.device()?;
+        device.tree().await?;
+        let frames_ms = match device.frames() {
+            None => None,
+            Some(mut rx) => {
+                rx.mark_unchanged();
+                let started = Instant::now();
+                match tokio::time::timeout(Duration::from_secs(1), rx.changed()).await {
+                    Ok(Ok(())) => Some(started.elapsed().as_millis() as u64),
+                    _ => None,
+                }
+            }
+        };
+        let info = device.info();
+        Ok(json!({"id": info.id, "model": info.model, "os": info.os, "frames_ms": frames_ms}))
     }
 
     async fn screenshot(&mut self) -> Result<ScreenshotResult, Error> {
