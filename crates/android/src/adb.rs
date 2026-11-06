@@ -187,6 +187,17 @@ impl Adb {
         Ok(parse_devices(&self.host_query("host:devices-l").await?))
     }
 
+    /// `Android 8.0 (API 26)`, from the device's build properties.
+    pub async fn os_label(&self, serial: &str) -> Result<String> {
+        let out = self
+            .shell(
+                serial,
+                "getprop ro.build.version.release; getprop ro.build.version.sdk",
+            )
+            .await?;
+        Ok(os_label(&String::from_utf8_lossy(&out.stdout)))
+    }
+
     pub async fn track_devices(&self) -> Result<DeviceTracker> {
         let mut s = self.connect().await?;
         self.request(&mut s, "host:track-devices-l").await?;
@@ -269,6 +280,17 @@ impl Adb {
     pub async fn open_abstract(&self, serial: &str, name: &str) -> Result<TcpStream> {
         self.transport_stream(serial, &format!("localabstract:{name}"))
             .await
+    }
+}
+
+fn os_label(props: &str) -> String {
+    let mut lines = props.lines().map(str::trim).filter(|l| !l.is_empty());
+    match (lines.next(), lines.next()) {
+        (Some(release), Some(api)) => format!("Android {release} (API {api})"),
+        (Some(api), None) if api.chars().all(|c| c.is_ascii_digit()) => {
+            format!("Android API {api}")
+        }
+        _ => "Android".to_string(),
     }
 }
 
@@ -374,6 +396,13 @@ impl ShellStream {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn the_os_label_names_the_release_and_the_api_level() {
+        assert_eq!(super::os_label("8.0.0\n26\n"), "Android 8.0.0 (API 26)");
+        assert_eq!(super::os_label("26\n"), "Android API 26");
+        assert_eq!(super::os_label(""), "Android");
+    }
+
     use super::*;
 
     #[test]
