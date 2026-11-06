@@ -39,6 +39,8 @@ Each decision records the choice, the alternatives it beat, and the evidence tha
 
 **Codec (2026-11-06, spike I3, iPad iOS 27.0).** The CoreDevice tier offers only the H.264 bank (RTP payload type 123). The device accepts it and sends H.264, High profile, level 5.2, 2736 x 2064, which `openh264` decodes. With idevice's default offer the device sends HEVC on payload type 100 (idevice's labels are right, go-ios's are wrong). One software decoder on every OS beats VideoToolbox plus a fallback. Reopen if a device refuses an H.264-only offer.
 
+**Status (2026-11-06).** The CoreDevice tier is built (stream, HID touch, buttons, keyboard, pasteboard, app service) and its input is proven on the iPad against the testbed's event log, but its screen goes stale (architecture 7.2), so the daemon uses the Runner tier on iOS 27 devices unless `PHONE_USE_IOS_TIER=coredevice`. Reopen the default when the stale stream is solved.
+
 **Floor (2026-11-06, spike I2).** The CoreDevice services are listed on an iPhone with iOS 26.1, but starting the display stream there fails with "Remote control requires iOS 27.0 or later on this device". The CoreDevice tier needs iOS 27; iOS 17 to 26 use the Runner tier.
 
 ## D4. Our own XCTest runner, not WebDriverAgent

@@ -65,13 +65,13 @@ Pairs (prompts the user to tap Trust), reveals the Developer Mode toggle (`amfi`
 
 **Files:** Create `crates/ios/src/coredevice.rs`.
 
-Implements `Device` with: display stream started on lease and kept alive; `frames()` from the video crate; `gesture` via multitouch reports (points → 0..65535, up to 5 fingers, reports paced on a dedicated task with `tokio::time::interval` at 120 Hz); `button`; `text` via pasteboard `set_text` + Cmd+V on the HID keyboard (`Paste`), HID keyboard usages (`Keystrokes`); `apps`/`launch` via `app_service`; `screenshot` from the FrameStore after an RTCP keyframe request; `tree` from the runner when installed, else from the audit service if spike I5 passed, else `Unsupported` (Phase 7 adds OCR).
+Implements `Device` with: display stream started on lease and kept alive; `frames()` from the video crate; `gesture` via multitouch reports (points → 0..65535, up to 5 fingers, reports paced by `gesture` itself with `sleep_until` at 120 Hz (no separate task: nothing else needs the pacing)); `button`; `text` via pasteboard `set_text` + Cmd+V on the HID keyboard (`Paste`), HID keyboard usages (`Keystrokes`); `apps`/`launch` via `app_service`; `screenshot` from the FrameStore after an RTCP keyframe request; `tree` from the runner when installed, else from the audit service if spike I5 passed, else `Unsupported` (Phase 7 adds OCR).
 
 **Live tests:** the iOS testbed, built for the device and signed with the user's team (same as the runner), installed through `installation_proxy`; Phase 5 task 5.5's tests rerun on the device in this tier, minus tree-dependent ones when the runner is absent.
 
 ### Task 6.6: Runner tier on device
 
-Build the runner for the device with the user's team (`xcodebuild build-for-testing -allowProvisioningUpdates DEVELOPMENT_TEAM=<team>`). Install and launch through idevice `xctest` so the same path works without Xcode at runtime. Connect to device port 27753 through the idevice provider (as `services/wda.rs` does). `phone-use devices` shows the runner's profile expiry date.
+Build the runner for the device with the user's team (`xcodebuild build-for-testing -allowProvisioningUpdates DEVELOPMENT_TEAM=<team>`). Install and launch with `xcodebuild test-without-building` (idevice `xctest` is the Xcode-free path and is not built yet). Connect to device port 27753 through the idevice provider (as `services/wda.rs` does). `phone-use devices` shows the runner's profile expiry date.
 
 **Live tests:** Phase 5's iOS live tests pass on the iOS 26.5 device (Runner tier) and, with the runner installed, on the iOS 27 device (CoreDevice tier with tree).
 
