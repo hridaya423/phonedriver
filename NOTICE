@@ -81,10 +81,31 @@ ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ------------------------------------------------------------------------------
-JetBrains Mono
-https://github.com/JetBrains/JetBrainsMono
+Fonts in the brand images
 
-The README brand images in .github/assets/ draw their text from JetBrains Mono,
-converted to outlines. JetBrains Mono is licensed under the SIL Open Font
-License, Version 1.1 (https://openfontlicense.org).
-Copyright 2020 The JetBrains Mono Project Authors.
+The images in .github/assets/ and design/ draw their text from the fonts below,
+converted to outlines. Each is licensed under the SIL Open Font License,
+Version 1.1 (https://openfontlicense.org).
+
+Big Shoulders Display, wordmark and headings
+Copyright 2019 The Big Shoulders Project Authors (https://github.com/xotypeco/big_shoulders)
+
+JetBrains Mono, code, labels and numbers
+Copyright 2020 The JetBrains Mono Project Authors (https://github.com/JetBrains/JetBrainsMono)
+
+Used only in the explored, unchosen logo variants in design/logo-variants/:
+
+Saira Stencil One
+Copyright 2019 The Saira Stencil Project Authors (https://github.com/Omnibus-Type/Saira/SairaStencil)
+
+Archivo
+Copyright 2020 The Archivo Project Authors (https://github.com/Omnibus-Type/Archivo)
+
+Chakra Petch
+Copyright 2018 The Chakra Petch Project Authors (https://github.com/m4rc1e/Chakra-Petch.git)
+
+Oxanium
+Copyright 2019 The Oxanium Project Authors (https://github.com/sevmeyer/oxanium)
+
+Barlow Condensed
+Copyright 2017 The Barlow Project Authors (https://github.com/jpt/barlow)
