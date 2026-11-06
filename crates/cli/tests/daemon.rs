@@ -925,6 +925,27 @@ async fn scroll_until_says_the_list_ended_where_it_ended_after_it_had_moved() {
 }
 
 #[tokio::test(start_paused = true)]
+async fn a_list_end_is_named_by_a_row_never_by_a_floating_toolbar() {
+    let (source, _fake) = FakeSource::with(vec![
+        toolbar_list(300, "General"),
+        toolbar_list(300, "Developer"),
+    ]);
+    let (d, _home) = daemon(source);
+    let e = err(
+        &d,
+        "default",
+        "act",
+        scroll(json!({"until": {"text": "Zebra"}})),
+    )
+    .await;
+    assert!(
+        e.message.contains("ended at \"Developer\""),
+        "not the Toolbar: {}",
+        e.message
+    );
+}
+
+#[tokio::test(start_paused = true)]
 async fn scroll_until_says_the_list_did_not_move_when_nothing_ever_changed() {
     let (source, fake) = FakeSource::with(vec![list_tree(&["Row 998", "Row 999"])]);
     let (d, _home) = daemon(source);
@@ -1793,13 +1814,14 @@ async fn tapping_a_row_whose_center_is_under_a_floating_toolbar_is_off_screen_wi
     );
 }
 
-fn toolbar_list(row_top: i32) -> RawTree {
+fn toolbar_list(row_top: i32, label: &str) -> RawTree {
     let json = format!(
         r#"{{"windows":[{{"id":1,"type":"application","package":"com.example","bounds":[0,0,360,800]}}],"nodes":[
         {{"p":-1,"w":1,"cls":"android.widget.FrameLayout","b":[0,0,360,800],"f":"vVe"}},
         {{"p":0,"w":1,"cls":"androidx.recyclerview.widget.RecyclerView","b":[0,100,360,800],"f":"vVeS","a":["scroll_down"]}},
-        {{"p":1,"w":1,"cls":"android.widget.Button","text":"Developer","b":[0,{row_top},360,{}],"f":"vVe","a":["tap"]}},
-        {{"p":0,"w":1,"cls":"androidx.appcompat.widget.Toolbar","desc":"Toolbar","b":[0,700,360,800],"f":"vVe"}}]}}"#,
+        {{"p":1,"w":1,"cls":"android.widget.Button","text":"{label}","b":[0,{row_top},360,{}],"f":"vVe","a":["tap"]}},
+        {{"p":0,"w":1,"cls":"androidx.appcompat.widget.Toolbar","desc":"Toolbar","b":[0,700,360,800],"f":"vVe"}},
+        {{"p":3,"w":1,"cls":"android.widget.Button","text":"Dictate","b":[10,720,60,780],"f":"vVe","a":["tap"]}}]}}"#,
         row_top + 40
     );
     RawTree::from_android_json(&json, Scale { density: 1.0 }).unwrap()
@@ -1807,7 +1829,10 @@ fn toolbar_list(row_top: i32) -> RawTree {
 
 #[tokio::test(start_paused = true)]
 async fn scroll_until_keeps_going_while_the_target_is_under_the_toolbar() {
-    let (source, fake) = FakeSource::with(vec![toolbar_list(750), toolbar_list(400)]);
+    let (source, fake) = FakeSource::with(vec![
+        toolbar_list(750, "Developer"),
+        toolbar_list(400, "Developer"),
+    ]);
     let (d, _home) = daemon(source);
     let r = ok(
         &d,

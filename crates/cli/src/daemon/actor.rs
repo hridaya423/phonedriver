@@ -1541,10 +1541,20 @@ fn last_label(now: &Rendered, area: Rect, direction: Direction) -> Option<String
         Direction::Right => e.bounds.center().x,
         Direction::Left => -e.bounds.center().x,
     };
+    let in_toolbar = |i: usize| {
+        std::iter::successors(now.parents[i], |&p| now.parents[p])
+            .any(|p| now.elements[p].label.as_deref() == Some("Toolbar"))
+    };
     now.elements
         .iter()
-        .filter(|e| e.role != Role::List && area.contains(e.bounds))
-        .filter(|e| e.label.is_some())
+        .enumerate()
+        .filter(|(i, e)| {
+            !matches!(e.role, Role::List | Role::Other)
+                && area.contains(e.bounds)
+                && e.label.is_some()
+                && !in_toolbar(*i)
+        })
+        .map(|(_, e)| e)
         .max_by(|a, b| along(a).total_cmp(&along(b)))
         .and_then(|e| e.label.clone())
 }
