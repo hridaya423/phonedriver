@@ -246,7 +246,7 @@ pub trait Device: Send + Sync {
 
 ## 5. Daemon (`crates/cli/src/daemon`)
 
-- **Socket.** `$XDG_RUNTIME_DIR/phone-use/daemon.sock`, else `~/.phone-use/run/daemon.sock` (Unix), or the named pipe `\\.\pipe\phone-use-<user>` (Windows), via the `interprocess` crate. Directory mode 0700; on Windows the pipe's security descriptor grants only the current user. No TCP listener. `PHONE_USE_SOCKET` overrides the path. Remote use goes through `ssh -L` socket forwarding (zero network code, README).
+- **Socket.** `$XDG_RUNTIME_DIR/phone-use/daemon.sock`, else `~/.phone-use/run/daemon.sock` (Unix), or the named pipe `\\.\pipe\phone-use-<user>` (Windows), via the `interprocess` crate. Directory mode 0700; on Windows the pipe's security descriptor grants only the current user. No TCP listener. `PHONE_USE_SOCKET` overrides the path. Remote use goes through `ssh -L` socket forwarding (zero network code, README). The CLI's `screenshot` prints a path on the daemon's machine; the MCP tool returns the image.
 - **Start.** The CLI connects; on `ENOENT`/`ECONNREFUSED` it spawns `phone-use daemon --detach`, then waits for the daemon's readiness line on an inherited pipe (not a sleep), up to 3 s.
 - **Version.** First message is `hello { version }`. On mismatch the CLI sends `shutdown` and starts its own version.
 - **Idle exit.** No clients and no leases for 15 minutes.

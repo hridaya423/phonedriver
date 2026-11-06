@@ -119,8 +119,14 @@ impl Client {
             match Self::open(path, session).await {
                 Ok(c) => return Ok(c),
                 Err(e) if tokio::time::Instant::now() >= deadline => {
+                    let remote = std::env::var_os("PHONE_USE_SOCKET").map_or_else(String::new, |v| {
+                        format!(
+                            " (PHONE_USE_SOCKET={}; if it is an ssh forward, check that the ssh process is still running)",
+                            v.to_string_lossy()
+                        )
+                    });
                     return Err(Failure::Local(format!(
-                        "the daemon did not start listening on {}: {e}",
+                        "the daemon did not start listening on {}: {e}{remote}",
                         path.display()
                     )));
                 }

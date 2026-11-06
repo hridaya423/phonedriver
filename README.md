@@ -67,6 +67,20 @@ The server has ten tools: `devices`, `snapshot`, `screenshot`, `tap`, `type`, `s
 
 Typed secrets (`phone-use type --secret`, or `secret: true` over MCP) never reach logs, traces or replies. phone-use sends no telemetry. It talks to the device and nothing else.
 
+## Use a device on another machine
+
+The daemon listens on a Unix socket and nowhere else. To drive a simulator or phone that is plugged into another machine, forward that socket over `ssh` and point the CLI at the local end:
+
+```sh
+ssh -N -L /tmp/phone-use-mini.sock:/Users/you/.phone-use/run/daemon.sock mini &
+export PHONE_USE_SOCKET=/tmp/phone-use-mini.sock
+phone-use snapshot
+```
+
+On the other machine, run any `phone-use` command once, or `phone-use daemon`, so that the socket exists. Both machines need the same `phone-use` version. If the forward is down, the error names `PHONE_USE_SOCKET`.
+
+Two things differ from a local run. `phone-use screenshot` prints a path on the machine that has the device; fetch the file with `ssh mini cat <path> > shot.png`. The MCP `screenshot` tool returns the image itself, so it works unchanged.
+
 ## Speed
 
 phone-use against phone-harness 0.3.3 on an Android 17 emulator, median of 50 runs (`docs/bench/m1.md`).
