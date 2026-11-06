@@ -1,4 +1,4 @@
-//! System alerts: windows the system, not the foreground app, put over the screen (decision D22).
+//! System alerts: windows the system, not the foreground app, put over the screen (decision D23).
 
 use serde::{Deserialize, Serialize};
 

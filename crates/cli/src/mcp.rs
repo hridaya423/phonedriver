@@ -636,7 +636,7 @@ impl Mcp {
     }
 
     #[tool(
-        description = "Open an app (`app`: name, package or bundle id) or a web or deep link (`url`) and return its first screen. When no app has the name, `apps` lists names. An app reopens where it was left. `grant` (with `app`) grants runtime permissions first so their dialog never appears: `notifications`, `camera`, `location` or a permission name; on a physical phone only for apps phone-use installed. One call at a time."
+        description = "Open an app (`app`: name, package or bundle id) or a web or deep link (`url`) and return its first screen. When no app has the name, `apps` lists names. An app reopens where it was left. `grant` pre-allows permissions so no dialog shows. One call at a time."
     )]
     async fn launch(&self, Parameters(a): Parameters<LaunchArgs>) -> CallToolResult {
         let device = a.device.clone();
