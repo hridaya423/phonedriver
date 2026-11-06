@@ -102,3 +102,5 @@ Avoid stock Contacts: on a fresh emulator it raises Google account and sync prom
 ## Phase gate
 
 M2 met. Every row of architecture 6.3 has a passing test. `progress.md` updated.
+
+**Changed after the agent-experience audit (`docs/audits/ax-audit.md`, finding 1):** a fling moves nothing on the polled iOS runner, so `scroll --until` flings only on a device with a frame stream (`FRAMES`); elsewhere it drags one screen at a time, and without `--max` the limit grows with a numbered target's distance. The end of the search is the `NotReached` error (-32016), not `NotFound`: it says how many times it scrolled and whether the list ended (at which row), never moved, or hit the limit.

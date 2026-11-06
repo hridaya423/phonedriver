@@ -13,7 +13,7 @@ use phone_use_core::device::{
 };
 use phone_use_core::diff::{DiffOrFull, diff};
 use phone_use_core::element::{Actions, Element, ElementState, Ref, Role, Source};
-use phone_use_core::error::{Direction, Error, Op, UserAction};
+use phone_use_core::error::{Direction, Error, Op, ScrollEnd, UserAction};
 use phone_use_core::geometry::{Point, Rect, Size};
 use phone_use_core::gesture;
 use phone_use_core::ocr::{merge, tree_is_hollow};
@@ -897,16 +897,8 @@ impl Actor {
                     Op::Gesture,
                     "this device cannot inject touches",
                 )?;
-                self.scroll(
-                    s,
-                    p.settle,
-                    cfg,
-                    direction,
-                    within,
-                    until,
-                    max.unwrap_or(30),
-                )
-                .await
+                self.scroll(s, p.settle, cfg, direction, within, until, max)
+                    .await
             }
             Action::Press { key } => {
                 let started = self.begin_action();
@@ -1057,7 +1049,7 @@ impl Actor {
         direction: Direction,
         within: Option<Target>,
         until: Option<Target>,
-        max: u32,
+        max: Option<u32>,
     ) -> Result<ActionResult, Error> {
         let device = self.device()?;
         let mut now = self.fresh(s).await?;
@@ -1078,7 +1070,10 @@ impl Actor {
         };
         let mut gestures = 0u32;
         let mut idle = 0u32;
+        let mut moved_any = false;
         let mut last = None;
+        let may_fling = device.info().capabilities.contains(Capabilities::FRAMES);
+        let max = max.unwrap_or_else(|| default_scroll_limit(&until, &now, direction));
         loop {
             match s.resolve(&until, &now) {
                 Ok(found) => {
@@ -1112,21 +1107,31 @@ impl Actor {
                 Err(Error::NotFound { .. } | Error::StaleRef { .. }) => {}
                 Err(e) => return Err(e),
             }
+            let query = || match &until {
+                Target::Text { text, .. } => text.clone(),
+                Target::Ref { r#ref } => format!("@{}", r#ref),
+                Target::Point { .. } => "the target".into(),
+            };
             if idle >= 2 {
-                let query = match &until {
-                    Target::Text { text, .. } => text.clone(),
-                    Target::Ref { r#ref } => format!("@{}", r#ref),
-                    Target::Point { .. } => "the target".into(),
-                };
-                return Err(Error::NotFound {
-                    query,
-                    similar: Vec::new(),
+                return Err(Error::NotReached {
+                    query: query(),
+                    scrolls: gestures,
+                    end: if moved_any {
+                        ScrollEnd::Ended
+                    } else {
+                        ScrollEnd::Stuck
+                    },
+                    last: moved_any
+                        .then(|| last_label(&now, area, direction))
+                        .flatten(),
                 });
             }
             if gestures >= max {
-                return Err(Error::Timeout {
-                    waited_ms: 0,
-                    condition: format!("the target to scroll into view within {max} gestures"),
+                return Err(Error::NotReached {
+                    query: query(),
+                    scrolls: gestures,
+                    end: ScrollEnd::Limit,
+                    last: None,
                 });
             }
             let started = self.begin_action();
@@ -1141,7 +1146,8 @@ impl Actor {
                 }
                 None => (direction, false),
             };
-            let g = if far {
+            // A fling moves nothing on the iOS runner, so a device without a frame stream scrolls one drag at a time.
+            let g = if far && may_fling {
                 gesture::fling(area, dir)
             } else {
                 gesture::scroll(area, dir)
@@ -1152,6 +1158,7 @@ impl Actor {
             let next = self.fresh(s).await?;
             let moved = !matches!(diff(&now, &next), DiffOrFull::Diff(c) if c.is_empty());
             idle = if moved { 0 } else { idle + 1 };
+            moved_any |= moved;
             now = next;
         }
     }
@@ -1453,6 +1460,29 @@ fn numbered_distance(
         return None;
     };
     Some((behind, rows, max - min + 1))
+}
+
+/// Without `max`, 30 scrolls, or enough one-screen drags to cross the rows a numbered target is away.
+fn default_scroll_limit(until: &Target, now: &Rendered, direction: Direction) -> u32 {
+    let drags = numbered_distance(until, now, direction)
+        .map_or(0, |(_, rows, span)| (rows / span.max(1) * 2 + 10).min(300));
+    30.max(u32::try_from(drags).unwrap_or(30))
+}
+
+/// The label of the last element in `direction` inside `area`.
+fn last_label(now: &Rendered, area: Rect, direction: Direction) -> Option<String> {
+    let along = |e: &&Element| match direction {
+        Direction::Down => e.bounds.center().y,
+        Direction::Up => -e.bounds.center().y,
+        Direction::Right => e.bounds.center().x,
+        Direction::Left => -e.bounds.center().x,
+    };
+    now.elements
+        .iter()
+        .filter(|e| e.role != Role::List && area.contains(e.bounds))
+        .filter(|e| e.label.is_some())
+        .max_by(|a, b| along(a).total_cmp(&along(b)))
+        .and_then(|e| e.label.clone())
 }
 
 /// The largest element that scrolls along the axis of `direction`.

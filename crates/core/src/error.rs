@@ -45,6 +45,45 @@ impl Direction {
     }
 }
 
+/// Why a search by scrolling stopped without finding its target.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ScrollEnd {
+    /// The list moved, then stopped moving: its end.
+    Ended,
+    /// The list never moved.
+    Stuck,
+    /// The scroll limit came first.
+    Limit,
+}
+
+fn times(n: u32) -> String {
+    if n == 1 {
+        "1 time".into()
+    } else {
+        format!("{n} times")
+    }
+}
+
+fn not_reached(query: &str, scrolls: u32, end: ScrollEnd, last: Option<&str>) -> String {
+    match end {
+        ScrollEnd::Ended => {
+            let at = last.map_or_else(String::new, |l| format!(" at \"{l}\""));
+            format!(
+                "scrolled {} and the list ended{at}; \"{query}\" is not in it",
+                times(scrolls)
+            )
+        }
+        ScrollEnd::Stuck => {
+            format!("the list did not move after {scrolls} scrolls; \"{query}\" not found")
+        }
+        ScrollEnd::Limit => format!(
+            "scrolled {} and \"{query}\" is still not on screen",
+            times(scrolls)
+        ),
+    }
+}
+
 /// The operations a session can ask a device for.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -198,6 +237,14 @@ pub enum Error {
     },
     #[error("timed out after {waited_ms} ms waiting for {condition}")]
     Timeout { waited_ms: u32, condition: String },
+    #[error("{}", not_reached(query, *scrolls, *end, last.as_deref()))]
+    NotReached {
+        query: String,
+        scrolls: u32,
+        end: ScrollEnd,
+        /// The label of the last row in the scroll direction, when the list ended.
+        last: Option<String>,
+    },
     #[error("another UiAutomation client ({holder}) owns the accessibility bridge")]
     AutomationConflict { holder: String },
     #[error("connection error: {detail}")]
@@ -230,6 +277,7 @@ impl Error {
             Error::Timeout { .. } => -32013,
             Error::AutomationConflict { .. } => -32014,
             Error::Transport { .. } => -32015,
+            Error::NotReached { .. } => -32016,
         }
     }
 
@@ -282,6 +330,18 @@ impl Error {
             Error::Timeout { .. } => {
                 "Increase `--timeout`, or run `phone-use snapshot` to check the screen.".into()
             }
+            Error::NotReached {
+                end: ScrollEnd::Ended,
+                ..
+            } => "Scroll the other way if it may be earlier in the list, or run `phone-use snapshot` to see where the list ended.".into(),
+            Error::NotReached {
+                end: ScrollEnd::Stuck,
+                ..
+            } => "Use `--in <list ref>` to name the list that should scroll, or run `phone-use snapshot`.".into(),
+            Error::NotReached {
+                end: ScrollEnd::Limit,
+                ..
+            } => "Increase `--max` to keep scrolling, or run `phone-use snapshot` to see where the list is.".into(),
             Error::AutomationConflict { holder } => {
                 format!("Stop {holder}, then retry the command.")
             }
@@ -393,6 +453,24 @@ mod tests {
                 waited_ms: 10_000,
                 condition: "appears \"Done\"".into(),
             },
+            Error::NotReached {
+                query: "Safari".into(),
+                scrolls: 3,
+                end: ScrollEnd::Ended,
+                last: Some("Developer".into()),
+            },
+            Error::NotReached {
+                query: "Row 640".into(),
+                scrolls: 2,
+                end: ScrollEnd::Stuck,
+                last: None,
+            },
+            Error::NotReached {
+                query: "Row 640".into(),
+                scrolls: 30,
+                end: ScrollEnd::Limit,
+                last: None,
+            },
             Error::AutomationConflict {
                 holder: "io.appium.uiautomator2.server".into(),
             },
@@ -424,6 +502,7 @@ mod tests {
             Error::Timeout { .. } => (-32013, "timeout"),
             Error::AutomationConflict { .. } => (-32014, "automation_conflict"),
             Error::Transport { .. } => (-32015, "transport"),
+            Error::NotReached { .. } => (-32016, "not_reached"),
         }
     }
 

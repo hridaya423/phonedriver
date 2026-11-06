@@ -67,6 +67,12 @@ impl FakeDevice {
         }
     }
 
+    /// The same device without some capabilities, as the polled iOS tier lacks `FRAMES`.
+    pub fn lacking(mut self, caps: Capabilities) -> FakeDevice {
+        self.info.capabilities -= caps;
+        self
+    }
+
     /// The screen size `current_screen()` reports from now on, as a device that follows its own rotation does.
     pub fn rotate_to(&self, screen: Size) {
         *lock(&self.display) = Some(screen);
