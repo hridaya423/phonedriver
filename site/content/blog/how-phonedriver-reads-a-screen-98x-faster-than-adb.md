@@ -92,7 +92,7 @@ phone-harness ran in process, which spares it a Python start per call and favour
 
 ## What the numbers do not show
 
-- **The bare tap.** This is the weak row. Host to reply it is 175.6 ms when taps come back to back (1.1 times faster than adb) and 61.6 ms when they are 1.5 s apart (1.7 times). On the device, from send to the app's touch listener, phonedriver takes 27.5 ms against adb's 71.2 ms. Our tap misses its 15 ms budget, and typing 100 characters misses its 150 ms budget at 251.1 ms.
+- **The bare tap.** This is the weak row. Host to reply it is 117.6 ms when taps come back to back (2.1 times faster than adb) and 72.4 ms when they are 1.5 s apart (1.6 times). On the device, from send to the app's touch listener, phonedriver takes 27.5 ms against adb's 71.2 ms. Our tap misses its 15 ms budget, and typing 100 characters misses its 150 ms budget at 251.1 ms.
 - **Different outputs.** adb's tap returns before the app reacts. phonedriver's waits. For "tap, then what changed" the adb row is a tap, a dump and a diff in the caller: 2,725.8 ms against 586.9 ms, 4.6 times.
 - **Emulator only.** No physical Android phone is in this run, and no iOS device. On the iOS 26.5 Simulator a tap takes 357 ms against 80 ms for the Simulator's own tool, because XCTest takes about 240 ms to confirm an event. On an iPhone 14 Plus and an iPad Pro it takes 534 and 454 ms.
 - **Absolute times move with load.** Typing 100 characters ran in two passes at different host load, and gave 20.4 times (32% load) and 19.3 times (20%). phone-harness's 100-character typing took 2,104.5 ms in M1 and 5,523.3 ms here. Absolute numbers are for this host.

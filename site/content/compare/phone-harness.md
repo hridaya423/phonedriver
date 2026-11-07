@@ -18,8 +18,8 @@ p50 of 50 runs after 20 warm-ups, Android 17 emulator, both tools on the emulato
 | Screenshot | 11.6 ms | 570.5 ms | 49x (47.5 to 51.4) |
 | UI tree, Settings | 89.3 ms | 2,700.0 ms | 30x (28.5 to 30.8) |
 | Type 100 characters | 251.1 ms | 5,523.3 ms | 22x (19.4 to 25.2) |
-| Tap, 1.5 s apart | 61.6 ms | 319.7 ms | 5.2x (4.7 to 5.6) |
-| Tap, back to back | 175.6 ms | 232.5 ms | 1.3x (1.2 to 1.5) |
+| Tap, 1.5 s apart | 72.4 ms | 342.9 ms | 4.7x (4.4 to 5.2) |
+| Tap, back to back | 117.6 ms | 289.0 ms | 2.5x (1.4 to 3.4) |
 | Tap, then what changed | 586.9 ms | not supported | |
 
 phone-harness cannot type Unicode, and has no equivalent of a settled diff. Fresh process to first screen read: phonedriver 1,620.5 ms, phone-harness 2,999.4 ms.
