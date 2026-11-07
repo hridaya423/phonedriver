@@ -27,39 +27,32 @@ pub struct Mcp {
 #[derive(Deserialize, JsonSchema)]
 struct BatchArgs {
     device: Option<String>,
-    /// Objects of `tool` (tap, type, swipe, scroll, press, launch, wait) plus that tool's arguments, such as {"tool":"tap","target":"@e3"}.
     steps: Vec<serde_json::Value>,
-    /// Give up on a step's settle or wait after this many ms. Default 5000.
     timeout_ms: Option<u64>,
 }
 
 #[derive(Deserialize, JsonSchema)]
 struct AppsArgs {
     device: Option<String>,
-    /// `install` (file path in `app`), `stop`, `clear` (data) or `uninstall`. Omit to list.
     action: Option<String>,
-    /// Name or id.
     app: Option<String>,
 }
 
 #[derive(Deserialize, JsonSchema)]
 struct DevicesArgs {
     device: Option<String>,
-    /// Give up this session's hold on the device so another session can use it.
     release: Option<bool>,
 }
 
 #[derive(Deserialize, JsonSchema)]
 struct ScreenshotArgs {
     device: Option<String>,
-    /// Draw a box and the `@eN` ref on every element that can be tapped or typed into, so you can say `tap @e12` from the picture.
     marks: Option<bool>,
 }
 
 #[derive(Deserialize, JsonSchema)]
 struct ClipboardArgs {
     device: Option<String>,
-    /// Put this text on the clipboard. Omit it to read the clipboard.
     set: Option<String>,
 }
 
@@ -93,7 +86,6 @@ struct SnapshotArgs {
     max_lines: Option<u32>,
     /// Read the pixels with OCR and add text the tree lacks (automatic when the tree is empty).
     pixels: Option<bool>,
-    /// List only lines containing this text.
     find: Option<String>,
 }
 
@@ -107,7 +99,6 @@ struct TapArgs {
     role: Option<String>,
     /// Tap this many times; 2 is a double tap.
     count: Option<u32>,
-    /// Hold the press for this many milliseconds.
     long: Option<u32>,
 }
 
@@ -120,11 +111,10 @@ struct TypeArgs {
     into: Option<String>,
     /// `paste` (default), `set` (Android: set the field's value) or `keys` (one key at a time, ASCII only on Android).
     mode: Option<String>,
-    /// Press enter afterwards.
+    /// Then press enter.
     submit: Option<bool>,
     /// With `into`, add to the field's text instead of replacing it.
     append: Option<bool>,
-    /// Never shown back or logged.
     secret: Option<bool>,
 }
 
@@ -134,11 +124,9 @@ struct SwipeArgs {
     device: Option<String>,
     /// up, down, left or right.
     direction: Option<String>,
-    /// Start target; default the screen's center.
+    /// Start; default the screen's center.
     from: Option<String>,
-    /// Drag `from` to this target.
     to: Option<String>,
-    /// `out` or `in`.
     pinch: Option<String>,
     /// Share of the screen to cross, 0 to 1. Default 0.5.
     distance: Option<f32>,
@@ -154,7 +142,6 @@ struct ScrollArgs {
     direction: String,
     /// The list to scroll: an @ref. Default is the largest scrollable element.
     r#in: Option<String>,
-    /// Text or @ref to scroll to.
     until: Option<String>,
     /// Give up after this many scrolls. Default 30.
     max: Option<u32>,
@@ -171,11 +158,8 @@ struct PressArgs {
 #[serde(deny_unknown_fields)]
 struct LaunchArgs {
     device: Option<String>,
-    /// Name, package or bundle id.
     app: Option<String>,
-    /// Link to open.
     url: Option<String>,
-    /// With `app`: runtime permissions to grant first so their dialog never appears, such as `notifications`, `camera`, `location`.
     grant: Option<Vec<String>>,
 }
 
@@ -475,7 +459,7 @@ impl Mcp {
     }
 
     #[tool(
-        description = "Run a device shell command: exit code, output and screen change in one call. Prefer it for settings: `cmd uimode night yes`, `settings put system screen_brightness 20`, `am start -a android.intent.action.VIEW -d <url>`. Simulator: `simctl ui appearance dark`. A physical iPhone has no shell."
+        description = "Run a device shell command: exit code, output, screen change. Prefer it for settings: `cmd uimode night yes`, `settings put system screen_brightness 20`, `am start -a android.intent.action.VIEW -d <url>`. Simulator: `simctl ui appearance dark`. A physical iPhone has no shell."
     )]
     async fn shell(&self, Parameters(a): Parameters<ShellArgs>) -> CallToolResult {
         let secret = a.secret.unwrap_or(false);
@@ -497,7 +481,7 @@ impl Mcp {
             .await
     }
 
-    #[tool(description = "Read the device clipboard, or set it with `set`.")]
+    #[tool(description = "Read the clipboard, or `set` it.")]
     async fn clipboard(&self, Parameters(a): Parameters<ClipboardArgs>) -> CallToolResult {
         let verb = Verb::Clipboard {
             action: a.set.as_ref().map(|_| "set".to_string()),
@@ -507,7 +491,7 @@ impl Mcp {
     }
 
     #[tool(
-        description = "List launchable apps (`name  id`), or with `action` install, stop, clear or uninstall one."
+        description = "List apps (`name  id`), or `action` install (file in `app`), stop, clear (data) or uninstall."
     )]
     async fn apps(&self, Parameters(a): Parameters<AppsArgs>) -> CallToolResult {
         let verb = Verb::Apps {
@@ -518,7 +502,7 @@ impl Mcp {
     }
 
     #[tool(
-        description = "The screen as lines like `@e4 button \"Save\"`; refs name elements for the other tools. `find` lists only matching lines. `under-keyboard` means hidden by the keyboard."
+        description = "The screen as lines like `@e4 button \"Save\"`; refs name elements for other tools. `find` lists matching lines. `under-keyboard` = hidden by the keyboard."
     )]
     async fn snapshot(&self, Parameters(a): Parameters<SnapshotArgs>) -> CallToolResult {
         if let Some(text) = a.find {
@@ -539,7 +523,7 @@ impl Mcp {
     }
 
     #[tool(
-        description = "Image of the screen for what the snapshot lacks (canvas, map, photo). `marks` boxes each tappable element with its @ref."
+        description = "Image of the screen, for what the snapshot lacks (canvas, map, photo). `marks` boxes tappable elements with their @ref."
     )]
     async fn screenshot(&self, Parameters(a): Parameters<ScreenshotArgs>) -> CallToolResult {
         let marks = a.marks.unwrap_or(false);
@@ -576,7 +560,7 @@ impl Mcp {
     }
 
     #[tool(
-        description = "Tap by @ref, text or x,y points (from a screenshot). Returns what changed. One call at a time."
+        description = "Tap by @ref, text or x,y point (from a screenshot). `long` holds the press that many ms (context menus)."
     )]
     async fn tap(&self, Parameters(a): Parameters<TapArgs>) -> CallToolResult {
         let device = a.device.clone();
@@ -585,7 +569,7 @@ impl Mcp {
 
     #[tool(
         name = "type",
-        description = "Put text in a field (it replaces the content) and report what the field shows; empty text clears. `secret` for a password or code the user gave. One call at a time."
+        description = "Put text in a field (replaces its content) and report what it shows; empty text clears. `secret` for a password or code the user gave."
     )]
     async fn r#type(&self, Parameters(a): Parameters<TypeArgs>) -> CallToolResult {
         let secret = a.secret.unwrap_or(false);
@@ -607,7 +591,7 @@ impl Mcp {
     }
 
     #[tool(
-        description = "A finger gesture: flip pages, dismiss. `to` drags `from` to a target; `pinch` zooms. Use `scroll` for lists. One call at a time."
+        description = "A finger gesture: flip pages, dismiss. `to` drags `from` to a target; `pinch` (in, out) zooms. Use `scroll` for lists."
     )]
     async fn swipe(&self, Parameters(a): Parameters<SwipeArgs>) -> CallToolResult {
         let device = a.device.clone();
@@ -617,23 +601,21 @@ impl Mcp {
         }
     }
 
-    #[tool(
-        description = "Scroll toward more content, or until the text or @ref in `until` shows. One call at a time."
-    )]
+    #[tool(description = "Scroll toward more content, or until the text or @ref in `until` shows.")]
     async fn scroll(&self, Parameters(a): Parameters<ScrollArgs>) -> CallToolResult {
         let device = a.device.clone();
         self.run(device, a.verb(), None).await
     }
 
     #[tool(
-        description = "Press a key: home, back, recents, notifications, lock, volume-up, volume-down, enter, hide-keyboard. Returns what changed. One call at a time."
+        description = "Press home, back, recents, notifications, lock, volume-up, volume-down, enter or hide-keyboard."
     )]
     async fn press(&self, Parameters(a): Parameters<PressArgs>) -> CallToolResult {
         self.run(a.device, Verb::Press { key: a.key }, None).await
     }
 
     #[tool(
-        description = "Open an app (`app`: name, package or bundle id) or a link (`url`); returns its first screen. `apps` lists names. `grant` pre-allows permissions. One call at a time."
+        description = "Open an app (name, package or bundle id) or a `url`; returns its first screen. `grant` pre-allows permissions (`camera`, `notifications`)."
     )]
     async fn launch(&self, Parameters(a): Parameters<LaunchArgs>) -> CallToolResult {
         let device = a.device.clone();
@@ -643,7 +625,9 @@ impl Mcp {
         }
     }
 
-    #[tool(description = "Run steps in order and get one diff; stops at the first failure.")]
+    #[tool(
+        description = "Run steps in order, one diff back; stops at the first failure. A step is {\"tool\":\"tap\",\"target\":\"@e3\"}: tap, type, swipe, scroll, press, launch or wait."
+    )]
     async fn batch(&self, Parameters(a): Parameters<BatchArgs>) -> CallToolResult {
         let mut steps = Vec::new();
         for (i, step) in a.steps.into_iter().enumerate() {
@@ -681,7 +665,7 @@ impl Mcp {
 
 #[tool_handler(
     name = "phone-use",
-    instructions = "Operate an Android or iOS device. Settings and system actions: `shell`. App UI: `snapshot` once, then act on its @refs with `tap`, `type` and `scroll`; each action returns what changed. `batch` runs several steps. Send calls one at a time on the shared screen. If an error needs the user to act on the device, say so and continue when they are done. Passwords, payments, sending and deleting need the user's word for this task."
+    instructions = "Operate an Android or iOS device. System settings: `shell`. App UI: `snapshot` once, then act on its @refs; each action returns what changed. Send calls one at a time on the shared screen. If an error needs the user to act on the device, say so and go on when they are done. Passwords, payments, sending and deleting need the user's word for this task."
 )]
 impl ServerHandler for Mcp {
     async fn list_tools(
@@ -711,11 +695,15 @@ impl ServerHandler for Mcp {
 /// boilerplate, and `null` in the type of an optional argument (an argument left out is already none).
 fn slim_schema(schema: &mut serde_json::Map<String, serde_json::Value>) {
     schema.remove("$schema");
+    schema.remove("additionalProperties");
     slim_value(schema);
 }
 
 fn slim_value(m: &mut serde_json::Map<String, serde_json::Value>) {
     m.remove("format");
+    if m.get("items") == Some(&json!(true)) {
+        m.remove("items");
+    }
     if m.get("minimum") == Some(&json!(0)) {
         m.remove("minimum");
     }

@@ -431,7 +431,7 @@ async fn the_tool_list_every_turn_re_reads_fits_a_budget_and_hides_what_agents_n
         .iter()
         .map(|t| serde_json::to_string(t).unwrap().len())
         .sum();
-    assert!(total < 5_400, "tools/list is {total} characters");
+    assert!(total < 4_300, "tools/list is {total} characters");
     for t in &tools {
         let text = serde_json::to_string(&*t.input_schema).unwrap();
         for hidden in ["\"device\"", "\"max_lines\"", "\"role\"", "\"distance\""] {
@@ -453,17 +453,26 @@ async fn the_server_tells_the_agent_that_calls_share_one_screen() {
         text.contains("one at a time") && text.contains("shared screen"),
         "{text}"
     );
+}
+
+#[tokio::test]
+async fn what_the_lean_list_leaves_out_is_still_named_where_an_agent_looks() {
+    let rig = rig(vec![tree(&["One"])]).await;
     let tools = rig.client.list_all_tools().await.unwrap();
-    for name in ["tap", "type", "swipe", "scroll", "press", "launch"] {
+    let text = |name: &str| {
         let t = tools.iter().find(|t| t.name == name).unwrap();
-        assert!(
-            t.description
-                .as_deref()
-                .unwrap_or_default()
-                .contains("One call at a time"),
-            "{name}"
-        );
-    }
+        serde_json::to_string(t).unwrap()
+    };
+    assert!(text("tap").contains("long"), "{}", text("tap"));
+    assert!(text("type").contains("secret"), "{}", text("type"));
+    assert!(text("devices").contains("`device`"), "{}", text("devices"));
+    assert!(text("launch").contains("grant"), "{}", text("launch"));
+    assert!(
+        text("screenshot").contains("marks"),
+        "{}",
+        text("screenshot")
+    );
+    assert!(text("scroll").contains("until"), "{}", text("scroll"));
 }
 
 #[tokio::test]
