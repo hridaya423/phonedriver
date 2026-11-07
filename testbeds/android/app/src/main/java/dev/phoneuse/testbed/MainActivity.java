@@ -18,7 +18,7 @@ import android.widget.LinearLayout;
 
 public final class MainActivity extends androidx.activity.ComponentActivity {
     private static final String[] TABS = {
-        "taps", "text", "list", "gestures", "busy", "secure", "dialogs", "web", "settle", "wait", "compose", "checkout"
+        "taps", "text", "list", "gestures", "busy", "secure", "dialogs", "web", "settle", "wait", "compose", "checkout", "signup", "shop", "relay", "relaylog", "drain"
     };
 
     private FrameLayout content;
@@ -141,6 +141,11 @@ public final class MainActivity extends androidx.activity.ComponentActivity {
             case "settle": screen = Screens.settle(this); break;
             case "wait": screen = Screens.waiting(this); break;
             case "checkout": screen = Screens.checkout(this); break;
+            case "signup": screen = Buggy.signup(this); break;
+            case "shop": screen = Buggy.shop(this); break;
+            case "relay": screen = Buggy.relay(this, true); break;
+            case "relaylog": screen = Buggy.relay(this, false); break;
+            case "drain": screen = Buggy.drain(this); break;
             case "compose": screen = ComposeScreen.create(this); break;
             case "latefocus": screen = Screens.lateFocus(this); break;
             case "hollow":
