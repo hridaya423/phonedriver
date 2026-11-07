@@ -84,11 +84,17 @@ final class Accessibility {
     }
 
     private static void clearCache() throws Exception {
-        if (Build.VERSION.SDK_INT >= 33) {
+        if (Build.VERSION.SDK_INT >= 34) {
             automation.clearCache();
             return;
         }
         Class<?> cls = Class.forName("android.view.accessibility.AccessibilityInteractionClient");
+        if (Build.VERSION.SDK_INT >= 31) {
+            java.lang.reflect.Field id = automation.getClass().getDeclaredField("mConnectionId");
+            id.setAccessible(true);
+            cls.getMethod("clearCache", int.class).invoke(cls.getMethod("getInstance").invoke(null), id.getInt(automation));
+            return;
+        }
         cls.getMethod("clearCache").invoke(cls.getMethod("getInstance").invoke(null));
     }
 
