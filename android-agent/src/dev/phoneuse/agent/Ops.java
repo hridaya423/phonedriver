@@ -32,7 +32,7 @@ final class Ops {
                 return r;
             case "open_url":
                 Input.collapsePanels();
-                return Json.put(r, "package", Apps.openUrl(q.getString("url"), q.optString("package", null)));
+                return Json.put(r, "package", Apps.openUrl(q.getString("url"), q.isNull("package") ? null : q.getString("package")));
             case "notifications":
                 Input.expandNotifications();
                 return r;
