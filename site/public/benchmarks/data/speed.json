@@ -6,39 +6,39 @@
   {
    "id": "tap",
    "label": "Tap, back to back",
-   "phone_use": 175.6,
-   "phone_use_p95": 229.7,
-   "phone_harness": 232.5,
-   "phone_harness_p95": 684.1,
-   "adb": 199.5,
-   "adb_p95": 272.3,
+   "phone_use": 117.6,
+   "phone_use_p95": 321.2,
+   "phone_harness": 289.0,
+   "phone_harness_p95": 863.1,
+   "adb": 250.5,
+   "adb_p95": 346.0,
    "adb_ratio_ci": [
-    1.06,
-    1.27
+    1.22,
+    2.95
    ],
-   "headline_adb": 1.14,
+   "headline_adb": 1.22,
    "phone_harness_ratio_ci": [
-    1.16,
-    1.46
+    1.41,
+    3.42
    ]
   },
   {
    "id": "tap_paced",
    "label": "Tap, 1.5 s apart",
-   "phone_use": 61.6,
-   "phone_use_p95": 78.7,
-   "phone_harness": 319.7,
-   "phone_harness_p95": 359.5,
-   "adb": 106.6,
-   "adb_p95": 134.4,
+   "phone_use": 72.4,
+   "phone_use_p95": 103.7,
+   "phone_harness": 342.9,
+   "phone_harness_p95": 422.1,
+   "adb": 114.5,
+   "adb_p95": 150.5,
    "adb_ratio_ci": [
-    1.58,
-    1.9
+    1.47,
+    1.73
    ],
-   "headline_adb": 1.73,
+   "headline_adb": 1.58,
    "phone_harness_ratio_ci": [
-    4.68,
-    5.56
+    4.4,
+    5.23
    ]
   },
   {

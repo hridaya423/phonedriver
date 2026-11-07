@@ -21,8 +21,8 @@ p50 of 50 runs after 20 warm-ups, Android 17 emulator (API 37, headless, softwar
 | Screenshot | 11.6 ms | 476.3 ms | 41x (39.1 to 43.5) |
 | Type 100 characters | 251.1 ms | 4,840.9 ms | 19x (17.1 to 22.4) |
 | Tap, then what changed | 586.9 ms | 2,725.8 ms | 4.6x (4.5 to 4.7) |
-| Tap, 1.5 s apart | 61.6 ms | 106.6 ms | 1.7x (1.6 to 1.9) |
-| Tap, back to back | 175.6 ms | 199.5 ms | 1.1x (1.1 to 1.3) |
+| Tap, 1.5 s apart | 72.4 ms | 114.5 ms | 1.6x (1.5 to 1.7) |
+| Tap, back to back | 117.6 ms | 250.5 ms | 2.1x (1.2 to 3.0) |
 
 On the device itself, from the host sending a tap to the testbed's touch listener logging it, phonedriver takes 27.5 ms and adb 71.2 ms (2.6 times; the clock offset is good to about 8 ms).
 

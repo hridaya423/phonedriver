@@ -397,7 +397,7 @@ def build_benchmarks():
 {table}
 <h3>How to read it</h3>
 <ul>
-<li>The bare tap is the closest row. Host to reply, phonedriver takes 175.6 ms when taps come back to back (1.1 times faster than adb) and 61.6 ms when they are 1.5 s apart (1.7 times). Measured on the device, from the host sending a tap to the testbed's touch listener logging it, it is 27.5 ms against adb's 71.2 ms and phone-harness's 76.6 ms (clock offset good to about 8 ms).</li>
+<li>The bare tap is the closest row. Host to reply, phonedriver takes 117.6 ms when taps come back to back (2.1 times faster than adb) and 72.4 ms when they are 1.5 s apart (1.6 times). Measured on the device, from the host sending a tap to the testbed's touch listener logging it, it is 27.5 ms against adb's 71.2 ms and phone-harness's 76.6 ms (clock offset good to about 8 ms).</li>
 <li>Our tap misses its own 15 ms budget (decision D14), and typing 100 characters misses its 150 ms budget (251.1 ms).</li>
 <li>adb returns raw XML and a tap that returns before the app reacts. phonedriver returns a pruned, numbered tree and waits for the app. Different outputs for the same job. For "tap, then what changed", the adb row is a tap, one <code>uiautomator dump</code> and a diff in the caller.</li>
 <li><code>adb input text</code> and phone-harness cannot type Unicode. phonedriver typed 100 mixed-script characters (ASCII, accents, CJK, Arabic, emoji) in 225.0 ms.</li>
