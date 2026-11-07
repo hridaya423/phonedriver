@@ -49,7 +49,7 @@ def banner(tn):
         b += t
     ry = 292
     b += rule(48, ry, 608, c["line"])
-    for i, s in enumerate(["Android + iOS · CLI + MCP", f"Up to {headline(load_speed()[1])}× faster than phone-harness"]):
+    for i, s in enumerate(["Android + iOS · CLI + MCP", f"Up to {headline(load_speed()[1])}× faster than adb"]):
         t, _ = mono(s, 48, ry + 20 + 28 * i + 6, 16, c["t2"], 0.05, caps=True)
         b += t
     gx = 656
@@ -80,7 +80,7 @@ def banner(tn):
             b += rule(px + 1, yy + 59, pw - 2, c["line"] if i == 2 else c["faint"])
         t, _ = runs(px + 18, yy + 30, 19.5, parts)
         b += t
-    return svg(W, H, b, f"phone-use. Let your AI agent use a phone. Android and iOS, CLI and MCP, up to {headline(load_speed()[1])} times faster than phone-harness. A snapshot line, @e10 switch Dark theme off, is tapped and the diff reads off to on.", c["page"])
+    return svg(W, H, b, f"phone-use. Let your AI agent use a phone. Android and iOS, CLI and MCP, up to {headline(load_speed()[1])} times faster than adb. A snapshot line, @e10 switch Dark theme off, is tapped and the diff reads off to on.", c["page"])
 
 
 def social():
@@ -95,12 +95,12 @@ def social():
     fx, fy, fw = 64, 400, 1152
     b += frame(fx, fy, fw, 176, c["line"], c["page"])
     b += rect(fx + 1, fy + 1, fw - 2, 46, c["panel"]) + rule(fx + 1, fy + 47, fw - 2, c["line"])
-    t, _ = mono("phone-use against phone-harness 0.3.3, p50", fx + 16, fy + 24, 16, c["t1"])
+    t, _ = mono("phone-use against adb, p50", fx + 16, fy + 24, 16, c["t1"])
     b += t
     t, _ = mono("Android 17 emulator, median of 50 runs", fx + fw - 16, fy + 24, 14, c["t3"], anchor="end")
     b += t
     byid = {r["id"]: r for r in load_speed()[1]}
-    cells = [(lab, ratio(byid[k]["vs_ph"]), k == "tree_list") for lab, k in
+    cells = [(lab, ratio(byid[k]["vs_adb"]), k == "tree_list") for lab, k in
              (("Tap", "tap"), ("Screenshot", "screenshot"), ("Snapshot, Settings", "tree_settings"),
               ("Snapshot, 1,000-row list", "tree_list"), ("Type 100 characters", "type100"))]
     cw = (fw - 2) / 5
@@ -116,7 +116,7 @@ def social():
         b += t
         t, _ = text("x", x + 16 + w + 2, fy + 48 + 100, INTER, 28, c["t2"], -0.02)
         b += t
-    return svg(W, H, b, f"phone-use, {min(float(v.replace(',', '')) for _, v, _ in cells)} to {headline(load_speed()[1])} times faster than phone-harness at p50", c["page"])
+    return svg(W, H, b, f"phone-use, {min(float(v.replace(',', '')) for _, v, _ in cells)} to {headline(load_speed()[1])} times faster than adb at p50", c["page"])
 
 
 def loop(tn):
@@ -173,7 +173,7 @@ def load_speed():
     for o in d["ops"]:
         pu, ph, adb = o["phone_use"], o["phone_harness"], o["adb"]
         rows.append(dict(o, vs_ph=(ph / pu if ph else None), vs_adb=adb / pu))
-    rows.sort(key=lambda r: (r["vs_ph"] is None, -(r["vs_ph"] or 0), -r["vs_adb"]))
+    rows.sort(key=lambda r: -r["vs_adb"])
     return d, rows
 
 
@@ -184,13 +184,16 @@ def ratio(v):
 
 
 def headline(rows):
-    best = max(r["vs_ph"] for r in rows if r["vs_ph"])
+    best = max(r["vs_adb"] for r in rows)
     return ratio(best)
 
 
 def speed_alt(rows):
-    parts = [f'{r["label"]} {ratio(r["vs_ph"])} times' if r["vs_ph"] else f'{r["label"]} not supported by phone-harness and {ratio(r["vs_adb"])} times against adb' for r in rows]
-    return ("Bar chart, log scale, p50 on an Android 17 emulator. phone-use against phone-harness 0.3.3 and plain adb. Faster than phone-harness by: " + "; ".join(parts) + ".")
+    parts = []
+    for r in rows:
+        ph = f'phone-harness {ratio(r["vs_ph"])} times' if r["vs_ph"] else "phone-harness not supported"
+        parts.append(f'{r["label"]} {ratio(r["vs_adb"])} times faster than adb ({ph})')
+    return "Bar chart, log scale, p50 on an Android 17 emulator. phone-use against plain adb and phone-harness 0.3.3. " + "; ".join(parts) + "."
 
 
 def speed(tn):
@@ -211,7 +214,7 @@ def speed(tn):
     b += t
     t, w2 = text(headline(rows) + "x", fx + 20 + w, fy + 72, INTER, 60, c["t1"], -0.04)
     b += rect(fx + 20 + w - 4, fy + 78, w2 + 8, 6, c["accent"]) + t
-    t, _ = text(" faster than phone-harness", fx + 20 + w + w2, fy + 72, INTER, 60, c["t1"], -0.04)
+    t, _ = text(" faster than adb", fx + 20 + w + w2, fy + 72, INTER, 60, c["t1"], -0.04)
     b += t
     t, _ = mono(d["title"] + " · " + d["subtitle"], fx + 20, fy + 100, 15, c["t3"], 0.02)
     b += t
@@ -220,7 +223,7 @@ def speed(tn):
         t, w = mono(name, rx, fy + 100, 15, c["t2"], 0.04, anchor="end", caps=True)
         b += t + rect(rx - w - 10 - 12, fy + 100 - 5, 10, 10, c[col])
         rx = rx - w - 10 - 12 - 24
-    ratw, facw = 250, 190
+    ratw, facw = 250, 250
     px0, px1 = fx + ratw, fx + fw - facw
     y0 = fy + hh + 1
     b += vrule(px0, y0, fh - hh - 2, c["line"]) + vrule(px1, y0, fh - hh - 2, c["line"])
@@ -235,7 +238,7 @@ def speed(tn):
         b += t
     t, _ = mono("p50, log scale", fx + 20, ay + 21, 14, c["t3"], 0.05, caps=True)
     b += t
-    t, _ = mono("vs adb", px1 + 20, ay + 21, 14, c["t3"], 0.05, caps=True)
+    t, _ = mono("vs phone-harness", px1 + 20, ay + 21, 14, c["t3"], 0.05, caps=True)
     b += t
     for i, r in enumerate(rows):
         y = y0 + rh * i
@@ -244,18 +247,12 @@ def speed(tn):
             b += rect(fx + 1, y, ratw - 1, rh - 1, c["selected"])
         if i < n - 1:
             b += rule(fx + 1, y + rh - 1, fw - 2, c["faint"])
-        if r["vs_ph"] is not None:
-            t, w = text(ratio(r["vs_ph"]), fx + 20, y + 66, INTER, 56, c["t1"], -0.04)
-            b += t
-            t, _ = text("x", fx + 20 + w + 2, y + 66, INTER, 30, c["t2"], -0.02)
-            b += t
-            t, _ = mono("faster than phone-harness" if win else "phone-harness is faster", fx + 20, y + 88, 12, c["t3"], 0.03)
-            b += t
-        else:
-            t, _ = text("Only phone-use", fx + 20, y + 58, INTER, 30, c["t1"], -0.035)
-            b += t
-            t, _ = mono("phone-harness: not supported", fx + 20, y + 84, 12, c["t3"], 0.03)
-            b += t
+        t, w = text(ratio(r["vs_adb"]), fx + 20, y + 66, INTER, 56, c["t1"], -0.04)
+        b += t
+        t, _ = text("x", fx + 20 + w + 2, y + 66, INTER, 30, c["t2"], -0.02)
+        b += t
+        t, _ = mono("faster than adb" if r["vs_adb"] >= 1 else "adb is faster", fx + 20, y + 88, 12, c["t3"], 0.03)
+        b += t
         t, _ = mono(r["label"], px0 + 20, y + 16, 14, c["t1"], 0.03, caps=True)
         b += t
         x0 = round(X(10))
@@ -272,12 +269,18 @@ def speed(tn):
                 b += frame(x0, by, x1 - x0, 16, ed)
             t, _ = mono(f"{v:,.1f} ms", x1 + 10, by + 8, 14, tc)
             b += t
-        t, w = text(ratio(r["vs_adb"]), px1 + 20, y + 62, INTER, 40, c["t1"], -0.035)
-        b += t
-        t, _ = text("x", px1 + 20 + w + 2, y + 62, INTER, 24, c["t2"], -0.02)
-        b += t
-        t, _ = mono("faster than adb", px1 + 20, y + 84, 12, c["t3"], 0.03)
-        b += t
+        if r["vs_ph"] is not None:
+            t, w = text(ratio(r["vs_ph"]), px1 + 20, y + 62, INTER, 40, c["t1"], -0.035)
+            b += t
+            t, _ = text("x", px1 + 20 + w + 2, y + 62, INTER, 24, c["t2"], -0.02)
+            b += t
+            t, _ = mono("faster than phone-harness" if r["vs_ph"] >= 1 else "phone-harness is faster", px1 + 20, y + 84, 12, c["t3"], 0.03)
+            b += t
+        else:
+            t, _ = text("Only phone-use", px1 + 20, y + 58, INTER, 24, c["t1"], -0.03)
+            b += t
+            t, _ = mono("phone-harness: not supported", px1 + 20, y + 84, 12, c["t3"], 0.03)
+            b += t
     return svg(W, H, b, speed_alt(rows), c["page"])
 
 
