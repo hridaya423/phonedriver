@@ -508,7 +508,7 @@ ok tapped @e41 "Dark Appearance" at 337,198 · settled in 607ms
 <p>Then ask: <q>Open Settings and turn on dark mode.</q> Setup for <a href="/docs/claude-code/">Claude Code</a>, <a href="/docs/cursor-and-mcp-clients/">Cursor and other MCP clients</a>, an <a href="/docs/android-emulator/">Android emulator</a>, a <a href="/docs/android-phone/">real Android phone</a>, the <a href="/docs/ios-simulator/">iOS Simulator</a> and an <a href="/docs/iphone/">iPhone</a>.</p></div></section>
 
 <section class="sec"><div class="wrap"><div class="sh"><span class="lab">@e3</span><h2>Speed, measured against adb and phone-harness</h2></div>
-<figure class="chart"><picture><source media="(prefers-color-scheme: dark)" srcset="/assets/hero-dark.svg"><img src="/assets/hero-light.svg" width="1280" height="978" alt="{esc(D.HERO_ALT)}" decoding="async"></picture></figure>
+<figure class="chart"><picture><source media="(prefers-color-scheme: dark)" srcset="/assets/hero-dark.svg"><img src="/assets/hero-light.svg" width="1280" height="{D.HERO_H}" alt="{esc(D.HERO_ALT)}" decoding="async"></picture></figure>
 <p>p50 of 50 runs after 20 warm-ups on an Android 17 emulator, the three tools interleaved on the emulator's own host. The headline row is a 1,000-row list read: 24.0 ms against 2,352.4 ms for adb, 95% CI on the ratio 92.2 to 106.0. The bare tap is the close one, 1.1 to 1.7 times faster than adb host to reply. <a href="/benchmarks/">Every operation, p95, intervals and raw samples</a>.</p></div></section>
 
 <section class="sec"><div class="wrap"><div class="sh"><span class="lab">@e4</span><h2>See it work</h2></div>
