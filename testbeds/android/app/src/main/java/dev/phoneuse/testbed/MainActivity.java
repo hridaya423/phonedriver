@@ -148,6 +148,7 @@ public final class MainActivity extends androidx.activity.ComponentActivity {
             case "drain": screen = Buggy.drain(this); break;
             case "compose": screen = ComposeScreen.create(this); break;
             case "latefocus": screen = Screens.lateFocus(this); break;
+            case "stubborn": screen = Screens.stubborn(this); break;
             case "hollow":
                 screen = new View(this);
                 panel = Screens.hollow(this, content);
