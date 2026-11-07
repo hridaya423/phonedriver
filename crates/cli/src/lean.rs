@@ -9,7 +9,7 @@ const HIDDEN: &[(&str, &[&str])] = &[
         "snapshot",
         &["diff", "interactive", "within", "max_lines", "pixels"],
     ),
-    ("tap", &["role", "count", "long"]),
+    ("tap", &["role", "count"]),
     ("type", &["mode", "append"]),
     ("swipe", &["distance", "fast"]),
     ("scroll", &["in", "max"]),
@@ -39,7 +39,7 @@ mod tests {
 
     fn schema() -> Map<String, Value> {
         json!({"type":"object","properties":{
-            "device":{"type":"string"},"target":{"type":"string"},"role":{"type":"string"},"long":{"type":"integer"}
+            "device":{"type":"string"},"target":{"type":"string"},"role":{"type":"string"},"count":{"type":"integer"}
         },"required":["target"]})
         .as_object()
         .unwrap()
