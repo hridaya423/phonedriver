@@ -50,6 +50,10 @@ const WAIT_DEBOUNCE: Duration = Duration::from_millis(100);
 const TYPED_QUIET: Duration = Duration::from_millis(150);
 /// A tree read that starts this long after the last significant frame can already show where the screen ended up.
 const READ_LAG: Duration = Duration::from_millis(120);
+/// With no frame yet, the tree is read this long after the action to see whether the screen changed without one.
+/// A shorter first-change window (typed text) is already over before a read says more than the text just typed.
+const FIRST_READ_MIN_WINDOW: Duration = Duration::from_millis(400);
+const FIRST_READ: Duration = Duration::from_millis(100);
 const TREE_STEP: Duration = Duration::from_millis(100);
 const TREE_STABLE_WAIT: Duration = Duration::from_secs(1);
 const LOADING_WAIT: Duration = Duration::from_secs(4);
@@ -105,6 +109,7 @@ pub fn spawn(id: String, source: Arc<dyn DeviceSource>, home: PathBuf) -> mpsc::
         cold_until: None,
         awake: None,
         phases: Vec::new(),
+        shown: Mutex::new(None),
         names: Arc::default(),
     };
     tokio::spawn(actor.run(rx));
@@ -143,6 +148,7 @@ type Inflight = (
 /// before it (also after that frame) agrees with it.
 struct Probe {
     tree: RawTree,
+    at: Duration,
     stable: bool,
 }
 
@@ -152,6 +158,7 @@ fn probe_of(mut reads: Vec<Read>, last: Duration) -> Option<Probe> {
     let stable = reads.last().is_some_and(|r| r.tree == newest.tree);
     Some(Probe {
         tree: newest.tree,
+        at: newest.at,
         stable,
     })
 }
@@ -196,6 +203,8 @@ struct Actor {
     /// When `prepare` last found the screen on and unlocked; cleared by any window or display event.
     awake: Option<Duration>,
     phases: Phases,
+    /// The tree the agent was last shown, to tell whether an action changed anything before a frame says so.
+    shown: Mutex<Option<RawTree>>,
     names: Arc<Mutex<HashMap<String, String>>>,
 }
 
@@ -250,6 +259,10 @@ impl Actor {
                 }
             }
         }
+    }
+
+    fn shown(&self) -> Option<RawTree> {
+        self.shown.lock().unwrap_or_else(|e| e.into_inner()).clone()
     }
 
     fn now(&self) -> Duration {
@@ -723,6 +736,7 @@ impl Actor {
     }
 
     fn build(&self, s: &mut Session, tree: &RawTree, settle: Option<SettleLine>) -> Rendered {
+        *self.shown.lock().unwrap_or_else(|e| e.into_inner()) = Some(tree.clone());
         let (info, screen, secure_hidden) = match &self.live {
             Some(l) => (
                 l.device.info().clone(),
@@ -805,6 +819,7 @@ impl Actor {
         let device = if probe { self.device().ok() } else { None };
         let mut reads: Vec<Read> = Vec::new();
         let mut inflight: Option<Inflight> = None;
+        let mut probed_at = Duration::ZERO;
         loop {
             let st = det.poll(self.now());
             if matches!(st, State::Done { .. }) {
@@ -826,11 +841,22 @@ impl Actor {
                 let probed = last.filter(|_| settled).and_then(|l| probe_of(reads, l));
                 return (st, probed);
             }
-            if let (Some(device), Some(last), None) = (&device, det.last_significant(), &inflight) {
+            if let (Some(device), None) = (&device, &inflight) {
                 let now = self.now();
-                let due = last + READ_LAG;
-                let fresh = reads.iter().filter(|r| r.at >= due).count();
-                if now >= due && fresh < 2 {
+                let wanted = match det.last_significant() {
+                    Some(last) => {
+                        let due = last + READ_LAG;
+                        now >= due && reads.iter().filter(|r| r.at >= due).count() < 2
+                    }
+                    None => {
+                        cfg.expect_change
+                            .is_some_and(|w| w >= FIRST_READ_MIN_WINDOW)
+                            && self.shown().is_some()
+                            && now >= started + FIRST_READ
+                            && now >= probed_at + FIRST_READ
+                    }
+                };
+                if wanted {
                     let device = device.clone();
                     inflight = Some((now, Box::pin(async move { device.tree().await })));
                 }
@@ -844,7 +870,14 @@ impl Actor {
                 }
                 (at, read) = finished(&mut inflight) => {
                     if let Ok(tree) = read {
-                        reads.push(Read { at, tree });
+                        if det.last_significant().is_none() {
+                            probed_at = self.now();
+                            if self.shown().is_some_and(|shown| shown != tree) {
+                                det.feed(Input::WindowChanged, probed_at);
+                            }
+                        } else {
+                            reads.push(Read { at, tree });
+                        }
                     }
                 }
                 () = tokio::time::sleep(TICK) => {}
@@ -1864,10 +1897,18 @@ impl Actor {
 
     /// The accessibility tree can lag the pixels: a dialog or an expanding card appears a moment after the screen went
     /// quiet, and a page keeps loading behind a progress bar. Reads again until two reads agree and nothing is loading.
-    async fn stabilize(&self, mut tree: RawTree) -> Result<RawTree, Error> {
+    async fn stabilize(
+        &self,
+        mut tree: RawTree,
+        read_at: Option<Duration>,
+    ) -> Result<RawTree, Error> {
         let started = Instant::now();
+        let mut wait = read_at.map_or(TREE_STEP, |at| {
+            TREE_STEP.saturating_sub(self.now().saturating_sub(at))
+        });
         loop {
-            tokio::time::sleep(TREE_STEP).await;
+            tokio::time::sleep(wait).await;
+            wait = TREE_STEP;
             let next = self.device()?.tree().await?;
             let same = next == tree;
             tree = next;
@@ -1897,9 +1938,9 @@ impl Actor {
         mask: Option<String>,
     ) -> Result<ActionResult, Error> {
         let t = Instant::now();
-        let (mut tree, agreed) = match probe {
-            Some(p) => (p.tree, p.stable),
-            None => (self.device()?.tree().await?, false),
+        let (mut tree, agreed, read_at) = match probe {
+            Some(p) => (p.tree, p.stable, Some(p.at)),
+            None => (self.device()?.tree().await?, false, None),
         };
         self.lap("tree", t);
         let agreed = agreed && !tree.loading() && !tree.web_view_pending();
@@ -1909,7 +1950,7 @@ impl Actor {
                 || tree.loading())
         {
             let t = Instant::now();
-            tree = self.stabilize(tree).await?;
+            tree = self.stabilize(tree, read_at).await?;
             self.lap("stabilize", t);
         }
         let render = Instant::now();

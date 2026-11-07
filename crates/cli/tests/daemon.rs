@@ -362,6 +362,33 @@ async fn a_settled_tap_reads_the_tree_while_the_screen_is_quiet_not_after_it() {
 }
 
 #[tokio::test(start_paused = true)]
+async fn a_tap_whose_frame_never_arrives_is_seen_changing_by_the_tree_before_the_500_ms_window_ends()
+ {
+    let (source, _) = FakeSource::with(vec![
+        tree(&["One", "Two", "Three"]),
+        tree(&["One", "Two", "Three"]),
+        tree(&["One", "Two", "Three!"]),
+    ]);
+    let (d, _home) = daemon(source);
+    ok(&d, "default", "snapshot", json!({})).await;
+    let t = tokio::time::Instant::now();
+    let r = ok(&d, "default", "act", tap_point(10.0, 10.0)).await;
+    let took = t.elapsed();
+    assert_eq!(r["changed"], true, "{r}");
+    assert!(
+        r["observation"]["text"]
+            .as_str()
+            .unwrap()
+            .contains("Three!"),
+        "{r}"
+    );
+    assert!(
+        took < Duration::from_millis(450),
+        "the reply came {took:?} after the tap"
+    );
+}
+
+#[tokio::test(start_paused = true)]
 async fn a_settled_tap_leaves_its_phases_in_the_trace() {
     let (source, fake) = FakeSource::with(vec![
         tree(&["One", "Two", "Three"]),
