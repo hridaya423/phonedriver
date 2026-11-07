@@ -1493,7 +1493,7 @@ impl Actor {
                 self.finish(s, p.settle, cfg, started, summary, None, None, None)
                     .await
             }
-            Action::Open { url } => {
+            Action::Open { url, app } => {
                 self.need(
                     Capabilities::OPEN_URL,
                     Op::OpenUrl,
@@ -1503,9 +1503,13 @@ impl Actor {
                     .expect_change_ms
                     .map(Duration::from_millis)
                     .or(Config::launch().expect_change);
+                let target = match &app {
+                    Some(name) => Some(find_app(&device.apps().await?, name)?.id.clone()),
+                    None => None,
+                };
                 let leaving = device.foreground().await?;
                 let started = self.begin_action();
-                device.open_url(&Url(url.clone())).await?;
+                device.open_url(&Url(url.clone()), target.as_ref()).await?;
                 self.until_app_content(leaving.as_ref()).await?;
                 self.cold_until = Some(self.now() + COLD_APP_WINDOW);
                 let summary = format!("opened {url}");

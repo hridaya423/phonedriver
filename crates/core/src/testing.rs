@@ -20,7 +20,7 @@ pub enum Call {
     Gesture(Gesture),
     Key(Key),
     Button(Button),
-    OpenUrl(Url),
+    OpenUrl(Url, Option<AppId>),
     Text(TextInput),
     Launch(AppId),
     Grant(AppId, Vec<String>),
@@ -188,8 +188,8 @@ impl Device for FakeDevice {
         self.record(Call::Button(b))
     }
 
-    async fn open_url(&self, url: &Url) -> Result<()> {
-        self.record(Call::OpenUrl(url.clone()))
+    async fn open_url(&self, url: &Url, app: Option<&AppId>) -> Result<()> {
+        self.record(Call::OpenUrl(url.clone(), app.cloned()))
     }
 
     async fn text(&self, t: TextInput) -> Result<()> {

@@ -58,8 +58,11 @@ final class Apps {
         start(intent);
     }
 
-    static String openUrl(String url) {
+    static String openUrl(String url, String pkg) {
         Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
+        if (pkg != null && !pkg.isEmpty()) {
+            intent.setPackage(pkg);
+        }
         ResolveInfo ri = packages().resolveActivity(intent, 0);
         if (ri == null) {
             throw new IllegalArgumentException("no app handles " + url);

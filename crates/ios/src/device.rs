@@ -480,7 +480,7 @@ impl Device for IosDevice {
         }
     }
 
-    async fn open_url(&self, url: &Url) -> Result<()> {
+    async fn open_url(&self, url: &Url, _app: Option<&AppId>) -> Result<()> {
         self.input(Op::OpenUrl, json!({"op": "open_url", "url": url.0}))
             .await?;
         Ok(())

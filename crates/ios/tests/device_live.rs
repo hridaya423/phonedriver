@@ -251,7 +251,7 @@ fn open_url_reaches_the_testbed_without_a_confirmation() {
     let d = device();
     let udid = udid();
     testbed::launch(&udid, "taps");
-    RT.block_on(d.open_url(&Url("putb://tab/nav".into())))
+    RT.block_on(d.open_url(&Url("putb://tab/nav".into()), None))
         .unwrap();
     testbed::wait_for(&udid, "tab nav", |e| e["ev"] == "tab" && e["name"] == "nav");
 }

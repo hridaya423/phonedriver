@@ -258,8 +258,12 @@ impl LaunchArgs {
                 app,
                 grant: self.grant.unwrap_or_default(),
             }),
-            (None, Some(url)) => Ok(Verb::Open { url }),
-            _ => Err("pass app or url, one of them"),
+            (None, Some(url)) => Ok(Verb::Open { url, app: None }),
+            (Some(app), Some(url)) => Ok(Verb::Open {
+                url,
+                app: Some(app),
+            }),
+            _ => Err("pass app or url"),
         }
     }
 }
@@ -913,7 +917,7 @@ impl Mcp {
     }
 
     #[tool(
-        description = "Open an app (name, package or bundle id) or a `url`; returns its first screen. `grant` pre-allows permissions (`camera`, `notifications`)."
+        description = "Open an app (name, package or bundle id) or a `url` (with `app`, opened in that app); returns its first screen. `grant` pre-allows permissions (`camera`, `notifications`)."
     )]
     async fn launch(&self, Parameters(a): Parameters<LaunchArgs>) -> CallToolResult {
         let device = a.device.clone();

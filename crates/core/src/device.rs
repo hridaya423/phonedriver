@@ -252,7 +252,7 @@ pub trait Device: Send + Sync {
     async fn gesture(&self, g: Gesture) -> Result<()>;
     async fn key(&self, k: Key) -> Result<()>;
     async fn button(&self, b: Button) -> Result<()>;
-    async fn open_url(&self, url: &Url) -> Result<()>;
+    async fn open_url(&self, url: &Url, app: Option<&AppId>) -> Result<()>;
     async fn text(&self, t: TextInput) -> Result<()>;
     async fn clipboard(&self, op: ClipboardOp) -> Result<Option<String>>;
     async fn apps(&self) -> Result<Vec<App>>;

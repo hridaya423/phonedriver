@@ -231,7 +231,9 @@ async fn text_clipboard_keys_buttons_apps_and_events() {
     }
     assert!(saw_window, "no WindowChanged event during Home and launch");
 
-    let handled = device.open_url(&Url("https://example.com".into())).await;
+    let handled = device
+        .open_url(&Url("https://example.com".into()), None)
+        .await;
     assert!(handled.is_ok(), "{handled:?}");
     device.button(Button::Home).await.unwrap();
 }
