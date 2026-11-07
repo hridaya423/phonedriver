@@ -31,8 +31,12 @@ use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::sync::{Notify, mpsc, oneshot};
 use tokio::time::Instant;
 
-use self::actor::{Call, Job};
+use self::actor::{Call, Job, Phases};
 use self::rpc::RpcError;
+
+tokio::task_local! {
+    static PHASES: std::cell::RefCell<Phases>;
+}
 use self::trace::{TraceOptions, Traces};
 use crate::wire::{ActParams, Action, BatchParams, Common, DeviceEntry, Step, VERSION};
 
@@ -129,9 +133,20 @@ impl Daemon {
     ) -> Result<Value, RpcError> {
         self.touch();
         let started = Instant::now();
-        let result = self.route(session, method, &params).await;
-        self.traces
-            .record(session, method, &params, &result, started.elapsed());
+        let (result, phases) = PHASES
+            .scope(Default::default(), async {
+                let result = self.route(session, method, &params).await;
+                (result, PHASES.with(|p| p.take()))
+            })
+            .await;
+        self.traces.record(
+            session,
+            method,
+            &params,
+            &result,
+            started.elapsed(),
+            &phases,
+        );
         self.touch();
         result
     }
@@ -278,7 +293,9 @@ impl Daemon {
             })
             .await
             .map_err(|_| gone())?;
-        rx.await.map_err(|_| gone())?
+        let (result, phases) = rx.await.map_err(|_| gone())?;
+        let _ = PHASES.try_with(|p| p.borrow_mut().extend(phases));
+        result
     }
 
     async fn devices(&self) -> Result<Value, Error> {
