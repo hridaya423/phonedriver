@@ -242,14 +242,23 @@ impl Daemon {
                 .collect::<Vec<_>>()
         };
         match requested {
-            Some(r) => list
-                .iter()
-                .find(|l| names(&l.id, r))
-                .map(|l| l.id.clone())
-                .ok_or_else(|| Error::NoDevice {
-                    requested: Some(r.to_string()),
-                    connected: summaries(),
-                }),
+            Some(r) => match list.iter().find(|l| names(&l.id, r)) {
+                Some(l) => Ok(l.id.clone()),
+                None => {
+                    let list = self.source.list().await?;
+                    Err(Error::NoDevice {
+                        requested: Some(r.to_string()),
+                        connected: list
+                            .iter()
+                            .map(|l| DeviceSummary {
+                                id: l.id.clone(),
+                                model: l.model.clone(),
+                                os: l.os.clone().unwrap_or_default(),
+                            })
+                            .collect(),
+                    })
+                }
+            },
             None => match list.as_slice() {
                 [] => Err(Error::NoDevice {
                     requested: None,

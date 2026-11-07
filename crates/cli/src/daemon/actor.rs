@@ -783,11 +783,18 @@ impl Actor {
                 cfg.timeout = Duration::from_millis(t);
             }
             let (cfg, started) = self.observe(cfg, None);
-            Some(self.settle(cfg, started).await)
+            let t = Instant::now();
+            let st = self.settle(cfg, started).await;
+            self.lap("settle", t);
+            Some(st)
         };
+        let t = Instant::now();
         let tree = device.tree().await?;
+        self.lap("tree", t);
+        let t = Instant::now();
         let line = settle.map(settle_line);
         let mut rendered = self.build(s, &tree, line);
+        self.lap("render", t);
         s.ocr = false;
         if p.pixels || tree_is_hollow(&rendered) {
             match self.merge_pixels(s, &mut rendered).await {
