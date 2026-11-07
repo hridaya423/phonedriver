@@ -8,9 +8,9 @@ use idevice::services::lockdown::LockdownClient;
 use idevice::tcp::handle::AdapterHandle;
 use idevice::usbmuxd::{Connection, UsbmuxdAddr};
 use idevice::{IdeviceError, IdeviceService};
-use phone_use_core::error::{DeviceId, Error, UserAction};
+use phonedriver_core::error::{DeviceId, Error, UserAction};
 
-const LABEL: &str = "phone-use";
+const LABEL: &str = "phonedriver";
 
 /// A device usbmuxd sees over USB. Network-only devices are left out: their pairing needs a separate approval
 /// on the device, which v1 does not ask for (`docs/spikes/ios.md`, "Device access probe").
@@ -167,7 +167,7 @@ mod tests {
     use std::io;
 
     use idevice::IdeviceError;
-    use phone_use_core::error::{Error, UserAction};
+    use phonedriver_core::error::{Error, UserAction};
 
     use super::*;
 
@@ -210,7 +210,7 @@ mod tests {
         assert!(
             UserAction::MountDeveloperImage
                 .hint()
-                .contains("phone-use ios setup")
+                .contains("phonedriver ios setup")
         );
     }
 

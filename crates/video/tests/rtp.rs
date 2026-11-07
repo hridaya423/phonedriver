@@ -1,5 +1,5 @@
-use phone_use_video::h264::Decoder;
-use phone_use_video::rtp::{Depacketizer, Event};
+use phonedriver_video::h264::Decoder;
+use phonedriver_video::rtp::{Depacketizer, Event};
 
 const FIXTURE: &[u8] = include_bytes!("fixtures/ipad_testbed_h264.rtp");
 
@@ -106,8 +106,8 @@ fn a_gap_across_the_sequence_number_wrap_is_still_a_gap() {
 #[test]
 fn a_decoder_that_falls_behind_publishes_only_the_newest_picture_and_still_acknowledges_every_unit()
 {
-    use phone_use_video::image::encode_png;
-    use phone_use_video::receive::{Pacing, Signal, decode_stream};
+    use phonedriver_video::image::encode_png;
+    use phonedriver_video::receive::{Pacing, Signal, decode_stream};
     use std::time::Duration;
 
     let (tx, rx) = tokio::sync::mpsc::channel(256);
@@ -156,7 +156,7 @@ fn a_decoder_that_falls_behind_publishes_only_the_newest_picture_and_still_ackno
 
 #[test]
 fn a_backlog_still_shows_a_picture_every_interval_until_it_passes_the_bound() {
-    use phone_use_video::receive::{Pacing, Signal, decode_stream};
+    use phonedriver_video::receive::{Pacing, Signal, decode_stream};
     use std::time::Duration;
 
     let run = |pacing: Pacing| {

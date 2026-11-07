@@ -17,7 +17,7 @@ fn by_id<'a>(els: &'a [serde_json::Value], id: &str) -> &'a serde_json::Value {
 
 async fn compose(rig: &Rig) {
     rig.adb
-        .shell(&rig.serial, "am force-stop dev.phoneuse.testbed")
+        .shell(&rig.serial, "am force-stop dev.phonedriver.testbed")
         .await
         .unwrap();
     rig.ok(&["snapshot", "--no-settle"]);
@@ -35,7 +35,7 @@ async fn compose(rig: &Rig) {
 }
 
 #[tokio::test]
-#[ignore = "needs PHONE_USE_TEST_DEVICE"]
+#[ignore = "needs PHONEDRIVER_TEST_DEVICE"]
 async fn compose_elements_have_roles_labels_and_their_test_tags_as_ids() {
     let rig = Rig::new().await;
     compose(&rig).await;
@@ -78,7 +78,7 @@ async fn compose_elements_have_roles_labels_and_their_test_tags_as_ids() {
 }
 
 #[tokio::test]
-#[ignore = "needs PHONE_USE_TEST_DEVICE"]
+#[ignore = "needs PHONEDRIVER_TEST_DEVICE"]
 async fn compose_controls_take_taps_and_text() {
     let rig = Rig::new().await;
     compose(&rig).await;
@@ -121,7 +121,7 @@ async fn compose_controls_take_taps_and_text() {
 }
 
 #[tokio::test]
-#[ignore = "needs PHONE_USE_TEST_DEVICE"]
+#[ignore = "needs PHONEDRIVER_TEST_DEVICE"]
 async fn the_compose_tab_has_three_switches_and_the_third_one_logs_its_own_id() {
     let rig = Rig::new().await;
     compose(&rig).await;
@@ -140,7 +140,7 @@ async fn the_compose_tab_has_three_switches_and_the_third_one_logs_its_own_id() 
 }
 
 #[tokio::test]
-#[ignore = "needs PHONE_USE_TEST_DEVICE"]
+#[ignore = "needs PHONEDRIVER_TEST_DEVICE"]
 async fn a_compose_lazy_list_scrolls_to_item_300_and_the_tap_lands_on_it() {
     let rig = Rig::new().await;
     compose(&rig).await;
@@ -152,12 +152,12 @@ async fn a_compose_lazy_list_scrolls_to_item_300_and_the_tap_lands_on_it() {
 }
 
 #[tokio::test]
-#[ignore = "needs PHONE_USE_TEST_DEVICE"]
+#[ignore = "needs PHONEDRIVER_TEST_DEVICE"]
 async fn typing_into_a_web_field_right_after_the_page_loads_lands_every_time() {
     let rig = Rig::new().await;
     for round in 0..8 {
         rig.adb
-            .shell(&rig.serial, "am force-stop dev.phoneuse.testbed")
+            .shell(&rig.serial, "am force-stop dev.phonedriver.testbed")
             .await
             .unwrap();
         rig.ok(&["snapshot", "--no-settle"]);
@@ -181,7 +181,7 @@ async fn typing_into_a_web_field_right_after_the_page_loads_lands_every_time() {
 
 async fn fresh_web_form(rig: &Rig) {
     rig.adb
-        .shell(&rig.serial, "am force-stop dev.phoneuse.testbed")
+        .shell(&rig.serial, "am force-stop dev.phonedriver.testbed")
         .await
         .unwrap();
     rig.ok(&["snapshot", "--no-settle"]);
@@ -192,7 +192,7 @@ async fn fresh_web_form(rig: &Rig) {
 }
 
 #[tokio::test]
-#[ignore = "needs PHONE_USE_TEST_DEVICE"]
+#[ignore = "needs PHONEDRIVER_TEST_DEVICE"]
 async fn a_web_field_that_already_holds_text_is_replaced() {
     let rig = Rig::new().await;
     fresh_web_form(&rig).await;
@@ -212,7 +212,7 @@ async fn a_web_field_that_already_holds_text_is_replaced() {
 }
 
 #[tokio::test]
-#[ignore = "needs PHONE_USE_TEST_DEVICE"]
+#[ignore = "needs PHONEDRIVER_TEST_DEVICE"]
 async fn a_web_checkbox_shows_on_or_off_and_a_tap_shows_the_change() {
     let rig = Rig::new().await;
     fresh_web_form(&rig).await;
@@ -229,7 +229,7 @@ async fn a_web_checkbox_shows_on_or_off_and_a_tap_shows_the_change() {
 }
 
 #[tokio::test]
-#[ignore = "needs PHONE_USE_TEST_DEVICE"]
+#[ignore = "needs PHONEDRIVER_TEST_DEVICE"]
 async fn typing_into_a_web_field_that_the_page_swaps_for_another_lands_in_the_new_one() {
     let rig = Rig::new().await;
     fresh_web_form(&rig).await;
@@ -252,7 +252,7 @@ async fn typing_into_a_web_field_that_the_page_swaps_for_another_lands_in_the_ne
 }
 
 #[tokio::test]
-#[ignore = "needs PHONE_USE_TEST_DEVICE"]
+#[ignore = "needs PHONEDRIVER_TEST_DEVICE"]
 async fn web_form_inputs_are_text_fields_and_take_text_taps_and_a_checkbox() {
     let rig = Rig::new().await;
     fresh_web_form(&rig).await;

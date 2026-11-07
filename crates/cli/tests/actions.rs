@@ -25,7 +25,7 @@ fn text(r: &serde_json::Value) -> &str {
 }
 
 #[tokio::test]
-#[ignore = "needs PHONE_USE_TEST_DEVICE"]
+#[ignore = "needs PHONEDRIVER_TEST_DEVICE"]
 async fn tapping_a_row_that_opens_another_screen_returns_a_full_snapshot() {
     let rig = Rig::new().await;
     open_settings(&rig).await;
@@ -40,7 +40,7 @@ async fn tapping_a_row_that_opens_another_screen_returns_a_full_snapshot() {
 }
 
 #[tokio::test]
-#[ignore = "needs PHONE_USE_TEST_DEVICE"]
+#[ignore = "needs PHONEDRIVER_TEST_DEVICE"]
 async fn toggling_a_switch_returns_one_changed_line() {
     let rig = Rig::new().await;
     rig.tab("taps").await;
@@ -71,7 +71,7 @@ async fn toggling_a_switch_returns_one_changed_line() {
 }
 
 #[tokio::test]
-#[ignore = "needs PHONE_USE_TEST_DEVICE"]
+#[ignore = "needs PHONEDRIVER_TEST_DEVICE"]
 async fn typing_into_a_field_returns_a_value_line_and_a_password_returns_no_value() {
     let rig = Rig::new().await;
     rig.tab("text").await;
@@ -96,7 +96,7 @@ fn failure(out: &std::process::Output) -> String {
 }
 
 #[tokio::test]
-#[ignore = "needs PHONE_USE_TEST_DEVICE"]
+#[ignore = "needs PHONEDRIVER_TEST_DEVICE"]
 async fn a_text_target_taps_the_row_that_holds_the_text() {
     let rig = Rig::new().await;
     open_settings(&rig).await;
@@ -111,7 +111,7 @@ async fn a_text_target_taps_the_row_that_holds_the_text() {
 }
 
 #[tokio::test]
-#[ignore = "needs PHONE_USE_TEST_DEVICE"]
+#[ignore = "needs PHONEDRIVER_TEST_DEVICE"]
 async fn list_rows_render_as_cells_with_their_position_and_the_list_says_its_size() {
     let rig = Rig::new().await;
     rig.tab("taps").await;
@@ -128,7 +128,7 @@ async fn list_rows_render_as_cells_with_their_position_and_the_list_says_its_siz
 }
 
 #[tokio::test]
-#[ignore = "needs PHONE_USE_TEST_DEVICE"]
+#[ignore = "needs PHONEDRIVER_TEST_DEVICE"]
 async fn tapping_row_5_by_text_taps_row_5_and_ambiguous_and_misspelled_texts_fail_with_help() {
     let rig = Rig::new().await;
     fresh_list(&rig).await;
@@ -155,7 +155,7 @@ async fn tapping_row_5_by_text_taps_row_5_and_ambiguous_and_misspelled_texts_fai
 }
 
 #[tokio::test]
-#[ignore = "needs PHONE_USE_TEST_DEVICE"]
+#[ignore = "needs PHONEDRIVER_TEST_DEVICE"]
 async fn find_lists_the_visible_rows_whose_text_contains_the_query() {
     let rig = Rig::new().await;
     fresh_list(&rig).await;
@@ -173,7 +173,7 @@ async fn find_lists_the_visible_rows_whose_text_contains_the_query() {
 
 async fn fresh_list(rig: &Rig) {
     rig.adb
-        .shell(&rig.serial, "am force-stop dev.phoneuse.testbed")
+        .shell(&rig.serial, "am force-stop dev.phonedriver.testbed")
         .await
         .unwrap();
     rig.tab("list").await;
@@ -194,7 +194,7 @@ fn rows(els: &[serde_json::Value]) -> Vec<(u32, f64)> {
 }
 
 #[tokio::test]
-#[ignore = "needs PHONE_USE_TEST_DEVICE"]
+#[ignore = "needs PHONEDRIVER_TEST_DEVICE"]
 async fn scroll_down_moves_the_list_about_60_percent_of_the_viewport_without_a_fling() {
     let rig = Rig::new().await;
     let els = open_list(&rig).await;
@@ -240,7 +240,7 @@ async fn scroll_down_moves_the_list_about_60_percent_of_the_viewport_without_a_f
 }
 
 #[tokio::test]
-#[ignore = "needs PHONE_USE_TEST_DEVICE"]
+#[ignore = "needs PHONEDRIVER_TEST_DEVICE"]
 async fn scroll_until_a_far_row_stops_with_it_visible_in_few_gestures() {
     let rig = Rig::new().await;
     open_list(&rig).await;
@@ -257,7 +257,7 @@ async fn scroll_until_a_far_row_stops_with_it_visible_in_few_gestures() {
 }
 
 #[tokio::test]
-#[ignore = "needs PHONE_USE_TEST_DEVICE"]
+#[ignore = "needs PHONEDRIVER_TEST_DEVICE"]
 async fn scroll_until_a_row_that_does_not_exist_fails_not_found_at_the_end() {
     let rig = Rig::new().await;
     open_list(&rig).await;
@@ -268,7 +268,7 @@ async fn scroll_until_a_row_that_does_not_exist_fails_not_found_at_the_end() {
 }
 
 #[tokio::test]
-#[ignore = "needs PHONE_USE_TEST_DEVICE"]
+#[ignore = "needs PHONEDRIVER_TEST_DEVICE"]
 async fn a_ref_to_a_row_that_scrolled_away_is_stale_or_still_that_row() {
     let rig = Rig::new().await;
     let els = open_list(&rig).await;
@@ -290,7 +290,7 @@ async fn a_ref_to_a_row_that_scrolled_away_is_stale_or_still_that_row() {
 
 async fn stop_testbed(rig: &Rig) {
     rig.adb
-        .shell(&rig.serial, "am force-stop dev.phoneuse.testbed")
+        .shell(&rig.serial, "am force-stop dev.phonedriver.testbed")
         .await
         .unwrap();
 }
@@ -322,7 +322,7 @@ fn at(e: &serde_json::Value, action: &str) -> Vec<f64> {
 }
 
 #[tokio::test]
-#[ignore = "needs PHONE_USE_TEST_DEVICE"]
+#[ignore = "needs PHONEDRIVER_TEST_DEVICE"]
 async fn tap_count_2_logs_two_taps_80_ms_apart() {
     let rig = Rig::new().await;
     let (r, _, _) = surface(&rig).await;
@@ -337,7 +337,7 @@ async fn tap_count_2_logs_two_taps_80_ms_apart() {
 }
 
 #[tokio::test]
-#[ignore = "needs PHONE_USE_TEST_DEVICE"]
+#[ignore = "needs PHONEDRIVER_TEST_DEVICE"]
 async fn swipe_up_from_a_ref_starts_at_the_center_of_that_element() {
     let rig = Rig::new().await;
     let (r, cx, cy) = surface(&rig).await;
@@ -350,7 +350,7 @@ async fn swipe_up_from_a_ref_starts_at_the_center_of_that_element() {
 }
 
 #[tokio::test]
-#[ignore = "needs PHONE_USE_TEST_DEVICE"]
+#[ignore = "needs PHONEDRIVER_TEST_DEVICE"]
 async fn swipe_left_is_one_finger_moving_left_and_fast_lifts_while_moving() {
     let rig = Rig::new().await;
     surface(&rig).await;
@@ -387,7 +387,7 @@ async fn swipe_left_is_one_finger_moving_left_and_fast_lifts_while_moving() {
 }
 
 #[tokio::test]
-#[ignore = "needs PHONE_USE_TEST_DEVICE"]
+#[ignore = "needs PHONEDRIVER_TEST_DEVICE"]
 async fn a_long_press_of_800_ms_logs_down_and_up_800_ms_apart() {
     let rig = Rig::new().await;
     let (r, _, _) = surface(&rig).await;
@@ -399,7 +399,7 @@ async fn a_long_press_of_800_ms_logs_down_and_up_800_ms_apart() {
 }
 
 #[tokio::test]
-#[ignore = "needs PHONE_USE_TEST_DEVICE"]
+#[ignore = "needs PHONEDRIVER_TEST_DEVICE"]
 async fn a_two_finger_pinch_logs_two_pointer_ids_and_pointer_down_and_up_on_schedule() {
     let rig = Rig::new().await;
     let (_, cx, cy) = surface(&rig).await;
@@ -454,7 +454,7 @@ fn app_id(r: &serde_json::Value) -> String {
 }
 
 #[tokio::test]
-#[ignore = "needs PHONE_USE_TEST_DEVICE"]
+#[ignore = "needs PHONEDRIVER_TEST_DEVICE"]
 async fn press_home_puts_the_launcher_in_the_foreground() {
     let rig = Rig::new().await;
     stop_testbed(&rig).await;
@@ -464,7 +464,7 @@ async fn press_home_puts_the_launcher_in_the_foreground() {
 }
 
 #[tokio::test]
-#[ignore = "needs PHONE_USE_TEST_DEVICE"]
+#[ignore = "needs PHONEDRIVER_TEST_DEVICE"]
 async fn press_back_on_the_second_screen_returns_to_the_first() {
     let rig = Rig::new().await;
     rig.tab("settle").await;
@@ -484,7 +484,7 @@ async fn press_back_on_the_second_screen_returns_to_the_first() {
 }
 
 #[tokio::test]
-#[ignore = "needs PHONE_USE_TEST_DEVICE"]
+#[ignore = "needs PHONEDRIVER_TEST_DEVICE"]
 async fn press_enter_in_the_multiline_field_types_a_newline() {
     let rig = Rig::new().await;
     rig.tab("text").await;
@@ -503,7 +503,7 @@ async fn press_enter_in_the_multiline_field_types_a_newline() {
 }
 
 #[tokio::test]
-#[ignore = "needs PHONE_USE_TEST_DEVICE"]
+#[ignore = "needs PHONEDRIVER_TEST_DEVICE"]
 async fn press_notifications_shows_the_shade_with_a_posted_notification() {
     let rig = Rig::new().await;
     rig.tab("taps").await;
@@ -511,13 +511,13 @@ async fn press_notifications_shows_the_shade_with_a_posted_notification() {
         .adb
         .shell(
             &rig.serial,
-            "pm grant dev.phoneuse.testbed android.permission.POST_NOTIFICATIONS",
+            "pm grant dev.phonedriver.testbed android.permission.POST_NOTIFICATIONS",
         )
         .await;
     rig.adb
         .shell(
             &rig.serial,
-            "am start -n dev.phoneuse.testbed/.MainActivity --es notify 'code 482913'",
+            "am start -n dev.phonedriver.testbed/.MainActivity --es notify 'code 482913'",
         )
         .await
         .unwrap();
@@ -535,50 +535,49 @@ async fn press_notifications_shows_the_shade_with_a_posted_notification() {
 }
 
 #[tokio::test]
-#[ignore = "needs PHONE_USE_TEST_DEVICE"]
+#[ignore = "needs PHONEDRIVER_TEST_DEVICE"]
 async fn launch_with_the_shade_open_shows_the_app_not_the_shade() {
     let rig = Rig::new().await;
     rig.ok(&["press", "home"]);
     rig.ok(&["press", "notifications"]);
-    let r = rig.json(&["launch", "dev.phoneuse.testbed"]);
+    let r = rig.json(&["launch", "dev.phonedriver.testbed"]);
     let shown = text(&r);
     rig.adb
         .shell(&rig.serial, "cmd statusbar collapse")
         .await
         .unwrap();
-    assert_eq!(app_id(&r), "dev.phoneuse.testbed", "{r}");
+    assert_eq!(app_id(&r), "dev.phonedriver.testbed", "{r}");
     assert!(shown.contains("button \"Taps\""), "{shown}");
     assert!(!shown.contains("Collapse"), "{shown}");
 }
 
 #[tokio::test]
-#[ignore = "needs PHONE_USE_TEST_DEVICE"]
+#[ignore = "needs PHONEDRIVER_TEST_DEVICE"]
 async fn apps_lists_the_testbed_by_its_label() {
     let rig = Rig::new().await;
     let r = rig.json(&["apps"]);
     assert!(
-        r.as_array()
-            .unwrap()
-            .iter()
-            .any(|a| { a["id"] == "dev.phoneuse.testbed" && a["name"] == "phone-use testbed" }),
+        r.as_array().unwrap().iter().any(|a| {
+            a["id"] == "dev.phonedriver.testbed" && a["name"] == "phonedriver testbed"
+        }),
         "{r}"
     );
 }
 
 #[tokio::test]
-#[ignore = "needs PHONE_USE_TEST_DEVICE"]
+#[ignore = "needs PHONEDRIVER_TEST_DEVICE"]
 async fn launch_by_label_or_package_foregrounds_the_testbed_with_a_full_snapshot() {
     let rig = Rig::new().await;
-    for app in ["phone-use testbed", "dev.phoneuse.testbed"] {
+    for app in ["phonedriver testbed", "dev.phonedriver.testbed"] {
         rig.ok(&["press", "home"]);
         let r = rig.json(&["launch", app]);
         assert_eq!(r["observation"]["kind"], "full", "{app}: {r}");
-        assert_eq!(app_id(&r), "dev.phoneuse.testbed", "{app}: {r}");
+        assert_eq!(app_id(&r), "dev.phonedriver.testbed", "{app}: {r}");
     }
 }
 
 #[tokio::test]
-#[ignore = "needs PHONE_USE_TEST_DEVICE"]
+#[ignore = "needs PHONEDRIVER_TEST_DEVICE"]
 async fn launching_a_misspelled_app_fails_not_found_and_names_the_real_one() {
     let rig = Rig::new().await;
     let name = "Settings";
@@ -590,7 +589,7 @@ async fn launching_a_misspelled_app_fails_not_found_and_names_the_real_one() {
 }
 
 #[tokio::test]
-#[ignore = "needs PHONE_USE_TEST_DEVICE"]
+#[ignore = "needs PHONEDRIVER_TEST_DEVICE"]
 async fn open_a_deep_link_shows_that_row_and_a_web_link_shows_the_page() {
     let rig = Rig::new().await;
     rig.tab("taps").await;
@@ -598,7 +597,7 @@ async fn open_a_deep_link_shows_that_row_and_a_web_link_shows_the_page() {
         "--expect-change",
         "1500",
         "open",
-        "dev.phoneuse.testbed://list/640",
+        "dev.phonedriver.testbed://list/640",
     ]);
     assert!(text(&r).contains("Row 640"), "{r}");
     let r = rig.json(&["--expect-change", "3000", "open", "https://example.com"]);
@@ -625,7 +624,7 @@ async fn open_a_deep_link_shows_that_row_and_a_web_link_shows_the_page() {
 }
 
 #[tokio::test]
-#[ignore = "needs PHONE_USE_TEST_DEVICE"]
+#[ignore = "needs PHONEDRIVER_TEST_DEVICE"]
 async fn clear_empties_a_plain_field_and_the_testbed_logs_an_empty_value() {
     let rig = Rig::new().await;
     rig.tab("text").await;
@@ -656,7 +655,7 @@ async fn clear_empties_a_plain_field_and_the_testbed_logs_an_empty_value() {
 }
 
 #[tokio::test]
-#[ignore = "needs PHONE_USE_TEST_DEVICE"]
+#[ignore = "needs PHONEDRIVER_TEST_DEVICE"]
 async fn clipboard_set_then_get_prints_what_was_set_in_unicode_too() {
     let rig = Rig::new().await;
     rig.ok(&["clipboard", "set", "x"]);
@@ -666,7 +665,7 @@ async fn clipboard_set_then_get_prints_what_was_set_in_unicode_too() {
 }
 
 #[tokio::test]
-#[ignore = "needs PHONE_USE_TEST_DEVICE"]
+#[ignore = "needs PHONEDRIVER_TEST_DEVICE"]
 async fn after_a_paste_type_the_device_clipboard_is_what_it_was_before() {
     let rig = Rig::new().await;
     rig.tab("text").await;
@@ -686,7 +685,7 @@ async fn after_a_paste_type_the_device_clipboard_is_what_it_was_before() {
 }
 
 #[tokio::test]
-#[ignore = "needs PHONE_USE_TEST_DEVICE"]
+#[ignore = "needs PHONEDRIVER_TEST_DEVICE"]
 async fn a_shown_keyboard_marks_the_button_under_it_and_tapping_that_button_says_how_to_get_out() {
     let rig = Rig::new().await;
     rig.tab("text").await;
@@ -749,11 +748,11 @@ fn reads(r: &serde_json::Value) -> u32 {
 }
 
 #[tokio::test]
-#[ignore = "needs PHONE_USE_TEST_DEVICE"]
+#[ignore = "needs PHONEDRIVER_TEST_DEVICE"]
 async fn wait_for_a_row_returns_as_soon_as_the_deep_link_has_shown_it() {
     let rig = Rig::new().await;
     stop_testbed(&rig).await;
-    rig.ok(&["--no-settle", "open", "dev.phoneuse.testbed://list/640"]);
+    rig.ok(&["--no-settle", "open", "dev.phonedriver.testbed://list/640"]);
     let started = std::time::Instant::now();
     let r = rig.json(&["--timeout", "8000", "wait", "Row 640"]);
     assert!(r["summary"].as_str().unwrap().contains("appeared"), "{r}");
@@ -773,7 +772,7 @@ async fn wait_for_a_row_returns_as_soon_as_the_deep_link_has_shown_it() {
 }
 
 #[tokio::test]
-#[ignore = "needs PHONE_USE_TEST_DEVICE"]
+#[ignore = "needs PHONEDRIVER_TEST_DEVICE"]
 async fn wait_gone_returns_after_the_testbed_hides_its_label_one_second_after_a_tap() {
     let rig = Rig::new().await;
     rig.tab("wait").await;
@@ -797,7 +796,7 @@ async fn wait_gone_returns_after_the_testbed_hides_its_label_one_second_after_a_
 }
 
 #[tokio::test]
-#[ignore = "needs PHONE_USE_TEST_DEVICE"]
+#[ignore = "needs PHONEDRIVER_TEST_DEVICE"]
 async fn wait_for_text_that_never_shows_times_out_naming_it() {
     let rig = Rig::new().await;
     rig.tab("taps").await;
@@ -813,7 +812,7 @@ async fn wait_for_text_that_never_shows_times_out_naming_it() {
 }
 
 #[tokio::test]
-#[ignore = "needs PHONE_USE_TEST_DEVICE"]
+#[ignore = "needs PHONEDRIVER_TEST_DEVICE"]
 async fn wait_reads_the_tree_per_change_not_per_tick() {
     let rig = Rig::new().await;
     rig.tab("wait").await;
@@ -829,7 +828,7 @@ async fn wait_reads_the_tree_per_change_not_per_tick() {
 }
 
 #[tokio::test]
-#[ignore = "needs PHONE_USE_TEST_DEVICE"]
+#[ignore = "needs PHONEDRIVER_TEST_DEVICE"]
 async fn snapshot_within_a_ref_renders_only_that_subtree() {
     let rig = Rig::new().await;
     rig.tab("taps").await;

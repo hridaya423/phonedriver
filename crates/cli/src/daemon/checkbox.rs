@@ -5,8 +5,8 @@
 //! tree cannot tell a ticked box from an empty one. A ticked box is drawn filled with the page's accent color, an empty
 //! one is not.
 
-use phone_use_core::error::{Error, Op};
-use phone_use_core::geometry::Rect;
+use phonedriver_core::error::{Error, Op};
+use phonedriver_core::geometry::Rect;
 
 const INSET: f32 = 0.2;
 const COLORED_SHARE: f32 = 0.2;

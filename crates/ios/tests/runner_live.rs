@@ -1,6 +1,6 @@
 //! Runner lifecycle on booted simulators. Run on the Mac that hosts them:
-//! `PHONE_USE_TEST_DEVICE=sim:<udid> cargo test -p phone-use-ios --test runner_live -- --ignored --test-threads=1`.
-//! The two-simulator test also needs `PHONE_USE_TEST_DEVICE2=sim:<udid>`.
+//! `PHONEDRIVER_TEST_DEVICE=sim:<udid> cargo test -p phonedriver-ios --test runner_live -- --ignored --test-threads=1`.
+//! The two-simulator test also needs `PHONEDRIVER_TEST_DEVICE2=sim:<udid>`.
 
 #![cfg(unix)]
 
@@ -10,8 +10,8 @@ use std::path::PathBuf;
 use std::process::{Command, Stdio};
 use std::time::{Duration, Instant};
 
-use phone_use_ios::runner::{self, Client, Runner};
-use phone_use_ios::simulator::Simulator;
+use phonedriver_ios::runner::{self, Client, Runner};
+use phonedriver_ios::simulator::Simulator;
 
 fn udid(var: &str) -> String {
     let v = std::env::var(var).unwrap_or_else(|_| panic!("set {var}=sim:<udid>"));
@@ -19,7 +19,7 @@ fn udid(var: &str) -> String {
 }
 
 fn home() -> PathBuf {
-    let dir = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join("phone-use-home");
+    let dir = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join("phonedriver-home");
     std::fs::create_dir_all(&dir).unwrap();
     dir
 }
@@ -36,7 +36,7 @@ async fn answers(port: u16) -> bool {
 #[tokio::test]
 #[ignore]
 async fn list_returns_the_booted_test_simulator() {
-    let udid = udid("PHONE_USE_TEST_DEVICE");
+    let udid = udid("PHONEDRIVER_TEST_DEVICE");
     let sims = Simulator::list().await.unwrap();
     let me = sims.iter().find(|s| s.udid == udid).expect("not booted");
     assert!(me.os.starts_with("iOS "), "{me:?}");
@@ -59,8 +59,8 @@ async fn the_runner_builds_once_per_source_hash() {
 #[ignore]
 async fn two_simulators_get_two_runners_on_two_ports() {
     let (a, b) = (
-        udid("PHONE_USE_TEST_DEVICE"),
-        udid("PHONE_USE_TEST_DEVICE2"),
+        udid("PHONEDRIVER_TEST_DEVICE"),
+        udid("PHONEDRIVER_TEST_DEVICE2"),
     );
     let home = home();
     let (ra, rb) = tokio::join!(Runner::start(&a, &home), Runner::start(&b, &home));
@@ -97,7 +97,7 @@ async fn hold_runner() {
     let Ok(home) = std::env::var("HOLD_RUNNER_HOME") else {
         return;
     };
-    let r = Runner::start(&udid("PHONE_USE_TEST_DEVICE"), home.as_ref())
+    let r = Runner::start(&udid("PHONEDRIVER_TEST_DEVICE"), home.as_ref())
         .await
         .unwrap();
     println!("port {}", r.port);
@@ -107,7 +107,7 @@ async fn hold_runner() {
 #[tokio::test]
 #[ignore]
 async fn a_runner_left_by_a_killed_owner_is_reused_and_dies_with_its_process_group() {
-    let udid = udid("PHONE_USE_TEST_DEVICE");
+    let udid = udid("PHONEDRIVER_TEST_DEVICE");
     let home = home();
     let mut owner = Command::new(std::env::current_exe().unwrap())
         .args(["--exact", "hold_runner", "--ignored", "--nocapture"])

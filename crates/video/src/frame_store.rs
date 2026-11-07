@@ -4,8 +4,8 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-use phone_use_core::device::FrameRef;
-use phone_use_core::geometry::Rect;
+use phonedriver_core::device::FrameRef;
+use phonedriver_core::geometry::Rect;
 use tokio::sync::watch;
 use tokio::time::Instant;
 

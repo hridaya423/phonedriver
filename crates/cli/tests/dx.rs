@@ -1,10 +1,10 @@
 use assert_cmd::Command;
 
-fn phone_use(home: &tempfile::TempDir) -> Command {
-    let mut c = Command::cargo_bin("phone-use").unwrap();
-    c.env("PHONE_USE_HOME", home.path())
-        .env_remove("PHONE_USE_DEVICE")
-        .env_remove("PHONE_USE_SOCKET");
+fn phonedriver(home: &tempfile::TempDir) -> Command {
+    let mut c = Command::cargo_bin("phonedriver").unwrap();
+    c.env("PHONEDRIVER_HOME", home.path())
+        .env_remove("PHONEDRIVER_DEVICE")
+        .env_remove("PHONEDRIVER_SOCKET");
     c
 }
 
@@ -16,7 +16,7 @@ fn stderr_of(mut c: Command, code: i32) -> String {
 #[test]
 fn a_bad_scroll_direction_is_refused_by_the_cli_with_the_choices() {
     let home = tempfile::tempdir().unwrap();
-    let mut c = phone_use(&home);
+    let mut c = phonedriver(&home);
     c.args(["scroll", "sideways"]);
     let stderr = stderr_of(c, 2);
     assert!(stderr.contains("up, down, left, right"), "{stderr}");
@@ -30,23 +30,23 @@ fn a_bad_scroll_direction_is_refused_by_the_cli_with_the_choices() {
 #[test]
 fn the_secret_error_shows_how_to_pipe_it_and_not_the_top_level_usage() {
     let home = tempfile::tempdir().unwrap();
-    let mut c = phone_use(&home);
+    let mut c = phonedriver(&home);
     c.args(["type", "--secret", "hunter2"]);
     let stderr = stderr_of(c, 2);
     assert!(
-        stderr.contains("echo -n \"$PW\" | phone-use type --secret --into @e3"),
+        stderr.contains("echo -n \"$PW\" | phonedriver type --secret --into @e3"),
         "{stderr}"
     );
-    assert!(!stderr.contains("Usage: phone-use [OPTIONS]"), "{stderr}");
+    assert!(!stderr.contains("Usage: phonedriver [OPTIONS]"), "{stderr}");
     assert!(!stderr.contains("hunter2"), "{stderr}");
 }
 
 fn daemon_env(c: &mut Command, home: &tempfile::TempDir) {
-    c.env("PHONE_USE_HOME", home.path())
-        .env("PHONE_USE_SOCKET", home.path().join("run").join("d.sock"))
+    c.env("PHONEDRIVER_HOME", home.path())
+        .env("PHONEDRIVER_SOCKET", home.path().join("run").join("d.sock"))
         .env("ADB_SERVER_SOCKET", "tcp:127.0.0.1:1")
         .env("USBMUXD_SOCKET_ADDRESS", "127.0.0.1:1")
-        .env_remove("PHONE_USE_DEVICE");
+        .env_remove("PHONEDRIVER_DEVICE");
 }
 
 #[test]
@@ -57,7 +57,7 @@ fn daemon_stop_ends_a_running_daemon_and_succeeds_when_there_is_none() {
 
     let home = tempfile::tempdir().unwrap();
     let stop = |home: &tempfile::TempDir| {
-        let mut c = Command::cargo_bin("phone-use").unwrap();
+        let mut c = Command::cargo_bin("phonedriver").unwrap();
         daemon_env(&mut c, home);
         c.args(["daemon", "stop"]);
         let out = c.assert().success();
@@ -65,7 +65,7 @@ fn daemon_stop_ends_a_running_daemon_and_succeeds_when_there_is_none() {
     };
     assert_eq!(stop(&home), "no daemon is running\n");
 
-    let mut started = Command::cargo_bin("phone-use").unwrap();
+    let mut started = Command::cargo_bin("phonedriver").unwrap();
     daemon_env(&mut started, &home);
     let mut daemon = std::process::Command::new(started.get_program())
         .arg("daemon")
@@ -118,9 +118,9 @@ fn walk(cmd: &clap::Command, path: &str, problems: &mut Vec<String>) {
 #[test]
 fn every_visible_flag_and_argument_has_a_description() {
     let mut problems = Vec::new();
-    let mut cmd = phone_use::commands::command();
+    let mut cmd = phonedriver::commands::command();
     cmd.build();
-    walk(&cmd, "phone-use", &mut problems);
+    walk(&cmd, "phonedriver", &mut problems);
     assert!(problems.is_empty(), "{problems:#?}");
 }
 
@@ -128,7 +128,7 @@ fn every_visible_flag_and_argument_has_a_description() {
 fn global_options_are_left_out_of_the_help_of_commands_that_ignore_them() {
     let home = tempfile::tempdir().unwrap();
     let help = |args: &[&str]| {
-        let out = phone_use(&home).args(args).assert().success();
+        let out = phonedriver(&home).args(args).assert().success();
         String::from_utf8(out.get_output().stdout.clone()).unwrap()
     };
     assert!(!help(&["doctor", "--help"]).contains("--session"));
@@ -142,7 +142,7 @@ fn global_options_are_left_out_of_the_help_of_commands_that_ignore_them() {
 #[test]
 fn within_is_one_name_and_in_still_works() {
     let home = tempfile::tempdir().unwrap();
-    let help = phone_use(&home)
+    let help = phonedriver(&home)
         .args(["scroll", "--help"])
         .assert()
         .success();
@@ -151,7 +151,7 @@ fn within_is_one_name_and_in_still_works() {
         text.contains("--within") && !text.contains("--in "),
         "{text}"
     );
-    let mut c = phone_use(&home);
+    let mut c = phonedriver(&home);
     c.args(["scroll", "down", "--in", "@e1", "--device", "nope"]);
     let stderr = stderr_of(c, 4);
     assert!(!stderr.contains("unexpected argument"), "{stderr}");

@@ -1,11 +1,11 @@
-//! Live tests against approved physical devices. `PHONE_USE_TEST_IOS_EXPECT` lists `udid=tier` pairs, for example
+//! Live tests against approved physical devices. `PHONEDRIVER_TEST_IOS_EXPECT` lists `udid=tier` pairs, for example
 //! `00008142-001971E2346B801C=coredevice,00008110-00142036217A201E=runner`.
 
-use phone_use_ios::discovery;
+use phonedriver_ios::discovery;
 
 fn expected() -> Vec<(String, String)> {
-    std::env::var("PHONE_USE_TEST_IOS_EXPECT")
-        .expect("PHONE_USE_TEST_IOS_EXPECT")
+    std::env::var("PHONEDRIVER_TEST_IOS_EXPECT")
+        .expect("PHONEDRIVER_TEST_IOS_EXPECT")
         .split(',')
         .map(|pair| {
             let (udid, tier) = pair.split_once('=').expect("udid=tier");
@@ -37,7 +37,7 @@ fn testbed_log(udid: &str) -> String {
     let status = std::process::Command::new("xcrun")
         .args(["devicectl", "device", "copy", "from", "--device", udid])
         .args(["--domain-type", "appDataContainer"])
-        .args(["--domain-identifier", "dev.phoneuse.testbed"])
+        .args(["--domain-identifier", "dev.phonedriver.testbed"])
         .args(["--source", "Documents/putb.log", "--destination"])
         .arg(&dir)
         .output()
@@ -50,20 +50,20 @@ fn testbed_log(udid: &str) -> String {
 #[tokio::test(flavor = "multi_thread")]
 #[ignore = "needs approved physical iOS devices"]
 async fn coredevice_tier_streams_the_screen_and_a_tap_reaches_the_testbed() {
-    use phone_use_core::device::{Device, Gesture, TimedPoint};
-    use phone_use_core::geometry::Point;
-    let udid = std::env::var("PHONE_USE_TEST_IOS_UDID").expect("PHONE_USE_TEST_IOS_UDID");
-    let wired = phone_use_ios::transport::wired()
+    use phonedriver_core::device::{Device, Gesture, TimedPoint};
+    use phonedriver_core::geometry::Point;
+    let udid = std::env::var("PHONEDRIVER_TEST_IOS_UDID").expect("PHONEDRIVER_TEST_IOS_UDID");
+    let wired = phonedriver_ios::transport::wired()
         .await
         .unwrap()
         .into_iter()
         .find(|w| w.udid == udid)
         .unwrap();
-    let device = phone_use_ios::coredevice::CoreDevice::connect(&wired, "iPad17,3")
+    let device = phonedriver_ios::coredevice::CoreDevice::connect(&wired, "iPad17,3")
         .await
         .unwrap();
     let shot = device
-        .screenshot(phone_use_core::device::Quality(80))
+        .screenshot(phonedriver_core::device::Quality(80))
         .await
         .unwrap();
     assert_eq!((shot.width, shot.height), (1032, 1368));
@@ -90,16 +90,16 @@ async fn coredevice_tier_streams_the_screen_and_a_tap_reaches_the_testbed() {
 #[tokio::test(flavor = "multi_thread")]
 #[ignore = "needs approved physical iOS devices"]
 async fn coredevice_tier_types_into_a_focused_field() {
-    use phone_use_core::device::{Device, Gesture, TextInput, TimedPoint};
-    use phone_use_core::geometry::Point;
-    let udid = std::env::var("PHONE_USE_TEST_IOS_UDID").expect("PHONE_USE_TEST_IOS_UDID");
-    let wired = phone_use_ios::transport::wired()
+    use phonedriver_core::device::{Device, Gesture, TextInput, TimedPoint};
+    use phonedriver_core::geometry::Point;
+    let udid = std::env::var("PHONEDRIVER_TEST_IOS_UDID").expect("PHONEDRIVER_TEST_IOS_UDID");
+    let wired = phonedriver_ios::transport::wired()
         .await
         .unwrap()
         .into_iter()
         .find(|w| w.udid == udid)
         .unwrap();
-    let device = phone_use_ios::coredevice::CoreDevice::connect(&wired, "iPad17,3")
+    let device = phonedriver_ios::coredevice::CoreDevice::connect(&wired, "iPad17,3")
         .await
         .unwrap();
     let tap = async |x: f32, y: f32| {
@@ -135,15 +135,15 @@ async fn coredevice_tier_types_into_a_focused_field() {
 #[tokio::test(flavor = "multi_thread")]
 #[ignore = "needs approved physical iOS devices"]
 async fn coredevice_tier_home_button_backgrounds_the_app() {
-    use phone_use_core::device::{Button, Device};
-    let udid = std::env::var("PHONE_USE_TEST_IOS_UDID").expect("PHONE_USE_TEST_IOS_UDID");
-    let wired = phone_use_ios::transport::wired()
+    use phonedriver_core::device::{Button, Device};
+    let udid = std::env::var("PHONEDRIVER_TEST_IOS_UDID").expect("PHONEDRIVER_TEST_IOS_UDID");
+    let wired = phonedriver_ios::transport::wired()
         .await
         .unwrap()
         .into_iter()
         .find(|w| w.udid == udid)
         .unwrap();
-    let device = phone_use_ios::coredevice::CoreDevice::connect(&wired, "iPad17,3")
+    let device = phonedriver_ios::coredevice::CoreDevice::connect(&wired, "iPad17,3")
         .await
         .unwrap();
     device.button(Button::Home).await.unwrap();

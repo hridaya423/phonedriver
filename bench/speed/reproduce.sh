@@ -9,9 +9,9 @@ OUT="${OUT:-bench/speed/out-$(date +%Y%m%d-%H%M%S)}"
 : "${PH_PYTHON:?set PH_PYTHON to a Python that has phone-harness 0.3.3}"
 unset ADB_SERVER_SOCKET
 bash android-agent/build.sh
-cargo build --release -p phone-use
+cargo build --release -p phonedriver
 APK=testbeds/android/app/build/outputs/apk/debug/app-debug.apk
-EXE=target/release/phone-use
+EXE=target/release/phonedriver
 [ -f "$EXE.exe" ] && EXE="$EXE.exe"
-"$PH_PYTHON" bench/speed/run_speed.py --phone-use "$EXE" --apk "$APK" --serial "$SERIAL" --out "$OUT" --ph-python "$PH_PYTHON"
+"$PH_PYTHON" bench/speed/run_speed.py --phonedriver "$EXE" --apk "$APK" --serial "$SERIAL" --out "$OUT" --ph-python "$PH_PYTHON"
 python3 bench/speed/stats.py "$OUT" --md "$OUT/tables.md"

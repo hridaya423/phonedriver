@@ -5,4 +5,4 @@ steps:
   - expect: {log: {ev: tap, id: b17}}
   - expect: {element: {text: "Last tap: b17"}}
 cleanup:
-  - shell: "xcrun simctl terminate {udid} dev.phoneuse.testbed || true"
+  - shell: "xcrun simctl terminate {udid} dev.phonedriver.testbed || true"

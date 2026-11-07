@@ -1,7 +1,7 @@
 use std::sync::{Arc, Mutex};
 
-use phone_use_android::adb::{Adb, DeviceState, ShellPacket};
-use phone_use_core::error::Error;
+use phonedriver_android::adb::{Adb, DeviceState, ShellPacket};
+use phonedriver_core::error::Error;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::broadcast;
@@ -314,7 +314,7 @@ async fn open_abstract_returns_a_duplex_stream() {
     let fake = FakeAdb::start().await;
     let mut s = fake
         .adb()
-        .open_abstract("emulator-5554", "phone-use-test")
+        .open_abstract("emulator-5554", "phonedriver-test")
         .await
         .unwrap();
     s.write_all(b"ping").await.unwrap();

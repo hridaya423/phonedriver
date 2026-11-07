@@ -1,4 +1,4 @@
-package dev.phoneuse.agent;
+package dev.phonedriver.agent;
 
 import android.graphics.Rect;
 import android.hardware.display.VirtualDisplay;
@@ -80,9 +80,9 @@ final class Video {
                 codec.configure(format(size[0], size[1]), null, null, MediaCodec.CONFIGURE_FLAG_ENCODE);
                 surface = codec.createInputSurface();
                 try {
-                    display = ServiceManager.getDisplayManager().createVirtualDisplay("phoneuse", size[0], size[1], 0, surface);
+                    display = ServiceManager.getDisplayManager().createVirtualDisplay("phonedriver", size[0], size[1], 0, surface);
                 } catch (Exception e) {
-                    legacyDisplay = SurfaceControl.createDisplay("phoneuse", false);
+                    legacyDisplay = SurfaceControl.createDisplay("phonedriver", false);
                     SurfaceControl.openTransaction();
                     try {
                         SurfaceControl.setDisplaySurface(legacyDisplay, surface);

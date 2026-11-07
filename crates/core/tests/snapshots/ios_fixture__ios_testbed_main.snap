@@ -3,7 +3,7 @@ source: crates/core/tests/ios_fixture.rs
 expression: "rendered().text(&Filters::default()).unwrap()"
 ---
 device ios:280D26B7-7201-4907-877C-7101DE5FE4AE · iPhone18,3 · iOS 26.5 · 402x874pt · portrait
-app dev.phoneuse.testbed (Testbed) · keyboard hidden
+app dev.phonedriver.testbed (Testbed) · keyboard hidden
 @e1 group "Testbed"
   @e2 text "Last tap: none"
   @e3 button "B0"

@@ -5,7 +5,7 @@ use std::io::{Read, Write};
 use flate2::Compression;
 use flate2::read::ZlibDecoder;
 use flate2::write::ZlibEncoder;
-use phone_use_core::error::Error;
+use phonedriver_core::error::Error;
 
 pub const H264_PAYLOAD: u64 = 123;
 pub const HEVC_PAYLOAD: u64 = 100;

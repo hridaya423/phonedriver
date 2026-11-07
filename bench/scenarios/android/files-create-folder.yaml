@@ -1,17 +1,17 @@
 name: files-create-folder
 steps:
-  - shell: "rm -rf /sdcard/Download/phoneuse-m2"
+  - shell: "rm -rf /sdcard/Download/phonedriver-m2"
   - shell: "pm clear com.google.android.documentsui"
   - shell: "pm clear com.android.documentsui"
   - launch: Files
   - wait: "More options"
   - tap: "More options"
   - tap: "New folder"
-  - type: {text: "phoneuse-m2"}
+  - type: {text: "phonedriver-m2"}
   - tap: "OK"
-  - expect: {text: "phoneuse-m2"}
-  - expect: {shell: {cmd: "ls /sdcard/Download", contains: "phoneuse-m2"}}
+  - expect: {text: "phonedriver-m2"}
+  - expect: {shell: {cmd: "ls /sdcard/Download", contains: "phonedriver-m2"}}
 cleanup:
-  - shell: "rm -rf /sdcard/Download/phoneuse-m2"
+  - shell: "rm -rf /sdcard/Download/phonedriver-m2"
   - shell: "pm clear com.google.android.documentsui"
   - shell: "pm clear com.android.documentsui"

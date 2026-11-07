@@ -1,4 +1,4 @@
-"""Latency baseline for plain adb on the same emulator, screens and operations as phone-use-bench.
+"""Latency baseline for plain adb on the same emulator, screens and operations as phonedriver-bench.
 
 Standard library only. Run on the machine next to the emulator with the default local adb server:
   python run_adb.py --serial emulator-5554 --runs 50 --warmup 5 [--csv out.csv]
@@ -13,7 +13,7 @@ import sys
 import time
 import xml.etree.ElementTree as ET
 
-PACKAGE = "dev.phoneuse.testbed"
+PACKAGE = "dev.phonedriver.testbed"
 ASCII_100 = ("The quick brown fox jumps over the lazy dog 0123456789. " * 3)[:100]
 MIXED = "héllo 世界 مرحبا 👋🏽 abc 123 "
 CLEAR = "input keycombination 113 29 && input keyevent 67"

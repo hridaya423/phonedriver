@@ -1,9 +1,9 @@
 name: long-text-emoji
 device: android
 steps:
-  - shell: "am force-stop dev.phoneuse.testbed"
+  - shell: "am force-stop dev.phonedriver.testbed"
   - testbed: text
   - type: {text: "The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. héllo 世界 مرحبا 👋🏽 🎉🚀 héllo 世界 مرحبا 👋🏽 🎉🚀 héllo 世界 مرحبا 👋🏽 🎉🚀 héllo 世界 مرحبا 👋🏽 🎉🚀 héllo 世界 مرحبا 👋🏽 🎉🚀 héllo 世界 مرحبا 👋🏽 🎉🚀 héllo 世界 مرحبا 👋🏽 🎉🚀 héllo 世界 مرحبا 👋🏽 🎉🚀", into: "plain"}
   - expect: {log: {ev: text, field: plain, value: "The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog. héllo 世界 مرحبا 👋🏽 🎉🚀 héllo 世界 مرحبا 👋🏽 🎉🚀 héllo 世界 مرحبا 👋🏽 🎉🚀 héllo 世界 مرحبا 👋🏽 🎉🚀 héllo 世界 مرحبا 👋🏽 🎉🚀 héllo 世界 مرحبا 👋🏽 🎉🚀 héllo 世界 مرحبا 👋🏽 🎉🚀 héllo 世界 مرحبا 👋🏽 🎉🚀"}}
 cleanup:
-  - shell: "am force-stop dev.phoneuse.testbed"
+  - shell: "am force-stop dev.phonedriver.testbed"

@@ -8,15 +8,15 @@ use interprocess::local_socket::{GenericFilePath, ListenerOptions, ToFsName};
 
 pub use interprocess::local_socket::tokio::{Listener, Stream};
 
-/// `PHONE_USE_SOCKET`, else under `PHONE_USE_HOME`, else `$XDG_RUNTIME_DIR/phone-use`, else `~/.phone-use/run`.
+/// `PHONEDRIVER_SOCKET`, else under `PHONEDRIVER_HOME`, else `$XDG_RUNTIME_DIR/phonedriver`, else `~/.phonedriver/run`.
 pub fn socket_path() -> PathBuf {
-    if let Some(p) = std::env::var_os("PHONE_USE_SOCKET") {
+    if let Some(p) = std::env::var_os("PHONEDRIVER_SOCKET") {
         return PathBuf::from(p);
     }
     #[cfg(windows)]
     {
         let user = std::env::var("USERNAME").unwrap_or_else(|_| "user".into());
-        let scope = std::env::var_os("PHONE_USE_HOME")
+        let scope = std::env::var_os("PHONEDRIVER_HOME")
             .map(|h| {
                 format!(
                     "-{:x}",
@@ -26,14 +26,14 @@ pub fn socket_path() -> PathBuf {
                 )
             })
             .unwrap_or_default();
-        PathBuf::from(format!(r"\\.\pipe\phone-use-{user}{scope}"))
+        PathBuf::from(format!(r"\\.\pipe\phonedriver-{user}{scope}"))
     }
     #[cfg(not(windows))]
     {
-        if std::env::var_os("PHONE_USE_HOME").is_none()
+        if std::env::var_os("PHONEDRIVER_HOME").is_none()
             && let Some(x) = std::env::var_os("XDG_RUNTIME_DIR")
         {
-            return PathBuf::from(x).join("phone-use").join("daemon.sock");
+            return PathBuf::from(x).join("phonedriver").join("daemon.sock");
         }
         fit_sun_path(home().join("run").join("daemon.sock"))
     }
@@ -44,7 +44,7 @@ pub fn socket_path() -> PathBuf {
 const SUN_PATH_MAX: usize = 100;
 
 /// A socket path that fits `sun_path`: the path itself, else a hash of it in a private directory under `$TMPDIR`
-/// (or `/tmp`), so a long `PHONE_USE_HOME` works and the client and the daemon still compute the same name.
+/// (or `/tmp`), so a long `PHONEDRIVER_HOME` works and the client and the daemon still compute the same name.
 #[cfg(unix)]
 fn fit_sun_path(path: PathBuf) -> PathBuf {
     let tmp = std::env::var_os("TMPDIR").map_or_else(|| PathBuf::from("/tmp"), PathBuf::from);
@@ -65,7 +65,7 @@ fn short_socket_path(path: PathBuf, tmp: &Path, user: &str) -> PathBuf {
         .fold(0xcbf29ce484222325u64, |h, b| {
             (h ^ u64::from(b)).wrapping_mul(0x100000001b3)
         });
-    let name = format!("phone-use-{hash:016x}/daemon.sock");
+    let name = format!("phonedriver-{hash:016x}/daemon.sock");
     let candidate = tmp.join(&name);
     if candidate.as_os_str().len() <= SUN_PATH_MAX {
         candidate
@@ -74,15 +74,15 @@ fn short_socket_path(path: PathBuf, tmp: &Path, user: &str) -> PathBuf {
     }
 }
 
-/// `PHONE_USE_HOME`, else `~/.phone-use`.
+/// `PHONEDRIVER_HOME`, else `~/.phonedriver`.
 pub fn home() -> PathBuf {
-    if let Some(h) = std::env::var_os("PHONE_USE_HOME") {
+    if let Some(h) = std::env::var_os("PHONEDRIVER_HOME") {
         return PathBuf::from(h);
     }
     let base = std::env::var_os("HOME")
         .or_else(|| std::env::var_os("USERPROFILE"))
         .map_or_else(|| PathBuf::from("."), PathBuf::from);
-    base.join(".phone-use")
+    base.join(".phonedriver")
 }
 
 fn name(path: &Path) -> io::Result<interprocess::local_socket::Name<'_>> {
@@ -109,7 +109,7 @@ pub async fn listen(path: &Path) -> io::Result<Listener> {
             if connect(path).await.is_ok() {
                 return Err(io::Error::new(
                     io::ErrorKind::AddrInUse,
-                    "a phone-use daemon is already listening",
+                    "a phonedriver daemon is already listening",
                 ));
             }
             std::fs::remove_file(path)?;

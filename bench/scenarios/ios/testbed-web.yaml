@@ -7,4 +7,4 @@ steps:
   - tap: Submit
   - expect: {log: {submit: true, name: Ada}}
 cleanup:
-  - shell: "xcrun simctl terminate {udid} dev.phoneuse.testbed || true"
+  - shell: "xcrun simctl terminate {udid} dev.phonedriver.testbed || true"

@@ -1,7 +1,7 @@
-"""Interleaved speed benchmark: phone-use, phone-harness 0.3.3 and plain adb against one emulator, on the machine next to it.
+"""Interleaved speed benchmark: phonedriver, phone-harness 0.3.3 and plain adb against one emulator, on the machine next to it.
 
 Run on the host that owns the emulator, with the default local adb server (never through an ssh tunnel):
-  python run_speed.py --phone-use PATH\\phone-use.exe --apk PATH\\app-debug.apk --serial emulator-5554 --out DIR
+  python run_speed.py --phonedriver PATH\\phonedriver.exe --apk PATH\\app-debug.apk --serial emulator-5554 --out DIR
 
 phone-harness must be importable (run with the Python of its venv). Every op is sampled in turn by every tool,
 sample by sample, with the start order rotating, so drift on the host reaches all tools equally. The first
@@ -19,7 +19,7 @@ import threading
 import time
 import xml.etree.ElementTree as ET
 
-PACKAGE = "dev.phoneuse.testbed"
+PACKAGE = "dev.phonedriver.testbed"
 ASCII_100 = ("The quick brown fox jumps over the lazy dog 0123456789. " * 3)[:100]
 MIXED_100 = ("héllo 世界 مرحبا 👋🏽 abc 123 " * 10)[:100]
 CLEAR = "input keycombination 113 29 && input keyevent 67"
@@ -58,13 +58,13 @@ VERSION = [None]
 
 
 class PU:
-    """The phone-use daemon. Its on-device agent holds the UiAutomation connection, and `uiautomator dump` (adb, phone-harness) cannot run beside it,
+    """The phonedriver daemon. Its on-device agent holds the UiAutomation connection, and `uiautomator dump` (adb, phone-harness) cannot run beside it,
     so the daemon is down while those tools are sampled."""
 
     def __init__(self, exe, home, serial):
         self.exe, self.home, self.serial = exe, home, serial
-        self.pipe = rf"\\.\pipe\phone-use-speed-{os.getpid()}"
-        self.env = dict(os.environ, PHONE_USE_HOME=home, PHONE_USE_SOCKET=self.pipe)
+        self.pipe = rf"\\.\pipe\phonedriver-speed-{os.getpid()}"
+        self.env = dict(os.environ, PHONEDRIVER_HOME=home, PHONEDRIVER_SOCKET=self.pipe)
         self.proc = self.conn = None
 
     def start(self):
@@ -82,7 +82,7 @@ class PU:
         self.proc.terminate()
         self.proc.wait()
         subprocess.run([self.exe, "daemon", "stop"], env=self.env, capture_output=True)
-        subprocess.run(["adb", "-s", self.serial, "shell", "pkill -f 'dev.phoneuse.agent.[M]ain'"], capture_output=True)
+        subprocess.run(["adb", "-s", self.serial, "shell", "pkill -f 'dev.phonedriver.agent.[M]ain'"], capture_output=True)
         time.sleep(1)
         self.proc = self.conn = None
 
@@ -217,7 +217,7 @@ def device_side(rig, pu, ph, density, n, warmup):
     rtt0, off0 = clock.offset()
     x, y = 120, 300
     tools = [
-        ("phone-use", lambda: pu.call("act", {"device": rig.serial, "action": {"kind": "tap", "target": {"point": {"x": x, "y": y}}}, "settle": False})),
+        ("phonedriver", lambda: pu.call("act", {"device": rig.serial, "action": {"kind": "tap", "target": {"point": {"x": x, "y": y}}}, "settle": False})),
         ("phone-harness", lambda: ph.tap(int(x * density), int(y * density))),
         ("adb", lambda: rig.adb("shell", f"input tap {int(x * density)} {int(y * density)}")),
     ]
@@ -245,18 +245,18 @@ def device_side(rig, pu, ph, density, n, warmup):
 
 
 def cold(rig, ph_python, exe, rounds):
-    """Fresh tool to first screen read. phone-use: daemon stopped, then one CLI snapshot (starts the daemon, deploys and boots the agent).
+    """Fresh tool to first screen read. phonedriver: daemon stopped, then one CLI snapshot (starts the daemon, deploys and boots the agent).
     phone-harness: a new Python process, import, first screen(). adb: one dump (the adb server is already running, as for any adb user)."""
-    env = dict(os.environ, PHONE_USE_HOME=os.path.join(rig.tmp, "cold-home"))
-    env.pop("PHONE_USE_SOCKET", None)
+    env = dict(os.environ, PHONEDRIVER_HOME=os.path.join(rig.tmp, "cold-home"))
+    env.pop("PHONEDRIVER_SOCKET", None)
     penv = dict(os.environ, DO_NOT_TRACK="1", PHONE_HARNESS_TELEMETRY="0", PHONE_HARNESS_NO_UPDATE_CHECK="1", PHONE_HARNESS_PLATFORM="android", ANDROID_SERIAL=rig.serial)
     rig.adb("shell", "am start -a android.settings.SETTINGS")
     time.sleep(2.5)
     rig.load("before cold start")
-    out = {"phone-use": [], "phone-harness": [], "adb": []}
+    out = {"phonedriver": [], "phone-harness": [], "adb": []}
     for i in range(rounds + 1):
-        for name in (["phone-use", "phone-harness", "adb"] if i % 2 == 0 else ["adb", "phone-harness", "phone-use"]):
-            if name == "phone-use":
+        for name in (["phonedriver", "phone-harness", "adb"] if i % 2 == 0 else ["adb", "phone-harness", "phonedriver"]):
+            if name == "phonedriver":
                 subprocess.run([exe, "daemon", "stop"], env=env, capture_output=True)
                 time.sleep(1)
                 t = ms_now()
@@ -264,7 +264,7 @@ def cold(rig, ph_python, exe, rounds):
                 took = ms_now() - t
                 assert r.returncode == 0, r.stderr[-300:]
                 subprocess.run([exe, "daemon", "stop"], env=env, capture_output=True)
-                rig.adb("shell", "pkill -f 'dev.phoneuse.agent.[M]ain'")
+                rig.adb("shell", "pkill -f 'dev.phonedriver.agent.[M]ain'")
             elif name == "phone-harness":
                 t = ms_now()
                 r = subprocess.run([ph_python, "-c", "from phone_harness import helpers as h; h.screen()"], env=penv, capture_output=True)
@@ -286,7 +286,7 @@ def cold(rig, ph_python, exe, rounds):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--phone-use", required=True)
+    ap.add_argument("--phonedriver", required=True)
     ap.add_argument("--apk", required=True)
     ap.add_argument("--serial", default="emulator-5554")
     ap.add_argument("--out", required=True)
@@ -307,25 +307,25 @@ def main():
     rig = Rig(a)
     rig.adb("shell", "input keyevent KEYCODE_WAKEUP")
     rig.adb("install", "-r", a.apk)
-    ver = subprocess.run([a.phone_use, "--version"], capture_output=True, text=True).stdout.strip()
+    ver = subprocess.run([a.phonedriver, "--version"], capture_output=True, text=True).stdout.strip()
     VERSION[0] = ver.split()[-1]
     home = os.path.join(rig.tmp, "home")
     os.makedirs(home)
     S = rig.serial
     d = rig.density
     W, R = a.warmup, a.runs
-    puh = PU(a.phone_use, home, S)
+    puh = PU(a.phonedriver, home, S)
     BL = 5
 
     def pu_tool(fn):
-        return ("phone-use", fn, puh.start, puh.stop)
+        return ("phonedriver", fn, puh.start, puh.stop)
 
     def other(name, fn):
         return (name, fn, lambda: None, lambda: None)
 
     rig.meta.update({
         "date": time.strftime("%Y-%m-%d %H:%M:%S"),
-        "phone_use_version": ver,
+        "phonedriver_version": ver,
         "adb_version": rig.adb("version").splitlines()[:2],
         "serial": S,
         "model": rig.adb("shell", "getprop ro.product.model").strip(),
@@ -344,7 +344,7 @@ def main():
         puh.start()
         if want("tap"):
             rig.sample("tap", [
-                ("phone-use", lambda: puh.call("act", {"device": S, "action": {"kind": "tap", "target": {"point": {"x": x, "y": y}}}, "settle": False})),
+                ("phonedriver", lambda: puh.call("act", {"device": S, "action": {"kind": "tap", "target": {"point": {"x": x, "y": y}}}, "settle": False})),
                 ("phone-harness", lambda: ph.tap(int(x * d), int(y * d))),
                 ("adb", lambda: rig.adb("shell", f"input tap {int(x * d)} {int(y * d)}")),
             ], W, R)
@@ -352,7 +352,7 @@ def main():
             rig.tab("taps")
             puh.start()
             rig.sample("tap, paced", [
-                ("phone-use", lambda: puh.call("act", {"device": S, "action": {"kind": "tap", "target": {"point": {"x": x, "y": y}}}, "settle": False})),
+                ("phonedriver", lambda: puh.call("act", {"device": S, "action": {"kind": "tap", "target": {"point": {"x": x, "y": y}}}, "settle": False})),
                 ("phone-harness", lambda: ph.tap(int(x * d), int(y * d))),
                 ("adb", lambda: rig.adb("shell", f"input tap {int(x * d)} {int(y * d)}")),
             ], W, R, lambda name: time.sleep(1.5))
@@ -362,7 +362,7 @@ def main():
                 with open(os.path.join(rig.tmp, "adb.png"), "wb") as f:
                     f.write(rig.adb("exec-out", "screencap", "-p", raw=True))
             rig.sample("screenshot", [
-                ("phone-use", lambda: puh.call("screenshot", {"device": S})),
+                ("phonedriver", lambda: puh.call("screenshot", {"device": S})),
                 ("phone-harness", lambda: ph.screenshot()),
                 ("adb", shot),
             ], W, R)
@@ -402,7 +402,7 @@ def main():
                 pu_tool(lambda: puh.call("snapshot", {"device": S, "no_settle": True})),
                 other("phone-harness", lambda: ph.screen()),
                 other("adb", lambda: rig.dump()),
-                ("phone-use, settled", lambda: puh.call("snapshot", {"device": S}), puh.start, puh.stop),
+                ("phonedriver, settled", lambda: puh.call("snapshot", {"device": S}), puh.start, puh.stop),
             ]
 
         if want("tree, Settings"):
@@ -421,16 +421,16 @@ def main():
             arg = "'" + ASCII_100.replace(" ", "%s") + "'"
             puh.start()
             rig.sample("type 100 characters", [
-                ("phone-use", lambda: puh.call("act", {"device": S, "action": {"kind": "type", "text": ASCII_100}, "settle": False})),
+                ("phonedriver", lambda: puh.call("act", {"device": S, "action": {"kind": "type", "text": ASCII_100}, "settle": False})),
                 ("phone-harness", lambda: ph.type_text(ASCII_100)),
                 ("adb", lambda: rig.adb("shell", f"input text {arg}")),
-                ("phone-use, mixed Unicode", lambda: puh.call("act", {"device": S, "action": {"kind": "type", "text": MIXED_100}, "settle": False})),
+                ("phonedriver, mixed Unicode", lambda: puh.call("act", {"device": S, "action": {"kind": "type", "text": MIXED_100}, "settle": False})),
             ], W, R, lambda name: rig.adb("shell", CLEAR))
             rig.adb("shell", CLEAR)
             puh.stop()
         try:
             if want("cold"):
-                cold(rig, a.ph_python, a.phone_use, a.cold_rounds)
+                cold(rig, a.ph_python, a.phonedriver, a.cold_rounds)
         finally:
             pass
     finally:

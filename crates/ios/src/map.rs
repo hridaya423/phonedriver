@@ -1,10 +1,10 @@
 //! Translation between the `Device` port's types and the runner's wire format (protocol section 3).
 
-use phone_use_core::device::{App, AppId, Gesture, Key, TimedPoint};
-use phone_use_core::element::Role;
-use phone_use_core::error::Error;
-use phone_use_core::geometry::{Point, Rect, Size};
-use phone_use_core::raw::{RawNode, RawTree, RawWindow};
+use phonedriver_core::device::{App, AppId, Gesture, Key, TimedPoint};
+use phonedriver_core::element::Role;
+use phonedriver_core::error::Error;
+use phonedriver_core::geometry::{Point, Rect, Size};
+use phonedriver_core::raw::{RawNode, RawTree, RawWindow};
 use serde_json::{Value, json};
 
 /// The screen in points as the app sees it now: the application element's frame follows the orientation, while the
@@ -386,14 +386,14 @@ mod tests {
         let tree = raw_tree(&reply, SCREEN).unwrap();
         assert_eq!(tree.windows[0].kind, "alert");
         assert_eq!(tree.windows[1].kind, "application");
-        let alerts = phone_use_core::alert::find(&tree, SCREEN);
+        let alerts = phonedriver_core::alert::find(&tree, SCREEN);
         assert_eq!(alerts.len(), 1);
         assert_eq!(alerts[0].1.package, "com.apple.springboard");
         assert_eq!(
             alerts[0].1.title.as_deref(),
             Some("Allow “Testbed” to use your location?")
         );
-        let nodes = phone_use_core::prune::prune(&tree);
+        let nodes = phonedriver_core::prune::prune(&tree);
         let first = &tree.nodes[nodes[0].raw];
         assert_eq!(first.role, Role::Alert);
         assert!(
@@ -411,7 +411,7 @@ mod tests {
         assert_eq!(tree.windows[0].kind, "application");
         assert_eq!(
             tree.windows[0].package.as_deref(),
-            Some("dev.phoneuse.testbed")
+            Some("dev.phonedriver.testbed")
         );
         assert_eq!(tree.windows[0].bounds.w, 402.0);
     }
@@ -464,7 +464,7 @@ mod tests {
             "{:?}",
             tree.nodes.iter().map(|n| &n.label).collect::<Vec<_>>()
         );
-        let kept = phone_use_core::prune::prune(&tree);
+        let kept = phonedriver_core::prune::prune(&tree);
         let shown: Vec<Role> = kept.iter().map(|n| n.role).collect();
         assert_eq!(shown, [Role::TextField, Role::Keyboard]);
         let kb = tree
@@ -498,19 +498,19 @@ mod tests {
         );
     }
 
-    fn scrolled(bar: &str, percent: &str) -> Vec<phone_use_core::prune::Node> {
+    fn scrolled(bar: &str, percent: &str) -> Vec<phonedriver_core::prune::Node> {
         let reply = json!({"app": {"bundle_id": "x", "pid": 1}, "nodes": [
             {"p": -1, "cls": "XCUIElementTypeApplication", "b": [0, 0, 402, 874], "f": "vVe"},
             {"p": 0, "cls": "XCUIElementTypeTable", "b": [0, 0, 402, 874], "f": "vVeS"},
             {"p": 1, "cls": "XCUIElementTypeCell", "text": "Row", "a": ["tap"], "b": [0, 100, 402, 150], "f": "vVe"},
             {"p": 1, "cls": "XCUIElementTypeOther", "text": bar, "sd": percent, "b": [369, 62, 399, 791], "f": "vVe"}
         ]});
-        phone_use_core::prune::prune(&raw_tree(&reply, SCREEN).unwrap())
+        phonedriver_core::prune::prune(&raw_tree(&reply, SCREEN).unwrap())
     }
 
     #[test]
     fn a_list_scroll_bar_says_which_way_the_list_scrolls_and_how_many_pages_it_has() {
-        use phone_use_core::element::Actions;
+        use phonedriver_core::element::Actions;
         let list = |bar, pct| scrolled(bar, pct).remove(0);
         let top = list("Vertical scroll bar, 2 pages", "0%");
         assert_eq!(top.actions, Actions::SCROLL_DOWN);
@@ -618,7 +618,7 @@ mod tests {
     fn listapps_names_and_system_flag() {
         let json = json!({
             "com.apple.Preferences": {"CFBundleDisplayName": "Settings", "ApplicationType": "System"},
-            "dev.phoneuse.testbed": {"CFBundleName": "Testbed", "ApplicationType": "User"}
+            "dev.phonedriver.testbed": {"CFBundleName": "Testbed", "ApplicationType": "User"}
         });
         assert_eq!(
             apps(&json),
@@ -629,7 +629,7 @@ mod tests {
                     system: true
                 },
                 App {
-                    id: AppId("dev.phoneuse.testbed".into()),
+                    id: AppId("dev.phonedriver.testbed".into()),
                     name: "Testbed".into(),
                     system: false
                 },

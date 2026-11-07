@@ -1,7 +1,7 @@
 name: rotation-mid-task-tablet
 device: android
 steps:
-  - shell: "am force-stop dev.phoneuse.testbed"
+  - shell: "am force-stop dev.phonedriver.testbed"
   - testbed: taps
   - shell: "settings put system accelerometer_rotation 0"
   - shell: "settings put system user_rotation 1"
@@ -17,4 +17,4 @@ steps:
 cleanup:
   - shell: "settings put system user_rotation 0"
   - shell: "settings put system accelerometer_rotation 1"
-  - shell: "am force-stop dev.phoneuse.testbed"
+  - shell: "am force-stop dev.phonedriver.testbed"

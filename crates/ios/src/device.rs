@@ -1,4 +1,4 @@
-//! `IosDevice`: the `Device` port over the PhoneUseRunner, Simulator tier (architecture 7, 7.3).
+//! `IosDevice`: the `Device` port over the PhonedriverRunner, Simulator tier (architecture 7, 7.3).
 
 use std::path::Path;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -7,16 +7,16 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 use base64::Engine;
-use phone_use_core::device::{
+use phonedriver_core::device::{
     App, AppId, AppOp, Button, Capabilities, ClipboardOp, Device, DeviceEvent, DeviceInfo,
     FrameRef, Gesture, Image, ImageFormat, Key, Quality, Result, ShellReply, ShellRequest,
     TextInput, Url,
 };
-use phone_use_core::element::Role;
-use phone_use_core::error::{Error, Op};
-use phone_use_core::geometry::Size;
-use phone_use_core::raw::RawTree;
-use phone_use_video::frame_store::{Frame, FrameStore};
+use phonedriver_core::element::Role;
+use phonedriver_core::error::{Error, Op};
+use phonedriver_core::geometry::Size;
+use phonedriver_core::raw::RawTree;
+use phonedriver_video::frame_store::{Frame, FrameStore};
 use serde_json::{Value, json};
 use tokio::sync::{Notify, broadcast, watch};
 use tokio::task::JoinHandle;
@@ -444,7 +444,7 @@ impl Device for IosDevice {
         let reply = self.snapshot(30).await?;
         match map::hide_keyboard_plan(&reply, self.screen()) {
             Some(map::HidePlan::Tap(at)) => {
-                self.gesture(phone_use_core::gesture::tap(at, 1, None))
+                self.gesture(phonedriver_core::gesture::tap(at, 1, None))
                     .await?;
                 Ok(Some("hide-key"))
             }
@@ -466,8 +466,8 @@ impl Device for IosDevice {
             Some(at) => {
                 self.gesture(Gesture {
                     fingers: vec![vec![
-                        phone_use_core::device::TimedPoint { at, t_ms: 0 },
-                        phone_use_core::device::TimedPoint { at, t_ms: 0 },
+                        phonedriver_core::device::TimedPoint { at, t_ms: 0 },
+                        phonedriver_core::device::TimedPoint { at, t_ms: 0 },
                     ]],
                 })
                 .await?;

@@ -1,6 +1,6 @@
 //! Choosing the iOS tier for a physical device (architecture 7).
 
-use phone_use_core::error::{Error, Op};
+use phonedriver_core::error::{Error, Op};
 
 use crate::transport::{self, Identity, Tunnel, Wired};
 
@@ -22,7 +22,7 @@ impl Tier {
     }
 }
 
-/// A wired physical device and the tier phone-use drives it with.
+/// A wired physical device and the tier phonedriver drives it with.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Found {
     pub udid: String,
@@ -85,14 +85,14 @@ pub fn choose_tier(os_version: &str, services: &[String]) -> Result<Tier, Error>
     } else {
         Err(Error::Unsupported {
             op: Op::Screenshot,
-            reason: "iOS before 17 has no developer services phone-use can reach",
+            reason: "iOS before 17 has no developer services phonedriver can reach",
         })
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use phone_use_core::error::Error;
+    use phonedriver_core::error::Error;
 
     use super::*;
 

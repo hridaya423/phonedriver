@@ -1,25 +1,25 @@
-name: PhoneUseRunner
+name: PhonedriverRunner
 options:
   deploymentTarget:
     iOS: "17.0"
 targets:
-  PhoneUseRunner:
+  PhonedriverRunner:
     type: bundle.ui-testing
     platform: iOS
     sources: [Runner]
     settings:
       base:
         GENERATE_INFOPLIST_FILE: YES
-        PRODUCT_BUNDLE_IDENTIFIER: dev.phoneuse.runner
+        PRODUCT_BUNDLE_IDENTIFIER: dev.phonedriver.runner
         HEADER_SEARCH_PATHS: $(SRCROOT)/PrivateHeaders
         CLANG_ENABLE_OBJC_ARC: YES
         GCC_TREAT_WARNINGS_AS_ERRORS: YES
         CODE_SIGN_IDENTITY: "-"
         CODE_SIGN_STYLE: Manual
 schemes:
-  PhoneUseRunner:
+  PhonedriverRunner:
     build:
       targets:
-        PhoneUseRunner: [test]
+        PhonedriverRunner: [test]
     test:
-      targets: [PhoneUseRunner]
+      targets: [PhonedriverRunner]

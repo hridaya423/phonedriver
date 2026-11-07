@@ -1,6 +1,6 @@
 #import "Json.h"
 
-NSErrorDomain const PURunnerErrorDomain = @"dev.phoneuse.runner";
+NSErrorDomain const PURunnerErrorDomain = @"dev.phonedriver.runner";
 
 NSError *PUError(PURunnerError code, NSString *message)
 {

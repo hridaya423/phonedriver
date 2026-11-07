@@ -1,9 +1,9 @@
 //! Translation between the `Device` port's types and the agent's wire format.
 
-use phone_use_core::device::{Button, DeviceEvent, Gesture, Key, TextInput};
-use phone_use_core::error::{Error, Op};
-use phone_use_core::geometry::{Scale, Size};
-use phone_use_core::raw::RawTree;
+use phonedriver_core::device::{Button, DeviceEvent, Gesture, Key, TextInput};
+use phonedriver_core::error::{Error, Op};
+use phonedriver_core::geometry::{Scale, Size};
+use phonedriver_core::raw::RawTree;
 use serde_json::{Value, json};
 
 const KEYCODE_HOME: i32 = 3;
@@ -133,10 +133,10 @@ pub fn reply_error(op: Op, error: &str) -> Error {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use phone_use_core::device::TimedPoint;
-    use phone_use_core::element::Role;
-    use phone_use_core::geometry::Point;
-    use phone_use_core::prune::prune;
+    use phonedriver_core::device::TimedPoint;
+    use phonedriver_core::element::Role;
+    use phonedriver_core::geometry::Point;
+    use phonedriver_core::prune::prune;
 
     const SETTINGS: &str =
         include_str!("../../core/tests/fixtures/android/real_settings_main.json");

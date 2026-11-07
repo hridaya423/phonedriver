@@ -1,11 +1,11 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use phone_use::daemon::sources::Sources;
-use phone_use::daemon::{DeviceSource, Listed};
-use phone_use_core::device::{Capabilities, Device};
-use phone_use_core::error::Error;
-use phone_use_core::testing::FakeDevice;
+use phonedriver::daemon::sources::Sources;
+use phonedriver::daemon::{DeviceSource, Listed};
+use phonedriver_core::device::{Capabilities, Device};
+use phonedriver_core::error::Error;
+use phonedriver_core::testing::FakeDevice;
 
 struct Fixed(Result<Vec<&'static str>, &'static str>);
 

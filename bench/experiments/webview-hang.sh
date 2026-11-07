@@ -14,15 +14,15 @@ of the arm and checks after each round that `adb shell` still answers.
 Arms:
   none     open the testbed Web tab, type and tap with `adb shell input` only (no UiAutomation client)
   dump     as none, plus `uiautomator dump` after the page loads (the platform's own UiAutomation client)
-  agent    as none, plus three `phone-use snapshot` reads (our agent: tree and video)
-  webform  the scenario testbed-web-form through phone-use-bench
-  chrome   the scenarios in bench/scenarios/android-unstable (chrome-open-page) through phone-use-bench
-  suite    the whole Android scenario suite through phone-use-bench (one run per iteration)
+  agent    as none, plus three `phonedriver snapshot` reads (our agent: tree and video)
+  webform  the scenario testbed-web-form through phonedriver-bench
+  chrome   the scenarios in bench/scenarios/android-unstable (chrome-open-page) through phonedriver-bench
+  suite    the whole Android scenario suite through phonedriver-bench (one run per iteration)
 
 Environment (defaults in brackets):
   AVD [Pixel_API_37]  SERIAL [emulator-5554]
   EMU_FLAGS [-no-snapshot -no-audio -no-boot-anim -no-window -gpu swangle_indirect]
-  PHONE_USE [/d/pu-m2/target/release/phone-use.exe]  BENCH [/d/pu-m2/target/release/phone-use-bench.exe]
+  PHONEDRIVER [/d/pu-m2/target/release/phonedriver.exe]  BENCH [/d/pu-m2/target/release/phonedriver-bench.exe]
   REPO [/d/pu-m2/src]  OUT [/d/pu-m2/trials]  HANG_WAIT_S [300]  BOOT=none reuses the running emulator
   READY [calm]: early starts the arm as soon as sys.boot_completed is 1, as the sessions that saw the hangs did
 
@@ -43,20 +43,20 @@ ROUNDS=${3:-10}
 AVD=${AVD:-Pixel_API_37}
 SERIAL=${SERIAL:-emulator-5554}
 EMU_FLAGS=${EMU_FLAGS:--no-snapshot -no-audio -no-boot-anim -no-window -gpu swangle_indirect}
-PHONE_USE=${PHONE_USE:-/d/pu-m2/target/release/phone-use.exe}
-BENCH=${BENCH:-/d/pu-m2/target/release/phone-use-bench.exe}
+PHONEDRIVER=${PHONEDRIVER:-/d/pu-m2/target/release/phonedriver.exe}
+BENCH=${BENCH:-/d/pu-m2/target/release/phonedriver-bench.exe}
 REPO=${REPO:-/d/pu-m2/src}
 OUT=${OUT:-/d/pu-m2/trials}
 HANG_WAIT_S=${HANG_WAIT_S:-300}
 SDK=${SDK:-/d/Android/Sdk}
 export MSYS_NO_PATHCONV=1
 export PATH=$SDK/platform-tools:$SDK/emulator:$PATH
-TB=dev.phoneuse.testbed
+TB=dev.phonedriver.testbed
 DIR=$OUT/$TRIAL
 mkdir -p "$DIR"
 WINDIR_OUT=$(cygpath -w "$DIR")
-export PHONE_USE_HOME
-PHONE_USE_HOME=$(cygpath -w "$DIR/home")
+export PHONEDRIVER_HOME
+PHONEDRIVER_HOME=$(cygpath -w "$DIR/home")
 
 adbs() { timeout 60 adb -s "$SERIAL" "$@"; }
 alive() { [ "$(timeout 20 adb -s "$SERIAL" shell echo ok 2>/dev/null | tr -d '\r')" = ok ]; }
@@ -161,7 +161,7 @@ web_round() {
   sleep 6
   case $ARM in
     dump) timeout 60 adb -s "$SERIAL" shell uiautomator dump /data/local/tmp/d.xml >> "$DIR/arm.txt" 2>&1 ;;
-    agent) for _ in 1 2 3; do timeout 60 "$PHONE_USE" --device "android:$SERIAL" snapshot >> "$DIR/arm.txt" 2>&1; done ;;
+    agent) for _ in 1 2 3; do timeout 60 "$PHONEDRIVER" --device "android:$SERIAL" snapshot >> "$DIR/arm.txt" 2>&1; done ;;
   esac
   adbs shell input tap 394 508
   sleep 1
@@ -177,15 +177,15 @@ bench_round() {
   local only=()
   [ "$ARM" = webform ] && only=(--only testbed-web-form)
   [ "$ARM" = chrome ] && only=(--dir bench/scenarios/android-unstable)
-  (cd "$REPO" && exec timeout 1800 "$BENCH" scenario --phone-use "$(cygpath -w "$PHONE_USE")" --device "android:$SERIAL" "${only[@]}") >> "$DIR/arm.txt" 2>&1 &
+  (cd "$REPO" && exec timeout 1800 "$BENCH" scenario --phonedriver "$(cygpath -w "$PHONEDRIVER")" --device "android:$SERIAL" "${only[@]}") >> "$DIR/arm.txt" 2>&1 &
   local bench=$! silent=0
   while kill -0 $bench 2>/dev/null; do
     sleep 20
     if alive; then silent=0; else silent=$((silent + 1)); fi
     if [ $silent -ge 3 ]; then
       log "adb shell silent for a minute during the round, stopping the bench"
-      taskkill /F /IM phone-use-bench.exe >/dev/null 2>&1
-      taskkill /F /IM phone-use.exe >/dev/null 2>&1
+      taskkill /F /IM phonedriver-bench.exe >/dev/null 2>&1
+      taskkill /F /IM phonedriver.exe >/dev/null 2>&1
       break
     fi
   done
@@ -237,7 +237,7 @@ for r in $(seq "$ROUNDS"); do
   log "$OUTCOME after round $r"
   break
 done
-[ "$ARM" = agent ] && "$PHONE_USE" --device "android:$SERIAL" release >/dev/null 2>&1
+[ "$ARM" = agent ] && "$PHONEDRIVER" --device "android:$SERIAL" release >/dev/null 2>&1
 collect
 stop_captures
 VULKAN=$(grep -o -m1 "vulkan_mode_selected:[a-z_]*" "$DIR/emulator.out" 2>/dev/null)

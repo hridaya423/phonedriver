@@ -3,15 +3,15 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use phone_use::daemon::{DeviceSource, Listed};
-use phone_use_core::device::{
+use phonedriver::daemon::{DeviceSource, Listed};
+use phonedriver_core::device::{
     App, AppId, Button, Capabilities, ClipboardOp, Device, DeviceEvent, DeviceInfo, FrameRef,
     Gesture, Image, ImageFormat, Key, Quality, TextInput, Url,
 };
-use phone_use_core::error::Error;
-use phone_use_core::geometry::Scale;
-use phone_use_core::raw::RawTree;
-use phone_use_core::testing::FakeDevice;
+use phonedriver_core::error::Error;
+use phonedriver_core::geometry::Scale;
+use phonedriver_core::raw::RawTree;
+use phonedriver_core::testing::FakeDevice;
 
 pub const PNG: &[u8] = &[
     0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d, 0x49, 0x48, 0x44, 0x52,
@@ -103,8 +103,8 @@ impl Device for Pixels {
     }
     async fn shell(
         &self,
-        req: &phone_use_core::device::ShellRequest,
-    ) -> Result<phone_use_core::device::ShellReply, Error> {
+        req: &phonedriver_core::device::ShellRequest,
+    ) -> Result<phonedriver_core::device::ShellReply, Error> {
         self.0.shell(req).await
     }
 }

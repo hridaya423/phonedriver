@@ -1,4 +1,4 @@
-{"app": {"pid": 35818, "bundle_id": "dev.phoneuse.testbed"},
+{"app": {"pid": 35818, "bundle_id": "dev.phonedriver.testbed"},
  "nodes": [
   {"cls": "XCUIElementTypeApplication", "p": -1, "text": "Testbed", "f": "vVe", "b": [0, 0, 402, 874]},
   {"cls": "XCUIElementTypeWindow", "p": 0, "f": "vVe", "b": [0, 0, 402, 874]},

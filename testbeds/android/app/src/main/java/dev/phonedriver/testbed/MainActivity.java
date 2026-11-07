@@ -1,4 +1,4 @@
-package dev.phoneuse.testbed;
+package dev.phonedriver.testbed;
 
 import android.app.Notification;
 import android.app.NotificationChannel;
@@ -80,7 +80,7 @@ public final class MainActivity extends androidx.activity.ComponentActivity {
                 new NotificationChannel("testbed", "Testbed", NotificationManager.IMPORTANCE_DEFAULT));
         nm.notify(1, new Notification.Builder(this, "testbed")
                 .setSmallIcon(android.R.drawable.ic_dialog_info)
-                .setContentTitle("phone-use")
+                .setContentTitle("phonedriver")
                 .setContentText(text)
                 .setStyle(new Notification.BigTextStyle().bigText(text))
                 .build());

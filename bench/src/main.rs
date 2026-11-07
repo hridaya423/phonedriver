@@ -1,26 +1,26 @@
-//! Latency benchmark for phone-use against architecture section 12 (Android column).
+//! Latency benchmark for phonedriver against architecture section 12 (Android column).
 //!
-//! `phone-use-bench --phone-use <binary> --serial emulator-5554 [--apk testbed.apk] [--runs 50] [--warmup 5] [--csv file]`
+//! `phonedriver-bench --phonedriver <binary> --serial emulator-5554 [--apk testbed.apk] [--runs 50] [--warmup 5] [--csv file]`
 //!
 //! It starts the daemon itself and calls it over its socket, the path the CLI uses, so the numbers
 //! contain no process start.
 //!
-//! `phone-use-bench scenario ...` runs scenario files on either platform (see `scenario.rs`);
-//! `phone-use-bench ios ...` is the iOS Simulator benchmark (see `ios.rs`).
+//! `phonedriver-bench scenario ...` runs scenario files on either platform (see `scenario.rs`);
+//! `phonedriver-bench ios ...` is the iOS Simulator benchmark (see `ios.rs`).
 
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::time::{Duration, Instant};
 
-use phone_use::client::Client;
-use phone_use_android::adb::Adb;
+use phonedriver::client::Client;
+use phonedriver_android::adb::Adb;
 use serde_json::{Value, json};
 use tokio::io::{AsyncBufReadExt, BufReader};
 
-const PACKAGE: &str = "dev.phoneuse.testbed";
+const PACKAGE: &str = "dev.phonedriver.testbed";
 
 struct Args {
-    phone_use: PathBuf,
+    phonedriver: PathBuf,
     serial: String,
     apk: Option<PathBuf>,
     runs: usize,
@@ -30,12 +30,12 @@ struct Args {
 
 fn args() -> Result<Args, String> {
     let mut it = std::env::args().skip(1);
-    let (mut phone_use, mut serial, mut apk, mut runs, mut warmup, mut csv) =
+    let (mut phonedriver, mut serial, mut apk, mut runs, mut warmup, mut csv) =
         (None, None, None, 50, 5, None);
     while let Some(a) = it.next() {
         let mut value = || it.next().ok_or(format!("{a} needs a value"));
         match a.as_str() {
-            "--phone-use" => phone_use = Some(PathBuf::from(value()?)),
+            "--phonedriver" => phonedriver = Some(PathBuf::from(value()?)),
             "--serial" => serial = Some(value()?),
             "--apk" => apk = Some(PathBuf::from(value()?)),
             "--runs" => runs = value()?.parse().map_err(|e| format!("--runs: {e}"))?,
@@ -45,7 +45,7 @@ fn args() -> Result<Args, String> {
         }
     }
     Ok(Args {
-        phone_use: phone_use.ok_or("--phone-use <binary> is required")?,
+        phonedriver: phonedriver.ok_or("--phonedriver <binary> is required")?,
         serial: serial.ok_or("--serial <adb serial> is required")?,
         apk,
         runs,
@@ -131,7 +131,7 @@ impl Rig {
         F: AsyncFnMut(&mut Rig),
         B: AsyncFnMut(&mut Rig),
     {
-        if let Ok(only) = std::env::var("PHONE_USE_BENCH_ONLY")
+        if let Ok(only) = std::env::var("PHONEDRIVER_BENCH_ONLY")
             && !only.split(',').any(|o| name.contains(o))
         {
             return;
@@ -171,8 +171,8 @@ async fn start_daemon(
 ) -> Result<tokio::process::Child, String> {
     let mut child = tokio::process::Command::new(binary)
         .arg("daemon")
-        .env("PHONE_USE_HOME", home)
-        .env("PHONE_USE_SOCKET", socket)
+        .env("PHONEDRIVER_HOME", home)
+        .env("PHONEDRIVER_SOCKET", socket)
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::null())
@@ -218,14 +218,17 @@ async fn main() {
             std::process::exit(2);
         }
     };
-    let home = std::env::temp_dir().join(format!("phone-use-bench-{}", std::process::id()));
+    let home = std::env::temp_dir().join(format!("phonedriver-bench-{}", std::process::id()));
     std::fs::create_dir_all(&home).expect("create the bench home");
     let socket = if cfg!(windows) {
-        PathBuf::from(format!(r"\\.\pipe\phone-use-bench-{}", std::process::id()))
+        PathBuf::from(format!(
+            r"\\.\pipe\phonedriver-bench-{}",
+            std::process::id()
+        ))
     } else {
         home.join("d.sock")
     };
-    let _daemon = start_daemon(&args.phone_use, &home, &socket)
+    let _daemon = start_daemon(&args.phonedriver, &home, &socket)
         .await
         .expect("start the daemon");
     let client = Client::connect_to(&socket, "bench")
@@ -245,13 +248,13 @@ async fn main() {
             .push(
                 &rig.serial,
                 &bytes,
-                "/data/local/tmp/phone-use-testbed.apk",
+                "/data/local/tmp/phonedriver-testbed.apk",
                 0o644,
             )
             .await
             .expect("push the apk");
         let out = rig
-            .shell("pm install -r /data/local/tmp/phone-use-testbed.apk")
+            .shell("pm install -r /data/local/tmp/phonedriver-testbed.apk")
             .await;
         assert!(out.contains("Success"), "{out}");
     }
@@ -403,7 +406,7 @@ async fn main() {
     )
     .await;
 
-    println!("# phone-use latency\n");
+    println!("# phonedriver latency\n");
     println!("{facts}\n");
     println!(
         "{} runs per op after {} warm-ups, through the daemon socket.\n",

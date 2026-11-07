@@ -1,11 +1,11 @@
 //! What one named session remembers about one device: its refs and the last screen it was shown.
 
-use phone_use_core::element::{Element, Role};
-use phone_use_core::error::{Direction, Error};
-use phone_use_core::geometry::Point;
-use phone_use_core::refs::RefTable;
-use phone_use_core::render::{Rendered, TextMatch};
-use phone_use_core::similar::{SUGGEST_WITHIN, normalized_distance};
+use phonedriver_core::element::{Element, Role};
+use phonedriver_core::error::{Direction, Error};
+use phonedriver_core::geometry::Point;
+use phonedriver_core::refs::RefTable;
+use phonedriver_core::render::{Rendered, TextMatch};
+use phonedriver_core::similar::{SUGGEST_WITHIN, normalized_distance};
 
 use crate::wire::{PointJson, Target};
 
@@ -91,7 +91,7 @@ impl Session {
             .collect()
     }
 
-    fn closest(&self, r: phone_use_core::element::Ref, now: &Rendered) -> Option<String> {
+    fn closest(&self, r: phonedriver_core::element::Ref, now: &Rendered) -> Option<String> {
         let old = self.last.as_ref()?.elements.iter().find(|e| e.r#ref == r)?;
         let label = old.label.as_deref()?.to_lowercase();
         now.elements
@@ -120,7 +120,7 @@ fn element_at(now: &Rendered, i: usize) -> Resolved {
     }
 }
 
-fn lines(now: &Rendered, refs: &[phone_use_core::element::Ref]) -> Vec<String> {
+fn lines(now: &Rendered, refs: &[phonedriver_core::element::Ref]) -> Vec<String> {
     refs.iter()
         .filter_map(|r| now.index_of(*r))
         .map(|i| now.line(&now.elements[i]))
@@ -164,7 +164,11 @@ fn not_found(now: &Rendered, text: &str) -> Error {
 }
 
 /// Exact label first (core), then case-insensitive exact, then substring (architecture 10.1).
-fn find_text(now: &Rendered, text: &str, role: Option<phone_use_core::element::Role>) -> TextMatch {
+fn find_text(
+    now: &Rendered,
+    text: &str,
+    role: Option<phonedriver_core::element::Role>,
+) -> TextMatch {
     let exact = now.resolve_text(text, role);
     if exact != TextMatch::None {
         return exact;

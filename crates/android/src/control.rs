@@ -4,8 +4,8 @@ use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 
-use phone_use_core::device::DeviceEvent;
-use phone_use_core::error::{DeviceId, Error, Op};
+use phonedriver_core::device::DeviceEvent;
+use phonedriver_core::error::{DeviceId, Error, Op};
 use serde_json::Value;
 use tokio::net::TcpStream;
 use tokio::net::tcp::OwnedWriteHalf;

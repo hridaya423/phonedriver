@@ -1,8 +1,8 @@
 //! The approval guard (decision D27): which taps spend money or cannot be undone, and what to tell the human.
 
-use phone_use_core::element::{Element, ElementState, Role};
-use phone_use_core::geometry::Point;
-use phone_use_core::render::Rendered;
+use phonedriver_core::element::{Element, ElementState, Role};
+use phonedriver_core::geometry::Point;
+use phonedriver_core::render::Rendered;
 
 use crate::daemon::session::Session;
 use crate::wire::Approval;

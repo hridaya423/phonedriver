@@ -1521,7 +1521,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9b4f627cb1b25917193a259e49bdad08f671f8d9708acfd5fe0a8c1455d87220"
 
 [[package]]
-name = "phone-use"
+name = "phonedriver"
 version = "0.1.0"
 dependencies = [
  "assert_cmd",
@@ -1532,10 +1532,10 @@ dependencies = [
  "objc2",
  "objc2-foundation",
  "objc2-vision",
- "phone-use-android",
- "phone-use-core",
- "phone-use-ios",
- "phone-use-video",
+ "phonedriver-android",
+ "phonedriver-core",
+ "phonedriver-ios",
+ "phonedriver-video",
  "png",
  "proptest",
  "rmcp",
@@ -1549,13 +1549,13 @@ dependencies = [
 ]
 
 [[package]]
-name = "phone-use-android"
+name = "phonedriver-android"
 version = "0.1.0"
 dependencies = [
  "async-trait",
  "getrandom 0.4.3",
- "phone-use-core",
- "phone-use-video",
+ "phonedriver-core",
+ "phonedriver-video",
  "serde",
  "serde_json",
  "sha2 0.11.1",
@@ -1564,13 +1564,13 @@ dependencies = [
 ]
 
 [[package]]
-name = "phone-use-bench"
+name = "phonedriver-bench"
 version = "0.1.0"
 dependencies = [
- "phone-use",
- "phone-use-android",
- "phone-use-core",
- "phone-use-ios",
+ "phonedriver",
+ "phonedriver-android",
+ "phonedriver-core",
+ "phonedriver-ios",
  "serde",
  "serde_json",
  "serde_yaml",
@@ -1578,7 +1578,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "phone-use-core"
+name = "phonedriver-core"
 version = "0.1.0"
 dependencies = [
  "async-trait",
@@ -1592,16 +1592,16 @@ dependencies = [
 ]
 
 [[package]]
-name = "phone-use-ios"
+name = "phonedriver-ios"
 version = "0.1.0"
 dependencies = [
  "async-trait",
  "base64 0.22.1",
  "flate2",
  "idevice",
- "phone-use-core",
- "phone-use-ios",
- "phone-use-video",
+ "phonedriver-core",
+ "phonedriver-ios",
+ "phonedriver-video",
  "plist",
  "serde",
  "serde_json",
@@ -1611,11 +1611,11 @@ dependencies = [
 ]
 
 [[package]]
-name = "phone-use-video"
+name = "phonedriver-video"
 version = "0.1.0"
 dependencies = [
  "openh264",
- "phone-use-core",
+ "phonedriver-core",
  "png",
  "thiserror",
  "tokio",

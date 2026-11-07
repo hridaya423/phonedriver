@@ -1,4 +1,4 @@
-//! The `phone-use` command line, daemon and their wire types.
+//! The `phonedriver` command line, daemon and their wire types.
 
 pub mod client;
 pub mod commands;

@@ -1,8 +1,8 @@
 use std::path::PathBuf;
 
 use assert_cmd::Command;
-use phone_use::client::Failure;
-use phone_use::daemon::rpc::RpcError;
+use phonedriver::client::Failure;
+use phonedriver::daemon::rpc::RpcError;
 use serde_json::{Value, json};
 use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
 use tokio::net::TcpListener;
@@ -11,43 +11,43 @@ const DEVICES: &str = "emulator-5554          device product:sdk_gphone64_x86_64
 
 #[test]
 fn version_prints_name_and_version() {
-    Command::cargo_bin("phone-use")
+    Command::cargo_bin("phonedriver")
         .unwrap()
         .arg("version")
         .assert()
         .success()
-        .stdout("phone-use 0.1.0\n");
+        .stdout("phonedriver 0.1.0\n");
 }
 
 #[test]
 fn the_version_flag_prints_the_same_line_as_the_version_verb() {
     for flag in ["--version", "-V"] {
-        Command::cargo_bin("phone-use")
+        Command::cargo_bin("phonedriver")
             .unwrap()
             .arg(flag)
             .assert()
             .success()
-            .stdout("phone-use 0.1.0\n");
+            .stdout("phonedriver 0.1.0\n");
     }
 }
 
 #[test]
 fn no_args_prints_usage_and_exits_2() {
-    let out = Command::cargo_bin("phone-use").unwrap().assert().code(2);
+    let out = Command::cargo_bin("phonedriver").unwrap().assert().code(2);
     let stderr = String::from_utf8(out.get_output().stderr.clone()).unwrap();
-    assert!(stderr.starts_with("usage: phone-use"), "{stderr}");
+    assert!(stderr.starts_with("usage: phonedriver"), "{stderr}");
 }
 
 #[test]
 fn a_secret_on_the_command_line_is_a_usage_error_and_nothing_is_typed() {
-    let out = Command::cargo_bin("phone-use")
+    let out = Command::cargo_bin("phonedriver")
         .unwrap()
         .args(["type", "--secret", "hunter2"])
         .assert()
         .code(2);
     let stderr = String::from_utf8(out.get_output().stderr.clone()).unwrap();
     assert!(
-        stderr.contains("stdin") && stderr.contains("PHONE_USE_SECRET"),
+        stderr.contains("stdin") && stderr.contains("PHONEDRIVER_SECRET"),
         "{stderr}"
     );
 }
@@ -107,7 +107,7 @@ impl Env {
         let home = tempfile::tempdir().unwrap();
         let socket = if cfg!(windows) {
             PathBuf::from(format!(
-                r"\\.\pipe\phone-use-test-{}",
+                r"\\.\pipe\phonedriver-test-{}",
                 home.path().file_name().unwrap().to_string_lossy()
             ))
         } else {
@@ -117,18 +117,18 @@ impl Env {
     }
 
     fn cmd(&self) -> Command {
-        let mut c = Command::cargo_bin("phone-use").unwrap();
-        c.env("PHONE_USE_HOME", self.home.path())
-            .env("PHONE_USE_SOCKET", &self.socket)
+        let mut c = Command::cargo_bin("phonedriver").unwrap();
+        c.env("PHONEDRIVER_HOME", self.home.path())
+            .env("PHONEDRIVER_SOCKET", &self.socket)
             .env("ADB_SERVER_SOCKET", &self.adb)
             .env("USBMUXD_SOCKET_ADDRESS", "127.0.0.1:1")
-            .env_remove("PHONE_USE_SESSION")
-            .env_remove("PHONE_USE_DEVICE");
+            .env_remove("PHONEDRIVER_SESSION")
+            .env_remove("PHONEDRIVER_DEVICE");
         c
     }
 
     async fn rpc(&self, method: &str, params: Value) -> Value {
-        let stream = phone_use::daemon::socket::connect(&self.socket)
+        let stream = phonedriver::daemon::socket::connect(&self.socket)
             .await
             .unwrap();
         let (read, mut write) = tokio::io::split(stream);
@@ -152,7 +152,7 @@ impl Drop for Env {
                 .build()
                 .unwrap();
             rt.block_on(async {
-                if let Ok(stream) = phone_use::daemon::socket::connect(&socket).await {
+                if let Ok(stream) = phonedriver::daemon::socket::connect(&socket).await {
                     let (_r, mut w) = tokio::io::split(stream);
                     let _ = w
                         .write_all(b"{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"shutdown\"}\n")
@@ -203,7 +203,7 @@ async fn no_device_exits_4_with_the_message_then_the_hint() {
         "{stderr}"
     );
     assert!(
-        lines.next().unwrap().contains("phone-use devices"),
+        lines.next().unwrap().contains("phonedriver devices"),
         "{stderr}"
     );
     assert!(out.get_output().stdout.is_empty());
@@ -221,7 +221,7 @@ async fn any_other_failure_exits_1() {
 async fn a_daemon_of_another_version_is_shut_down_and_replaced() {
     use interprocess::local_socket::traits::tokio::Listener as _;
     let env = Env::new(DEVICES).await;
-    let listener = phone_use::daemon::socket::listen(&env.socket)
+    let listener = phonedriver::daemon::socket::listen(&env.socket)
         .await
         .unwrap();
     let (told_to_stop, stopped) = tokio::sync::oneshot::channel();
@@ -270,7 +270,7 @@ async fn a_daemon_of_another_version_is_shut_down_and_replaced() {
 fn skill_prints_skill_md_exactly() {
     let want =
         std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/../../SKILL.md")).unwrap();
-    let out = Command::cargo_bin("phone-use")
+    let out = Command::cargo_bin("phonedriver")
         .unwrap()
         .arg("skill")
         .assert()
@@ -279,7 +279,7 @@ fn skill_prints_skill_md_exactly() {
         String::from_utf8(out.get_output().stdout.clone()).unwrap(),
         want
     );
-    assert!(want.starts_with("---\nname: phone-use\ndescription: "));
+    assert!(want.starts_with("---\nname: phonedriver\ndescription: "));
     assert!(want.lines().count() < 150);
 }
 
@@ -343,8 +343,8 @@ async fn doctor_says_which_step_failed_when_the_agent_cannot_start() {
 async fn the_trace_options_can_come_from_the_environment_as_1() {
     let env = Env::new(DEVICES).await;
     env.cmd()
-        .env("PHONE_USE_TRACE_FULL", "1")
-        .env("PHONE_USE_TRACE_SCREENS", "1")
+        .env("PHONEDRIVER_TRACE_FULL", "1")
+        .env("PHONEDRIVER_TRACE_SCREENS", "1")
         .arg("devices")
         .assert()
         .success();
@@ -354,16 +354,16 @@ async fn the_trace_options_can_come_from_the_environment_as_1() {
 #[test]
 fn a_socket_that_nothing_serves_names_the_variable_in_the_error() {
     let home = tempfile::tempdir().unwrap();
-    let out = Command::cargo_bin("phone-use")
+    let out = Command::cargo_bin("phonedriver")
         .unwrap()
-        .env("PHONE_USE_HOME", home.path())
-        .env("PHONE_USE_SOCKET", "/dev/null/phone-use.sock")
+        .env("PHONEDRIVER_HOME", home.path())
+        .env("PHONEDRIVER_SOCKET", "/dev/null/phonedriver.sock")
         .arg("devices")
         .assert()
         .code(1);
     let stderr = String::from_utf8(out.get_output().stderr.clone()).unwrap();
     assert!(
-        stderr.contains("PHONE_USE_SOCKET=/dev/null/phone-use.sock") && stderr.contains("ssh"),
+        stderr.contains("PHONEDRIVER_SOCKET=/dev/null/phonedriver.sock") && stderr.contains("ssh"),
         "{stderr}"
     );
 }

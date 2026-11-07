@@ -6,9 +6,9 @@ use std::sync::Arc;
 use std::time::{Duration, SystemTime};
 
 use fakes::{OneDevice, field_tree, pixel_device, tree};
-use phone_use::daemon::trace::TraceOptions;
-use phone_use::daemon::{Config, Daemon};
-use phone_use_core::raw::RawTree;
+use phonedriver::daemon::trace::TraceOptions;
+use phonedriver::daemon::{Config, Daemon};
+use phonedriver_core::raw::RawTree;
 use proptest::prelude::*;
 use serde_json::{Value, json};
 

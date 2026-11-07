@@ -1,8 +1,8 @@
 //! Gestures and keys as HID input for the CoreDevice tier (architecture 7.2).
 
 use idevice::core_device::TouchscreenContact;
-use phone_use_core::device::{Gesture, Key};
-use phone_use_core::geometry::{Point, Size};
+use phonedriver_core::device::{Gesture, Key};
+use phonedriver_core::geometry::{Point, Size};
 
 /// Time between touch reports while a finger moves (120 Hz).
 pub const TICK_MS: u32 = 8;
@@ -21,7 +21,7 @@ fn normalized(p: Point, screen: Size) -> (u16, u16) {
     (unit(p.x, screen.w), unit(p.y, screen.h))
 }
 
-fn position_at(path: &[phone_use_core::device::TimedPoint], t: u32) -> Point {
+fn position_at(path: &[phonedriver_core::device::TimedPoint], t: u32) -> Point {
     let Some(next) = path.iter().position(|p| p.t_ms >= t) else {
         return path[path.len() - 1].at;
     };
@@ -143,7 +143,7 @@ pub fn char_usage(c: char) -> Option<(u16, bool)> {
 
 #[cfg(test)]
 mod tests {
-    use phone_use_core::device::TimedPoint;
+    use phonedriver_core::device::TimedPoint;
 
     use super::*;
 

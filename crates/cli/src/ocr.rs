@@ -5,10 +5,10 @@
 
 #![cfg_attr(target_os = "macos", allow(unsafe_code))]
 
-use phone_use_core::error::Error;
-use phone_use_core::error::Op;
-use phone_use_core::geometry::Size;
-use phone_use_core::ocr::TextBox;
+use phonedriver_core::error::Error;
+use phonedriver_core::error::Op;
+use phonedriver_core::geometry::Size;
+use phonedriver_core::ocr::TextBox;
 
 /// Recognizes text in `png`, a screenshot of a screen `screen` points large.
 #[cfg(target_os = "macos")]
@@ -20,7 +20,7 @@ pub fn recognize(png: &[u8], screen: Size) -> Result<Vec<TextBox>, Error> {
     use objc2_vision::{
         VNImageRequestHandler, VNRecognizeTextRequest, VNRequestTextRecognitionLevel,
     };
-    use phone_use_core::geometry::Rect;
+    use phonedriver_core::geometry::Rect;
 
     autoreleasepool(|_| {
         let request = VNRecognizeTextRequest::new();

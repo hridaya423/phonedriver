@@ -12,4 +12,4 @@ steps:
   - expect: {log: {ev: nav, level: 0}}
   - expect: {element: {text: "Level 0"}}
 cleanup:
-  - shell: "xcrun simctl terminate {udid} dev.phoneuse.testbed || true"
+  - shell: "xcrun simctl terminate {udid} dev.phonedriver.testbed || true"

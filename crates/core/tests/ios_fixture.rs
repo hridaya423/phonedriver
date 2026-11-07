@@ -1,9 +1,9 @@
-use phone_use_core::element::Role;
-use phone_use_core::geometry::{Rect, Size};
-use phone_use_core::prune::prune;
-use phone_use_core::raw::{NodeFlags, RawTree};
-use phone_use_core::refs::RefTable;
-use phone_use_core::render::{AppLine, DeviceLine, Filters, Header, Orientation, Rendered};
+use phonedriver_core::element::Role;
+use phonedriver_core::geometry::{Rect, Size};
+use phonedriver_core::prune::prune;
+use phonedriver_core::raw::{NodeFlags, RawTree};
+use phonedriver_core::refs::RefTable;
+use phonedriver_core::render::{AppLine, DeviceLine, Filters, Header, Orientation, Rendered};
 
 const TESTBED_MAIN: &str = include_str!("fixtures/ios/testbed_main.json");
 
@@ -21,7 +21,7 @@ fn header() -> Header {
             orientation: Orientation::Portrait,
         }),
         app: Some(AppLine {
-            id: "dev.phoneuse.testbed".into(),
+            id: "dev.phonedriver.testbed".into(),
             name: Some("Testbed".into()),
         }),
         keyboard: None,

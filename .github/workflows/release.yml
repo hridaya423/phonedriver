@@ -152,8 +152,8 @@ jobs:
         run: |
           set -euo pipefail
           bash android-agent/build.sh
-          echo "PHONE_USE_AGENT_JAR=$GITHUB_WORKSPACE/android-agent/build/phone-use-agent.jar" >> "$GITHUB_ENV"
-          sha256sum android-agent/build/phone-use-agent.jar || shasum -a 256 android-agent/build/phone-use-agent.jar
+          echo "PHONEDRIVER_AGENT_JAR=$GITHUB_WORKSPACE/android-agent/build/phonedriver-agent.jar" >> "$GITHUB_ENV"
+          sha256sum android-agent/build/phonedriver-agent.jar || shasum -a 256 android-agent/build/phonedriver-agent.jar
         shell: "bash"
       - name: Install dist
         run: ${{ matrix.install_dist.run }}

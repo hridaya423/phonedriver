@@ -1,7 +1,7 @@
 //! Latency benchmark for the iOS Simulator tier against architecture section 12 (Runner / Simulator column) and the
 //! runner-against-WebDriverAgent check of decision D4.
 //!
-//! `phone-use-bench ios --phone-use <binary> --device sim:<udid> [--runs 50] [--warmup 5] [--csv file]`
+//! `phonedriver-bench ios --phonedriver <binary> --device sim:<udid> [--runs 50] [--warmup 5] [--csv file]`
 //!
 //! The runner rows talk to the runner's socket directly, before the daemon starts; the other rows go through the
 //! daemon socket, as the Android benchmark does. The testbed must be installed on the simulator.
@@ -10,18 +10,18 @@ use std::path::PathBuf;
 use std::process::Command;
 use std::time::{Duration, Instant};
 
-use phone_use::client::Client;
-use phone_use_core::error::Op;
-use phone_use_ios::runner::Runner;
+use phonedriver::client::Client;
+use phonedriver_core::error::Op;
+use phonedriver_ios::runner::Runner;
 use serde_json::{Value, json};
 
 use super::{Row, mixed_text, start_daemon};
 
-const TESTBED: &str = "dev.phoneuse.testbed";
+const TESTBED: &str = "dev.phonedriver.testbed";
 const SETTINGS: &str = "com.apple.Preferences";
 
 struct Args {
-    phone_use: PathBuf,
+    phonedriver: PathBuf,
     udid: String,
     physical: bool,
     runs: usize,
@@ -31,12 +31,12 @@ struct Args {
 
 fn args() -> Result<Args, String> {
     let mut it = std::env::args().skip(2);
-    let (mut phone_use, mut udid, mut runs, mut warmup, mut csv) = (None, None, 50, 5, None);
+    let (mut phonedriver, mut udid, mut runs, mut warmup, mut csv) = (None, None, 50, 5, None);
     let mut physical = false;
     while let Some(a) = it.next() {
         let mut value = || it.next().ok_or(format!("{a} needs a value"));
         match a.as_str() {
-            "--phone-use" => phone_use = Some(PathBuf::from(value()?)),
+            "--phonedriver" => phonedriver = Some(PathBuf::from(value()?)),
             "--device" => {
                 let v = value()?;
                 physical = v.starts_with("ios:");
@@ -54,7 +54,7 @@ fn args() -> Result<Args, String> {
         }
     }
     Ok(Args {
-        phone_use: phone_use.ok_or("--phone-use <binary> is required")?,
+        phonedriver: phonedriver.ok_or("--phonedriver <binary> is required")?,
         udid: udid.ok_or("--device sim:<udid> or ios:<udid> is required")?,
         physical,
         runs,
@@ -293,7 +293,7 @@ impl Rig {
 
 async fn daemon_rows(args: &Args, home: &std::path::Path, rows: &mut Vec<Row>) {
     let socket = home.join("d.sock");
-    let _daemon = start_daemon(&args.phone_use, home, &socket)
+    let _daemon = start_daemon(&args.phonedriver, home, &socket)
         .await
         .expect("start the daemon");
     let client = Client::connect_to(&socket, "bench")
@@ -461,8 +461,8 @@ pub async fn main() {
             std::process::exit(2);
         }
     };
-    let home = std::env::var_os("PHONE_USE_BENCH_HOME").map_or_else(
-        || std::env::temp_dir().join(format!("phone-use-bench-{}", std::process::id())),
+    let home = std::env::var_os("PHONEDRIVER_BENCH_HOME").map_or_else(
+        || std::env::temp_dir().join(format!("phonedriver-bench-{}", std::process::id())),
         std::path::PathBuf::from,
     );
     std::fs::create_dir_all(home.join("runner")).expect("create the bench home");
@@ -475,7 +475,7 @@ pub async fn main() {
     daemon_rows(&args, &home, &mut rows).await;
 
     println!(
-        "# phone-use latency, iOS {}\n",
+        "# phonedriver latency, iOS {}\n",
         if args.physical { "device" } else { "Simulator" }
     );
     println!("{} · {facts}\n", args.udid);

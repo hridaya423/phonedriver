@@ -2,8 +2,8 @@
 
 use std::time::Instant;
 
-use phone_use::ocr::recognize;
-use phone_use_core::geometry::Size;
+use phonedriver::ocr::recognize;
+use phonedriver_core::geometry::Size;
 
 const ANDROID: &str = concat!(
     env!("CARGO_MANIFEST_DIR"),
@@ -155,8 +155,8 @@ fn a_screenshot_vision_cannot_read_is_unsupported_and_points_to_screenshot() {
     assert!(
         matches!(
             e,
-            phone_use_core::error::Error::Unsupported {
-                op: phone_use_core::error::Op::Ocr,
+            phonedriver_core::error::Error::Unsupported {
+                op: phonedriver_core::error::Op::Ocr,
                 ..
             }
         ),

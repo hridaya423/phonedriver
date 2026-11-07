@@ -3,13 +3,13 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use async_trait::async_trait;
-use phone_use::daemon::rpc::RpcError;
-use phone_use::daemon::{Config, Daemon, DeviceSource, Listed};
-use phone_use_core::device::{AppId, Capabilities, Device, DeviceEvent, FrameRef, Url};
-use phone_use_core::error::Error;
-use phone_use_core::geometry::{Point, Rect, Scale};
-use phone_use_core::raw::RawTree;
-use phone_use_core::testing::{Call, FakeDevice};
+use phonedriver::daemon::rpc::RpcError;
+use phonedriver::daemon::{Config, Daemon, DeviceSource, Listed};
+use phonedriver_core::device::{AppId, Capabilities, Device, DeviceEvent, FrameRef, Url};
+use phonedriver_core::error::Error;
+use phonedriver_core::geometry::{Point, Rect, Scale};
+use phonedriver_core::raw::RawTree;
+use phonedriver_core::testing::{Call, FakeDevice};
 use serde_json::{Value, json};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 
@@ -199,7 +199,7 @@ async fn the_header_follows_a_device_that_reports_its_own_rotation() {
             .unwrap()
             .contains("360x800pt · portrait")
     );
-    fake.rotate_to(phone_use_core::geometry::Size { w: 800.0, h: 360.0 });
+    fake.rotate_to(phonedriver_core::geometry::Size { w: 800.0, h: 360.0 });
     let after = ok(&d, "default", "snapshot", json!({})).await;
     assert!(
         after["text"]
@@ -633,7 +633,7 @@ async fn the_daemon_exits_after_fifteen_idle_minutes_with_no_clients() {
 fn local_socket(home: &Path, name: &str) -> PathBuf {
     if cfg!(windows) {
         let scope = home.file_name().unwrap().to_string_lossy();
-        PathBuf::from(format!(r"\\.\pipe\phone-use-test-{scope}-{name}"))
+        PathBuf::from(format!(r"\\.\pipe\phonedriver-test-{scope}-{name}"))
     } else {
         home.join(name)
     }
@@ -641,7 +641,7 @@ fn local_socket(home: &Path, name: &str) -> PathBuf {
 
 async fn wait_for_socket(path: &Path) {
     for _ in 0..200 {
-        if phone_use::daemon::socket::connect(path).await.is_ok() {
+        if phonedriver::daemon::socket::connect(path).await.is_ok() {
             return;
         }
         tokio::time::sleep(Duration::from_millis(10)).await;
@@ -650,7 +650,7 @@ async fn wait_for_socket(path: &Path) {
 }
 
 async fn rpc(path: &Path, session: &str, method: &str, params: Value) -> Value {
-    let stream = phone_use::daemon::socket::connect(path).await.unwrap();
+    let stream = phonedriver::daemon::socket::connect(path).await.unwrap();
     let (read, mut write) = tokio::io::split(stream);
     let mut params = params;
     params["session"] = session.into();
@@ -692,7 +692,7 @@ async fn type_taps_the_field_pastes_and_verifies_the_text_by_reading_it_back() {
     assert!(matches!(calls[0], Call::Gesture(_)), "{calls:?}");
     assert_eq!(
         calls[1],
-        Call::Text(phone_use_core::device::TextInput::Paste(
+        Call::Text(phonedriver_core::device::TextInput::Paste(
             "héllo 世界".into()
         ))
     );
@@ -753,7 +753,7 @@ async fn secret_text_never_reaches_the_trace_the_reply_or_the_debug_output() {
     assert!(r["observation"]["text"].as_str().unwrap().contains("•••"));
     assert_eq!(
         fake.calls()[1],
-        Call::Text(phone_use_core::device::TextInput::PasteSecret(
+        Call::Text(phonedriver_core::device::TextInput::PasteSecret(
             "hunter2".into()
         ))
     );
@@ -765,7 +765,7 @@ async fn secret_text_never_reaches_the_trace_the_reply_or_the_debug_output() {
 
 #[tokio::test(start_paused = true)]
 async fn type_into_a_field_with_text_replaces_it_and_append_keeps_it() {
-    use phone_use_core::device::TextInput;
+    use phonedriver_core::device::TextInput;
     let (source, fake) = FakeSource::with(vec![
         field_tree("10", false),
         field_tree("10", false),
@@ -865,7 +865,7 @@ async fn typing_into_a_password_field_is_secret_without_the_flag_and_verified_by
     assert_eq!(r["verified"], true, "{r}");
     assert_eq!(
         fake.calls()[1],
-        Call::Text(phone_use_core::device::TextInput::PasteSecret(
+        Call::Text(phonedriver_core::device::TextInput::PasteSecret(
             "hunter2".into()
         ))
     );
@@ -987,7 +987,7 @@ async fn type_without_into_finds_the_focused_field_in_the_last_observation_inste
     assert_eq!(r["ok"], true);
     assert_eq!(
         fake.calls()[0],
-        Call::Text(phone_use_core::device::TextInput::PasteSecret(
+        Call::Text(phonedriver_core::device::TextInput::PasteSecret(
             "hunter2".into()
         )),
         "the last observation showed a focused password field"
@@ -1459,7 +1459,7 @@ fn installed() -> (Arc<FakeSource>, Arc<FakeDevice>) {
         list_tree(&["Calculator", "7", "8"]),
     ]);
     fake.install(&[
-        ("dev.phoneuse.testbed", "phone-use testbed"),
+        ("dev.phonedriver.testbed", "phonedriver testbed"),
         ("com.android.calculator2", "Calculator"),
         ("com.android.settings", "Settings"),
     ]);
@@ -1477,16 +1477,16 @@ async fn apps_lists_the_launchable_apps_with_their_names() {
         .iter()
         .map(|a| a["name"].as_str().unwrap())
         .collect();
-    assert_eq!(names, ["phone-use testbed", "Calculator", "Settings"]);
+    assert_eq!(names, ["phonedriver testbed", "Calculator", "Settings"]);
 }
 
 #[tokio::test(start_paused = true)]
 async fn launch_by_name_in_any_case_or_by_package_foregrounds_the_app_and_returns_a_full_snapshot()
 {
     for app in [
-        "phone-use testbed",
-        "PHONE-USE TESTBED",
-        "dev.phoneuse.testbed",
+        "phonedriver testbed",
+        "PHONEDRIVER TESTBED",
+        "dev.phonedriver.testbed",
     ] {
         let (source, fake) = installed();
         let (d, _home) = daemon(source);
@@ -1501,7 +1501,7 @@ async fn launch_by_name_in_any_case_or_by_package_foregrounds_the_app_and_return
         assert_eq!(r["observation"]["kind"], "full", "{app}: {r}");
         assert!(
             fake.calls()
-                .contains(&Call::Launch(AppId("dev.phoneuse.testbed".into()))),
+                .contains(&Call::Launch(AppId("dev.phonedriver.testbed".into()))),
             "{app}: {:?}",
             fake.calls()
         );
@@ -1690,7 +1690,7 @@ async fn launching_a_misspelled_app_is_not_found_and_names_the_close_app() {
 async fn launching_an_unknown_app_says_no_app_and_lists_apps_that_share_a_word() {
     let (source, fake) = FakeSource::with(vec![tree(&["One"])]);
     fake.install(&[
-        ("dev.phoneuse.testbed", "Testbed"),
+        ("dev.phonedriver.testbed", "Testbed"),
         ("com.apple.Preferences", "Settings"),
     ]);
     let (d, _home) = daemon(source);
@@ -1698,13 +1698,13 @@ async fn launching_an_unknown_app_says_no_app_and_lists_apps_that_share_a_word()
         &d,
         "default",
         "act",
-        act_with(json!({"kind": "launch", "app": "phone-use testbed"})),
+        act_with(json!({"kind": "launch", "app": "phonedriver testbed"})),
     )
     .await;
     assert_eq!(e.code, -32017, "{e:?}");
-    assert_eq!(e.message, "no app named \"phone-use testbed\"");
+    assert_eq!(e.message, "no app named \"phonedriver testbed\"");
     let hint = e.data["hint"].as_str().unwrap();
-    assert!(hint.contains("Testbed (dev.phoneuse.testbed)"), "{hint}");
+    assert!(hint.contains("Testbed (dev.phonedriver.testbed)"), "{hint}");
     assert!(!hint.contains("snapshot"), "{hint}");
 }
 
@@ -1767,7 +1767,7 @@ async fn clear_taps_the_field_sets_its_value_to_nothing_and_verifies_it_is_empty
     assert!(matches!(calls[0], Call::Gesture(_)), "{calls:?}");
     assert_eq!(
         calls[1],
-        Call::Text(phone_use_core::device::TextInput::SetValue(String::new()))
+        Call::Text(phonedriver_core::device::TextInput::SetValue(String::new()))
     );
 }
 
@@ -1797,8 +1797,8 @@ async fn clipboard_sets_and_reads_the_device_clipboard_and_the_trace_keeps_neith
     assert!(!trace_text(home.path()).contains("clip-secret-1"));
 }
 
-fn screen(on: bool, locked: bool, secure: bool) -> phone_use_core::device::ScreenState {
-    phone_use_core::device::ScreenState {
+fn screen(on: bool, locked: bool, secure: bool) -> phonedriver_core::device::ScreenState {
+    phonedriver_core::device::ScreenState {
         on,
         locked,
         secure,
@@ -1836,7 +1836,7 @@ async fn the_power_state_is_read_again_after_a_window_event_a_pause_or_a_lock_pr
     let (source, fake) = FakeSource::with(vec![tree(&["One"])]);
     let (d, _home) = daemon(source);
     ok(&d, "default", "act", tap_point(10.0, 10.0)).await;
-    fake.emit(phone_use_core::device::DeviceEvent::WindowChanged { package: None });
+    fake.emit(phonedriver_core::device::DeviceEvent::WindowChanged { package: None });
     tokio::time::sleep(std::time::Duration::from_millis(10)).await;
     ok(&d, "default", "act", tap_point(10.0, 10.0)).await;
     assert_eq!(fake.screen_reads(), 2);
@@ -1896,7 +1896,7 @@ async fn pressing_lock_does_not_wake_the_screen_first() {
     .await;
     assert_eq!(
         fake.calls(),
-        vec![Call::Button(phone_use_core::device::Button::Lock)]
+        vec![Call::Button(phonedriver_core::device::Button::Lock)]
     );
 }
 
@@ -2124,20 +2124,20 @@ async fn press_back_on_a_device_with_one_way_back_presses_the_button_and_has_no_
     assert!(r.get("via").is_none(), "{r}");
     assert!(
         fake.calls()
-            .contains(&Call::Button(phone_use_core::device::Button::Back))
+            .contains(&Call::Button(phonedriver_core::device::Button::Back))
     );
 }
 
 /// A device that polls for frames (no `FRAMES`) and whose gestures take 400 ms to be confirmed, like the iOS runner.
 struct SlowPolled {
     inner: Arc<FakeDevice>,
-    info: phone_use_core::device::DeviceInfo,
+    info: phonedriver_core::device::DeviceInfo,
     after: RawTree,
 }
 
 #[async_trait]
 impl Device for SlowPolled {
-    fn info(&self) -> &phone_use_core::device::DeviceInfo {
+    fn info(&self) -> &phonedriver_core::device::DeviceInfo {
         &self.info
     }
     async fn tree(&self) -> Result<RawTree, Error> {
@@ -2156,46 +2156,46 @@ impl Device for SlowPolled {
     }
     async fn screenshot(
         &self,
-        q: phone_use_core::device::Quality,
-    ) -> Result<phone_use_core::device::Image, Error> {
+        q: phonedriver_core::device::Quality,
+    ) -> Result<phonedriver_core::device::Image, Error> {
         self.inner.screenshot(q).await
     }
     fn events(&self) -> tokio::sync::broadcast::Receiver<DeviceEvent> {
         self.inner.events()
     }
-    async fn gesture(&self, g: phone_use_core::device::Gesture) -> Result<(), Error> {
+    async fn gesture(&self, g: phonedriver_core::device::Gesture) -> Result<(), Error> {
         tokio::time::sleep(Duration::from_millis(400)).await;
         self.inner.gesture(g).await
     }
-    async fn key(&self, k: phone_use_core::device::Key) -> Result<(), Error> {
+    async fn key(&self, k: phonedriver_core::device::Key) -> Result<(), Error> {
         self.inner.key(k).await
     }
-    async fn button(&self, b: phone_use_core::device::Button) -> Result<(), Error> {
+    async fn button(&self, b: phonedriver_core::device::Button) -> Result<(), Error> {
         self.inner.button(b).await
     }
     async fn open_url(
         &self,
-        u: &phone_use_core::device::Url,
+        u: &phonedriver_core::device::Url,
         app: Option<&AppId>,
     ) -> Result<(), Error> {
         self.inner.open_url(u, app).await
     }
-    async fn text(&self, t: phone_use_core::device::TextInput) -> Result<(), Error> {
+    async fn text(&self, t: phonedriver_core::device::TextInput) -> Result<(), Error> {
         self.inner.text(t).await
     }
     async fn clipboard(
         &self,
-        op: phone_use_core::device::ClipboardOp,
+        op: phonedriver_core::device::ClipboardOp,
     ) -> Result<Option<String>, Error> {
         self.inner.clipboard(op).await
     }
-    async fn apps(&self) -> Result<Vec<phone_use_core::device::App>, Error> {
+    async fn apps(&self) -> Result<Vec<phonedriver_core::device::App>, Error> {
         self.inner.apps().await
     }
-    async fn launch(&self, app: &phone_use_core::device::AppId) -> Result<(), Error> {
+    async fn launch(&self, app: &phonedriver_core::device::AppId) -> Result<(), Error> {
         self.inner.launch(app).await
     }
-    async fn foreground(&self) -> Result<Option<phone_use_core::device::AppId>, Error> {
+    async fn foreground(&self) -> Result<Option<phonedriver_core::device::AppId>, Error> {
         self.inner.foreground().await
     }
 }
@@ -2384,7 +2384,7 @@ async fn press_hide_keyboard_hides_a_shown_keyboard_and_says_how() {
     );
     assert!(
         fake.calls()
-            .contains(&Call::Button(phone_use_core::device::Button::Back))
+            .contains(&Call::Button(phonedriver_core::device::Button::Back))
     );
     assert!(!r["observation"]["header"]["keyboard"].is_object(), "{r}");
 }
@@ -2596,7 +2596,7 @@ async fn stop_clear_and_uninstall_on_an_emulator_reach_the_device_by_name() {
         .into_iter()
         .filter(|c| matches!(c, Call::AppOp(..)))
         .collect();
-    use phone_use_core::device::AppOp;
+    use phonedriver_core::device::AppOp;
     let id = AppId("com.android.settings".into());
     assert_eq!(
         ops,
@@ -2634,7 +2634,7 @@ fn physical() -> (Arc<FakeSource>, Arc<FakeDevice>) {
 }
 
 #[tokio::test]
-async fn on_a_physical_device_only_apps_phone_use_installed_can_be_cleared_or_removed() {
+async fn on_a_physical_device_only_apps_phonedriver_installed_can_be_cleared_or_removed() {
     let (source, fake) = physical();
     let (d, home) = daemon(source);
     for action in ["clear", "uninstall"] {
@@ -2660,7 +2660,12 @@ async fn on_a_physical_device_only_apps_phone_use_installed_can_be_cleared_or_re
     let removed = fake
         .calls()
         .iter()
-        .filter(|c| matches!(c, Call::AppOp(phone_use_core::device::AppOp::Uninstall, _)))
+        .filter(|c| {
+            matches!(
+                c,
+                Call::AppOp(phonedriver_core::device::AppOp::Uninstall, _)
+            )
+        })
         .count();
     assert_eq!(removed, 1);
     assert!(home.path().join("installed.json").exists());
@@ -2707,7 +2712,7 @@ async fn launch_with_grant_grants_before_it_launches_and_says_so() {
 }
 
 #[tokio::test]
-async fn grant_on_a_physical_device_needs_an_app_phone_use_installed() {
+async fn grant_on_a_physical_device_needs_an_app_phonedriver_installed() {
     let (source, fake) = physical();
     let (d, _home) = daemon(source);
     let e = err(

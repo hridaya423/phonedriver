@@ -1,8 +1,8 @@
 name: testbed-busy
 device: android
 steps:
-  - shell: "am force-stop dev.phoneuse.testbed"
+  - shell: "am force-stop dev.phonedriver.testbed"
   - testbed: busy
   - expect: {text: "loading"}
 cleanup:
-  - shell: "am force-stop dev.phoneuse.testbed"
+  - shell: "am force-stop dev.phonedriver.testbed"

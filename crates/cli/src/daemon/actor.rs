@@ -7,23 +7,23 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use base64::Engine;
-use phone_use_core::device::{
+use phonedriver_core::device::{
     App, AppId, AppOp, Button, Capabilities, ClipboardOp, Device, DeviceEvent, FrameRef, Gesture,
     Key, Quality, ScreenState, ShellRequest, TextInput, TimedPoint, Url,
 };
-use phone_use_core::diff::{Change, DiffOrFull, diff};
-use phone_use_core::element::{Actions, Element, ElementState, Ref, Role, Source};
-use phone_use_core::error::{Direction, Error, Op, ScrollEnd, UserAction};
-use phone_use_core::geometry::{Point, Rect, Size};
-use phone_use_core::gesture;
-use phone_use_core::ocr::{merge, tree_is_hollow};
-use phone_use_core::prune::prune;
-use phone_use_core::raw::RawTree;
-use phone_use_core::render::{
+use phonedriver_core::diff::{Change, DiffOrFull, diff};
+use phonedriver_core::element::{Actions, Element, ElementState, Ref, Role, Source};
+use phonedriver_core::error::{Direction, Error, Op, ScrollEnd, UserAction};
+use phonedriver_core::geometry::{Point, Rect, Size};
+use phonedriver_core::gesture;
+use phonedriver_core::ocr::{merge, tree_is_hollow};
+use phonedriver_core::prune::prune;
+use phonedriver_core::raw::RawTree;
+use phonedriver_core::render::{
     AppLine, DeviceLine, Filters, Header, Orientation, Rendered, SettleLine,
 };
-use phone_use_core::settle::{Config, Detector, Input, State};
-use phone_use_core::similar::{SUGGEST_WITHIN, normalized_distance};
+use phonedriver_core::settle::{Config, Detector, Input, State};
+use phonedriver_core::similar::{SUGGEST_WITHIN, normalized_distance};
 use serde_json::{Value, json};
 use tokio::sync::{broadcast, mpsc, oneshot, watch};
 use tokio::time::Instant;
@@ -503,7 +503,7 @@ impl Actor {
         Ok(value)
     }
 
-    /// Install, stop, clear data or uninstall. On a physical device only an app phone-use installed (recorded in
+    /// Install, stop, clear data or uninstall. On a physical device only an app phonedriver installed (recorded in
     /// `installed.json` under the daemon's home) can be cleared or removed.
     async fn app(&mut self, s: &mut Session, p: AppParams) -> Result<Value, Error> {
         let device = self.device()?;
@@ -549,7 +549,7 @@ impl Actor {
             if !mine {
                 return Err(Error::Unsupported {
                     op: Op::App,
-                    reason: "phone-use did not install this app on this physical device, so it will not clear or remove it",
+                    reason: "phonedriver did not install this app on this physical device, so it will not clear or remove it",
                 });
             }
         }
@@ -653,7 +653,7 @@ impl Actor {
         }
     }
 
-    /// Reads, lets `f` change, and writes back the apps phone-use installed on this device.
+    /// Reads, lets `f` change, and writes back the apps phonedriver installed on this device.
     fn ledger(&self, f: impl FnOnce(&mut Vec<String>)) {
         let path = self.home.join("installed.json");
         let mut all: serde_json::Map<String, Value> = std::fs::read(&path)
@@ -709,7 +709,7 @@ impl Actor {
         let mut marked = None;
         if p.marks {
             let now = self.fresh(s).await?;
-            let marks: Vec<phone_use_video::marks::Mark> = now
+            let marks: Vec<phonedriver_video::marks::Mark> = now
                 .elements
                 .iter()
                 .filter(|e| {
@@ -718,7 +718,7 @@ impl Actor {
                         && e.bounds.w > 0.0
                         && e.bounds.h > 0.0
                 })
-                .map(|e| phone_use_video::marks::Mark {
+                .map(|e| phonedriver_video::marks::Mark {
                     label: e.r#ref.to_string(),
                     x: e.bounds.x,
                     y: e.bounds.y,
@@ -728,7 +728,7 @@ impl Actor {
                 .collect();
             let png = image.bytes.clone();
             let drawn = tokio::task::spawn_blocking(move || {
-                phone_use_video::marks::draw_marks(&png, &marks).map(|b| (b, marks.len()))
+                phonedriver_video::marks::draw_marks(&png, &marks).map(|b| (b, marks.len()))
             })
             .await
             .map_err(|e| Error::Transport {
@@ -773,7 +773,7 @@ impl Actor {
         };
         let nodes = prune(tree);
         let refs = s.refs.assign(tree, &nodes);
-        let alerts = phone_use_core::alert::find(tree, screen);
+        let alerts = phonedriver_core::alert::find(tree, screen);
         let app = tree
             .windows
             .iter()
@@ -1544,7 +1544,7 @@ impl Actor {
                         if !mine {
                             return Err(Error::Unsupported {
                                 op: Op::Launch,
-                                reason: "phone-use did not install this app on this physical device, so it will not grant it permissions",
+                                reason: "phonedriver did not install this app on this physical device, so it will not grant it permissions",
                             });
                         }
                     }

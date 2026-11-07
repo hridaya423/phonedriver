@@ -26,24 +26,24 @@ fn newest(root: &Path) -> Option<SystemTime> {
 }
 
 fn main() {
-    println!("cargo:rerun-if-env-changed=PHONE_USE_AGENT_JAR");
+    println!("cargo:rerun-if-env-changed=PHONEDRIVER_AGENT_JAR");
     println!("cargo:rerun-if-env-changed=ANDROID_HOME");
     println!("cargo:rerun-if-changed=../../android-agent/src");
     println!("cargo:rerun-if-changed=../../android-agent/aidl");
     println!("cargo:rerun-if-changed=../../android-agent/build.sh");
 
-    if let Ok(jar) = std::env::var("PHONE_USE_AGENT_JAR") {
+    if let Ok(jar) = std::env::var("PHONEDRIVER_AGENT_JAR") {
         assert!(
             Path::new(&jar).is_file(),
-            "PHONE_USE_AGENT_JAR={jar} is not a file; point it at a built phone-use-agent.jar (bash android-agent/build.sh makes one) or unset it"
+            "PHONEDRIVER_AGENT_JAR={jar} is not a file; point it at a built phonedriver-agent.jar (bash android-agent/build.sh makes one) or unset it"
         );
-        println!("cargo:rustc-env=PHONE_USE_AGENT_JAR={jar}");
+        println!("cargo:rustc-env=PHONEDRIVER_AGENT_JAR={jar}");
         return;
     }
 
     let agent =
         PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap()).join("../../android-agent");
-    let jar = agent.join("build/phone-use-agent.jar");
+    let jar = agent.join("build/phonedriver-agent.jar");
     let jar_time = newest(&jar);
     let mut stale = jar_time.is_none();
     for dir in ["src", "aidl", "build.sh"] {
@@ -60,9 +60,9 @@ fn main() {
             .expect("run android-agent/build.sh");
         assert!(
             status.success(),
-            "android-agent/build.sh failed (its message is above). For a build without Android: cargo build --release -p phone-use --no-default-features"
+            "android-agent/build.sh failed (its message is above). For a build without Android: cargo build --release -p phonedriver --no-default-features"
         );
     }
     let jar = jar.canonicalize().expect("agent jar after build");
-    println!("cargo:rustc-env=PHONE_USE_AGENT_JAR={}", jar.display());
+    println!("cargo:rustc-env=PHONEDRIVER_AGENT_JAR={}", jar.display());
 }

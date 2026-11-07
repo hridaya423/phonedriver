@@ -1,5 +1,5 @@
 //! `IosDevice` against the iOS testbed on a booted simulator, checked against the testbed's event log.
-//! `PHONE_USE_TEST_DEVICE=sim:<udid> cargo test -p phone-use-ios --test device_live -- --ignored --test-threads=1`.
+//! `PHONEDRIVER_TEST_DEVICE=sim:<udid> cargo test -p phonedriver-ios --test device_live -- --ignored --test-threads=1`.
 
 #![cfg(unix)]
 
@@ -7,15 +7,15 @@ use std::path::PathBuf;
 use std::sync::{Arc, LazyLock, OnceLock};
 use std::time::Duration;
 
-use phone_use_core::device::{
+use phonedriver_core::device::{
     AppId, Button, ClipboardOp, Device, Gesture, Key, Quality, TextInput, TimedPoint, Url,
 };
-use phone_use_core::error::Error;
-use phone_use_core::geometry::Point;
-use phone_use_core::raw::RawTree;
-use phone_use_ios::device::IosDevice;
-use phone_use_ios::simulator::Simulator;
-use phone_use_ios::testbed;
+use phonedriver_core::error::Error;
+use phonedriver_core::geometry::Point;
+use phonedriver_core::raw::RawTree;
+use phonedriver_ios::device::IosDevice;
+use phonedriver_ios::simulator::Simulator;
+use phonedriver_ios::testbed;
 use serde_json::Value;
 use tokio::runtime::Runtime;
 
@@ -23,12 +23,13 @@ static RT: LazyLock<Runtime> = LazyLock::new(|| Runtime::new().unwrap());
 static DEVICE: OnceLock<Arc<IosDevice>> = OnceLock::new();
 
 fn udid() -> String {
-    let v = std::env::var("PHONE_USE_TEST_DEVICE").expect("set PHONE_USE_TEST_DEVICE=sim:<udid>");
+    let v =
+        std::env::var("PHONEDRIVER_TEST_DEVICE").expect("set PHONEDRIVER_TEST_DEVICE=sim:<udid>");
     v.strip_prefix("sim:").unwrap_or(&v).to_string()
 }
 
 fn home() -> PathBuf {
-    PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join("phone-use-home")
+    PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join("phonedriver-home")
 }
 
 fn device() -> Arc<IosDevice> {

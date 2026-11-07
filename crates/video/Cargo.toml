@@ -1,12 +1,12 @@
 [package]
-name = "phone-use-video"
+name = "phonedriver-video"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 
 [dependencies]
 openh264 = "0.9.9"
-phone-use-core = { version = "0.1.0", path = "../core" }
+phonedriver-core = { version = "0.1.0", path = "../core" }
 png = "0.18.1"
 thiserror = "2.0.21"
 tokio = { version = "1.54.1", features = ["sync", "rt", "time", "io-util", "macros"] }

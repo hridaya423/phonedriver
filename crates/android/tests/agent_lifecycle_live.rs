@@ -2,16 +2,19 @@ mod support;
 
 use std::time::{Duration, Instant};
 
-use phone_use_android::adb::Adb;
-use phone_use_android::agent::{self, Agent};
-use phone_use_core::error::Error;
+use phonedriver_android::adb::Adb;
+use phonedriver_android::agent::{self, Agent};
+use phonedriver_core::error::Error;
 use serde_json::json;
 use support::agent as raw;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 async fn agent_processes(adb: &Adb, serial: &str) -> Vec<String> {
     let out = adb
-        .shell(serial, "ps -A -o ARGS | grep 'dev.phoneuse.agent.[M]ain'")
+        .shell(
+            serial,
+            "ps -A -o ARGS | grep 'dev.phonedriver.agent.[M]ain'",
+        )
         .await
         .unwrap();
     out.stdout_text().lines().map(str::to_string).collect()
@@ -32,7 +35,7 @@ async fn wait_until_gone(adb: &Adb, serial: &str, within: Duration) -> Duration 
 }
 
 #[tokio::test]
-#[ignore = "needs PHONE_USE_TEST_DEVICE"]
+#[ignore = "needs PHONEDRIVER_TEST_DEVICE"]
 async fn deploy_pushes_once_with_mode_0444() {
     let _g = raw::exclusive().await;
     let (adb, serial) = (support::adb(), support::serial());
@@ -42,7 +45,11 @@ async fn deploy_pushes_once_with_mode_0444() {
         .unwrap();
     let pushed = agent::deploy(&adb, &serial).await.unwrap();
     assert!(pushed.pushed, "{pushed:?}");
-    assert!(pushed.path.starts_with("/data/local/tmp/phone-use-agent-"));
+    assert!(
+        pushed
+            .path
+            .starts_with("/data/local/tmp/phonedriver-agent-")
+    );
     assert!(pushed.path.ends_with(".jar"));
     let mode = adb
         .shell(&serial, &format!("stat -c %a {}", pushed.path))
@@ -55,7 +62,7 @@ async fn deploy_pushes_once_with_mode_0444() {
 }
 
 #[tokio::test]
-#[ignore = "needs PHONE_USE_TEST_DEVICE"]
+#[ignore = "needs PHONEDRIVER_TEST_DEVICE"]
 async fn start_connects_both_streams_and_a_stale_agent_is_killed() {
     let _g = raw::exclusive().await;
     let (adb, serial) = (support::adb(), support::serial());
@@ -64,7 +71,7 @@ async fn start_connects_both_streams_and_a_stale_agent_is_killed() {
         .shell_stream(
             &serial,
             &format!(
-                "CLASSPATH={jar} app_process / dev.phoneuse.agent.Main 0.0.0 stale-agent-socket"
+                "CLASSPATH={jar} app_process / dev.phonedriver.agent.Main 0.0.0 stale-agent-socket"
             ),
         )
         .await
@@ -93,7 +100,7 @@ async fn start_connects_both_streams_and_a_stale_agent_is_killed() {
 }
 
 #[tokio::test]
-#[ignore = "needs PHONE_USE_TEST_DEVICE"]
+#[ignore = "needs PHONEDRIVER_TEST_DEVICE"]
 async fn closing_the_shell_stream_ends_the_agent_within_a_second_and_a_half() {
     let _g = raw::exclusive().await;
     let (adb, serial) = (support::adb(), support::serial());
@@ -105,7 +112,7 @@ async fn closing_the_shell_stream_ends_the_agent_within_a_second_and_a_half() {
 }
 
 #[tokio::test]
-#[ignore = "needs PHONE_USE_TEST_DEVICE"]
+#[ignore = "needs PHONEDRIVER_TEST_DEVICE"]
 async fn an_agent_nobody_connects_to_exits_after_ten_seconds() {
     let _g = raw::exclusive().await;
     let (adb, serial) = (support::adb(), support::serial());
@@ -126,7 +133,7 @@ async fn an_agent_nobody_connects_to_exits_after_ten_seconds() {
 }
 
 #[tokio::test]
-#[ignore = "needs PHONE_USE_TEST_DEVICE"]
+#[ignore = "needs PHONEDRIVER_TEST_DEVICE"]
 async fn a_connection_without_the_token_is_dropped() {
     let _g = raw::exclusive().await;
     let (adb, serial) = (support::adb(), support::serial());
@@ -148,7 +155,7 @@ async fn a_connection_without_the_token_is_dropped() {
 }
 
 #[tokio::test]
-#[ignore = "needs PHONE_USE_TEST_DEVICE"]
+#[ignore = "needs PHONEDRIVER_TEST_DEVICE"]
 async fn another_ui_automation_client_is_reported_as_a_conflict() {
     let _g = raw::exclusive().await;
     let (adb, serial) = (support::adb(), support::serial());

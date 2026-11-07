@@ -67,7 +67,7 @@ BOOL PUGesture(NSArray *pointers, NSError **error)
         if (error) *error = PUError(PURunnerErrorBadRequest, @"pointers must hold 1 to 5 paths");
         return NO;
     }
-    XCSynthesizedEventRecord *record = [[XCSynthesizedEventRecord alloc] initWithName:@"phone-use gesture"
+    XCSynthesizedEventRecord *record = [[XCSynthesizedEventRecord alloc] initWithName:@"phonedriver gesture"
                                                                  interfaceOrientation:UIInterfaceOrientationPortrait];
     double end = 0;
     for (id pointer in pointers) {

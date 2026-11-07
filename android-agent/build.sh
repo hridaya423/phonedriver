@@ -39,8 +39,8 @@ if [ ${#problems[@]} -gt 0 ]; then
     echo "  install the tools:   sdkmanager \"build-tools;$BT_VERSION\" \"platforms;$PLATFORM_NAME\" (and JDK 17)"
     echo "  use another SDK:     ANDROID_HOME=<sdk directory>"
     echo "  use other versions:  ANDROID_BUILD_TOOLS=<version> ANDROID_PLATFORM=<android-NN.N>"
-    echo "  use a built jar:     PHONE_USE_AGENT_JAR=<path to phone-use-agent.jar> (none is published yet)"
-    echo "  skip Android:        cargo build --release -p phone-use --no-default-features (iOS only)"
+    echo "  use a built jar:     PHONEDRIVER_AGENT_JAR=<path to phonedriver-agent.jar> (none is published yet)"
+    echo "  skip Android:        cargo build --release -p phonedriver --no-default-features (iOS only)"
   } >&2
   exit 1
 fi
@@ -49,10 +49,10 @@ OUT=${OUT:-build}
 rm -rf "$OUT" && mkdir -p "$OUT/classes" "$OUT/gen/com/genymobile/scrcpy"
 cat > "$OUT/gen/com/genymobile/scrcpy/BuildConfig.java" <<JAVA
 package com.genymobile.scrcpy;
-public final class BuildConfig { public static final boolean DEBUG = false; public static final String VERSION_NAME = "phone-use"; }
+public final class BuildConfig { public static final boolean DEBUG = false; public static final String VERSION_NAME = "phonedriver"; }
 JAVA
 (cd aidl && "$BT/aidl" -o"../$OUT/gen" -I. -p "$PLATFORM/framework.aidl" android/view/IDisplayWindowListener.aidl)
 javac -encoding UTF-8 -bootclasspath "$AJ" -cp "$BT/core-lambda-stubs.jar" -d "$OUT/classes" -source 1.8 -target 1.8 -Xlint:-options \
-  -sourcepath "src:$OUT/gen" src/dev/phoneuse/agent/*.java
+  -sourcepath "src:$OUT/gen" src/dev/phonedriver/agent/*.java
 (cd "$OUT/classes" && "$BT/d8" --min-api 26 --release --classpath "$AJ" --output ../agent.zip $(find . -name '*.class'))
-mv "$OUT/agent.zip" "$OUT/phone-use-agent.jar"
+mv "$OUT/agent.zip" "$OUT/phonedriver-agent.jar"

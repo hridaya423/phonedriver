@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-"""Live tests for PhoneUseRunner against the iOS testbed on a booted simulator.
+"""Live tests for PhonedriverRunner against the iOS testbed on a booted simulator.
 
 Run on the Mac that hosts the simulator:
 
-    PHONE_USE_TEST_UDID=<udid> python3 ios-runner/tests/test_runner.py -v
+    PHONEDRIVER_TEST_UDID=<udid> python3 ios-runner/tests/test_runner.py -v
 
 Builds the runner if needed, starts it with `xcodebuild test-without-building` unless one
-already answers `hello` on PHONE_USE_PORT (default 27753), and checks every op against the
+already answers `hello` on PHONEDRIVER_PORT (default 27753), and checks every op against the
 testbed's event log, not against the runner's own replies.
 """
 
@@ -27,13 +27,13 @@ REPO = os.path.dirname(RUNNER_DIR)
 sys.path.insert(0, os.path.join(REPO, "testbeds", "ios"))
 import testbed  # noqa: E402
 
-PORT = int(os.environ.get("PHONE_USE_PORT", "27753"))
+PORT = int(os.environ.get("PHONEDRIVER_PORT", "27753"))
 TESTBED = testbed.BUNDLE_ID
 
 
 def booted_udid():
-    if "PHONE_USE_TEST_UDID" in os.environ:
-        return os.environ["PHONE_USE_TEST_UDID"]
+    if "PHONEDRIVER_TEST_UDID" in os.environ:
+        return os.environ["PHONEDRIVER_TEST_UDID"]
     devices = json.loads(subprocess.run(
         ["xcrun", "simctl", "list", "devices", "booted", "-j"],
         check=True, capture_output=True, text=True).stdout)["devices"]
@@ -96,11 +96,11 @@ def start_runner(udid):
     build = os.path.join(RUNNER_DIR, "build")
     subprocess.run(["xcodegen", "generate", "--quiet"], cwd=RUNNER_DIR, check=True)
     subprocess.run(
-        ["xcodebuild", "-project", "PhoneUseRunner.xcodeproj", "-scheme", "PhoneUseRunner",
+        ["xcodebuild", "-project", "PhonedriverRunner.xcodeproj", "-scheme", "PhonedriverRunner",
          "-destination", f"id={udid}", "-derivedDataPath", build, "-quiet", "build-for-testing"],
         cwd=RUNNER_DIR, check=True)
     xctestrun = glob.glob(os.path.join(build, "Build", "Products", "*.xctestrun"))[0]
-    env = dict(os.environ, TEST_RUNNER_PHONE_USE_PORT=str(PORT))
+    env = dict(os.environ, TEST_RUNNER_PHONEDRIVER_PORT=str(PORT))
     log = open(RUNNER_LOG, "w")
     child = subprocess.Popen(
         ["xcodebuild", "test-without-building", "-xctestrun", xctestrun,
