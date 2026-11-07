@@ -1,0 +1,92 @@
+load before tap: [15.9, 21.3, 10.1, 13.0, 11.0]
+load after tap: [24.7, 16.8, 13.3, 12.3, 12.5]
+tap: done
+load before screenshot: [16.6, 10.0, 13.2, 15.1, 17.4]
+load after screenshot: [17.4, 13.2, 10.1, 12.0, 11.4]
+screenshot: done
+load before tap, then what changed: [37.6, 33.5, 28.1, 30.1, 28.8]
+load after tap, then what changed: [15.7, 11.0, 4.3, 11.3, 11.8]
+tap, then what changed: done
+load before tree, Settings: [25.3, 15.2, 12.3, 17.4, 12.5]
+load after tree, Settings: [23.4, 15.5, 19.3, 22.2, 16.3]
+tree, Settings: done
+load before tree, list: [24.6, 28.7, 34.3, 44.6, 26.3]
+load after tree, list: [10.8, 19.6, 11.0, 37.7, 25.4]
+tree, list: done
+load before type 100 characters: [17.0, 17.6, 26.1, 20.4, 21.5]
+load after type 100 characters: [41.9, 44.1, 45.1, 44.1, 47.2]
+type 100 characters: done
+load before cold start: [45.2, 39.2, 40.6, 38.8, 41.2]
+load after cold start: [40.0, 37.3, 35.9, 34.4, 34.5]
+done
+D:\tmp\phone-android-9s_czb_q.png
+D:\tmp\phone-android-lvz1ygz0.png
+D:\tmp\phone-android-oic9v8sr.png
+D:\tmp\phone-android-yjqk1rll.png
+D:\tmp\phone-android-lry_30oz.png
+D:\tmp\phone-android-b9i8auuu.png
+D:\tmp\phone-android-kn2wx6ih.png
+D:\tmp\phone-android-fh85xr0e.png
+D:\tmp\phone-android-3yl_4knk.png
+D:\tmp\phone-android-0xco3grw.png
+D:\tmp\phone-android-xpcnqu4v.png
+D:\tmp\phone-android-o89qn_dk.png
+D:\tmp\phone-android-fh7i7biv.png
+D:\tmp\phone-android-pkgjok0g.png
+D:\tmp\phone-android-v_m73z32.png
+D:\tmp\phone-android-1x55l_ul.png
+D:\tmp\phone-android-lkqrp_01.png
+D:\tmp\phone-android-k1b8yhgx.png
+D:\tmp\phone-android-ept22d46.png
+D:\tmp\phone-android-it5qg5w_.png
+D:\tmp\phone-android-r52kb0y2.png
+D:\tmp\phone-android-htu5hpa2.png
+D:\tmp\phone-android-0yqafd2x.png
+D:\tmp\phone-android-2xzvn5kb.png
+D:\tmp\phone-android-v4y8uknu.png
+D:\tmp\phone-android-3_nmhauy.png
+D:\tmp\phone-android-flirwm_m.png
+D:\tmp\phone-android-1ki85nfc.png
+D:\tmp\phone-android-1v4wyhyr.png
+D:\tmp\phone-android-fc0x8ukn.png
+D:\tmp\phone-android-1g5ta33e.png
+D:\tmp\phone-android-_nyzjmm3.png
+D:\tmp\phone-android-7d0lhlhr.png
+D:\tmp\phone-android-bkgdywsn.png
+D:\tmp\phone-android-rm6f0vn5.png
+D:\tmp\phone-android-ortypgiy.png
+D:\tmp\phone-android-nworm7to.png
+D:\tmp\phone-android-xz_jppld.png
+D:\tmp\phone-android-xm6rohp3.png
+D:\tmp\phone-android-jdo9nrv9.png
+D:\tmp\phone-android-w_9159fv.png
+D:\tmp\phone-android-_v22zid4.png
+D:\tmp\phone-android-0wz3scom.png
+D:\tmp\phone-android-w8pcc1ma.png
+D:\tmp\phone-android-90w5lf82.png
+D:\tmp\phone-android-7dxo00o7.png
+D:\tmp\phone-android-prkrp__h.png
+D:\tmp\phone-android-q9r730l2.png
+D:\tmp\phone-android-pyyohyg4.png
+D:\tmp\phone-android-io722gcu.png
+D:\tmp\phone-android-vxofp128.png
+D:\tmp\phone-android-v1dpjxht.png
+D:\tmp\phone-android-ssehjorf.png
+D:\tmp\phone-android-469_l7vc.png
+D:\tmp\phone-android-c5bfhi6_.png
+D:\tmp\phone-android-mks9f_gi.png
+D:\tmp\phone-android-yuo08x7b.png
+D:\tmp\phone-android-qt3fjpy8.png
+D:\tmp\phone-android-e7rifs_6.png
+D:\tmp\phone-android-1b8qhu3g.png
+D:\tmp\phone-android-kfkiemws.png
+D:\tmp\phone-android-xkdhhjv4.png
+D:\tmp\phone-android-oilpnz1x.png
+D:\tmp\phone-android-clkzkfkz.png
+D:\tmp\phone-android-42h8y9st.png
+D:\tmp\phone-android-ir_gwkcj.png
+D:\tmp\phone-android-deinuyra.png
+D:\tmp\phone-android-j_7h56gp.png
+D:\tmp\phone-android-t24rd6v3.png
+D:\tmp\phone-android-clam6q4u.png
+EXIT 0
