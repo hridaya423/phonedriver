@@ -29,14 +29,15 @@ use tokio::sync::{broadcast, mpsc, oneshot, watch};
 use tokio::time::Instant;
 
 use super::DeviceSource;
+use super::guard;
 use super::session::{Resolved, Session};
 use super::shell;
 use super::verify::{Expect, Verdict, Verify};
 use crate::wire::{
-    ActParams, Action, ActionResult, AppParams, BatchParams, BatchResult, ClipboardParams,
-    FindParams, Kind, Observation, PinchDirection, ScreenshotParams, ScreenshotResult, ShellParams,
-    ShellResult, SnapshotParams, Step, StepFailure, StepResult, Target, TypeMode, WaitCondition,
-    WaitParams,
+    ActParams, Action, ActionResult, AppParams, Approval, BatchParams, BatchResult,
+    ClipboardParams, FindParams, Kind, Observation, PinchDirection, ScreenshotParams,
+    ScreenshotResult, ShellParams, ShellResult, SnapshotParams, Step, StepFailure, StepResult,
+    Target, TypeMode, WaitCondition, WaitParams,
 };
 
 pub const LEASE_TTL: Duration = Duration::from_secs(600);
@@ -1122,6 +1123,67 @@ impl Actor {
         }
     }
 
+    /// A tap on a button that spends money or cannot be undone needs the human's word (decision D27). A point is
+    /// matched to the element under it on a fresh read.
+    async fn guard_tap(
+        &mut self,
+        s: &mut Session,
+        approval: Option<Approval>,
+        target: &Target,
+        found: Option<&Element>,
+        at: Point,
+    ) -> Result<Option<&'static str>, Error> {
+        if approval == Some(Approval::Autonomous) {
+            return Ok(None);
+        }
+        let button = match (found, target) {
+            (Some(e), _) => Some(e.clone()),
+            (None, Target::Point { .. }) => {
+                let now = self.fresh(s).await?;
+                guard::hit(&now, at).cloned()
+            }
+            _ => None,
+        };
+        self.guard_button(s, approval, button).await
+    }
+
+    /// `type --submit` presses enter, which sends the form: guarded when the field's own form holds such a button.
+    async fn guard_submit(
+        &mut self,
+        s: &mut Session,
+        approval: Option<Approval>,
+        field: Option<&Element>,
+    ) -> Result<Option<&'static str>, Error> {
+        let button = field
+            .zip(s.last.as_ref())
+            .and_then(|(f, now)| guard::submit_button(now, f))
+            .cloned();
+        self.guard_button(s, approval, button).await
+    }
+
+    async fn guard_button(
+        &mut self,
+        s: &mut Session,
+        approval: Option<Approval>,
+        button: Option<Element>,
+    ) -> Result<Option<&'static str>, Error> {
+        let Some(button) = button.filter(guard::guarded) else {
+            return Ok(None);
+        };
+        match guard::stance(s, approval) {
+            guard::Stance::Run(note) => Ok(note),
+            guard::Stance::Ask => {
+                let now = self.fresh(s).await?;
+                let details = guard::context(&now, &button);
+                Err(Error::NeedsApproval {
+                    label: button.label.or(button.value).unwrap_or_default(),
+                    app: guard::app_name(&now),
+                    details,
+                })
+            }
+        }
+    }
+
     async fn act(&mut self, s: &mut Session, p: ActParams) -> Result<ActionResult, Error> {
         let t = Instant::now();
         let prepared = self.prepare(&p.action).await;
@@ -1187,6 +1249,9 @@ impl Actor {
                         covered_by: Some(bar),
                     });
                 }
+                let approved = self
+                    .guard_tap(s, p.approval, &target, found.as_ref(), at)
+                    .await?;
                 let started = self.begin_action();
                 let t = Instant::now();
                 let sent = device
@@ -1208,6 +1273,7 @@ impl Actor {
                     ),
                     None => format!("{verb} at {},{}", at.x.round(), at.y.round()),
                 };
+                let summary = approved_summary(summary, approved);
                 self.finish(s, p.settle, cfg, started, summary, None, None, None)
                     .await
             }
@@ -1530,6 +1596,11 @@ impl Actor {
                         None,
                     ),
                 };
+                let approved = if submit {
+                    self.guard_submit(s, p.approval, field.as_ref()).await?
+                } else {
+                    None
+                };
                 let secure = secret || field.as_ref().is_some_and(is_secure);
                 let replace = into.is_some() && !append;
                 let held = field
@@ -1580,7 +1651,7 @@ impl Actor {
                     .as_ref()
                     .map(|f| format!(" into @{}", f.r#ref))
                     .unwrap_or_default();
-                let summary = format!("typed {n} chars{label}");
+                let summary = approved_summary(format!("typed {n} chars{label}"), approved);
                 let expect = if replace {
                     Expect::Exactly(text.clone())
                 } else {
@@ -1929,6 +2000,7 @@ impl Actor {
                         s,
                         ActParams {
                             action,
+                            approval: p.approval.filter(|a| *a == Approval::Autonomous),
                             settle: true,
                             timeout_ms: p.timeout_ms,
                             expect_change_ms: p.expect_change_ms,
@@ -2510,4 +2582,11 @@ fn unreachable_state() -> Error {
 
 fn to_value<T: serde::Serialize>(v: T) -> Value {
     serde_json::to_value(v).unwrap_or(Value::Null)
+}
+
+fn approved_summary(summary: String, note: Option<&str>) -> String {
+    match note {
+        Some(note) => format!("{summary}; {note}"),
+        None => summary,
+    }
 }

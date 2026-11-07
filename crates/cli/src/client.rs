@@ -49,11 +49,12 @@ impl Failure {
         }
     }
 
-    /// `needs_user` is 3, `device_gone` and `no_device` are 4, everything else is 1.
+    /// `needs_user` is 3, `device_gone` and `no_device` are 4, `needs_approval` is 5, everything else is 1.
     pub fn exit_code(&self) -> u8 {
         match self {
             Failure::Rpc(e) => match e.code {
                 -32005 => 3,
+                -32019 => 5,
                 -32003 | -32001 => 4,
                 _ => 1,
             },

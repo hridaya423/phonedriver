@@ -257,6 +257,13 @@ pub enum Error {
     },
     #[error("unknown key \"{key}\"")]
     UnknownKey { key: String, valid: Vec<String> },
+    #[error("{}", needs_approval(label, app.as_deref(), details))]
+    NeedsApproval {
+        label: String,
+        app: Option<String>,
+        /// Visible text near the button that says what is being bought or done.
+        details: Vec<String>,
+    },
     #[error("no app named \"{query}\"")]
     NoApp {
         query: String,
@@ -316,6 +323,26 @@ fn no_device(requested: Option<&str>, connected: &[DeviceSummary]) -> String {
     format!("no device \"{requested}\"; connected: {list}")
 }
 
+/// The refusal's message: what the tap is, and the screen text that says what it commits.
+pub fn needs_approval(label: &str, app: Option<&str>, details: &[String]) -> String {
+    let mut text = match app {
+        Some(app) => format!(
+            "\"{label}\" in {app} spends money or cannot be undone: it needs the human's approval"
+        ),
+        None => {
+            format!("\"{label}\" spends money or cannot be undone: it needs the human's approval")
+        }
+    };
+    if !details.is_empty() {
+        text.push_str("\nOn screen:");
+        for d in details {
+            text.push_str("\n  ");
+            text.push_str(d);
+        }
+    }
+    text
+}
+
 fn ids(devices: &[DeviceSummary]) -> String {
     devices
         .iter()
@@ -345,6 +372,7 @@ impl Error {
             Error::NotReached { .. } => -32016,
             Error::NoApp { .. } => -32017,
             Error::UnknownKey { .. } => -32018,
+            Error::NeedsApproval { .. } => -32019,
         }
     }
 
@@ -391,6 +419,7 @@ impl Error {
             Error::UnknownKey { valid, .. } => {
                 format!("Use one of these keys: {}.", valid.join("; "))
             }
+            Error::NeedsApproval { .. } => "Ask the user in chat whether to tap it; tap again with `--autonomous` only when they say yes or have granted full autonomy.".into(),
             Error::NoApp { similar, .. } if !similar.is_empty() => {
                 format!("Use one of these installed apps: {}.", similar.join("; "))
             }
@@ -588,6 +617,11 @@ mod tests {
                 key: "bogus".into(),
                 valid: vec!["home".into(), "back".into()],
             },
+            Error::NeedsApproval {
+                label: "Place order · $12.00".into(),
+                app: Some("Testbed".into()),
+                details: vec!["Total $12.00".into()],
+            },
             Error::NotReached {
                 query: "Safari".into(),
                 scrolls: 3,
@@ -640,6 +674,7 @@ mod tests {
             Error::NotReached { .. } => (-32016, "not_reached"),
             Error::NoApp { .. } => (-32017, "no_app"),
             Error::UnknownKey { .. } => (-32018, "unknown_key"),
+            Error::NeedsApproval { .. } => (-32019, "needs_approval"),
         }
     }
 
@@ -655,6 +690,7 @@ mod tests {
         "Stop",
         "Unlock",
         "Tap",
+        "Ask",
         "Turn",
         "Open",
         "Answer",
