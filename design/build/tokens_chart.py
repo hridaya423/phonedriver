@@ -10,7 +10,16 @@ from sodium import *
 ROOT = HERE.parent.parent
 ASSETS = ROOT / ".github" / "assets"
 CHROME = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
-HARNESSES = (("phone-use", "d1"), ("mobile-mcp", "d2"), ("phone-harness", "d5"), ("adb", "d3"))
+HARNESSES = (
+    ("phone-use before", "d4"),
+    ("phone-use run 1", "d1"),
+    ("phone-use run 2", "d1"),
+    ("phone-use run 3", "d1"),
+    ("mobile-mcp", "d2"),
+    ("phone-harness", "d5"),
+    ("adb", "d3"),
+)
+LEGEND = (("phone-use before", "d4"), ("phone-use runs 1 to 3", "d1"), ("mobile-mcp", "d2"), ("phone-harness", "d5"), ("adb", "d3"))
 
 
 def mono(s, x, cy, size, fill, tr=0.0, anchor="start", caps=False):
@@ -26,7 +35,7 @@ def chart(tn, rows):
     n = len(tasks)
     W = 1280
     fx, fy, fw = 24, 24, 1232
-    rh = 130
+    rh = 28 * len(HARNESSES) + 24
     fh = 46 + rh * n + 38 + 2
     H = fh + 48
     b = frame(fx, fy, fw, fh, c["line"], c["page"])
@@ -34,7 +43,7 @@ def chart(tn, rows):
     t, _ = mono("Tokens per task", fx + 14, fy + 24, 18, c["t1"])
     b += t
     rx = fx + fw - 14
-    for name, col in reversed(HARNESSES):
+    for name, col in reversed(LEGEND):
         t, w = mono(name, rx, fy + 24, 15, c["t2"], 0.04, anchor="end", caps=True)
         b += t + rect(rx - w - 10 - 12, fy + 24 - 5, 10, 10, c[col])
         rx = rx - w - 10 - 12 - 24
@@ -71,14 +80,14 @@ def chart(tn, rows):
                 continue
             x1 = max(round(X(r["total_tokens"])), x0 + 2)
             b += rect(x0, by, x1 - x0, 20, c[col])
-            if name == "phone-use":
+            if name.startswith("phone-use"):
                 b += frame(x0, by, x1 - x0, 20, c["edge"])
             label = f"{r['total_tokens']:,}  {r['tool_calls']} calls"
             if not r["success"]:
                 label += "  failed"
             t, _ = mono(label, x1 + 10, by + 10, 15, c["t1"] if r["success"] else c["fail"])
             b += t
-    return svg(W, H, b, "Tokens per task for four phone-control harnesses, claude-sonnet-5-5, one run each", c["page"])
+    return svg(W, H, b, "Tokens per task for phone-control harnesses, claude-sonnet-5-5, one run each (phone-use: before and three runs after the fixes)", c["page"])
 
 
 def shot(svgp, pngp, w, h):
