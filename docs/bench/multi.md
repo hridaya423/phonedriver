@@ -1,6 +1,6 @@
 # Two devices at once (task 7.5)
 
-One daemon, `PHONE_USE_HOME=/tmp/.../home75c`, two `phone-use-bench scenario` clients at the same time, each with its own session (`scenario-android:<serial>`) and its own emulator: `Pixel_Tablet_API_37` (`emulator-5558`, 1280x800 pt, landscape, API 37) and `Pixel_API_26` (`emulator-5556`, API 26), both on win-pc behind one adb server and one SSH tunnel.
+One daemon, `PHONEDRIVER_HOME=/tmp/.../home75c`, two `phonedriver-bench scenario` clients at the same time, each with its own session (`scenario-android:<serial>`) and its own emulator: `Pixel_Tablet_API_37` (`emulator-5558`, 1280x800 pt, landscape, API 37) and `Pixel_API_26` (`emulator-5556`, API 26), both on win-pc behind one adb server and one SSH tunnel.
 
 Scenarios: 15, not the 21 of M2. The six left out do not run on a tablet or are first-run app flows that need a quiet device (the phone-axis rotation scenario, Chrome, Clock, Files, `testbed-busy`, `testbed-web-form`; see `docs/spikes/tablets.md`).
 

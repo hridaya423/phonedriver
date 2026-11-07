@@ -1,5 +1,7 @@
 # Progress
 
+Note 2026-11-07: the project was renamed from `phone-use` to `phonedriver` (decision D28). Entries below dated before the rename keep the old name `phone-use`, `PHONE_USE_*`, `~/.phone-use`, `dev.phoneuse` and `phone-use-*` crate names as written.
+
 ## Status
 
 Phase 0 and Phase 1 complete (2026-11-05). Phase 2 complete on 2026-11-05: tasks 2.1 to 2.10 done; M1 met (`docs/bench/m1.md`: phone-use 3x to 150x faster than phone-harness 0.3.3 on every op it supports; budgets met for snapshot, screenshot and tap to settled diff, missed for tap and type 100 chars, see D14). Phase 3 (Android) and Phase 5 tasks 5.4 to 5.7 (iOS Simulator) are merged on `main` (2026-11-06); see the merge entry at the end of Done. The win-pc emulators `emulator-5554` (API 37, headless `-no-window -gpu swangle_indirect`) and `emulator-5556` (API 26) are running; the API 26 one rebooted once unexplained during task 2.3. Phase 5 (iOS Simulator) on branch `t3/ios-simulator-phase-5-m4`: tasks 5.4 to 5.7 done on 2026-11-05, M4 met on the iOS 26.5 simulator (`docs/bench/m4.md`); one unexplained flake in `settings-dark-appearance` remains open (see the 5.6 entry).

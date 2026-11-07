@@ -8,14 +8,14 @@ Every factual claim in the launch drafts (`show-hn.md`, `x.md`, `reddit.md`, `li
 
 | Claim | Where used | Backing file |
 |---|---|---|
-| phone-use gives an agent a text view of an Android or iOS screen and the means to tap, type and swipe. Every action returns only the lines that changed. | HN, X | `README.md` (opening paragraph) |
+| phonedriver gives an agent a text view of an Android or iOS screen and the means to tap, type and swipe. Every action returns only the lines that changed. | HN, X | `README.md` (opening paragraph) |
 | One Rust binary: CLI, daemon and MCP server | HN, LinkedIn | `docs/decisions.md` D1 |
 | Android: pushes a dex jar, starts it with `app_process` as the shell user, as scrcpy does. Nothing installed on the phone, no accessibility service to enable. Tree through UiAutomation, input through InputManager. | HN, X | `docs/decisions.md` D2; `README.md` (Supported devices: "Android needs no install on the phone") |
 | Every action waits for settle and returns the diff. Settle uses accessibility events and video frames. The agent does not poll or sleep. | HN, X, LinkedIn | `docs/decisions.md` D12, D10; `README.md` (Try it, step 3); `docs/research/competitors.md` section 3 ("event-driven settle", architecture 4.6) |
 | The sample reply `~ @e41 switch "Dark Appearance" off → on`, `+ @e68 button "L4S"`, `settled in 607ms` | HN, X thread 2 | `README.md` (Try it, step 3, iOS Simulator) |
 | Refs such as `@e10` are found again at tap time, so a list that shifted by a row still gets the right tap | HN | `README.md` (How it works) |
 | iOS uses our own XCTest runner, not WebDriverAgent | HN | `docs/decisions.md` D4 |
-| Experimental CoreDevice tier on iOS 27, off by default | HN | `README.md` (`PHONE_USE_IOS_TIER`); `docs/decisions.md` D3; `docs/bench/m5.md` (CoreDevice sections: "Default stays Runner") |
+| Experimental CoreDevice tier on iOS 27, off by default | HN | `README.md` (`PHONEDRIVER_IOS_TIER`); `docs/decisions.md` D3; `docs/bench/m5.md` (CoreDevice sections: "Default stays Runner") |
 | The agent calls typed verbs. No shell tool, no code execution. | HN, answer 5 | `docs/decisions.md` D6; `docs/research/competitors.md` 1b ("shell: none (by design D6)") |
 | Thirteen MCP tools | HN answer 10 | `README.md` (Use with other MCP clients) |
 | The 13 tool schemas cost about 2.6k tokens | HN answer 10 | `progress.md` (tools/list after gap 4: 9,691 characters plus 345, about 2,573 tokens by a 3.9 characters-per-token ratio, no tokenizer run). Verify: the progress entry for later gaps may have changed the size. |
@@ -23,7 +23,7 @@ Every factual claim in the launch drafts (`show-hn.md`, `x.md`, `reddit.md`, `li
 | WebView and custom views can have an empty tree, and OCR reads the screen then | HN | `progress.md` (Task 7.2: `tree_is_hollow`, `text "Web form" (ocr)`) |
 | A tapped WebView checkbox shows no checked state | HN | `docs/bench/m3.md` (tuning item 4, open items) |
 | Text sent with `--secret` never reaches logs, traces or replies | HN answer 5 | `README.md` (Use with other MCP clients, last paragraph); `AGENTS.md` (Secrets) |
-| The daemon listens on a Unix socket and nowhere else; the socket sits in a mode-700 directory with mode 600 | HN answer 5 | `README.md` ("Use a device on another machine"; `phone-use doctor` sample output) |
+| The daemon listens on a Unix socket and nowhere else; the socket sits in a mode-700 directory with mode 600 | HN answer 5 | `README.md` ("Use a device on another machine"; `phonedriver doctor` sample output) |
 | The agent can do anything a person can do on screen, including tap Pay | HN answer 5 | Not stated in the repo. It follows from the tool surface (`README.md`, MCP tools). The author must stand behind it. |
 | Defence against prompt injection from on-screen text | HN answer 5 | None found in the repo. The draft leaves it as a `[USER: ...]` slot. |
 | Remote devices through an `ssh` forward of the daemon socket | HN answer 6 | `README.md` (Use a device on another machine) |
@@ -34,7 +34,7 @@ Every factual claim in the launch drafts (`show-hn.md`, `x.md`, `reddit.md`, `li
 | The reason for AGPL: stop a competing tool taking the code into a closed or permissive project | HN answer 1 | `docs/decisions.md` D13 |
 | Every dependency is permissive. The Android agent has scrcpy files under Apache-2.0 in `NOTICE`. | HN answer 1 | `docs/decisions.md` D13; `README.md` (License); `NOTICE` |
 | That running the unmodified tool as a tool asks nothing of you | HN answer 1 | A legal reading, not in the repo. The `[USER: ...]` slot asks the author to confirm. |
-| No telemetry: no install id, no event, no crash upload. phone-use talks to the device and nothing else. | HN, X, LinkedIn, answer 8 | `docs/decisions.md` D9; `README.md` (Use with other MCP clients, last paragraph). `crates/cli/tests/network.rs` runs the CLI, the daemon and the MCP server under `sandbox-exec` with every non-local connection killed (macOS only, so Linux and Windows are not covered by a test); `docs/bench/m1.md` covers phone-harness. The test uses a fake adb server and no device; a live session on an emulator under the same sandbox is in `progress.md`. |
+| No telemetry: no install id, no event, no crash upload. phonedriver talks to the device and nothing else. | HN, X, LinkedIn, answer 8 | `docs/decisions.md` D9; `README.md` (Use with other MCP clients, last paragraph). `crates/cli/tests/network.rs` runs the CLI, the daemon and the MCP server under `sandbox-exec` with every non-local connection killed (macOS only, so Linux and Windows are not covered by a test); `docs/bench/m1.md` covers phone-harness. The test uses a fake adb server and no device; a live session on an emulator under the same sandbox is in `progress.md`. |
 | Apple is the only outside party, for developer disk image mounting | HN answer 8 | `AGENTS.md` (No telemetry rule). The network test never mounts a disk image, so this half is by code reading (`crates/ios/src/setup.rs`), not by test. |
 | phone-harness ships the script, its output and every helper call to PostHog by default | HN answer 8 | `docs/research/competitor-teardown.md` (item 1: "Telemetry ships user content, on by default") |
 | The author read the phone-harness source before starting | HN draft slot | `docs/research/competitor-teardown.md` (phone-harness `4bebff1`); `progress.md` (2026-11-05 entry) |
@@ -54,17 +54,17 @@ Figures below are from `docs/bench/speed-2026-11-07.md` (raw samples in `docs/be
 | Type 100 ASCII characters 251.1 ms against 4,840.9 ms with `input text` (19x), against phone-harness 5,523.3 ms (22x) | HN, X | `docs/bench/speed-2026-11-07.md` (second pass, host load 20%) |
 | Tap then know what changed 586.9 ms against 2,725.8 ms for tap, one dump and a diff (4.6x) | HN, X thread 4 | `docs/bench/speed-2026-11-07.md` |
 | A bare tap is 2.1 times faster than adb when taps are back to back (117.6 ms against 250.5 ms; interval 1.2 to 3.0), 1.6 times when 1.5 s apart (72.4 ms against 114.5 ms) | HN, X thread 4 | `docs/bench/speed-2026-11-07.md` (Results, What this does not show) |
-| On the device, from the host sending a tap to the app's touch listener, phone-use takes 27.5 ms, adb 71.2 ms, phone-harness 76.6 ms | HN, X | `docs/bench/speed-2026-11-07.md` (Method, Results: tap, device side; clock offset good to about 8 ms) |
+| On the device, from the host sending a tap to the app's touch listener, phonedriver takes 27.5 ms, adb 71.2 ms, phone-harness 76.6 ms | HN, X | `docs/bench/speed-2026-11-07.md` (Method, Results: tap, device side; clock offset good to about 8 ms) |
 | Fresh daemon to first screen read 1,620.5 ms, phone-harness fresh process 2,999.4 ms, adb one dump 2,488.0 ms | HN | `docs/bench/speed-2026-11-07.md` (Cold start; adb has no cold start, so for scale only) |
 | Everything ran on the emulator's host with the three tools interleaved; mean host CPU load 13% to 39% per op from other work | HN, X thread 4, answer 9 | `docs/bench/speed-2026-11-07.md` (Machine and state, Method) |
 | The 153x of the first M1 run is not a current number: the list read is 111x phone-harness and 98x adb now | HN answer 9 | `docs/bench/speed-2026-11-07.md` (What happened to the 153x) |
 | Tap budget is 15 ms and is missed | HN | `docs/bench/m1.md` (verdict); `docs/decisions.md` D14 |
-| adb's tap returns before the app reacts; phone-use's waits for the app | HN answer 9 | `docs/bench/adb.md` (fairness caveats); `docs/decisions.md` D14 |
-| adb tree is raw XML and phone-use's is pruned text | HN answer 9 | `docs/bench/speed-2026-11-07.md` (What this does not show) |
+| adb's tap returns before the app reacts; phonedriver's waits for the app | HN answer 9 | `docs/bench/adb.md` (fairness caveats); `docs/decisions.md` D14 |
+| adb tree is raw XML and phonedriver's is pruned text | HN answer 9 | `docs/bench/speed-2026-11-07.md` (What this does not show) |
 | phone-harness helpers were called in process (no Python start per call), which favors phone-harness | HN answer 9 | `docs/bench/speed-2026-11-07.md` (Machine and state) |
-| `input text` fails on Unicode; phone-use typed mixed-script text in 225.0 ms | HN answer 2 | `docs/bench/speed-2026-11-07.md`; `docs/bench/m1.md` (Unicode) |
+| `input text` fails on Unicode; phonedriver typed mixed-script text in 225.0 ms | HN answer 2 | `docs/bench/speed-2026-11-07.md`; `docs/bench/m1.md` (Unicode) |
 | No physical Android phone has been measured | HN, X, LinkedIn | `README.md` (Speed note; Supported devices); `docs/bench/m1.md` (Not done) |
-| Raw samples are in `docs/bench/data/`; `phone-use-bench` reproduces them | HN answer 9 | `docs/bench/adb.md`; `docs/bench/m1.md`; `bench/` |
+| Raw samples are in `docs/bench/data/`; `phonedriver-bench` reproduces them | HN answer 9 | `docs/bench/adb.md`; `docs/bench/m1.md`; `bench/` |
 | Every fact above is for an emulator; `adb.md` has no quiet-machine re-run | HN, X | `docs/bench/adb.md` (Not done) |
 
 ## iOS
@@ -89,7 +89,7 @@ Figures below are from `docs/bench/speed-2026-11-07.md` (raw samples in `docs/be
 |---|---|---|
 | Claude Sonnet 5.5 completed 15 of 15 held-out runs on five Android tasks | HN, LinkedIn | `docs/bench/m3.md` (Held-out gate) |
 | Median 6 tool calls, 42,817 tokens (including cache reads), 18 s per run | HN, LinkedIn, answer 10 | `docs/bench/m3.md` |
-| The first pass scored 9 of 15; all six failures were bugs in the check or the device reset, not the tool | HN, LinkedIn | `docs/bench/m3.md` (first-pass table and "No failure was caused by phone-use") |
+| The first pass scored 9 of 15; all six failures were bugs in the check or the device reset, not the tool | HN, LinkedIn | `docs/bench/m3.md` (first-pass table and "No failure was caused by phonedriver") |
 | The agent saw ten tools and a one-paragraph instruction in that eval, with no SKILL.md | (not in drafts; context for answer 10) | `docs/bench/m3.md` (runner paragraph) |
 | 21 Android scenarios pass on API 26 and 37 emulators | HN answer 11 | `docs/bench/m2.md` |
 
@@ -118,18 +118,18 @@ Figures below are from `docs/bench/speed-2026-11-07.md` (raw samples in `docs/be
 | Claim | Where used | Backing file |
 |---|---|---|
 | A `shell` verb and MCP tool exist. On Android it runs in the on-device agent over the open control stream. After a state-changing command it settles and returns the screen diff. A Simulator runs it through `simctl spawn`. A physical iPhone has no shell. | HN, X, Reddit | `docs/decisions.md` D21; `README.md` ("Shell"); `docs/bench/shell.md` |
-| A physical Android device refuses wipes and removing apps phone-use did not install unless `--force`. The guard is "a guard against slips, not a sandbox". Emulators and Simulators have no guard. | HN answer 5, Reddit variant 1 | `docs/decisions.md` D21 ("Safety") |
+| A physical Android device refuses wipes and removing apps phonedriver did not install unless `--force`. The guard is "a guard against slips, not a sandbox". Emulators and Simulators have no guard. | HN answer 5, Reddit variant 1 | `docs/decisions.md` D21 ("Safety") |
 | D6 says "never execute agent-written code" and D21 ships `shell` | HN decision 4, plan | `docs/decisions.md` D6 against D21 |
 | Fourteen MCP tools with `shell` | (not used in drafts) | `README.md` (on `main`) |
-| Token benchmark: phone-use 3 of 3 passed, 413,534 tokens, 45 calls; mobile-mcp 0 of 3 (environment failure), 537,300; phone-harness 3 of 3, 337,059; raw adb 2 of 3, 240,389. One run per cell, tablet emulator, shell tool not in the run. | HN, X reply 3, Reddit, LinkedIn | `docs/bench/tokens.md` (on `main`) |
+| Token benchmark: phonedriver 3 of 3 passed, 413,534 tokens, 45 calls; mobile-mcp 0 of 3 (environment failure), 537,300; phone-harness 3 of 3, 337,059; raw adb 2 of 3, 240,389. One run per cell, tablet emulator, shell tool not in the run. | HN, X reply 3, Reddit, LinkedIn | `docs/bench/tokens.md` (on `main`) |
 | Tap p50 33.7 to 35.9 ms on the API 37 emulator after the track-devices change, three interleaved runs of 100; the previous commit was 50.6 to 52.7 ms | HN, X, LinkedIn | `progress.md` ("Speedup 4", on `main`) |
 | Tap budget is 15 ms and is missed | HN, X | `docs/bench/m1.md`; `docs/decisions.md` D14 |
-| Hybrid iOS tier (CoreDevice input and frames, runner tree) is opt-in, unfinished and unproven on device | HN block 3 | `progress.md` on this branch (2026-11-06 hybrid entries); `README.md` (`PHONE_USE_IOS_TIER` row) |
+| Hybrid iOS tier (CoreDevice input and frames, runner tree) is opt-in, unfinished and unproven on device | HN block 3 | `progress.md` on this branch (2026-11-06 hybrid entries); `README.md` (`PHONEDRIVER_IOS_TIER` row) |
 | `screenshot` can draw `@eN` marks for vision models | Reddit variant 2 | commit `3d52a9a` ("feat(screenshot): draw @eN marks on the screenshot for vision models") |
-| A `getChild` prefetch is cancelled unless `FLAG_PREFETCH_UNINTERRUPTIBLE` is also set; the fix cut a tree read from 78 to 103 ms to 41 to 46 ms | Reddit variant 3 | `docs/bench/m1.md` ("What limits each phone-use number") |
+| A `getChild` prefetch is cancelled unless `FLAG_PREFETCH_UNINTERRUPTIBLE` is also set; the fix cut a tree read from 78 to 103 ms to 41 to 46 ms | Reddit variant 3 | `docs/bench/m1.md` ("What limits each phonedriver number") |
 | One `unsafe` module for a Windows handle list | Reddit variant 3 | `docs/bench/m1.md` ("Windows fixes", item 1) |
 | Internal wires are length-prefixed JSON; adb protocol spoken directly; resident daemon | Reddit variant 3 | `docs/decisions.md` D7, D11, D1 |
-| `claude mcp add phone-use -- <path> mcp` | Reddit variant 1 | `README.md` (Try it) |
+| `claude mcp add phonedriver -- <path> mcp` | Reddit variant 1 | `README.md` (Try it) |
 | Any client that starts a stdio MCP server can use it | Reddit variant 2 | `README.md` ("Use with other MCP clients"). No local-model run is in the repo. |
 | Snapshots are 183 to 822 tokens on measured screens; schemas about 2.6k tokens | HN, Reddit | `docs/audits/ax-audit.md`; `progress.md` (tools/list entries) |
 | mobile-mcp has 10.4k stars | HN answer 4 | `docs/research/competitors.md` section 1a (stars as displayed 2026-11-06) |
@@ -139,11 +139,11 @@ New number slots in round 2: [TBD: paired quiet-machine re-run including tap]; [
 
 ## README restructure, hero chart, FAQ, compare page (2026-11-07)
 
-The product is named phonedriver in this copy; the code still says phone-use until the rename pass.
+The product is named phonedriver in this copy; the code still says phonedriver until the rename pass.
 
 | Claim | Where used | Backing file |
 |---|---|---|
-| phonedriver is an open-source MCP server and CLI that lets AI agents like Claude Code see and control Android and iOS phones. (canonical sentence) | README top, `Cargo.toml`, `llms.txt`, `docs/README.md`, `docs/compare.md`, `docs/launch/github-metadata.md` | MCP: `phone-use mcp`, README "Use with other MCP clients". CLI: README "Try it". Claude Code: `claude mcp add` in README. Android and iOS: README "Supported devices". Open source: `LICENSE` (AGPL-3.0-only), `Cargo.toml` |
+| phonedriver is an open-source MCP server and CLI that lets AI agents like Claude Code see and control Android and iOS phones. (canonical sentence) | README top, `Cargo.toml`, `llms.txt`, `docs/README.md`, `docs/compare.md`, `docs/launch/github-metadata.md` | MCP: `phonedriver mcp`, README "Use with other MCP clients". CLI: README "Try it". Claude Code: `claude mcp add` in README. Android and iOS: README "Supported devices". Open source: `LICENSE` (AGPL-3.0-only), `Cargo.toml` |
 | Up to 98x faster than adb | hero chart title, README, FAQ | `docs/bench/speed.json` (`headline_adb` of `tree_list`), `docs/bench/speed-2026-11-07.md` "Verdict" |
 | Read 1,000-row tree 24.0 vs 2,352.4 ms (98x); screenshot 11.6 vs 476.3 (41x); type 100 chars 251.1 vs 4,840.9 (19x); tap and see what changed 586.9 vs 2,725.8 (4.6x) | hero chart, README Numbers, compare.md | `docs/bench/speed.json`; `docs/bench/speed-2026-11-07.md` "Results" |
 | phone-harness is 111x, 49x and 22x slower on the first three rows; "tap, then what changed" not supported | hero chart, README Numbers, compare.md | `docs/bench/speed-2026-11-07.md` ratio table |
