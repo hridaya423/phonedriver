@@ -215,7 +215,7 @@ Add phonedriver to Claude Code as an MCP server with `claude mcp add`, then conn
 
 ### What is the fastest way for an AI agent to control a phone?
 
-phonedriver reads a 1,000-row Android screen in 24.0 ms where `adb` takes 2,352.4 ms, 98x faster at p50 on an emulator. It is 41x faster for a screenshot and 19x faster for typing 100 characters; a tap sent back to back is 1.2x faster (lower bound of its interval). No physical phone is measured yet.
+phonedriver reads a 1,000-row Android screen in 24.0 ms where `adb` takes 2,352.4 ms, 98x faster at p50 on an emulator. It is 41x faster for a screenshot and 19x faster for typing 100 characters; a tap sent back to back is 2.1x faster (interval 1.2 to 3.0, noisy). No physical phone is measured yet.
 
 ### Does phonedriver work with iPhone?
 
