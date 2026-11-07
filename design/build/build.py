@@ -289,6 +289,84 @@ def speed(tn):
     return svg(W, H, b, speed_alt(rows), c["page"])
 
 
+HERO_ROWS = (("tree_list", "Read the screen", "1,000-row UI tree"), ("screenshot", "Screenshot", ""),
+             ("type100", "Type 100 characters", ""), ("tap_diff", "Tap and see what changed", "adb: tap, dump, diff"))
+
+
+def hero_rows():
+    d, rows = load_speed()
+    byid = {r["id"]: r for r in rows}
+    return d, rows, [(byid[k], lab, sub) for k, lab, sub in HERO_ROWS]
+
+
+def hero_alt(rows, picked):
+    parts = []
+    for r, lab, sub in picked:
+        parts.append(f'{lab.lower() if lab != "Screenshot" else "screenshot"}{" (" + sub + ")" if sub and not sub.startswith("adb") else ""}: '
+                     f'{r["phone_use"]:,.1f} ms against {r["adb"]:,.1f} ms for adb, {ratio(r["vs_adb"])} times faster')
+    slower = [f'{ratio(r["vs_ph"])}' for r, _, _ in picked if r["vs_ph"]]
+    unsup = [lab.lower() for r, lab, _ in picked if not r["vs_ph"]]
+    tail = f' phone-harness is {", ".join(slower)} times slower than phonedriver on the first {len(slower)} rows' + (f' and does not support {unsup[0]}.' if unsup else ".")
+    return (f"Bar chart of phonedriver against adb at p50 on an Android emulator, up to {headline(rows)} times faster. "
+            + "; ".join(parts) + "." + tail)
+
+
+def hero(tn, W=1280, H=None, social=False):
+    c = THEMES[tn]
+    d, rows, picked = hero_rows()
+    mx = 56 if not social else 56
+    title_sz, sub_sz = (80, 26) if not social else (64, 22)
+    lab_sz, ph_sz, big_sz = (40, 24, 68) if not social else (30, 22, 50)
+    bar_h, lane_h = (34, 66) if not social else (22, 44)
+    top = 150 if not social else 108
+    rh = 184 if not social else 122
+    onbar = c["t1"] if tn == "light" else c["page"]
+    b = ""
+    ty = 100 if not social else 70
+    t, w = text("Up to ", mx, ty, INTER, title_sz, c["t1"], -0.04)
+    t2, w2 = text(headline(rows) + "x", mx + w, ty, INTER, title_sz, c["t1"], -0.04)
+    t3, _ = text(" faster than adb", mx + w + w2, ty, INTER, title_sz, c["t1"], -0.04)
+    b += t + rect(mx + w - 4, ty + 10, w2 + 8, 8, c["accent"]) + t2 + t3
+    t, _ = mono("Android emulator · p50 of 50 runs · bars to scale", mx, ty + (44 if not social else 36), sub_sz, c["t2"], 0.0)
+    b += t
+    bw = W - 2 * mx
+    y = top + 28
+    for i, (r, lab, sub) in enumerate(picked):
+        b += rule(mx, y, bw, c["line"])
+        ly = y + (34 if not social else 22)
+        t, lw = text(lab, mx, ly + 12, INTER, lab_sz, c["t1"], -0.03)
+        b += t
+        if sub and not social:
+            t, _ = mono(sub, mx + lw + 20, ly + 6, 20, c["t3"], 0.0)
+            b += t
+        phs = f'phone-harness: {ratio(r["vs_ph"])}x slower' if r["vs_ph"] else "phone-harness: not supported"
+        t, _ = mono(phs, W - mx, ly + 6, ph_sz, c["t2"], 0.0, anchor="end")
+        b += t
+        ay = y + (58 if not social else 46)
+        b += rect(mx, ay, bw, bar_h, c["d3"])
+        t, _ = mono(f'adb  {r["adb"]:,.0f} ms', mx + 14, ay + bar_h / 2, 26 if not social else 18, onbar)
+        b += t
+        py = ay + bar_h + 8
+        cy = py + lane_h / 2
+        pw = max(bw * r["phone_use"] / r["adb"], 2)
+        b += rect(mx, cy - bar_h / 2, pw, bar_h, c["accent"])
+        if pw > 8:
+            b += frame(mx, cy - bar_h / 2, pw, bar_h, c["edge"])
+        rx = mx + pw + 24
+        t, w = text(ratio(r["vs_adb"]) + "x", rx, cy + big_sz * 0.36, INTER, big_sz, c["t1"], -0.04)
+        b += rect(rx - 3, cy + big_sz * 0.36 + 6, w + 6, 5, c["accent"]) + t
+        t, w3 = text(" faster", rx + w, cy + big_sz * 0.36, INTER, big_sz * 0.5, c["t2"], -0.02)
+        b += t
+        t, _ = mono(f'phonedriver  {r["phone_use"]:,.0f} ms', rx + w + w3 + 24, cy + 6, 26 if not social else 20, c["t2"], 0.0)
+        b += t
+        y += rh
+    b += rule(mx, y, bw, c["line"])
+    t, _ = mono("Method, p95, raw data: docs/bench/speed-2026-11-07.md", mx, y + (38 if not social else 28), 22 if not social else 18, c["t3"], 0.0)
+    b += t
+    H = H or round(y + 64)
+    return svg(W, H, b, hero_alt(rows, picked), c["page"]), W, H
+
+
 def sheet(tn):
     c = THEMES[tn]
     W, H = 1280, 736
@@ -376,6 +454,7 @@ def main():
         write(ASSETS / f"loop-{tn}.svg", loop(tn))
         write(ASSETS / f"speed-{tn}.svg", speed(tn))
         write(ASSETS / f"brand-{tn}.svg", sheet(tn))
+        write(ASSETS / f"hero-{tn}.svg", hero(tn)[0])
     write(LOGO / "mark.svg", svg(16, 16, mark(16, LIGHT), "phone-use"))
     write(LOGO / "mark-dark.svg", svg(16, 16, mark(16, DARK), "phone-use"))
     write(LOGO / "mark-black.svg", svg(16, 16, mark(16, LIGHT, ink="#000000", solid=True), "phone-use"))
@@ -387,13 +466,16 @@ def main():
     write(LOGO / "app-icon.svg", tile(512))
     soc = social()
     write(ASSETS / "social-preview.svg", soc)
+    write(ASSETS / "hero-social.svg", hero("light", 1200, 675, social=True)[0])
     if len(sys.argv) > 1:
+        shot(ASSETS / "hero-social.svg", ASSETS / "hero-social.png", 1200, 675)
         scratch = pathlib.Path(sys.argv[1])
         shot(ASSETS / "social-preview.svg", ASSETS / "social-preview.png", 1280, 640)
         for n in (16, 32, 180, 512):
             write(scratch / f"tile-{n}.svg", tile(n))
             shot(scratch / f"tile-{n}.svg", LOGO / "png" / f"favicon-{n}.png", n, n)
     (ASSETS / "social-preview.svg").unlink()
+    (ASSETS / "hero-social.svg").unlink()
 
 
 if __name__ == "__main__":
