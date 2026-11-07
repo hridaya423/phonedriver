@@ -10,7 +10,23 @@
 <label for="agree">Agree</label>
 <input id="agree" type="checkbox" onchange="Testbed.log(JSON.stringify({ev:'web',field:'agree',value:this.checked}))">
 <br>
+<label for="search">Search</label>
+<input id="search" type="text" onfocus="swapSearch(this)">
+<br>
 <button id="send" onclick="Testbed.log(JSON.stringify({ev:'web',field:'send'}))">Send</button>
 </form>
+<script>
+function swapSearch(old) {
+  setTimeout(function () {
+    var overlay = document.createElement('input');
+    overlay.type = 'text';
+    overlay.id = 'search2';
+    overlay.setAttribute('aria-label', 'Search overlay');
+    overlay.oninput = function () { Testbed.log(JSON.stringify({ev: 'web', field: 'search2', value: overlay.value})); };
+    old.replaceWith(overlay);
+    overlay.focus();
+  }, 250);
+}
+</script>
 </body>
 </html>

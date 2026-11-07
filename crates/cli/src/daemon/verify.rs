@@ -96,19 +96,22 @@ impl Verify {
         }
     }
 
-    pub fn check(&self, now: &Rendered) -> Verdict {
+    pub fn check(&self, now: &Rendered, navigated: bool) -> Verdict {
         let secure = self.secure
             || self.field.and_then(|r| now.index_of(r)).is_some_and(|i| {
                 let e = &now.elements[i];
                 e.role == Role::SecureField || e.state.contains(ElementState::PASSWORD)
             });
-        let view = self.view(now);
-        if !view.found && self.submitted {
-            return Verdict::Unknown;
-        }
-        match self.judge(&view, secure) {
-            Some(u) => Verdict::Failed(u),
+        self.verdict(&self.view(now), secure, navigated)
+    }
+
+    /// `navigated`: the screen changed beyond the field. After Enter that means the text was sent somewhere, and
+    /// Chrome's address bar then shows the completed URL instead of what was typed.
+    fn verdict(&self, view: &FieldView, secure: bool, navigated: bool) -> Verdict {
+        match self.judge(view, secure) {
             None => Verdict::Landed,
+            Some(_) if self.submitted && (!view.found || navigated) => Verdict::Unknown,
+            Some(u) => Verdict::Failed(u),
         }
     }
 
@@ -318,6 +321,31 @@ mod tests {
             "{}",
             bad.shows
         );
+    }
+
+    #[test]
+    fn a_submit_that_moved_the_screen_is_unknown_not_failed() {
+        let mut v = exactly("en.wikipedia.org");
+        v.submitted = true;
+        let completed = view(Some("https://en.wikipedia.org/wiki/Main_Page"));
+        assert_eq!(v.verdict(&completed, false, true), Verdict::Unknown);
+        assert!(matches!(
+            v.verdict(&completed, false, false),
+            Verdict::Failed(_)
+        ));
+        assert_eq!(
+            v.verdict(&view(Some("en.wikipedia.org")), false, true),
+            Verdict::Landed
+        );
+        assert_eq!(
+            v.verdict(&FieldView::default(), false, false),
+            Verdict::Unknown
+        );
+        v.submitted = false;
+        assert!(matches!(
+            v.verdict(&completed, false, true),
+            Verdict::Failed(_)
+        ));
     }
 
     #[test]

@@ -1721,7 +1721,27 @@ async fn open_hands_the_url_to_the_device() {
     .await;
     assert_eq!(
         fake.calls(),
-        vec![Call::OpenUrl(Url("https://example.com".into()))]
+        vec![Call::OpenUrl(Url("https://example.com".into()), None)]
+    );
+}
+
+#[tokio::test(start_paused = true)]
+async fn open_with_an_app_hands_the_url_to_that_app() {
+    let (source, fake) = installed();
+    let (d, _home) = daemon(source);
+    ok(
+        &d,
+        "default",
+        "act",
+        act_with(json!({"kind": "open", "url": "https://example.com", "app": "Settings"})),
+    )
+    .await;
+    assert_eq!(
+        fake.calls(),
+        vec![Call::OpenUrl(
+            Url("https://example.com".into()),
+            Some(AppId("com.android.settings".into()))
+        )]
     );
 }
 
@@ -2153,8 +2173,12 @@ impl Device for SlowPolled {
     async fn button(&self, b: phone_use_core::device::Button) -> Result<(), Error> {
         self.inner.button(b).await
     }
-    async fn open_url(&self, u: &phone_use_core::device::Url) -> Result<(), Error> {
-        self.inner.open_url(u).await
+    async fn open_url(
+        &self,
+        u: &phone_use_core::device::Url,
+        app: Option<&AppId>,
+    ) -> Result<(), Error> {
+        self.inner.open_url(u, app).await
     }
     async fn text(&self, t: phone_use_core::device::TextInput) -> Result<(), Error> {
         self.inner.text(t).await

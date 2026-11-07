@@ -62,6 +62,8 @@ pub enum Action {
     },
     Open {
         url: String,
+        #[serde(default)]
+        app: Option<String>,
     },
     Type {
         text: String,
@@ -111,7 +113,7 @@ impl std::fmt::Debug for Action {
         match self {
             Action::Tap { target, .. } => write!(f, "Tap({target:?})"),
             Action::Launch { app, .. } => write!(f, "Launch({app})"),
-            Action::Open { url } => write!(f, "Open({url})"),
+            Action::Open { url, .. } => write!(f, "Open({url})"),
             Action::Gesture { fingers } => write!(f, "Gesture({} fingers)", fingers.len()),
             Action::Type {
                 text, into, mode, ..

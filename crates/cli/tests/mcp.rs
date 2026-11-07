@@ -278,16 +278,11 @@ async fn an_error_is_is_error_with_the_message_and_the_hint() {
 }
 
 #[tokio::test]
-async fn launch_needs_exactly_one_of_app_and_url() {
+async fn launch_needs_an_app_or_a_url() {
     let rig = rig(vec![tree(&["One"])]).await;
-    for args in [
-        json!({}),
-        json!({"app": "Clock", "url": "https://example.com"}),
-    ] {
-        let r = rig.call("launch", args).await;
-        assert_eq!(r.is_error, Some(true), "{r:?}");
-        assert!(texts(&r)[0].contains("app or url"), "{r:?}");
-    }
+    let r = rig.call("launch", json!({})).await;
+    assert_eq!(r.is_error, Some(true), "{r:?}");
+    assert!(texts(&r)[0].contains("app or url"), "{r:?}");
 }
 
 #[tokio::test]
