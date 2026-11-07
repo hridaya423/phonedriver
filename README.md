@@ -19,10 +19,10 @@ phonedriver is an open-source MCP server and CLI that lets AI agents like Claude
 <sub>phonedriver against plain adb on an Android 17 emulator, p50 of 50 runs. adb is the full-width bar; phonedriver's bar is its true fraction of it. <a href="docs/bench/speed-2026-11-07.md">Method, p95, confidence intervals and raw data</a>.</sub>
 
 <p align="center">
-  <img alt="Claude Code's real terminal on the left and the iPhone 17 Simulator on the right. Claude Code is asked to open Safari, search Wikipedia for Grace Hopper and say when she was born. It opens Safari, loads her Wikipedia article and answers December 9, 1906." src=".github/assets/demo.gif" width="100%">
+  <img alt="Claude Code's real terminal on the left and an Android 17 emulator on the right. Claude Code is asked to order a butter chicken and a garlic naan on Uber Eats from the best-rated Indian restaurant near Times Square. It rejects the cookie banner, sets the address, searches for Indian food, picks Patiala Indian Grill and Bar (4.8 stars), adds both items, reaches checkout, stops at Uber's sign-in page without entering anything, and asks the user to sign in and approve the order." src=".github/assets/demo.gif" width="100%">
 </p>
 
-<sub>Claude Code's real terminal driving the iOS Simulator through phone-use, in real time. An <a href=".github/assets/demo.mp4">MP4</a> is at higher quality.</sub>
+<sub>A real Claude Code session driving an Android emulator through phonedriver, sped up 10x: the run took 6 minutes 7 seconds, and the last 3 seconds play at real speed. Signed out, Uber Eats asks for a sign-in at checkout, so nothing was ordered. An <a href=".github/assets/demo.mp4">MP4</a> is at higher quality.</sub>
 
 ## Try it
 
