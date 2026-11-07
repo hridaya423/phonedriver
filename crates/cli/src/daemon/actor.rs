@@ -116,6 +116,7 @@ pub fn spawn(id: String, source: Arc<dyn DeviceSource>, home: PathBuf) -> mpsc::
         phases: Vec::new(),
         shown: Mutex::new(None),
         guard_view: None,
+        reshaped: None,
         names: Arc::default(),
     };
     tokio::spawn(actor.run(rx));
@@ -192,7 +193,7 @@ enum Signal {
 /// not the app handling the event.
 const AWAKE_REUSE: Duration = Duration::from_secs(1);
 /// How long the screen read for a point tap's guard check may serve the next point tap, while no window change or
-/// large repaint has arrived since.
+/// repaint of a quarter of the screen has arrived since.
 const GUARD_VIEW_REUSE: Duration = Duration::from_secs(1);
 
 struct Actor {
@@ -213,6 +214,9 @@ struct Actor {
     awake: Option<Duration>,
     /// The screen the last point tap's guard check read, and when.
     guard_view: Option<(Duration, Rendered)>,
+    /// When a window changed or a quarter of the screen repainted last: a button's ripple (about 100 by 100 pt) is a
+    /// repaint that leaves the tree as it was.
+    reshaped: Option<Duration>,
     phases: Phases,
     /// The tree the agent was last shown, to tell whether an action changed anything before a frame says so.
     shown: Mutex<Option<RawTree>>,
@@ -343,6 +347,16 @@ impl Actor {
         };
         if significant {
             self.recent = Some((at, input));
+        }
+        let rect = self.screen_rect();
+        let reshaped = match input {
+            Input::WindowChanged => true,
+            Input::Frame {
+                changed_area_pt2, ..
+            } => changed_area_pt2 > rect.w * rect.h / 4.0,
+        };
+        if reshaped {
+            self.reshaped = Some(at);
         }
         Some(input)
     }
@@ -1252,7 +1266,7 @@ impl Actor {
     async fn screen_for_guard(&mut self, s: &mut Session) -> Result<Rendered, Error> {
         if let Some((read, view)) = &self.guard_view
             && self.now().saturating_sub(*read) < GUARD_VIEW_REUSE
-            && self.recent.is_none_or(|(t, _)| t <= *read)
+            && self.reshaped.is_none_or(|t| t <= *read)
         {
             return Ok(view.clone());
         }
