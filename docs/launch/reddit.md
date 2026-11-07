@@ -1,109 +1,140 @@
-# Reddit plan
+# Reddit plan (round 3)
 
-Nothing here has been posted, and no account has been created. The research could not read live Reddit pages (it used mirrors and news coverage), so read each subreddit's rules in a browser before posting. Slots: `[TBD: ...]` waits on a build or measurement. `[USER: ...]` needs your fact or decision. `claims-ledger.md` names the repo file behind each claim.
+Nothing here is posted. **I could not read any subreddit's rules: Reddit returned 403 for every rules page, so every rule below is secondhand (mirrors, news, search snippets).** Before each post, open the sidebar and the rules page in a browser, copy the exact flair name, and check the karma gate. Write each post yourself; the drafts fix the facts and the shape, and a post that reads machine-written is the most common reason a launch post dies on Reddit. Slots: `[DEMO]`, `[JOBS]`, `[USER]`. Every number is in `claims-ledger.md`.
 
-Reddit readers distrust AI-written posts and "vibecoded" projects (`research.md`, round 2). Retype each body in your own words. The drafts below are structured to be rewritten.
+## Rules for the whole run
 
-## How ranking and moderation shape the plan
+- One subreddit per day, different text each time. Never cross-post with the button. Reddit filters the same link across subreddits on a new account [anecdotal].
+- First line of every post: you are the author ("I built this"). Say coding agents wrote part of it, in one plain sentence, in the body. Hiding it is the thing that gets projects removed and downvoted.
+- Do not post to r/opensource (it barred AI-related projects and MCP tools in late October 2026, and wants a project at least a year old with 3 or more contributors) or r/programming (an LLM-content ban was in trial; comment-only culture). Do not ask the moderators for an exception.
+- Never ask for upvotes, in the post, in comments, in DMs, anywhere else. Never link the post from X, HN or Discord with "go upvote".
+- Check your own history: an account with no comments will be filtered. Spend the days before launch answering questions in these subs. [USER: account age and karma per sub.]
+- Native media: upload the clip yourself. Reddit video and GIF upload is how a demo gets seen; a YouTube link in a text post is skipped. The demo is 10x sped up: say so in the first lines, because the top objection to the closest comparable post (a Claude iPhone MCP with 180 points) was a sped-up demo.
+- Pinning: only moderators can sticky a comment on Reddit as far as I know [UNVERIFIED]. So "the comment to pin" below is the **first comment**, posted by you the minute the post is up. Everything a reader needs also sits in the body.
+- Answer every comment for two hours, then twice more that day. Concede true limits at once.
 
-| Rule | Consequence |
-|---|---|
-| Hot rank is `sign * log10(max(net votes, 1)) + age_in_seconds / 45000` (archived code; the live system may differ). Ten times the net votes equal 12.5 hours of age. | The first 10 net votes weigh as much as the next 90. Post when the subreddit's readers are awake, reply to every comment early, and do not ask for votes. |
-| Vote manipulation and brand-new accounts that post repository links are filtered (secondary guides). Many subreddits copy the "10% self-promotion" norm. | Use an account with real history. Comment in each subreddit for a week before posting. `[USER: account age and karma]` |
-| r/LocalLLaMA has minimum-karma AutoModerator gates (thresholds not retrieved). | Check the thresholds in the sidebar before launch. |
-| r/ClaudeAI's mod bot warns about project posts without the project flair. | Use the flair. `[USER: the exact flair name from the sidebar]` |
-| r/opensource bars projects that "use AI, are made by AI, or are intended for AI" (announced about 2026-10-24) and demands a year-old project and account. r/programming ran an LLM-content ban. | Do not post in r/opensource, r/programming, r/MachineLearning, r/Android or r/ios. A post in r/opensource risks a permanent ban. |
-| Identical text across subreddits looks like spam. | Write four different posts and put a day between them. |
+## Which subs, in order (days are in `plan.md`)
 
-## What worked and failed in comparable posts
+| Order | Subreddit | Fit | Rule status | Format |
+|---|---|---|---|---|
+| 1 | r/ClaudeAI | Best audience: Claude Code users. | Showcase needs total karma of at least 50 on the main feed, or goes in the "Built with Claude" megathread; "Rule 7" holds the showcase requirements and a project flair (mirror, 2026-04-15) [UNVERIFIED text]. | Text post, project flair, native video or inline GIF. |
+| 2 | r/mcp | MCP builders and users. | Not read [UNVERIFIED]. Earlier phone-MCP posts there scored 7 to 28. | Text post. |
+| 3 | r/ClaudeCode | Heavy Claude Code users. | Not read [UNVERIFIED]. | Text post, a different angle. |
+| 4 | r/androiddev | Android developers. | Old rules: promotion in a Showcase thread only (2023) [UNVERIFIED]. | A comment in the current showcase or self-promo thread. |
+| 5 | r/iOSProgramming | iOS developers. | Old pattern: promotion limited to a weekly thread [UNVERIFIED]. | A comment in that thread, if one exists and iOS is the point. |
+| 6 | r/SideProject | General makers. | Not read [UNVERIFIED]. Low developer density. | Text post, story angle. Optional. |
+| Hold | r/LocalLLaMA | Largest phone-agent audience, but wants local models. | New rules, karma gates, self-promotion as the main abuse area [anecdotal]. | Only with a tested local-model result, which the repo does not have. Skeleton below. |
+| Never | r/opensource, r/programming, r/MachineLearning, r/Android, r/ios | See above. | | |
 
-| Post | Result | Lesson |
-|---|---|---|
-| r/ClaudeAI, "Built a MCP server that lets Claude use your iPhone" | 180 points, 55 comments. Short body, a GitHub link, a linked video. | The top comments were about a sped-up demo, safety of unattended use, and speed. Our clip is real time. Say so. |
-| r/LocalLLaMA, "[PokeClaw] First working app that uses Gemma 4 to autonomously control an Android phone. Fully on-device, no cloud." | 332 points, 173 comments. | "No cloud" and a named local model. Comments: safety, "vibecoded". |
-| r/mcp, "Allowing Claude Code to interact with Android Devices/Emulators through mcp" | 28 points. A results table including a failure, plus a video. | Honest results get respect, and the questions were speed and tokens. |
-| r/androiddev, "Control your Android phone with AI agents (Claude, Codex, Gemini, etc.)" | 0 points. | A generic title with a dead repo link. |
+## 1. r/ClaudeAI
 
-Title pattern in the better posts: first person and concrete, naming the reader's tool ("Built a ... that lets Claude ..."), with a qualifier such as "no cloud" or "no ADB needed".
+**Title** (a concrete first-person title that names the tool they use beat the generic ones in round 2):
 
-## Order
+```
+I built an MCP server that lets Claude Code use an Android or iOS phone, and it has to ask me before it taps Pay
+```
 
-| Day | Subreddit | Why here, why then |
-|---|---|---|
-| D2 (Wednesday), 14:00 UTC | r/ClaudeAI | Best audience (Claude Code users) and a close precedent at 180 points. By now the HN, X and LinkedIn results are known. D0 is the launch Monday in `plan.md`. |
-| D3 (Thursday), 14:00 UTC | r/LocalLLaMA | Largest phone-agent audience, but only with a local-model angle. Wait until you can state one tested fact. |
-| D4 (Friday), 14:00 UTC | r/rust | Rust substance (daemon, adb protocol client, video decode). Allowed if the post is about the engineering. |
-| Next monthly Showcase thread | r/androiddev | Self-promotion is generally limited to the monthly Showcase thread. |
+(113 characters; Reddit allows 300.) Flair: the project or showcase flair the sub shows. [USER: copy the exact name.]
 
-14:00 to 17:00 UTC on a Tuesday is the busiest developer-subreddit window in one vendor snippet (not opened). The timing evidence is weak. The reason for 14:00 UTC is that US morning readers are awake and you can reply for two hours.
+**Body** (attach the clip first; say what it is in the first two lines):
 
-Optional, low reach: r/ClaudeCode and r/mcp (read their rules first). Phone MCP posts in r/mcp scored 7 to 28 points.
+```
+I'm the author. phonedriver is an open-source MCP server and CLI that lets Claude Code see and control Android and iOS phones. Coding agents wrote part of the code; I reviewed it and the benchmarks are my own runs. [USER: say it your way.]
 
-Video: upload the re-recorded clip natively, or link it. The best-scoring comparable used a linked video. The research found no data on native against linked. [TBD: re-recorded clip] Put the repo link in the body (the successful posts did).
+The clip is Claude Code on an Android emulator, ordering butter chicken and garlic naan on Uber Eats, sped up 10x (the run took 6 min 7 s). It stopped at Uber's sign-in page. Nothing was ordered. [DEMO: update for the new recording and the approval prompt.]
 
-After posting: stay for two hours. Answer every comment. Do not edit the title. Do not ask for upvotes, and do not link a Reddit thread from X or HN.
+What is different:
+- the screen is numbered text, and every tap returns only the lines that changed, so Claude does not poll or re-list the screen
+- before it taps Pay or Place order, phonedriver asks you through an MCP elicitation (Allow, Allow for this session, Decline). The model can't answer that prompt itself
+- Android needs nothing installed on the phone; iOS works on the Simulator and on an iPhone 14 Plus and iPad Pro I tested
 
-## Variant 1: r/ClaudeAI
+Numbers (Android 17 emulator, p50 of 50 runs): reading a 1,000-row screen takes 24 ms against 2,352 ms for adb (98x). Across three agent tasks with Sonnet 5.5 it used 218,357 tokens against 330,375 for phone-harness, 34% fewer, though it lost one task.
 
-**Title (draft):** `Built an MCP server that lets Claude Code use an Android or iOS phone, and every tap returns only what changed`
+Install: claude mcp add phonedriver -- phonedriver mcp
+Code (AGPL-3.0, no telemetry): github.com/hridaya423/phonedriver
 
-**Flair:** `[USER: project flair]`
+What it can't do yet: no Android phone measured, iOS needs a Mac with Xcode, and the guard only matches English labels. Which app should I try it on?
+```
 
-**Body structure:**
+**First comment** (post it at once):
 
-1. One sentence: what it is. Facts: a Rust CLI and MCP server, Android and iOS, `claude mcp add phone-use -- <path> mcp`.
-2. The clip, with "real time, no speed-up" if true for the new recording. [TBD]
-3. What Claude sees: a snapshot sample and a tap reply (README samples).
-4. Two numbers: Settings screen read 237 ms against 2,800 ms for `uiautomator dump`; tap now about 34 ms on the emulator. [TBD: quiet-machine paired re-run] Say the setup: Android 17 emulator, busy host.
-5. Safety, before they ask: the agent can do what you can do on screen. A `shell` tool exists; on a physical Android device it refuses wipes and unknown-app removal without `--force`; the guard is not a sandbox (D21). The daemon is local, with no telemetry (D9). Do not claim prompt-injection protection.
-6. Limits: no physical Android measured, iOS needs a Mac with Xcode, token cost not the lowest (`docs/bench/tokens.md`: raw adb and phone-harness used fewer tokens in one run each). [TBD: rerun with shell]
-7. AI disclosure: `[USER: one sentence on how the code was written]`.
-8. Ask: which app or task should it try; send the trace if the snapshot is empty.
-9. Link: `github.com/hridaya423/phone-use`, AGPL-3.0.
+```
+Limits, since people ask: speed numbers are emulator only. A tap on an iPhone takes 454 to 534 ms (XCTest takes about 240 ms to confirm an event). The approval guard matches a fixed list of English labels, so an icon-only button is not guarded, and `shell` input is not seen by it. Method and raw data: github.com/hridaya423/phonedriver/blob/main/docs/bench/speed-2026-11-07.md. Design note on the guard: phonedriver.dev/blog/letting-claude-order-dinner-without-letting-it-spend-your-money/
+```
 
-## Variant 2: r/LocalLLaMA
+Likely comments and true answers: "Is it safe to run unattended?" (not without the guard on; headless `claude -p` has nobody to ask so it declines; D27). "Does Apple allow this?" (it uses the XCTest runner on your own Mac and your own devices; I have not asked Apple. [USER: do not claim anything about Apple's policy]). "Why not mobile-mcp?" (it also does Android and iOS; it has no wait after actions in its source, so the agent re-lists; I did not benchmark its speed). "Sped up?" (yes, 10x, said in the post).
 
-Use only when you can state a tested local-model fact. The README says any client that starts a stdio MCP server works, and nothing in the repo shows a local model driving it. `[USER: name one local-model client and model you ran, and the result. If none, skip this subreddit or run a test first.]`
+## 2. r/mcp
 
-**Title (draft):** `phone-use: a Rust MCP server so a local model can drive Android and iOS, with text diffs instead of screenshots`
+**Title:**
 
-**Body structure:**
+```
+phonedriver: an MCP server for Android and iOS where every action returns a diff of the screen (14 tools, Rust, no telemetry)
+```
 
-1. The reader's concern first: no vision model needed for most screens. A snapshot is 183 to 822 tokens on the screens measured (`docs/audits/ax-audit.md`, characters divided by four). Screenshots are optional, and `screenshot` can mark `@eN` labels on the image for vision models (commit `3d52a9a`).
-2. What a tap returns (README sample).
-3. `[USER: the local-model result]`.
-4. Numbers as in variant 1.
-5. Honest limits: the evaluation used Claude Sonnet 5.5 (15 of 15 held-out runs, `docs/bench/m3.md`); small local models are untested here; WebViews can have an empty tree.
-6. Privacy: no telemetry. The model endpoint is your choice.
-7. AI disclosure and the ask, as in variant 1.
+**Body:**
 
-## Variant 3: r/rust
+```
+I built this (coding agents helped write the code). phonedriver is an open-source MCP server and CLI that lets AI agents like Claude Code see and control Android and iOS phones.
 
-**Title (draft):** `phone-use: a Rust daemon that speaks the adb protocol directly and drives Android and iOS for AI agents`
+Design points that matter for an MCP server:
+- a resident daemon holds the device connection; the MCP server is a thin stdio client, so a call costs milliseconds
+- every action waits for the screen to settle and returns only the lines that changed, so the model does not call a snapshot tool after every tap
+- 14 tools, about 51 tokens each in Claude Code's wrapper. Snapshots were 183 to 822 tokens on the screens I measured
+- a human-approval guard on taps like Pay and Place order, through MCP elicitation. On protocol 2026-07-28 the server returns an input_required result and the client calls again with the answer; older protocols get elicitation/create. Clients that cannot ask get a plain reply telling the agent to ask in chat
+- `--secret` text never reaches logs, traces or replies; a test runs the server under a macOS sandbox that kills any non-local connection
 
-**Body structure:** this audience wants the engineering, not the pitch.
+Speed on an Android 17 emulator, p50 of 50 runs: a 1,000-row screen read in 24 ms against 2,352 ms for adb; tap then see what changed 4.6x. Emulator only.
 
-1. One line on what it does. The code is one workspace: CLI, daemon, MCP server.
-2. Technical points to choose from (D1, D2, D10, D11): a resident daemon with one open device connection per device; adb server protocol spoken directly; a dex agent over `app_process` with a UiAutomation connection; H.264 frames decoded on the host to detect when the screen settles; length-prefixed JSON on every internal wire; one `unsafe` module for a Windows handle list (`docs/bench/m1.md`).
-3. A hard problem solved: `getChild` prefetch is cancelled by the next call unless `FLAG_PREFETCH_UNINTERRUPTIBLE` is also set, which cut a tree read from 78 to 103 ms down to 41 to 46 ms (`docs/bench/m1.md`).
-4. Build: Rust 1.99, blaze and cargo; the build packs the Android agent and needs the Android SDK.
-5. License and AI disclosure, as in variant 1.
-6. Ask: review of the adb client and the video settle logic.
+claude mcp add phonedriver -- phonedriver mcp
+github.com/hridaya423/phonedriver
 
-## Variant 4: r/androiddev Showcase thread
+I would like to hear which MCP clients it does not work with. I tested Claude Code. The Cursor config is documented and untested.
+```
 
-Reply in the monthly Showcase thread (find it by search; do not create a separate post). Keep it short and Android-specific.
+(Facts: README "Use with other MCP clients"; the site's Cursor page says untested; D27; `ledger`.) Flair: whatever the sub offers for projects. [USER]
 
-**Comment structure:** what it is in one sentence; how it works on Android with no APK on the phone and no accessibility service to enable (D2); the numbers on the emulator and the missing physical-phone data; ask for reports from real phones and for apps where UiAutomation returns an empty tree; link; AI disclosure line.
+## 3. r/ClaudeCode
 
-## Likely comments and facts to answer with
+Angle: what it is like to use, not the architecture. Do not post the same body as r/ClaudeAI.
 
-| Comment | Facts |
-|---|---|
-| "The demo is sped up." | The new clip is real time. [TBD: confirm] |
-| "Safety: it can do anything." | See variant 1, item 5. |
-| "Why not mobile-mcp, Maestro, Appium?" | `show-hn.md`, answers 3 and 4. Re-read their pages first. |
-| "Token cost?" | `show-hn.md`, answer 10. Say phone-use was not cheapest. |
-| "Single maintainer, will it be abandoned?" | `[USER: your commitment]`. Do not promise what you will not do. |
-| "AGPL?" | `show-hn.md`, answer 1. |
-| "Is this vibecoded?" | `[USER]`, per `show-hn.md` decision 1. |
+**Title:**
+
+```
+Claude Code ordered dinner on my phone and stopped to ask before paying (MCP, open source)
+```
+
+Body: the video, then three short paragraphs: what I asked, what it did, what the prompt looked like [DEMO]; the install line; one honest limit (the guard only matches English labels); the repo. Tell the story of the session the clip shows, in your words. Facts available: the agent rejected the cookie banner, set the Times Square address, searched for Indian food, scrolled past a mis-tap into an Uber One page and went back, found Patiala Indian Grill and Bar (4.8 stars, 900+ reviews), added Butter Chicken ($20.95) and Garlic Naan ($7.95), subtotal $28.90, and stopped at the sign-in page (`progress.md`, README demo retake). That mis-tap is a real moment of the run and is more convincing than a clean story.
+
+## 4. r/androiddev (a comment in the showcase thread, not a post)
+
+Find the current thread and read its rules. One comment, written for developers, no AI hype:
+
+```
+I built phonedriver, an open-source CLI and MCP server (Rust, AGPL-3.0) that lets coding agents drive a phone or emulator through UiAutomation. It pushes a dex jar and starts it with app_process as the shell user, as scrcpy does, so nothing is installed on the phone and no accessibility service is needed. Reading a 1,000-row list takes 24 ms against 2,352 ms for uiautomator dump on an API 37 emulator (p50 of 50). Emulator only: I have not measured a physical phone. Looking for people to try it on hardware. github.com/hridaya423/phonedriver
+```
+
+Facts: D2, speed doc. Expect "Anti-AI sentiment" (round 2's 0-point post in this sub). Do not argue. If the sub bans AI-agent tools, drop it.
+
+## 5. r/iOSProgramming (only if the sub's rules allow a tool comment or post)
+
+The angle is the iOS half: **our own XCTest runner, not WebDriverAgent**; a tap on the Simulator takes 357 ms and on an iPhone 14 Plus 534 ms because XCTest takes about 240 ms to confirm an event; physical devices need your Apple signing team (a free Apple ID expires every 7 days). Ask: has anyone found a faster way to inject taps through XCTest. Facts: D4, D15, `docs/bench/m4.md`, `m5.md`. [USER: skip this if the sub has no tooling thread.]
+
+## 6. r/SideProject (optional)
+
+A story post: why you built it, what you built it with, what surprised you. [USER: your words, your real story. I will not draft the backstory; I do not have it.] Facts that make it concrete: the first agent-eval pass scored 9 of 15 and all six failures were bugs in my own checks (`docs/bench/m3.md`); the repo has plans, a decision log, and benchmarks with raw data. Add the repo and the video. Skip if the day is crowded.
+
+## Hold: r/LocalLLaMA (skeleton for when a local-model result exists)
+
+The repo has no local-model run. The launch cannot claim "works with local models": README says any stdio MCP client works and nothing more. If you run a local model through a client first, the post is:
+
+- Title: `[name of model] drives an Android phone through an open-source MCP server, tool calls and diffs inside N tokens`
+- Body: the model, the client, the task, the result, the failure cases, the token counts. [LOCAL: all of it.]
+
+Without that result, skip: the sub's most common reply is "why not a local model".
+
+## After posting
+
+- Reply to every comment. A comment from you in the first hour helps the post; a deleted or silent author hurts it.
+- If a mod removes the post, ask once, politely, what rule it broke. Do not repost.
+- Record upvotes, comments and referrals (GitHub Insights, Traffic) per post.

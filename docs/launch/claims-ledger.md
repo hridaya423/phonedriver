@@ -2,7 +2,7 @@
 
 **Round 2 status.** Rows below that name the old demo are superseded: the demo is being re-recorded, and no draft now leads with or mentions how the old clip went. Rows about "no shell tool" are superseded by D21 (see Round 2 additions). Paths marked "on `main`" exist at `main` commit `c2297a1`, not in this worktree branch.
 
-Every factual claim in `show-hn.md`, `x.md` and `linkedin.md`, with the repo file that backs it. Paths are relative to the repo root. "Verify" marks a claim the repo supports only partly or that came through a summarizing fetch. Check each row against the repo at the launch commit before posting. Web claims are in `research.md`, with their URLs.
+Every factual claim in the launch drafts (`show-hn.md`, `x.md`, `reddit.md`, `linkedin.md`, `product-hunt.md`, `devto-hashnode.md`, `short-video.md`, `directories.md`), with the repo file that backs it. Paths are relative to the repo root. "Verify" marks a claim the repo supports only partly or that came through a summarizing fetch. Check each row against the repo at the launch commit before posting. Web claims are in `research.md`, with their URLs.
 
 ## Product
 
@@ -161,3 +161,37 @@ The product is named phonedriver in this copy; the code still says phone-use unt
 | iPhone 14 Plus and iPad Pro tested, tap 454 to 534 ms | FAQ, compare.md | README "Supported devices"; `docs/bench/m5.md` |
 | AGPL-3.0-only; network-service source clause; no telemetry | FAQ | `LICENSE`; README "License" and "Use with other MCP clients"; decision D9 |
 | GitHub description (106 characters) and 11 topics, each topic non-empty on GitHub | `docs/launch/github-metadata.md` | `gh search repos --topic <t> --limit 1`, 2026-11-07 |
+
+## Round 3: launch kit rebuild (2026-11-07)
+
+The drafts in `docs/launch/` were rewritten on 2026-11-07 and now quote only the rows below and the "README restructure" rows above. The stale figures in earlier sections (45.3, 237.0, 666.9, 144.1, 153, 175.6, 61.6, the 413,534-token run) are gone from the drafts. "Verify" marks a row to check at the launch commit. Slots: `[DEMO]` waits on the re-recording, `[JOBS]` on the real-jobs runs.
+
+| Claim | Where used | Backing file |
+|---|---|---|
+| Up to 98x faster than adb, 111x phone-harness, at reading the screen: 24.0 ms against 2,352.4 ms (adb) and 2,653.7 ms (phone-harness); 2,653.7 / 24.0 = 110.6, rounded to 111 | all channels | `docs/bench/speed.json` (`tree_list`), `docs/bench/speed-2026-11-07.md` |
+| The 98x is for one op, a 1,000-row list read. The Settings screen read is 27x; the screenshot 41x; type 100 characters 19x; tap then what changed 4.6x | HN, X, Reddit, LinkedIn | `docs/bench/speed-2026-11-07.md` Results |
+| Back-to-back tap 2.1x faster than adb (117.6 against 250.5 ms, CI on the ratio 1.22 to 2.95, p50 ratio 2.13); 1.5 s apart 1.6x (72.4 against 114.5 ms, CI 1.47 to 1.73) | HN, X follow-up 1 | `docs/bench/speed.json` (`tap`, `tap_paced`) |
+| phone-harness cannot do "tap, then what changed" | README, compare | `docs/bench/speed-2026-11-07.md` ratio table |
+| 34% fewer tokens than phone-harness across three agent tasks, 218,357 against 330,375, every run passed for both; phonedriver behind on one task (57,753 against 53,403); phone-harness figures are from round 2, not rerun in round 3, same runner and model; one to three runs per cell | all channels | `docs/bench/tokens.md` "Round 3" |
+| The tokens chart `.github/assets/tokens-light.png` does not show these sums (it shows five series and the old name); do not post it | X follow-up 3, LinkedIn slide 6 | Opened 2026-11-07; rebuild first |
+| Demo (today): Claude Code 2.1.319, Sonnet 5.5, Android 17 emulator, Uber Eats, 10x sped up, the run took 6 min 7 s, last 3 s at real speed, file 960x660, 38.9 s, ends at Uber's sign-in page, nothing ordered; the terminal says `phone-use` | X hook, Reddit, LinkedIn, short video | README demo caption, `progress.md` "README demo retake", ffprobe 2026-11-07, frames looked at |
+| Demo content: rejected the cookie banner, set the Times Square address, searched Indian, a mis-tap landed on an Uber One page and the agent went back, picked Patiala Indian Grill and Bar (4.8 stars, 900+ reviews), Butter Chicken $20.95, Garlic Naan $7.95, subtotal $28.90 | Reddit r/ClaudeCode, short video | `progress.md` "README demo retake"; frames at 8, 16, 24, 32 s |
+| Signed out, Uber Eats never shows Place order or Pay, so the approval guard did not fire in today's clip | short video, X hook | `progress.md` "README demo retake" (Found) |
+| The new demo (Opus 5.5, approval-prompt scene) | X hook variant, LinkedIn, short video, PH | [DEMO]: not recorded. Replace every "[DEMO]" line, and every claim about what the prompt looks like, after looking at the new file |
+| Approval guard: phonedriver asks the human through MCP elicitation before a tap on Pay or Place order; choices Allow, Allow for this session, Decline; the model cannot answer it; autonomous mode when the user grants it (`autonomous: true`, `--autonomous`, `PHONEDRIVER_GUARD=off`) | all channels | `docs/decisions.md` D27; `site/content/docs/approval-guard.md`. Verify: that Claude Code 2.1.319 renders the form as described is by D27 and the protocol notes, and the new recording must show it |
+| Guard limits: English labels only, fixed list; icon-only buttons not guarded; `shell` `input tap` not seen; a model set on bypassing it can pass `autonomous`; headless `claude -p` answers cancel so the tap is not made; a change smaller than a quarter of the screen adding a guarded button inside 1 s is missed; no screenshot in the prompt | HN answer 4, Reddit, LinkedIn slide 7, X post 5 | D27 "Limits"; blog post "Letting Claude order dinner" |
+| Shell on the device | README, compare | D21 |
+| iPhone 14 Plus (iOS 26.1) and iPad Pro (iOS 27.0) tested through the CLI and MCP; tap 454 to 534 ms; the 12-scenario suite not run on devices; Simulator tap 357 ms | all channels | `docs/bench/m5.md`; README Supported devices |
+| No physical Android phone measured; Android hardware untested | all channels | README Speed note; Supported devices |
+| 14 MCP tools, about 51 tokens each in Claude Code's wrapper; first turn 5,606 tokens against 5,214 for phone-harness. The older "13 tools, about 2.6k tokens" row above is superseded | Reddit r/mcp | `docs/bench/tokens.md` "Round 3" |
+| Snapshots are 183 to 822 tokens on measured screens | Reddit r/mcp | `docs/audits/ax-audit.md` |
+| A test runs the CLI, the daemon and the MCP server under a macOS `sandbox-exec` that kills any non-local connection; it uses a fake adb server and no device, runs on macOS only | HN, Reddit, X | `crates/cli/tests/network.rs`; README. The README names the test `cargo test -p phone-use --test network`; after the rename it is `-p phonedriver` (verify) |
+| The Cursor config is documented and untested | Reddit r/mcp, directories | `site/content/docs/cursor-and-mcp-clients.md` |
+| Claude Code is the tested client | Reddit | `site/content/docs/claude-code.md` |
+| Names `phonedriver` on npm, crates.io and PyPI return 404 (free) on 2026-11-07; GitHub user `phonedriver` 404; the repo `hridaya423/phonedriver` does not exist yet (404) | plan, directories | curl against the registries and the GitHub API, 2026-11-07 |
+| `phonedriver.dev` is registered (whois status ACTIVE) and has no DNS address; nothing deployed | plan, github-metadata | whois and dig, 2026-11-07. Who owns it: [USER] |
+| Real-jobs benchmark result | HN, blog post 4, PH | [JOBS]: `docs/bench/jobs.md` has checks proven and no agent runs; blog post 4 has `[RESULTS]` cells. No result is quoted anywhere in the drafts |
+| First agent-eval pass scored 9 of 15 and all six failures were bugs in the checks or device reset | HN answer 11, Reddit r/SideProject | `docs/bench/m3.md` |
+| Directory facts (Smithery dead, the registry's package types, awesome-mcp-servers category and line format, awesome-claude-code 14-day or 100-star rule, awesome-ios rules, Docker licence line) | directories.md | Fetched 2026-11-07; URLs in `directories.md`. Rules change: re-open each page on the day |
+| Platform mechanics (HN, X, Reddit, LinkedIn, Product Hunt, Lobsters, dev.to, short video, star conversion) | research and plan | `research-2026-11.md`, with a tag per claim. Reddit rules were secondhand (403) |
+| The Show HN title lengths (71, 76, 77, 67 characters) and the tweet lengths | show-hn.md, x.md | Counted with Python 2026-11-07 |

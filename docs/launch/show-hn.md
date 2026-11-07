@@ -1,104 +1,93 @@
-# Show HN plan (round 2)
+# Show HN: phonedriver (round 3)
 
-Nothing here has been posted. This file is a fact sheet and a structure. It is not text to paste. HN's guidelines say "Don't post generated text or AI-edited text", and dang's Show HN tips say not to use an LLM for any of it, "not even a tiny bit". Moderators ban accounts for this (`research.md`, round 2). Write the title, the first comment and every reply yourself, from the facts below.
+Nothing here is posted or submitted. This file is **fact notes and a structure. It is not text to paste.**
 
-Slots: `[TBD: ...]` waits on a measurement or a build. `[USER: ...]` needs your own words or a decision. `claims-ledger.md` names the repo file behind each fact. Repo facts below are from `main` at `c2297a1` (shell tool, token benchmark) unless noted.
+> **Hacker News bans generated text and AI-edited text.** The guidelines say "Don't post generated text or AI-edited text", and moderators have said they ban accounts for it (`research-2026-11.md`, Hacker News). An agent wrote this file. So the title, the first comment and every reply must be typed by you, in your own words, from the facts below. Do not paste any sentence from this file into HN. Do not run your draft through a model "to tidy it". The README and the site you link also get read for this, so read both once more yourself before launch.
 
-## What the ranking rules mean for this post
+Slots: `[JOBS: ...]` waits on the real-jobs benchmark. `[DEMO: ...]` waits on the re-recorded demo. `[USER: ...]` needs your own words or a decision. Every number below has a row in `claims-ledger.md`.
 
-| Mechanic (source in `research.md`) | What to do |
+## Gate: do not submit until all of these are true
+
+A Show HN has to be something people can run. A reader who clicks and cannot install in two minutes leaves, and the post is flagged or ignored.
+
+1. The repo is public at `github.com/hridaya423/phonedriver`, and the README install lines work on a clean machine (today the README says nothing is published).
+2. `claude mcp add phonedriver -- phonedriver mcp` then `claude mcp list` shows Connected, from the released binary.
+3. phonedriver.dev answers 200 and its links work (`python3 site/check.py` is green).
+4. The registry entries in `directories.md` that take minutes (the official MCP Registry, Glama, Smithery) are live, so a visitor who searches "android mcp" finds it.
+5. Your HN account is not new and has comment history, and has an email in the profile (`news.ycombinator.com/showlim` restricts Show HN from new accounts). [USER: check age and karma today.]
+
+## What the ranking rules mean here
+
+| Mechanic | Do |
 |---|---|
-| Rank is roughly `(points-1)^0.8 / (age_hours+2)^1.8` in the old code. The current constants are secret. Age decays fast. | The first two hours decide the result. Be at the keyboard for them. |
-| A thread with more than 20 comments and more comments than points is penalized (old code, 2013 crawl, dang's "flamewar detector"). | Answer in short, factual replies. Do not argue. Do not post long back-and-forth chains. |
-| Voting-ring detector and "Our software ignores most promo-votes". | Do not ask anyone to vote. Do not post the HN link anywhere. Tell no one to "check it out on HN". |
-| Show HN is restricted for new accounts (`news.ycombinator.com/showlim`). | Open your HN account profile today. If the account is new or has no comment history, spend a week commenting honestly before launch. `[USER: account age and karma]` |
-| Second-chance pool and repost invites go to authors with an email in their profile. | Put an email in your profile before launch. |
-| Moderators rewrite baity titles and strip "Show HN" from posts that cannot be tried. | Keep the title plain. Make the install work first. |
-| The fastest hit rate in three datasets and in a 90-day own count is Monday 00:00 UTC (Sunday 7 pm ET, 4 pm PT). Midday weekdays have the most readers and the most competition. | Submit Monday 00:00 UTC. Fallback: Tuesday 15:00 UTC. Convert to your time zone and check that you can stay for two hours. |
-
-## Decisions for the author
-
-1. **AI-assisted code.** `AGENTS.md` and `progress.md` are public and show agents did part of the work. HN says "Don't post quickly-generated one-offs." Say it in one plain sentence in the first comment. `[USER: how much you wrote, and how you reviewed the rest]`
-2. **The name.** `phone-use` is taken on npm and as the GitHub organization `phone-use`. `sauravtom/phone-use` has the same name and 6 stars. `plan.md` lists three free alternatives. The drafts keep `phone-use` until you decide.
-3. **Account.** Use your personal account, not a project account, with an email in the profile.
-4. **Decision D6 is out of date.** `docs/decisions.md` D6 says "never execute agent-written code". D21 shipped a `shell` tool that runs agent-written commands. Fix D6 before launch, because HN readers will quote it against you.
+| Rank decays with age (old code: `(points-1)^0.8 / (age_hours+2)^1.8`; current constants secret). | Be at the keyboard for the first two hours. |
+| Flamewar and voting-ring software penalties exist and are secret. | Short, factual replies. Never ask anyone to vote. Never post or DM the HN link. Do not tell anyone "it is on HN". |
+| A moderator can rewrite a baity title and remove "Show HN" from a post people cannot try. | Plain title, working install. |
+| Best hit-rate window in three datasets and an own count: Monday 00:00 UTC (Sunday 7 pm ET, 4 pm PT). | See `plan.md` for the slot chosen and the fallback. |
 
 ## Title
 
-HN titles are limited to 80 characters. Use "Show HN: phone-use – " then what it does. Moderators call a title "baity" when it uses superlatives or metaphors.
+80 characters maximum. Format `Show HN: phonedriver – <what it does>`. No superlatives, no "revolutionary", no all-caps, no exclamation. Lengths below are measured, prefix included.
 
 | # | Title | Length |
 |---|---|---|
-| 1 | Show HN: phone-use – Agents read a phone as text and get only what changed | 74 |
-| 2 | Show HN: phone-use – Android and iOS control for agents, with text diffs | 72 |
-| 3 | Show HN: phone-use – A Rust CLI and MCP server for agents to drive phones | 73 |
+| 1 | Show HN: phonedriver – Let AI agents see and tap Android and iOS phones | 71 |
+| 2 | Show HN: phonedriver – Agents read a phone as text and get only what changed | 76 |
+| 3 | Show HN: phonedriver – MCP server and CLI for agents to drive phones, in Rust | 77 |
+| 4 | Show HN: phonedriver – Claude Code reads an Android screen in 24 ms | 67 |
 
-**Recommended: option 1.** It states what the tool does and the one idea that separates it. Evidence from 11,542 Show HNs (correlation only): titles with "AI", "agent" or "Claude" reached 20+ points less often (3.5% against 5.1%), and titles with "Rust" or "open source" more often (6.7% and 7.0%). The effects are weak and confounded, so option 1 stays and option 3 is the fallback if you want "Rust" in the title. Do not add a number to the title. The adb speed figures come from an emulator on a busy machine, and a title claim starts the fairness argument before readers see the caveats.
+**Recommended: 1.** It says what the tool is in the words a stranger searches for. Option 2 states the one idea that separates it (the diff) and is the pick if you want the title to carry the "how". Option 4 puts a number in the title, which starts the benchmark argument before readers have seen the caveats; keep the number for the comment. The own cut of 11,542 Show HNs found weak correlations (titles with AI, agent or Claude reach 20+ points 3.5% of the time against 5.1% without; "Rust" and "open source" do better), confounded and small. Do not put the name of a model or "AI-powered" in the title.
 
-## URL
+## URL: repo or the technical post
 
-`https://github.com/hridaya423/phone-use`
+Recommended: **the repo** (`https://github.com/hridaya423/phonedriver`). Show HN is for something to try, and the README has the install lines, the speed chart and the demo. Put the technical post in the first comment as "the method" (`https://phonedriver.dev/blog/how-phonedriver-reads-a-screen-98x-faster-than-adb/`). A blog post as the submitted URL reads as an article, not a project, and invites "where is the code" comments.
 
-Submit the URL and your own text together. HN shows the text as your first comment. If it does not appear, post it yourself within a minute.
+Do not use a URL shortener. Do not add tracking parameters. Submit the URL with no text in the text box, then post your first comment at once as a normal comment (a Show HN with both a URL and text is allowed, but the first comment as a separate comment lets you edit it for two hours).
 
-## First comment: structure
+## First comment: fact notes (retype in your own words)
 
-Write 350 to 450 words, five blocks, in this order. dang's tip: "a clear statement of what your project is or does" first, then "the backstory of how you came to work on this, and explaining what's different about it". Do not praise the project.
+Length target: 250 to 400 words. dang's structure: what it is, the backstory of how you came to work on it, what is different, then limits. Do not praise the project ("blazing", "seamless"). State limits before others do.
 
-1. **What it is** (one or two sentences). Facts: a text view of an Android or iOS screen, and the means to tap, type, swipe. One Rust binary: CLI, daemon, MCP server. Every action returns only the lines that changed.
-2. **Why you built it** (your words). `[USER: what you tried first and what failed.]` Usable facts: you read the phone-harness source before starting; `adb shell input` starts a process per call; `uiautomator dump` took 2.8 s on the test emulator.
-3. **How it works** (3 to 5 technical points; pick the ones you can defend).
-4. **Numbers and limits** (what you measured, what you did not).
-5. **What feedback you want** (two specific asks).
+1. **What it is.** An open-source MCP server and CLI that lets an agent such as Claude Code see and control an Android or iOS phone. One Rust binary: CLI, daemon, MCP server. The screen is numbered text, and every tap returns only the lines that changed (README opening; D1).
+2. **Why you built it.** `[USER: what you tried first and why it did not work. This is the part only you can write. Facts available: you read the phone-harness source before starting; `uiautomator dump` costs 2.35 s on a 1,000-row list; an agent that polls and sleeps wastes calls.]`
+3. **How it works** (pick two or three you can defend):
+   - Android: a dex jar pushed and started with `app_process` as the shell user, the way scrcpy does it. Nothing installed on the phone, no accessibility service to turn on. Tree through UiAutomation, input through InputManager (D2).
+   - Every action waits for the screen to settle (accessibility events plus video frames) and returns the diff, so the agent never polls (D12, D10).
+   - Refs such as `@e10` are found again at tap time, so a list that moved a row still gets the right tap.
+   - iOS: our own XCTest runner, not WebDriverAgent (D4).
+   - A `shell` on the device, and an approval guard: before an agent taps `Pay` or `Place order`, phonedriver asks the human through an MCP elicitation, with Allow, Allow for this session and Decline. Autonomous mode when you grant it (D27).
+4. **Numbers, with the setting** (Android 17 emulator, p50 of 50 runs after 20 warm-ups, tools interleaved on the same host, `docs/bench/speed-2026-11-07.md`):
+   - Read a 1,000-row list: 24.0 ms against 2,352.4 ms for `adb shell uiautomator dump`. 98x, 95% CI on the ratio 92.2 to 106.0. phone-harness 0.3.3: 2,653.7 ms (111x).
+   - Screenshot 41x. Type 100 characters 19x. Tap then know what changed 4.6x (586.9 ms against 2,725.8 ms for tap, dump and diff done by the caller). A bare tap is 2.1x back to back and 1.6x 1.5 s apart: the closest row.
+   - Tokens, three agent tasks with `claude-sonnet-5-5`, sum of medians: 218,357 against 330,375 for phone-harness, 34% fewer, every run passed for both. phonedriver was behind on one task (57,753 against 53,403). mobile-mcp passed 0 of 3 for an environment reason, so it is not in the comparison.
+5. **Limits, plainly:** emulator only for speed, no physical Android phone measured. iOS needs a Mac with Xcode; an iPhone 14 Plus and an iPad Pro were tested through the CLI and MCP, a tap there is 454 to 534 ms, and the 12-scenario suite was not run on devices. The guard matches a fixed list of English labels: a button with no label is not guarded. Coding agents wrote part of the code (`AGENTS.md`, `progress.md`). [USER: say how much you wrote and how you reviewed the rest.] [JOBS: one sentence from `docs/bench/jobs.md` once the runs finish.]
+6. **What you want back (two asks):** results on a real Android phone; apps where the snapshot is empty or wrong.
 
-### Facts for block 3
+Do not include the demo claim "real time". The demo is sped up 10x and says so.
 
-- Android: a dex jar pushed and started with `app_process` as the shell user, as scrcpy does. Nothing installed on the phone. No accessibility service to enable. Tree through UiAutomation, input through InputManager. (D2)
-- Settle: every action waits for accessibility events and video frames to go quiet, then returns the diff, such as `~ @e41 switch "Dark Appearance" off → on`. No polling. (D12, D10)
-- Refs like `@e10` are found again at tap time, so a list that moved one row still gets the right tap. (README)
-- iOS: own XCTest runner, not WebDriverAgent (D4). The iOS 27 CoreDevice and hybrid tiers are experimental and off by default. [TBD: hybrid tier status; `progress.md` on this branch calls it unfinished and unproven on device]
-- `shell` verb and MCP tool: on Android it runs in the agent already on the device, over the open control stream. After a command that can change state it settles and returns the screen diff. On a Simulator it runs through `simctl spawn`. A physical iPhone has no shell. On a physical Android device it refuses wipes and removing apps phone-use did not install unless `--force`. The guard is "a guard against slips, not a sandbox". (D21, `docs/bench/shell.md`)
+## Likely skeptic questions and true answers
 
-### Facts for block 4
+Answer within 15 minutes for the first two hours, one to four sentences, in your words. Concede what is true. Do not argue the same point twice (the flamewar penalty counts comments).
 
-Speed, `docs/bench/adb.md`: Android 17 emulator, busy machine, median of 50 after 5 warm-ups, phone-use and adb measured back to back.
-
-| Operation | phone-use | adb |
-|---|---|---|
-| screenshot | 45.3 ms | 692.4 ms |
-| Settings screen read | 237.0 ms | 2,800.5 ms |
-| tap, then know what changed | 666.9 ms | 3,111.7 ms |
-| bare tap | 144.1 ms | 223.7 ms |
-
-- Tap after the latest change (`progress.md` on `main`, "Speedup 4"): 33.7 to 35.9 ms p50 on the API 37 emulator, three interleaved runs, 100 runs each. The budget is 15 ms and is missed. [TBD: a paired quiet-machine re-run against adb for the post]
-- iOS tap: 357 ms on the Simulator, 534 ms on an iPhone 14 Plus, 454 ms on an iPad Pro, because XCTest takes about 240 ms to confirm an event. (D15, `docs/bench/m5.md`)
-- Agent evaluation (`docs/bench/m3.md`): 15 of 15 held-out runs on five Android tasks with Claude Sonnet 5.5; median 6 tool calls, 18 s. The first pass scored 9 of 15. All six failures were bugs in the checks or the device reset.
-- Token benchmark (`docs/bench/tokens.md`, one run per cell, tablet emulator, shell tool not yet in the run): phone-use passed 3 of 3 tasks with 413,534 tokens in 45 calls. phone-harness passed 3 of 3 with 337,059. Raw adb passed 2 of 3 with 240,389. mobile-mcp failed 0 of 3 for an environment reason (its device server did not start), so its tokens are not comparable. **phone-use did not use fewer tokens.** Do not claim it did. [TBD: rerun with the shell tool; rerun mobile-mcp on a local emulator]
-- Limits to state: no physical Android phone measured; iOS needs a Mac with Xcode, and a physical iPhone needs a signing team (a free Apple ID expires every 7 days); WebViews and custom views can have an empty tree, then OCR fills in without a checked state; one iOS scenario (`settings-dark-appearance`) failed twice in six full runs and the cause is not found.
-- License: AGPL-3.0-only. No telemetry (D9).
-
-### Block 5, feedback asks (pick two)
-
-Results on a real Android phone. Apps where the snapshot comes back empty or wrong. Whether the diff format reads well to your agent. Whether `shell` should be on by default.
-
-## Prepared answers: facts, not prose
-
-Reply in your own words, in one to four sentences. Answer within 15 minutes in the first two hours. Concede what is true.
-
-| # | Objection | Facts to use | Do not say |
+| # | Question | True answer (source) | Do not say |
 |---|---|---|---|
-| 1 | AGPL | Applies when you distribute it or run a modified copy as a network service (README, License). Chosen so a competitor cannot take the code into a closed project (D13). Dependencies are permissive. scrcpy files under Apache-2.0 are in `NOTICE`. | That the license "does not affect" a company's use. That is a legal reading. `[USER: confirm your position]` |
-| 2 | Why not adb | `adb shell input` starts a process per call. `uiautomator dump` waits for idle: 2.8 s per screen. adb cannot say what a tap changed; the benchmark builds it from tap, dump and diff at 3.1 s. `input text` fails on Unicode. Method and caveats in `docs/bench/adb.md`. Raw adb used fewer tokens in the token benchmark. | That adb is unusable. |
-| 3 | Why not Appium or Maestro | They are test frameworks: a script written once, run many times. phone-use is one action chosen after seeing the screen, with the diff in each reply. Appium needs the UiAutomator2 server installed. The Maestro MCP page says physical iOS devices are not supported. | Quotes you have not re-read. `docs/research/competitors.md` came from a summarizing fetch. |
-| 4 | Why not mobile-mcp | It is the most used (10.4k stars), covers real iOS devices and cloud. From its `server.ts`: no wait after actions, one line per element with coordinates and size. phone-use settles and returns the diff. | Anything about its token use. Your run did not work in your environment. |
-| 5 | Security: agent with a shell and a phone | There is a `shell` tool (D21). Android runs it in the on-device agent as the shell user. A physical Android device refuses wipes and unknown-app removal without `--force`, and the guard "is not a sandbox". The daemon listens on a Unix socket in a mode-700 directory and nowhere else. `--secret` text never reaches logs, traces or replies. The agent can do what a person can do on screen, including tap Pay. Emulators and Simulators have no guard. | That it is safe. That the guard stops a determined command. Any claim about prompt injection from screen text; the repo has no defence. `[USER: confirm]` |
-| 6 | iOS needs a Mac | XCTest, the Simulator and the developer disk image need Xcode on a Mac. A device on another machine works through an `ssh` forward of the daemon socket (README). | |
-| 7 | Real phones | iOS: tested on an iPhone 14 Plus and an iPad Pro through CLI and MCP; the 12-scenario suite was not run on devices. Android: same code path as the emulator, no hardware measured. Wireless debugging was tested on an emulator over TCP only (`docs/bench/wifi.md`). | That Android hardware works. |
-| 8 | Telemetry | None: no install id, no event, no crash upload (D9). phone-harness ships the script, output and helper calls to PostHog by default (`docs/research/competitor-teardown.md`). Apple is the only outside party, for developer disk image mounting. | "Nothing else leaves the machine" until a network-silence test for phone-use exists. `[USER: add the test or drop the claim]` |
-| 9 | Benchmark fairness | Busy emulator host. phone-use tap was slower there than in the quiet run. phone-harness numbers come from an earlier quiet run, in process, which favors phone-harness. adb's tap returns before the app reacts. Raw XML against pruned text. No physical Android. Raw samples in `docs/bench/data/`. | "Rigged" arguments. Offer the method. |
-| 10 | Tokens | See the token benchmark above. Snapshots are 183 to 822 tokens on measured screens (characters divided by four). The tool schemas cost about 2.6k tokens. One run per cell. phone-use was not cheapest. | A token advantage. |
-| 11 | "Vibe-coded" / same name as another repo | `[USER: your answer.]` Repo facts: plans, decision log, 21 Android and 12 iOS device scenarios, benchmarks with raw data, audits. Another project named phone-use exists (`sauravtom/phone-use`, Android only, MIT). | |
+| 1 | "98x against adb is apples to oranges." | Partly. adb returns raw XML; phonedriver returns a pruned text tree, and `uiautomator dump` waits for idle. The ratio is for the same job (read the screen). Emulator only, one host. The tap row, where the outputs match best, is 1.1 to 2.1x. Raw samples and method: `docs/bench/speed-2026-11-07.md`, "What this does not show". | That adb is unusable. That the number holds on hardware. |
+| 2 | "Why not Appium or Maestro?" | They are test frameworks for scripts written once and run many times. phonedriver is one action chosen after seeing the screen, with the diff in the reply. Appium needs its UiAutomator2 server installed. Re-read their docs before quoting (`competitors.md` came through a summarizing fetch). | Quotes you have not reopened. |
+| 3 | "mobile-mcp already does this, 10k stars." | It does Android, iOS and cloud devices, and has more users. From its `server.ts` it has no wait after actions, so the agent lists the elements again. I did not benchmark its speed, and my token run of it failed for an environment reason. | Anything about its speed or tokens. |
+| 4 | "An agent with a phone can spend my money." | Yes, and this is the main reason D27 exists. phonedriver holds a tap on `Pay`, `Place order`, `Delete account` and asks the human through MCP elicitation. The agent cannot answer for itself over MCP. Limits: fixed English labels; icon-only buttons are missed; `shell` `input tap` is not seen; a model set on passing `autonomous: true` can; headless `claude -p` has nobody to ask, so it declines. A seat belt, not a lock (D27, blog post "Letting Claude order dinner"). | That it is safe. That it stops prompt injection in general. |
+| 5 | "Prompt injection from the screen." | The guard stops a model that follows its rules or is steered by screen text from tapping Pay. Nothing else in the repo defends against injected text. [USER: your position.] | Any claim of a general defence. |
+| 6 | "The demo is sped up." | Yes, 10x, and the clip says so. The run took 6 min 7 s. It stopped at Uber's sign-in page; nothing was ordered. [DEMO: update for the new recording.] | "Real time". |
+| 7 | "AGPL kills it for my company." | AGPL-3.0-only. It applies when you distribute it or run a modified copy as a network service. Chosen so a competitor cannot lift the code into a closed project (D13). Dependencies are permissive; scrcpy files under Apache-2.0 are in `NOTICE`. | A legal opinion on a company's use. [USER: your position.] |
+| 8 | "Telemetry?" | None. No install id, no event, no crash upload (D9). A test runs the CLI, the daemon and the MCP server under macOS `sandbox-exec` with every non-local connection killed (`cargo test -p phonedriver --test network`), and it passes. Limits: it runs on macOS only, with a fake adb server and no device; Apple is contacted only to mount an iOS developer disk image, which that test does not cover. | "Provably private" on Linux or Windows. |
+| 9 | "Does it work on a real phone?" | iOS: yes, on an iPhone 14 Plus (iOS 26.1) and an iPad Pro (iOS 27.0), through the CLI and MCP, tap 454 to 534 ms. Android hardware: same code path as the emulator, not tested on one. | That Android hardware is verified. |
+| 10 | "Tokens: are you cheaper?" | Than phone-harness, in three tasks, by 34% (218,357 against 330,375), with the exceptions above. Raw adb was cheaper on the one task it finished. One to three runs per cell. Snapshots are 183 to 822 tokens on measured screens. | A general token claim. |
+| 11 | "Looks vibe-coded." | [USER: your answer.] Repo facts: plans, a decision log, 21 Android and 12 iOS scenario suites with raw data, benchmarks, audits. The first agent-eval pass scored 9 of 15 and all six failures were bugs in my own checks. | Anything that reads as defensive. |
+| 12 | "Why a daemon?" | A resident daemon holds the device connection and the ref table, so each call costs milliseconds and refs survive a shifted list (D1, D11). | |
+| 13 | "Same name as another repo?" | The project was renamed from phone-use to phonedriver before launch (names are free on npm, crates.io and PyPI). | |
 
-## If the post stalls
+## After the first two hours
 
-Do not delete and repost. Do not ask for votes. Email hn@ycombinator.com and ask for the second-chance pool (`item?id=26998308`). Check that the title and first comment state what the tool does, because dang names "I can't tell what this is" as the failure.
+- Do not delete and repost. If the post stalls, email hn@ycombinator.com and ask for the second-chance pool.
+- If someone finds a real bug, say so, open an issue, give a time.
+- If you are asked "is this AI-written", answer plainly: the code was written with coding agents and reviewed by you, and the words in your comments are yours. [USER: say what is true.]
+- Record the points, rank and the open questions in `progress.md` at minute 120 and next morning.

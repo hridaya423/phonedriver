@@ -1,78 +1,81 @@
-# LinkedIn plan (round 2)
+# LinkedIn plan (round 3)
 
-Nothing here has been posted. Slots: `[TBD: ...]` waits on a build or measurement. `[USER: ...]` needs your fact. `claims-ledger.md` names the repo file behind each claim. LinkedIn builds classifiers for generic AI text and reduces its reach, so write the final post by hand and keep your own details in it.
+Nothing here is posted. LinkedIn builds classifiers for generic AI text and reduces its reach (Entrepreneur, round 2), so retype each post in your own voice and keep the specifics. Slots: `[DEMO]`, `[JOBS]`, `[USER]`. Every number has a row in `claims-ledger.md`. Sources for the mechanics are in `research-2026-11.md`, LinkedIn: dwell counts when at least half the update is visible (official), engagement bait is demoted (official), documents beat video and text on company pages in one 1.3M-post dataset (anecdotal), and external links cost reach by an amount the sources disagree on (anecdotal).
 
-## What LinkedIn says, and what the post does with it
+## What the post does
 
-Source for every row: `research.md`, round 2, LinkedIn section.
+- The first two lines show before "see more" (about 210 characters on mobile [anecdotal]). They carry the whole claim, so a reader who stops there still gets it.
+- **Format: the demo video as a native upload for the launch post.** The video is the strongest asset; a carousel gets its own post three days later (below), so one account is not posting two things at once and you can answer comments on both.
+- **No link in the body.** The repo link goes in the first comment, posted the moment the post is live. Expect fewer clicks and keep the repo name in the body, so people can search it.
+- 1 to 3 hashtags at the end (LinkedIn's own guidance in round 2). Use none if you prefer; do not use ten.
+- No "comment YES for the link", no "agree?", no tagging people who did not work on it. All demoted in the official feed notes.
+- Reply to every comment in the first hour, and keep replying that day. Replies count as dwell and conversation.
 
-| Rule | Evidence | What the post does |
-|---|---|---|
-| Retrieval matches the post's meaning to each viewer's history, so a niche topic reaches matching viewers ("sparse content niches"). Ranking predicts long dwells, likes, comments, shares. | LinkedIn Engineering, 2026-03-12 (no weights published) | State the topic in the first line: AI agents on phones. Write for people who work on agents, mobile or developer tools. |
-| Dwell counts when half the post is visible. A skip-probability model lowers the score of posts people skip. | LinkedIn Engineering, 2020 | The first two lines carry a number. Keep them under about 140 characters so they survive the "see more" cut. |
-| Length: highest engagement at 2,000 to 3,000 characters or under 150. The 600 to 1,500 range was weakest. | Ordinal, 248,275 posts (third party) | Write about 2,000 characters, not 1,200. Every paragraph must add a fact. |
-| Format: video 6.00%, text 4.50%, link 3.25% in 1.3M business-page posts. | Socialinsider (company pages) | Attach the demo as native video, with burned-in captions that match what the video shows (LinkedIn demotes "videos that don't match the text"). |
-| Links: no official penalty. Posts with links reach less (448 against 705 median impressions, LinkPost via Ordinal), mostly on company pages. First-comment links "stopped being free" and draw fewer clicks. | Ordinal | Put the repo link in your first comment, posted the moment the post goes live. The post says "link in the first comment". The clicks come from HN, X and Reddit. LinkedIn is for reach and conversation. If the first hour is weak, test the link in the body next time. |
-| Engagement bait is demoted ("comment to agree", pods, comment automation). "It's ok to ask for thoughts and feedback to encourage meaningful conversation." | LinkedIn feed update, content guidance | End with one real question. No "comment YES". No pods. |
-| Hashtags: "between 1-3 hashtags", and none tacked on without need. | LinkedIn staff via Buffer | Use two. |
-| Replying to comments is said to lift engagement (Buffer: 30%, own data). The "golden hour" has no official definition. | Buffer; contentin.io | Reply to every comment in the first hour anyway. |
-| Weekday mornings, weak effect. | Buffer, Sprout; one study found no reliable best hour | Tuesday, 13:30 UTC (9:30 am ET). |
+## Launch post (video)
 
-## Post (draft, about 2,100 characters)
-
-First two lines (the hook; 140 characters or fewer on one screen):
+[DEMO: native upload of the re-recorded MP4, captions burned in. The post must read without the sound.] Length target 1,200 to 1,800 characters.
 
 ```
-Reading one Android screen with adb takes 2.8 seconds.
-Reading it with phone-use takes 237 milliseconds, on the same emulator.
+An AI agent with a phone can tap Pay.
+
+I built the thing that stops it. Claude Code ordered butter chicken and garlic naan on Uber Eats from an Android emulator, and when it reached checkout it had to ask me. [DEMO: if the new clip shows the approval prompt, say "and the tap on Place order waited for my Allow".]
+
+The project is phonedriver, an open-source MCP server and CLI that lets AI agents like Claude Code see and control Android and iOS phones.
+
+What I learned building it:
+
+1. Reading the screen was the slow part. adb takes 2.35 seconds to read a 1,000-row list. A resident agent on the phone takes 24 ms. That is the 98x on the chart.
+2. After a tap the agent needs to know what changed, not the whole screen. Every action here returns only the changed lines.
+3. A rule in a prompt that says "ask before you spend money" is advice. The check has to live in the tool, where the model cannot answer for itself. phonedriver asks through an MCP prompt: Allow, Allow for this session, or Decline.
+
+Limits, so nobody has to ask: the speed numbers come from an Android emulator, not a phone. iOS needs a Mac with Xcode. The guard matches English labels only. The video is sped up 10x.
+
+It is AGPL-3.0, with no telemetry. Repo in the comments.
+
+#MCP #ClaudeCode #Android
 ```
 
-Body, in your words, in this order:
+Facts per line: opening and demo (README demo caption, `progress.md`), 2,352.4 ms and 24.0 ms (`speed-2026-11-07.md`), the diff (README), the guard (D27), limits (README, ledger). Point 1 is your phrasing of the result; "learned" is true only if you did learn it. [USER: change any line that is not your experience.]
+
+**First comment** (post at once):
 
 ```
-I built phone-use so an AI agent can use a phone without waiting on the plumbing. It is a Rust CLI and MCP server for Android and iOS. Every tap returns only the lines that changed on screen, as text.
-
-Here is Claude Code driving a phone with it, in real time. [TBD: confirm the re-recorded clip is real time and uncut between tool calls]
-
-Three decisions did most of the work:
-
-1. A daemon keeps the device connection open. On Android a small agent starts with app_process as the shell user, the way scrcpy does, so nothing is installed on the phone and no accessibility service needs switching on.
-
-2. Every action waits for the screen to settle, then returns a diff. The agent never sleeps or polls.
-
-3. Refs like @e10 are found again at tap time, so a list that moved by one row still gets the right tap.
-
-What I measured, on an Android 17 emulator on a busy machine, median of 50, with adb measured back to back: screenshot 45 ms against 692 ms, screen read 237 ms against 2,800 ms, and "tap, then know what changed" 667 ms against 3,112 ms. [TBD: paired quiet-machine re-run]
-
-Does an agent finish real tasks? Claude Sonnet 5.5 finished 15 of 15 held-out runs on five Android tasks, with a median of 6 tool calls. My first pass scored 9 of 15, and all six failures were bugs in my checks, not in the tool.
-
-What does not work yet: a tap still misses its latency budget (about 34 ms on the emulator, 454 to 534 ms on an iPhone and an iPad, because XCTest is slow to confirm an event). I have not measured a physical Android phone. iOS needs a Mac with Xcode. In my one-run token benchmark, raw adb and phone-harness used fewer tokens than phone-use. [TBD: rerun with the shell tool]
-
-It is AGPL-3.0 and sends no telemetry.
-
-[USER: one sentence on how you built it, including agent assistance]
-
-Which app should an agent be able to drive on your phone that it cannot today? Repo link in the first comment.
-
-#opensource #AIagents
+Code: github.com/hridaya423/phonedriver
+Install: claude mcp add phonedriver -- phonedriver mcp
+Method for the 98x, with p95 and raw data: github.com/hridaya423/phonedriver/blob/main/docs/bench/speed-2026-11-07.md
+Site: phonedriver.dev
 ```
 
-Check before posting:
+## Carousel post (T+3, document)
 
-- Length. The draft is about 2,100 characters. If your rewrite drops under 1,500, cut it to under 150 characters or grow it past 2,000. The 600 to 1,500 band had the weakest engagement.
-- Do not add a third hashtag, an @mention of a company, or a tag of someone who has not agreed.
-- The question is real. If you cannot answer replies about specific apps, change the question.
-- First comment, posted at once: `Repo: https://github.com/hridaya423/phone-use (AGPL-3.0). The benchmark method and raw data: docs/bench/adb.md.`
+Caption (about 400 characters), then the PDF.
 
-## Video
+```
+Seven slides on how an AI agent reads a phone, and why it asks before it pays. Everything here is measured on an Android emulator and links to the data in the repo.
 
-Native upload of the re-recorded clip. [TBD: new clip] The old clip is 960x660 H.264 MP4, which LinkedIn accepts. The feed autoplays muted, so burn in one short caption naming the task. Make a copy for this; do not overwrite the original. Keep the caption faithful to the video. Vendors suggest 30 to 90 seconds and vertical or square formats; LinkedIn's ad page lists 4:5 (720x900) as its recommended vertical size and gives no organic video rule. The evidence is thin, so a landscape clip is acceptable.
+Code: github.com/hridaya423/phonedriver
+```
 
-Option to test later, not for launch day: a document carousel of the speed table and the diff sample. Documents scored 7.00% against video's 6.00% in company-page data, and the effect on a personal profile is unknown.
+Fewer than 400 characters; put the link in the caption here, or in the first comment if you want the same treatment as the launch post. [USER: pick one and keep it.]
 
-## First hour
+**PDF spec:** portrait, 1080x1350 per slide [anecdotal; LinkedIn accepts PDF up to 100 MB]. Dark text on the site's near-white background to match `hero-social.png`. One idea per slide, 24 words at most, body text 44 pt or more, nothing in the outer 60 px. Export slide 4 from `.github/assets/hero-light.svg` and slide 6 from a rebuilt tokens chart (the existing `tokens-light.png` is stale).
 
-- Post the first comment with the link immediately.
-- Reply to every comment, with a fact, within the hour. Do not use AI to write replies. LinkedIn builds classifiers for generated comments.
-- Do not ask friends to like. Ask people with real questions to say what they would test.
-- Expect a modest result. The launch posts the research found drew 7 to 157 reactions.
+| # | Slide text (retype if you change it) | Visual | Source |
+|---|---|---|---|
+| 1 | **An AI agent with a phone can tap Pay.** What stops it? | Phone-sized black frame, no clutter. Brand wordmark small. | D27 |
+| 2 | **adb reads one screen in 2.35 seconds.** A 1,000-row list: 2,352 ms. An agent that reads after every tap spends its time waiting. | One big number: 2,352 ms. | `speed-2026-11-07.md` |
+| 3 | **phonedriver reads it in 24 ms.** A resident agent on the phone sends numbered text. Every tap returns only the lines that changed. | The three-line diff block from the README. | README Try it |
+| 4 | **Up to 98x faster than adb.** Screenshot 41x. Type 100 characters 19x. Tap and see what changed 4.6x. | `hero-light.svg`, with the line "Android 17 emulator, p50 of 50 runs". | `speed.json` |
+| 5 | **It asks before it pays.** A tap on Place order or Pay stops and asks you: Allow, Allow for this session, Decline. The model cannot answer. | The elicitation form [DEMO: screenshot from the new recording]. | D27 |
+| 6 | **34% fewer tokens than phone-harness.** Three agent tasks, same model: 218,357 against 330,375. It lost one task. | Three-row chart, rebuilt. | `tokens.md` Round 3 |
+| 7 | **What it does not do yet.** No Android phone measured. iOS needs a Mac with Xcode. The guard reads English labels only. | Plain text list. | README, D27 |
+| 8 | **Open source, AGPL-3.0, no telemetry.** Android and iOS. CLI and MCP. `claude mcp add phonedriver -- phonedriver mcp` and phonedriver.dev | Wordmark, repo, one command. | README |
+
+Slide 7 is the one that earns trust. Do not move it to the end behind a call to action; the order above puts it before the ask.
+
+## After posting
+
+- Check the post at 30, 60 and 120 minutes; answer every comment.
+- Do not edit the post in the first hour: edits can reset how the feed treats it [anecdotal; unverified].
+- Do not tag companies. If Anthropic or an MCP maintainer comments, answer them; do not chase them.
+- Record impressions, reactions, comments and referrals from LinkedIn in GitHub Insights.

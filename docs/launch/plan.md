@@ -1,128 +1,135 @@
-# Launch plan (round 2)
+# Launch plan (round 3): T-3 to T+7
 
-Nothing has been posted, and no account has been created. The author posts by hand. All times are UTC. Today is Friday 2026-11-06. `D0` is the launch Monday: the first Monday after every item in the checklist is done. Platform detail is in `show-hn.md`, `x.md`, `reddit.md` and `linkedin.md`. Evidence is in `research.md`.
+Nothing has been posted or submitted, and no account has been created. Every outward step is yours. All times are UTC, with US Eastern (ET, UTC-5 in November) and Pacific (PT) beside the ones that matter; add your own zone. `T0` is the **launch Monday**: the first Monday after the readiness gate is green. The calendar below assumes **T0 = Monday 2026-11-23**. If the gate is not green by **Sunday 2026-11-22 at 12:00 UTC (T-1)**, move T0 one week. Never launch with a red item. Note: US Thanksgiving is Thursday 2026-11-26 (T+3); that week has less US attention on Thursday to Sunday. If you prefer a normal week, use T0 = Monday 2026-11-30.
 
-## Cross-platform sequence
+Evidence for every timing choice is in `research-2026-11.md`. Per-channel text: `show-hn.md`, `x.md`, `reddit.md`, `linkedin.md`, `product-hunt.md`, `devto-hashnode.md`, `short-video.md`. Where to list: `directories.md`. Numbers: `claims-ledger.md`.
 
-| When | Platform | Action | Reason from the ranking research |
+## The goal, honestly
+
+100 or more GitHub stars in launch week, from real interest. What the evidence says (`research-2026-11.md`, last section): a median Show HN gives about 1.4 stars per HN point within 48 hours, with a star half-life near a day. A 20-point post is about 28 stars. 100 stars in a week needs a front-page Show HN (roughly 70 or more points) or several channels landing inside the same 48 hours, plus a trickle from registries. So the plan stacks X, Reddit and LinkedIn on the days right after HN, and treats the registries as the base that keeps working after the spike. Do not plan around any single channel hitting.
+
+## What must be true first (the gate)
+
+Nothing is posted until every row is done. Owner: **U** = you, **A** = an agent can do it (a coding agent in this repo, with you reviewing), **U+A** = the agent prepares and you do the one-way step. Each needs proof in `progress.md` (a command and its output), per `AGENTS.md`.
+
+| # | Item | Owner | State on 2026-11-07 | Needed by |
+|---|---|---|---|---|
+| 1 | The rename pass: crate, binary (`phonedriver`), `PHONEDRIVER_*` env vars, MCP server name, docs, SVG and PNG assets, the demo terminal | A | Not done. Code, `Cargo.toml` URLs and the README still say `phone-use`; the site docs already say `PHONEDRIVER_GUARD` and `claude mcp add phonedriver`. The two disagree today. | T-3 |
+| 2 | Repo `github.com/hridaya423/phonedriver` created and public (a one-way door; the remote does not exist: the API returns 404) | U | Not done | T-3 |
+| 3 | A tagged release with binaries for macOS (arm64, x86_64), Linux (x86_64, arm64) and Windows (x86_64), each with the Android agent, plus the shell, PowerShell and Homebrew installers. `release.yml` and `dist-workspace.toml` exist. | U+A | Not run. README still says "nothing is published yet". | T-3 |
+| 4 | Clean-install proof on a machine that never built the repo: one-line installer, `phonedriver doctor`, `claude mcp add phonedriver -- phonedriver mcp`, `claude mcp list` shows Connected, "Open Settings and turn on dark mode" works. Time it. | U+A | Not done | T-2 |
+| 5 | `phonedriver.dev` serves the built site (200 on every page; `python3 site/check.py` green). Whois shows the name registered (status ACTIVE); `dig` returned no address, so nothing is deployed. | U | Not done | T-3 |
+| 6 | Registry route decided and built: an `.mcpb` bundle or an npm wrapper (the official registry takes no plain binary; `directories.md` section 1) | A | Not done; 1 to 2 days of work | T-3 |
+| 7 | `server.json`, `glama.json`, `SECURITY.md` in the repo; the official registry entry live and found by `search=phonedriver`; Glama listing and the awesome-mcp-servers PR open | U+A | Not done | T-1 |
+| 8 | The re-recorded demo (Opus 5.5, with the approval-prompt scene): terminal reads `phonedriver`; passes the checks in `short-video.md`; README and site updated | A | In progress | T-2 |
+| 9 | The vertical 20 to 30 s cut, burned-in captions, "10x speed" visible | A | Not started; needs 8 | T-1 |
+| 10 | `social-preview.png` rebuilt with the new name and uploaded in repo Settings; `tokens-light.png` rebuilt as a three-row sum chart (the current one is stale and says PHONE-USE) | A (build), U (upload) | Not done | T-2 |
+| 11 | README: the install section no longer says "not published yet"; limits stated near the top; the Cursor deeplink only if tested | A | Not done | T-2 |
+| 12 | Real-jobs benchmark result in: blog post 4 and `docs/bench/jobs.md` have `[RESULTS]` cells today. Fill them or cut every claim that depends on them. Hold post 4's cross-post. | A | Runs pending | T-1 (or cut) |
+| 13 | Claims ledger checked against the launch commit; every `[DEMO]`, `[JOBS]`, `[USER]` slot in the drafts filled or deleted | U+A | Open | T-1 |
+| 14 | Your accounts: HN (age, karma, email in profile, Show HN not restricted: `news.ycombinator.com/showlim`), Reddit (karma per sub, comment history), X, LinkedIn. Spend the week before commenting honestly where you will post. | U | Unknown | T-3 |
+| 15 | Each subreddit's sidebar and rules read in a browser (the research could not read them); flair names copied | U | Open | T-1 |
+| 16 | A physical Android phone run, if you have one. Ask first: `AGENTS.md` lists driving a physical device as a one-way door. If not, the drafts say "no Android phone measured", which is true. | U | Optional | |
+| 17 | Open `docs/decisions.md` D6 and make it match D21 (`shell` exists). HN readers will quote D6 against you. | A | Check | T-3 |
+| 18 | GitHub: topics, description, homepage, Discussions on, a pinned "Known limits" issue, 3 `good first issue` labels (`github-metadata.md`) | U+A | Not done | T-2 |
+| 19 | You have 4 clear hours around the HN submission and 2 hours around each other post | U | | |
+
+**Blockers today:** 1 (rename), 2 (public repo), 3 (release), 5 (domain deployed), 6 (registry package route) and 8 (re-recording). Items 7, 9, 10, 11 follow from them.
+
+## Day by day
+
+T-3 is Friday 2026-11-20. Everything is UTC.
+
+| Day | Time (UTC) | Action | Owner |
 |---|---|---|---|
-| D-7 to D-1 | All | Run the checklist below. | Show HN needs something people can try. |
-| D-1 | X | Send a direct message to 5 to 10 mutuals who work on agents or mobile: what it is, the repo, "tell me what breaks". No script. No request for likes. | X adds +15 to the reply weight on an original post from a mutual follow (2026 code). Replies must be real, because the code labels engagement spammers. |
-| D0, 00:00 (Sunday 7 pm ET, 4 pm PT) | Hacker News | Submit the Show HN. Stay until 02:00. | Three datasets and a 90-day count put the best hit rate here. Hot rank decays steeply with age, so the first two hours decide the result. |
-| D0, 13:30 (9:30 am ET) | X | Post the video post with the link in the body. Reply to every reply for two hours. | Weekday mornings, with no primary evidence. The cold-start slot lasts 2 hours and needs likes per view, so followers must be online. By now the HN result is known. |
-| D1 (Tuesday), 13:30 | LinkedIn | Post the video post. Put the repo link in the first comment at once. Reply for an hour. | Tuesday to Thursday mornings, weak evidence. A day apart from X so the author can reply to both. |
-| D2 (Wednesday), 14:00 | r/ClaudeAI | Post variant 1 with the project flair. | Best audience, a 180-point precedent. Reply for two hours. |
-| D3 (Thursday), 14:00 | r/LocalLLaMA | Post variant 2, only with a tested local-model fact. | Largest phone-agent audience. Skip if there is no local-model result. |
-| D4 (Friday), 14:00 | r/rust | Post variant 3. | A different post for a different audience, a day after the last. |
-| Next monthly thread | r/androiddev | Comment in the Showcase thread. | Self-promotion is limited to that thread. |
+| **T-3 Fri 11-20** | any | Rename pass lands. Repo made public. Tag `v0.1.0`; release workflow builds binaries and installers. Deploy the site; check `phonedriver.dev` and `llms.txt`. Fix D6. Add Discussions, topics, description, homepage. | A, U |
+| | any | Build the registry package route (`.mcpb` or npm wrapper). | A |
+| | any | Review the accounts (item 14). Start commenting honestly in the subs you will use. | U |
+| **T-2 Sat 11-21** | any | Clean-install proof on a clean machine (item 4). Fix what it finds. | U+A |
+| | any | Publish to the official registry (`mcp-publisher publish`). Add `glama.json`, claim on Glama. Open the awesome-mcp-servers PR. Fill the mcpservers.org form. (`directories.md`.) | U |
+| | any | Final demo and the vertical cut. Rebuild `social-preview.png` and the tokens chart; upload the social preview. | A, U |
+| **T-1 Sun 11-22** | by 12:00 | **Go or no-go.** All gate rows green, or T0 moves a week. | U |
+| | 12:00 to 18:00 | Verify the registry entry (`curl 'https://registry.modelcontextprotocol.io/v0.1/servers?search=phonedriver'`). mcp.so submission. Install from the registry route on a second machine. | U |
+| | 18:00 | Message 5 to 10 mutuals on X who work on agents or mobile: what it is, the repo, "tell me what breaks". No script, no like requests. | U |
+| | 18:30 to 19:00 ET (15:30 to 16:00 PT) | Last checks, then the Show HN goes in at 19:00 ET, which is **00:00 UTC Mon** (next row). | U |
+| **T0 Mon 11-23** | **00:00** (Sun 19:00 ET, 16:00 PT) | **Show HN.** Repo URL, plain title, first comment retyped from `show-hn.md` fact notes. Stay until 02:00. | U |
+| | 02:00 to 08:00 | Sleep if it is night for you. Check the thread once at wake-up. Answer open questions. | U |
+| | **13:30** (08:30 ET, 05:30 PT) | **X launch thread** (`x.md`): hook with the native video, link in the first reply. Reply to everything for 2 hours. Record HN rank and points at each check. | U |
+| | 15:00 | If HN found a real error in a claim, fix the claim in the repo and the post before posting anything else. | U |
+| **T+1 Tue 11-24** | 13:30 | **LinkedIn launch post** (video; link in the first comment). Reply for an hour. | U |
+| | 14:00 | **r/ClaudeAI** post, project flair, the first comment at once. Reply for two hours. | U |
+| | 16:30 | **X follow-up 1**: the 98x chart. | U |
+| **T+2 Wed 11-25** | 14:00 | **r/mcp** post. | U |
+| | 15:00 | **dev.to and Hashnode** copy of blog post 1 (the engineering post), canonical to the site. **YouTube Shorts** upload of the vertical cut. | U |
+| | any | claudemarketplaces.com and mcpmarket.com submissions. | U |
+| **T+3 Thu 11-26** (US Thanksgiving) | 14:00 | **LinkedIn carousel** (`linkedin.md`). Light day: one r/androiddev comment in the showcase thread if the sub allows it. | U |
+| | 16:30 | **X follow-up 2**: the approval guard (with the clip). | U |
+| **T+4 Fri 11-27** | 14:00 | **r/ClaudeCode** post (different angle from r/ClaudeAI). dev.to and Hashnode copy of post 2 (the guard). **TikTok and Reels** upload. | U |
+| **T+5 Sat 11-28** | 16:30 | **X follow-up 3**: the tokens. Quiet day otherwise. Triage issues. | U |
+| **T+6 Sun 11-29** | any | **r/SideProject** (optional). dev.to and Hashnode copy of post 3 (method). | U |
+| | 20:00 | Review the week's numbers. If HN never took off, email hn@ycombinator.com once about the second-chance pool; never repost. | U |
+| **T+7 Mon 11-30** | any | Retro in `progress.md`. If the jobs benchmark is in, publish post 4 and its cross-posts. Decide on Product Hunt for T+14 (`product-hunt.md`). Submit to awesome-claude-code when the repo is 14 days old or has 100 stars. | U |
 
-Why this order:
+HN is first because it is the least tolerant of a weak first hour and the one place that needs you at a fixed time. X goes thirteen and a half hours later, once you know what HN found. LinkedIn and Reddit are a day apart because each needs a free hour of replies, and because Reddit filters the same link posted in several subs the same day. If HN does not take off, the plan continues: X, Reddit, LinkedIn and the registries each stand on their own.
 
-- HN goes first because it has the least tolerance for a weak first hour. A moderator penalty cannot be undone by the author, and the thread is the only place that needs your attention at a fixed time.
-- X is second because its cold-start slot rewards a post that gets likes in its first two hours, and your followers are awake at 13:30. By then you know what HN found and can fix any claim a reader proved wrong.
-- LinkedIn and Reddit are slower and have no fixed window, so they take one day each. This also respects Reddit's spam filters: four different posts, a day apart.
-- Each platform gets its own text. Nothing is cross-posted.
+Rules across channels:
 
-Rules that cut across platforms:
+- Never post, send or tag the HN thread link. Never ask anyone, anywhere, to vote, like, star or retweet. No sock accounts, no coordination, no vote rings, no paid engagement.
+- Each channel gets its own text. Nothing is cross-posted.
+- You write every word that is posted. Hacker News bans generated text; LinkedIn reduces reach for it; Reddit readers punish it.
+- State the same limits everywhere: emulator-only speed numbers, no physical Android measured, iOS needs a Mac with Xcode, the guard reads English labels only, the demo is sped up 10x.
+- Same number, same source, same caveat, everywhere.
+- Do not post to r/opensource or r/programming.
+- Do not post Show HN twice, and do not delete and repost.
 
-- Never post the HN thread link anywhere. Never ask a person to vote or like, on any platform. HN penalizes vote requests, X labels engagement spammers, LinkedIn demotes "comment to agree" prompts, and Reddit filters coordinated voting.
-- Write every post yourself. HN bans generated text, Reddit readers punish it, and LinkedIn reduces reach for it.
-- State the same limits everywhere: no physical Android phone measured, iOS needs a Mac with Xcode, phone-use was not the cheapest in tokens in the one-run benchmark.
-- Use the same numbers everywhere, from the same source, with the same caveat.
-- If HN fails, the plan continues. If HN reveals a false claim, fix it before X posts.
-- If the account for any platform has no history, spend the week before D0 commenting honestly there. HN restricts Show HN for new accounts (`news.ycombinator.com/showlim`). r/LocalLLaMA gates by karma.
+## How to respond in comments
 
-## Name
+| Situation | Do |
+|---|---|
+| A question | Answer within 15 minutes in the first two hours (HN) or the first hour (everywhere else), in your own words, from the fact tables in `show-hn.md`. Hard ones first: security, benchmark fairness, tokens, license. |
+| "It does not work" | Ask for `phonedriver doctor` output, say you will look, open an issue, link it, say when. Fix the install path first; a first-run failure kills more launches than any criticism. |
+| A true criticism | Concede it in the first sentence. "You are right, the speed numbers are emulator only." |
+| A false claim about the tool | One calm reply with the source. Do not argue twice. A long reply chain trips HN's flamewar penalty. |
+| "Is this AI-written?" | Say plainly what is true: coding agents wrote part of the code, you reviewed it, the benchmarks are your own runs, the words in your replies are yours. [USER: your words.] |
+| "Why not mobile-mcp / Appium / adb?" | Fair comparison with the number and its setting; say you did not measure mobile-mcp's speed. |
+| AGPL objection | State what it covers once (distribution or a modified network service) and stop. Do not give legal advice. |
+| Hostile | Do not reply. Report if it breaks the rules. |
+| Praise | Thank once. Ask what they would drive with it. |
+| Someone offers to upvote or share | Decline: "Thanks, but please do not vote on my account. Tell me what you tried instead." |
 
-`phone-use` is taken on npm, and `github.com/phone-use` is an organization you do not control. `sauravtom/phone-use` has the same name (MIT, Android only, 6 stars). Check done 2026-11-06 (`research.md`, "Name availability").
+## What to watch (a sheet, one row per hour for T0, per day after)
 
-Free on crates.io, npm, PyPI and as a GitHub account, with almost no repo of the name:
-
-| Name | Why | Risk |
+| Metric | Where | Why |
 |---|---|---|
-| **tapdiff** | Names the idea: a tap returns a diff. Short, unique, easy to type. Two repos exist with this name, both under 2 stars. | Does not say "phone". |
-| phonewright | Reads as "Playwright for phones" at once. One repo, 0 stars. | The Playwright association invites a trademark or confusion complaint from Microsoft. Low probability, real cost. |
-| diffphone | Says both words. Zero repos. | Awkward to say. |
+| HN points, comments, rank on /shownew and /show, time in the top 30 | news.ycombinator.com | The 2-hour rule: points in the first two hours decide the rest. |
+| GitHub stars per hour | repo, or `gh api repos/hridaya423/phonedriver --jq .stargazers_count` | Stars have a half-life near 24 hours; velocity matters for Trending. |
+| Referring sites and unique visitors | repo Insights, Traffic (14 days of data only: export on T+7) | Which channel makes stars. |
+| Release downloads by asset | `gh api repos/hridaya423/phonedriver/releases` | Installs, not views. |
+| Installer or tap failures, `doctor` outputs in issues | Issues | First-run failures. |
+| X: impressions, replies, link clicks, profile clicks, follows | X analytics | The hook's cold-start slot depends on likes per view in the first 2 hours. |
+| LinkedIn: impressions, dwell proxy (reactions per impression), comments | LinkedIn analytics | |
+| Reddit: score, comments, upvote ratio, removals | each post | A removal in one sub is a signal for the next. |
+| Site visits and the top pages | the host's analytics only if you have one that sends no data to third parties; otherwise skip | The product promises no telemetry; check that the site does not break the promise (`site/` has no scripts). |
+| Registry views and installs, if shown | registry, Glama | The base that persists after the spike. |
+| Issues opened and their types | GitHub | A bug found by strangers is the best outcome you can get. |
 
-**Recommendation: rename to `tapdiff` now, or keep `phone-use` on purpose.** The case for renaming: three of the four lookups for `phone-use` are blocked or crowded, a search for it lands on another project, and the demo is being re-recorded anyway, which is the cheapest moment to change the text in it. The case for keeping it: "phone use" echoes "computer use", and a descriptive name helps the "what is this" test on HN. The drafts use `phone-use` until you decide. A rename touches the crate and binary names, `PHONE_USE_*` environment variables, the MCP server name, the Homebrew tap, the README, and the SVG and PNG assets built by `design/build/build.py`.
-
-## Assets
-
-Paths are under `/Users/hridyaagrawal/Honey/phone-use/.github/assets/` (in the worktree: `.github/assets/`). Create nothing new unless a row says so.
-
-| Asset | Use | State |
-|---|---|---|
-| Re-recorded demo MP4 | Native video on X, LinkedIn and Reddit | [TBD: re-recording in progress]. Confirm length (over 10 s for X), real time, no cuts between tool calls, readable without sound. |
-| `demo.mp4`, `demo.gif` (old clip, 960x660, 32 s) | README | Replace with the re-recorded clip when it exists. |
-| `speed-light.svg`, `speed-dark.svg` | README. For X reply 2, export to PNG. | PNG export needed. Check that the log scale reads at phone size. |
-| `social-preview.png` (1280x640) | GitHub social preview | Exists. Set it in the repository settings. If the name changes, rebuild it. |
-| `banner-*.svg` | README header | Its alt text says "up to 153 times faster than phone-harness". That figure comes from a 1,000-row list with about a dozen rendered rows on a quiet run. Keep it out of the posts. |
-| `tokens-light.png` (`docs/bench/tokens.md` on `main`) | Reply on X, Reddit, HN answer | Exists on `main`. It does not favor phone-use. Use it only to show honest limits. |
-| A terminal screenshot of a tap reply | X, Reddit | Capture from the README sample. Look at it before posting. |
-| A caption overlay copy of the demo | LinkedIn | New copy. Do not overwrite the original. |
-
-## Pre-launch checklist
-
-Each item needs a command or screenshot as proof in `progress.md`, per `AGENTS.md`.
-
-**Repo and release**
-
-- [ ] Name decided (above). If renamed, every asset and the demo rebuilt.
-- [ ] The repo is public at `github.com/hridaya423/<name>`. Creating a remote is a one-way door: ask first.
-- [ ] `LICENSE` is AGPL-3.0-only and `NOTICE` lists scrcpy and the WebDriverAgent headers. D13 has an open item on `openh264` (Cisco's binary or a source build). Close it.
-- [ ] `docs/decisions.md` D6 ("never execute agent-written code") is amended to match D21 (`shell`).
-- [ ] A tagged release has binaries for macOS (arm64, x86_64), Linux (x86_64, arm64) and Windows (x86_64), each with the Android agent. Check the `dist` output and the installers.
-- [ ] `brew install hridaya423/tap/phone-use` works. The tap repository exists.
-- [ ] The README no longer says "nothing is published yet". Its "Tested on" badge matches `docs/bench/`.
-- [ ] A network-silence check for phone-use exists, or the "talks to the device and nothing else" claim is cut.
-
-**Clean-install proof (a machine that has never built the repo)**
-
-- [ ] Run the one-line installer. `phone-use doctor` says ok or gives a fix on every line.
-- [ ] `claude mcp add`, then `claude mcp list` shows Connected.
-- [ ] Boot an emulator or Simulator. Ask "Open Settings and turn on dark mode." Confirm it, with a screenshot.
-- [ ] Repeat the demo prompt. Look at the result.
-- [ ] Time install to first working action. Record it. Ask the user before touching any physical device.
-
-**Numbers (fill each slot or delete the sentence)**
-
-- [ ] [TBD: paired quiet-machine re-run of phone-use against adb, including tap]. The latest tap figure, 33.7 to 35.9 ms p50 (`progress.md` on `main`), is an emulator number and is not paired with adb.
-- [ ] [TBD: token benchmark rerun with the shell tool; mobile-mcp rerun on a local emulator]. Current result: phone-use did not use the fewest tokens.
-- [ ] [TBD: iOS hybrid tier]. On this branch it is "UNFINISHED" and "unproven on device".
-- [ ] [TBD: re-recorded demo]. Update every "real time" claim to match it.
-- [ ] [TBD: local-model result] for r/LocalLLaMA.
-
-**Accounts and posts**
-
-- [ ] HN: account age and karma checked against the Show HN restriction. An email is in the profile.
-- [ ] Reddit: each subreddit's current rules read in a browser. Karma gates met. Flair names copied.
-- [ ] X: mutuals messaged on D-1.
-- [ ] Every post retyped by hand from the structure files. `claims-ledger.md` checked against the launch commit.
-- [ ] D0 calendar: four hours free from 23:30 UTC on D-1 (HN) or the equivalent in your time zone, plus two hours at 13:30 and each later post.
-
-## First two hours on HN (D0, 00:00 to 02:00)
-
-Minute 0: submit the URL and your text together. Open the thread and the repo issues in two tabs. If your text does not show as your comment, post it.
-
-Minutes 0 to 15: confirm the post shows on `/shownew`. Re-run the install line in a clean shell. Do not share the link.
-
-Minutes 15 to 120:
-
-- Answer each question within 15 minutes, in your own words, from the fact table in `show-hn.md`. Hard questions first: security, benchmark fairness, tokens, license.
-- Keep replies short and calm. Many comments per point trips the flamewar penalty.
-- If someone finds a real bug, say so, open an issue, and say when you will look.
-- Concede what is true. State limits before others do.
-- Do not argue about AGPL. State what it covers once.
-- Do not ask for stars or votes.
-
-Minute 120: write down the open questions, bugs and the point count in `progress.md`. Check the thread again in the morning. If it stalls, email hn@ycombinator.com for the second-chance pool. Do not delete and repost.
+Targets, as bands, not promises: 30 stars by T0 end is a healthy HN day; 100 by T+7 needs HN on the front page or two other channels over 40 points. If you are at fewer than 15 stars at T+1 midday, the likely cause is the install path or the first screen, not the channel. Look at the repo as a stranger on a phone, then fix that before posting the next channel.
 
 ## Risks the research found
 
-- Phone-agent Show HNs scored 2 to 7 points; the best scored 53. Plan for a modest result.
-- HN readers check for LLM-written text and AI-built repos. Say it first.
+- Phone-agent Show HNs scored 2 to 7 points in round 2; the best scored 53. Plan for a modest result.
+- HN readers look for LLM-written text and AI-built repos. Say it first, plainly.
 - Show HN may be restricted for a new HN account.
-- r/opensource and r/programming would remove an AI-agent project. Do not post there.
-- The token benchmark does not favor phone-use. Readers will ask. Answer with the numbers.
-- Decision D6 contradicts the shipped `shell` tool until it is amended.
-- The name clashes with an existing project and is taken on npm.
+- r/opensource barred AI-related projects in October 2026; r/programming ran an LLM ban trial. Do not post there.
+- The speed numbers are emulator-only; the tap row is the closest (1.6x to 2.1x), the 98x is for one specific read. Readers will test. The drafts state the setting everywhere.
+- The guard's limits (English labels only; a model set on bypassing it can; `shell` input is not seen; headless `claude -p` has nobody to ask) are written in D27 and the blog post. Readers will find them. Say them first.
+- The demo is sped up 10x and, today, stops at a sign-in page without showing the approval prompt. The re-recording fixes that; do not caption the old clip with the guard.
+- The first-run path is where launches die. Items 3, 4 and 6 are the highest risk.
+- The real-jobs benchmark may show phonedriver losing a job. Publish it either way; a result you hide is a claim you cannot make.
+
+## If it goes wrong
+
+- A real bug surfaces during HN: fix, tag a patch release, say so in the thread.
+- The post is flagged or killed: do not repost. Email hn@ycombinator.com and ask; people can vouch.
+- A claim is wrong: correct it in the repo and in the thread within the hour, and say what you changed.
+- The release binary will not run on someone's machine: the answer is a link to `phonedriver doctor` and an issue, not a defense.
