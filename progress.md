@@ -444,3 +444,19 @@ The pre-existing 8:30 and 9:00 alarms were left alone.
 - Back to back is 45 ms above paced, not 15: its `input` phase is 73 ms against 26 ms paced. That is D14 (the agent waits for the app to handle the event) while the app is still painting the ripples of the adb and phone-harness taps sent just before. D14 left alone.
 - speed.json: `stats.py` over the first pass plus `second-pass`, `tap-pass-3`, `device-pass-3`; only the two tap ops changed. Docs: speed doc tap rows and text, README (two lines), claims ledger row. Not updated, because the site is generated from other sources and another session owns it: `site/build.py`, `site/content/compare/*.md`, `site/content/blog/*`, `docs/launch/*` drafts still quote 175.6 and 61.6.
 - Not done: the first mid-run attempt on 5554 (nohup) died on the daemon start; the first full run (v1 fix, old threshold) gave 195.7/79.1 and was replaced after the ripple finding.
+
+## Launch kit rebuild, round 3 (2026-11-07)
+
+- Changed (docs only, nothing posted or submitted): `docs/launch/` new `research-2026-11.md`, `directories.md`, `product-hunt.md`, `devto-hashnode.md`, `short-video.md`; rewritten `show-hn.md`, `x.md`, `reddit.md`, `linkedin.md`, `plan.md`, `github-metadata.md`; `claims-ledger.md` gained a "Round 3" section. Old `research.md` stays as rounds 1 and 2.
+- Command: web research through two read-only research agents plus direct fetches; frames of `.github/assets/demo.mp4` extracted with ffmpeg and looked at; `hero-social.png`, `social-preview.png`, `tokens-light.png` opened; name and repo checks with curl; title and tweet lengths counted in Python.
+- Found: `social-preview.png` and `tokens-light.png` are stale (old name; the tokens chart does not show the 218,357 against 330,375 sums). The repo `hridaya423/phonedriver` does not exist yet; the code still says `phone-use` while the site says `phonedriver`; `phonedriver.dev` is registered but resolves to nothing. The official MCP registry takes no plain binary (needs `mcpb`, `cargo` or an npm wrapper); Smithery shut down on 2026-10-31. Reddit rule pages were unreadable (403), so subreddit rules are secondhand.
+- Not done: no post, submission, account or commit.
+
+## Real phone jobs benchmark, Phase B (2026-11-07)
+
+- Changed: `docs/bench/jobs.md` (results, failures, non-wins, fixes), `docs/bench/jobs.json` (18 runs per harness, medians, totals), `bench/agent-eval/jobs/summarize.py`, `run-jobs.sh` (`ALLOW_ADB`). Product fixes are in `ca5c56b`, `aa3f4c3`, `66b96f7`, `9e50691`, `126db3e` (see jobs.md).
+- Command: `python3 bench/agent-eval/jobs/summarize.py p4=.. p5=.. h1=.. h2=.. m1=.. m2=.. a1=.. a2=.. > docs/bench/jobs.json`; runs through `run-jobs.sh` on emulator-5558, subscription, `claude-sonnet-5-5`.
+- Result (sum of per-job medians): phone-use 18/18, 977,780 tokens, 466.5 s; mobile-mcp 18/18, 4,892,241 tokens, 910 s; phone-harness 14/18, 1,272,617 tokens, 1,946 s; adb 4/4 on the two mixed jobs, 144,669 tokens.
+- Found: phone-harness cannot read the Contacts screen (uiautomator dump killed, OCR errors), so relay-code is 0/2; two pass-1 runs hit the 600 s limit. phone-use is not cheaper than phone-harness on photos-crop, clock-settings and log-code. One phone-use qa-shop run was scored a fail by rubric v1 and passes under v2 (`success_as_run` keeps the original).
+- Not fixed: Photos editor screens are screenshots; an unlabeled child button in a labeled group needs a point tap; the Messages archive tap answers "no element changed" because the list settles late.
+- Left on the emulator: the seeded Messages contacts and SMS, the installed testbed. The site's blog says wipes use backspaces then select-all; the final fix is Ctrl+A plus paste only.
