@@ -393,3 +393,11 @@ The pre-existing 8:30 and 9:00 alarms were left alone.
 - Wiki run a (discarded) failed because `emulator-5558` dropped off adb two calls in (`device android:emulator-5558 disconnected`), not because of phone-use; the other discarded runs were a dropped SSH tunnel or an emulator whose adb shell hung.
 - Compose test `compose_controls_take_taps_and_text` fails with the old binary too (the field exposes `Empty` as its value and the wipe is refused); not fixed.
 - Tests: `cargo fmt --check` clean; clippy `-D warnings` clean; non-live `cargo test` for phone-use, core, android, ios, video: every result line `0 failed`; live coverage tests above passed on emulator-5558.
+
+## Real phone jobs benchmark, Phase A (2026-11-07)
+
+- Added: `script` step and `expect: {script}` in the bench eval grammar (host command run in the tasks dir with SERIAL, ANSWER_FILE, TRANSCRIPT_FILE, PHONE_USE_BIN; stderr and stdout come back on failure). Test first: `a_script_step_gets_the_device_and_the_run_files_and_its_failure_text_comes_back`, `a_script_expect_and_step_parse`, `the_jobs_sets_have_seven_ui_only_and_two_mixed_tasks_with_a_check_script_each`. `cargo test -p phone-use-bench --release`: 10 passed. `run-harness.sh` now passes the transcript to `check` and absolutizes the out dir.
+- Added: 9 jobs in `bench/agent-eval/tasks.yaml` (sets `jobs` 7, `jobs-mixed` 2), `bench/agent-eval/jobs/jobs.py`, `test_jobs.py` (`python3 -m unittest test_jobs`: 9 tests OK against canned device output).
+- Testbed: tabs `signup`, `shop` (two planted bugs each), `relay`, `relaylog`, `drain` (holds a `jobs:drain` wakelock) in `Buggy.java`; `WAKE_LOCK` permission; `gradlew --offline assembleDebug` built `app-debug.apk`. Not installed anywhere.
+- No device, emulator or adb was touched. Checks are not yet proven against a device; the list of guesses is in `docs/bench/jobs.md`, "Not yet proven".
+- Superseded in this phase: the first draft (contact add, calendar, SMS, dark mode, Chrome fact, cart, clock) was dropped for the UI-only rule; none of it was committed.
