@@ -1,6 +1,6 @@
 """Turns DIR/samples.csv (from run_speed.py) into p50, p95 and bootstrap 95% confidence intervals on the p50 ratios.
 
-  python stats.py DIR [--also DIR2] [--json docs/bench/speed.json] [--md out.md]
+  python stats.py DIR [--also DIR2]... [--json docs/bench/speed.json] [--md out.md]
 
 With --also, the ops in DIR2 replace the same ops in DIR; the replaced rows stay in the tables as "(first pass)".
 
@@ -57,11 +57,11 @@ def main():
     ap.add_argument("dir")
     ap.add_argument("--json")
     ap.add_argument("--md")
-    ap.add_argument("--also")
+    ap.add_argument("--also", action="append", default=[])
     a = ap.parse_args()
     data = load(a.dir)
-    if a.also:
-        for op, tools in load(a.also).items():
+    for also in a.also:
+        for op, tools in load(also).items():
             if op in data:
                 data[op + " (first pass)"] = data[op]
             data[op] = tools

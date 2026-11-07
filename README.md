@@ -145,7 +145,7 @@ Speed is p50 of 50 runs on an Android 17 emulator (API 37). Tokens are the sum o
 Full benchmark: [every op, p95, confidence intervals, raw data](docs/bench/speed-2026-11-07.md). Tokens: [`docs/bench/tokens.md`](docs/bench/tokens.md). Machine-readable: [`speed.json`](docs/bench/speed.json), [`tokens.json`](docs/bench/tokens.json). Side by side: [`docs/compare.md`](docs/compare.md).
 
 > [!NOTE]
-> The bare tap is the closest row. Host to reply, phonedriver takes 175.6 ms when taps come back to back and 61.6 ms when they are 1.5 s apart, against 199.5 and 106.6 ms for adb. Tap misses its 15 ms budget (D14), and typing 100 characters misses its 150 ms budget (251.1 ms). On the iOS 26.5 Simulator, tap is 357 ms against 80 ms, because XCTest takes about 240 ms to confirm the event (D15). On an iPhone 14 Plus and an iPad Pro (M5), tap is 534 and 454 ms. No physical Android phone has been measured in this run. mobile-mcp has no speed figure here, and its token runs failed for an environment reason, so its column says nothing about its design.
+> The bare tap is the closest row. Host to reply, phonedriver takes 117.6 ms when taps come back to back and 72.4 ms when they are 1.5 s apart, against 250.5 and 114.5 ms for adb. Tap misses its 15 ms budget (D14), and typing 100 characters misses its 150 ms budget (251.1 ms). On the iOS 26.5 Simulator, tap is 357 ms against 80 ms, because XCTest takes about 240 ms to confirm the event (D15). On an iPhone 14 Plus and an iPad Pro (M5), tap is 534 and 454 ms. No physical Android phone has been measured in this run. mobile-mcp has no speed figure here, and its token runs failed for an environment reason, so its column says nothing about its design.
 
 ## Supported devices
 
@@ -215,7 +215,7 @@ Add phonedriver to Claude Code as an MCP server with `claude mcp add`, then conn
 
 ### What is the fastest way for an AI agent to control a phone?
 
-phonedriver reads a 1,000-row Android screen in 24.0 ms where `adb` takes 2,352.4 ms, 98x faster at p50 on an emulator. It is 41x faster for a screenshot and 19x faster for typing 100 characters; a tap sent back to back is 1.1x faster. No physical phone is measured yet.
+phonedriver reads a 1,000-row Android screen in 24.0 ms where `adb` takes 2,352.4 ms, 98x faster at p50 on an emulator. It is 41x faster for a screenshot and 19x faster for typing 100 characters; a tap sent back to back is 1.2x faster (lower bound of its interval). No physical phone is measured yet.
 
 ### Does phonedriver work with iPhone?
 
