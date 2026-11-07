@@ -1,6 +1,6 @@
-# phone-use brand
+# phonedriver brand
 
-phone-use is built on the [Sodium](https://design.how/systems/sodium) design system (MIT, Arlan Marat, design.how). Sodium is compact and ruled: white and warm near-black grounds, 1px rules, square corners, one weight, one yellow. The brand takes its tokens, type and line rules from Sodium unchanged and adds a mark, a lockup and image layouts. Where this file and Sodium disagree, Sodium wins.
+phonedriver is built on the [Sodium](https://design.how/systems/sodium) design system (MIT, Arlan Marat, design.how). Sodium is compact and ruled: white and warm near-black grounds, 1px rules, square corners, one weight, one yellow. The brand takes its tokens, type and line rules from Sodium unchanged and adds a mark, a lockup and image layouts. Where this file and Sodium disagree, Sodium wins.
 
 The images are generated. `python3 design/build/build.py` rebuilds the banners, loop, speed chart, brand sheet, logo files and favicons from the tokens in `design/build/sodium.py`; text is converted to outlines with the fonts in `design/build/fonts/`. `design/mark-options.png` shows the three marks that were explored.
 
@@ -14,7 +14,7 @@ The images are generated. `python3 design/build/build.py` rebuilds the banners, 
 | `design/logo/favicon.svg`, `app-icon.svg` | Ink tile with the mark, for favicon, app icon and avatar |
 | `design/logo/png/favicon-16.png`, `-32`, `-180`, `-512` | The tile as PNG; 16 and 32 are pixel-snapped |
 | `.github/assets/banner-light.svg`, `banner-dark.svg` | README banner, 1280 by 400 |
-| `.github/assets/demo.gif` | README demo: a real Claude Code run on the iOS Simulator through the phone-use MCP server. `design/build/demo_record.py` records it (VHS terminal + Simulator video), `design/build/demo_compose.py` composites it |
+| `.github/assets/demo.gif` | README demo: a real Claude Code run on the iOS Simulator through the phonedriver MCP server. `design/build/demo_record.py` records it (VHS terminal + Simulator video), `design/build/demo_compose.py` composites it |
 | `.github/assets/social-preview.png` | GitHub social preview, 1280 by 640 |
 | `.github/assets/loop-*.svg`, `speed-*.svg`, `brand-*.svg` | Loop diagram, speed chart, brand sheet, each light and dark |
 
@@ -31,7 +31,7 @@ A phone frame, 8 units wide and 16 tall on a 16-unit grid, drawn in rule weight.
 
 ## Wordmark and lockup
 
-`phone-use`, lowercase, Inter Display 400, tracking -0.035em, no capitals and no bold. Inter reads as a name; Commit Mono is kept for refs, commands and labels, so the mark never competes with the CLI voice. Wordmark size is 7/8 of the mark's height, its x-height centred on the mark, and the gap from the frame's right edge is 3/8 of the mark's height. Minimum lockup width is 96 px. Name the project in prose as `phone-use`, in code font.
+`phonedriver`, lowercase, Inter Display 400, tracking -0.035em, no capitals and no bold. Inter reads as a name; Commit Mono is kept for refs, commands and labels, so the mark never competes with the CLI voice. Wordmark size is 7/8 of the mark's height, its x-height centred on the mark, and the gap from the frame's right edge is 3/8 of the mark's height. Minimum lockup width is 96 px. Name the project in prose as `phonedriver`, in code font.
 
 ## Colour
 
@@ -53,7 +53,7 @@ Tokens are Sodium's. Use roles, never new hex values.
 | `--ok` | `#2c6a3a` | `#8cc79a` | Success and the new value in a diff |
 | `--data-1` to `--data-5` | `#ffd400`, `#8c7a3c`, `#9a937c`, `#5b4a1a`, `#2e3a4a` | `#ffd400`, `#ebdc9c`, `#8f8a76`, `#8a6d1f`, `#5d7290` | Chart series |
 
-Yellow is `--data-1` for phone-use in charts and `--data-5` for the other series. Yellow on white is 1.4:1, so yellow is never text on light: use `--accent-text`. Yellow appears once per composition, on the thing that was selected. In the banner and the social preview the lockup uses the one-colour mark (solid middle row), so the selected row is the only yellow. The demo GIF follows the same rule: its one yellow is the diff line, and its first frame is the finished state.
+Yellow is `--data-1` for phonedriver in charts and `--data-5` for the other series. Yellow on white is 1.4:1, so yellow is never text on light: use `--accent-text`. Yellow appears once per composition, on the thing that was selected. In the banner and the social preview the lockup uses the one-colour mark (solid middle row), so the selected row is the only yellow. The demo GIF follows the same rule: its one yellow is the diff line, and its first frame is the finished state.
 
 ## Type
 

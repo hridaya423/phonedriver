@@ -129,5 +129,5 @@ def lockup(c, x, y, ms, ink=None, solid=False):
     fs = ms * 0.875
     out = mark(ms, c, x=x - ms * 0.25, y=y, ink=ink, solid=solid)
     xh = INTER.tt["OS/2"].sxHeight / INTER.upem * fs
-    t, w = text("phone-use", x + ms * 0.875, y + ms / 2 + xh / 2, INTER, fs, ink or c["t1"], -0.035)
+    t, w = text("phonedriver", x + ms * 0.875, y + ms / 2 + xh / 2, INTER, fs, ink or c["t1"], -0.035)
     return out + t, ms * 0.875 + w

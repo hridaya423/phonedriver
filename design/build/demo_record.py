@@ -1,11 +1,11 @@
 """Records the README demo: Claude Code's real interactive terminal UI (captured headlessly with VHS) driving an
-Android emulator through the phone-use MCP server, and the emulator's own screen (adb screenrecord, in segments of
-170 s because screenrecord stops at 180 s). The emulator is on another machine. phone-use runs there and the MCP
+Android emulator through the phonedriver MCP server, and the emulator's own screen (adb screenrecord, in segments of
+170 s because screenrecord stops at 180 s). The emulator is on another machine. phonedriver runs there and the MCP
 server is its stdio over ssh, so no adb round trip crosses the network; adb (screenrecord and the pulls) uses an ssh
 forward given as ADB_SERVER_SOCKET. Wall-clock times of both recordings go to times.json.
 Claude Code must run on the subscription: ANTHROPIC_API_KEY has to be unset.
 Claude Code asks once whether to trust the working folder (<out dir>/../cwd): run claude there by hand once first.
-Usage: python3 demo_record.py <adb socket, tcp:127.0.0.1:5038> <serial> <ssh host> <phone-use on that host> <out dir> <prompt file> [run s]"""
+Usage: python3 demo_record.py <adb socket, tcp:127.0.0.1:5038> <serial> <ssh host> <phonedriver on that host> <out dir> <prompt file> [run s]"""
 import json
 import os
 import subprocess
@@ -43,7 +43,7 @@ pu("press", "home")
 pu("release")
 time.sleep(1.5)
 
-(OUT / "mcp.json").write_text(json.dumps({"mcpServers": {"phone-use": {"command": "ssh", "args": ["-T", HOST, f"{BIN} --device {SERIAL} mcp"]}}}))
+(OUT / "mcp.json").write_text(json.dumps({"mcpServers": {"phonedriver": {"command": "ssh", "args": ["-T", HOST, f"{BIN} --device {SERIAL} mcp"]}}}))
 tape = (Path(__file__).parent / "demo.tape").read_text()
 for k, v in {"OUT": str(OUT), "CWD": str(work), "PROMPT": Path(PROMPT_FILE).read_text().strip(), "WAIT": str(WAIT)}.items():
     tape = tape.replace("{{" + k + "}}", v)
