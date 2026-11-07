@@ -67,43 +67,63 @@ impl AdbSource {
     }
 }
 
-#[async_trait]
-impl DeviceSource for AdbSource {
-    async fn list(&self) -> Result<Vec<Listed>, Error> {
-        let mut listed = Vec::new();
-        for d in self
+impl AdbSource {
+    /// `os` is the Android version label, one `getprop` round trip per device the first time it is listed; a caller that
+    /// only needs the ids skips it.
+    async fn listed(&self, with_os: bool) -> Result<Vec<Listed>, Error> {
+        let devices: Vec<AdbDevice> = self
             .devices()
             .await?
             .into_iter()
             .filter(|d| d.state == DeviceState::Device)
-        {
-            let key = (d.serial.clone(), d.transport_id);
-            let known = self
-                .os
-                .lock()
-                .unwrap_or_else(|e| e.into_inner())
-                .get(&key)
-                .cloned();
-            let os = match known {
-                Some(os) => os,
-                None => {
-                    let os = self.adb.os_label(&d.serial).await.ok();
-                    self.os
-                        .lock()
-                        .unwrap_or_else(|e| e.into_inner())
-                        .insert(key, os.clone());
-                    os
-                }
+            .collect();
+        let key = |d: &AdbDevice| (d.serial.clone(), d.transport_id);
+        if with_os {
+            let unknown: Vec<OsKey> = {
+                let known = self.os.lock().unwrap_or_else(|e| e.into_inner());
+                devices
+                    .iter()
+                    .map(key)
+                    .filter(|k| !known.contains_key(k))
+                    .collect()
             };
-            listed.push(Listed {
+            let mut lookups = tokio::task::JoinSet::new();
+            for k in unknown {
+                let adb = self.adb.clone();
+                lookups.spawn(async move {
+                    let os = adb.os_label(&k.0).await.ok();
+                    (k, os)
+                });
+            }
+            while let Some(Ok((k, os))) = lookups.join_next().await {
+                self.os
+                    .lock()
+                    .unwrap_or_else(|e| e.into_inner())
+                    .insert(k, os);
+            }
+        }
+        let known = self.os.lock().unwrap_or_else(|e| e.into_inner());
+        Ok(devices
+            .into_iter()
+            .map(|d| Listed {
+                os: known.get(&key(&d)).cloned().flatten(),
                 id: format!("android:{}", d.serial),
                 model: d.model.unwrap_or_else(|| "unknown".into()),
-                os,
                 tier: "agent".into(),
                 capabilities: Capabilities::all(),
-            });
-        }
-        Ok(listed)
+            })
+            .collect())
+    }
+}
+
+#[async_trait]
+impl DeviceSource for AdbSource {
+    async fn list(&self) -> Result<Vec<Listed>, Error> {
+        self.listed(true).await
+    }
+
+    async fn list_for(&self, requested: Option<&str>) -> Result<Vec<Listed>, Error> {
+        self.listed(requested.is_none()).await
     }
 
     async fn connect(&self, id: &str) -> Result<Arc<dyn Device>, Error> {
