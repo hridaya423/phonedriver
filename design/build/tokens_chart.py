@@ -11,22 +11,29 @@ ROOT = HERE.parent.parent
 ASSETS = ROOT / ".github" / "assets"
 CHROME = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
 HARNESSES = (
-    ("phonedriver before", "d4"),
-    ("phonedriver round 1 (median of 3)", "d1"),
-    ("phonedriver round 2 (median of 2)", "d1"),
     ("phonedriver round 3 (median of 3)", "d1"),
-    ("mobile-mcp", "d2"),
     ("phone-harness (median of 3)", "d5"),
-    ("adb", "d3"),
 )
-LEGEND = (("phonedriver before", "d4"), ("phonedriver rounds 1, 2, 3", "d1"), ("mobile-mcp", "d2"), ("phone-harness", "d5"), ("adb", "d3"))
+LEGEND = (("phonedriver", "d1"), ("phone-harness", "d5"))
+SUM = "Sum of 3 tasks"
 
 
 def mono(s, x, cy, size, fill, tr=0.0, anchor="start", caps=False):
     return text(s, x, cy + 0.35 * size, MONO, size, fill, tr, anchor, caps)
 
 
+def with_sums(rows):
+    names = {h for h, _ in HARNESSES}
+    rows = [r for r in rows if r["harness"] in names]
+    out = list(rows)
+    for h in names:
+        mine = [r for r in rows if r["harness"] == h]
+        out.append({"task": SUM, "harness": h, "total_tokens": sum(r["total_tokens"] for r in mine), "tool_calls": sum(r["tool_calls"] for r in mine), "success": all(r["success"] for r in mine)})
+    return out
+
+
 def chart(tn, rows):
+    rows = with_sums(rows)
     c = THEMES[tn]
     tasks = []
     for r in rows:
@@ -40,7 +47,7 @@ def chart(tn, rows):
     H = fh + 48
     b = frame(fx, fy, fw, fh, c["line"], c["page"])
     b += rect(fx + 1, fy + 1, fw - 2, 45, c["panel"]) + rect(fx + 1, fy + 46, fw - 2, 1, c["line"])
-    t, _ = mono("Tokens per task", fx + 14, fy + 24, 18, c["t1"])
+    t, _ = mono("Tokens per task, round 3", fx + 14, fy + 24, 18, c["t1"])
     b += t
     rx = fx + fw - 14
     for name, col in reversed(LEGEND):
@@ -82,12 +89,12 @@ def chart(tn, rows):
             b += rect(x0, by, x1 - x0, 20, c[col])
             if name.startswith("phonedriver"):
                 b += frame(x0, by, x1 - x0, 20, c["edge"])
-            label = f"{round(r['total_tokens']):,}  {round(r['tool_calls'])} calls"
+            label = f"{int(r['total_tokens'] + 0.5):,}  {int(r['tool_calls'] + 0.5)} calls"
             if not r["success"]:
                 label += "  failed"
             t, _ = mono(label, x1 + 10, by + 10, 15, c["t1"] if r["success"] else c["fail"])
             b += t
-    return svg(W, H, b, "Tokens per task for phone-control harnesses, claude-sonnet-5-5, medians of three runs (phonedriver round 2: two runs; round 3 alarm-gym: two runs); before, mobile-mcp and adb one run", c["page"])
+    return svg(W, H, b, "Tokens per task and in sum, phonedriver round 3 against phone-harness, claude-sonnet-5-5, medians of three runs: 218,357 tokens against 330,375", c["page"])
 
 
 def shot(svgp, pngp, w, h):

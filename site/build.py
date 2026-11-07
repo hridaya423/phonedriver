@@ -381,13 +381,23 @@ def build_benchmarks():
     shutil.copy(ROOT / "docs/bench/data/speed-2026-11-07/samples.csv", OUT / "benchmarks/data/speed-samples.csv")
     shutil.copy(ROOT / "docs/bench/data/speed-2026-11-07/second-pass/samples.csv", OUT / "benchmarks/data/speed-samples-second-pass.csv")
     shutil.copy(ROOT / "docs/bench/data/speed-2026-11-07/meta.json", OUT / "benchmarks/data/speed-meta.json")
+    jobs_data = json.loads((ROOT / "docs/bench/jobs.json").read_text())
+    jmed = {(m["harness"], m["task"]): m for m in jobs_data["medians"]}
+    jtot = jobs_data["totals"]
     jobs_rows = ""
     for j in D.JOBS:
-        jobs_rows += "<tr><th scope=\"row\">%s</th><td>%s</td><td>%s</td><td class=\"slot\">[RESULTS]</td></tr>" % (esc(j[0]), esc(j[1]), esc(j[2]))
+        task = j[0].split(" ")[0]
+        cells = []
+        for h in ("phonedriver", "mobile-mcp", "phone-harness", "adb"):
+            m = jmed.get((h, task))
+            if m:
+                cells.append("%s %d/%d, %s tokens, %s s" % (h, m["passed"], m["runs"], f"{m['median_tokens']:,.0f}", f"{m['median_wall_s']:g}"))
+        jobs_rows += '<tr><th scope="row">%s</th><td>%s</td><td>%s</td><td>%s</td></tr>' % (esc(j[0]), esc(j[1]), esc(j[2]), "<br>".join(esc(c) for c in cells))
+    jobs_tot = "; ".join("%s %d/%d runs, %s tokens" % (h, jtot[h]["passed"], jtot[h]["runs"], f"{jtot[h]['sum_median_tokens']:,.0f}") for h in ("phonedriver", "mobile-mcp", "phone-harness", "adb"))
     body = f"""<div class="wrap"><article class="prose col wide">
 <p class="lab">@e0 BENCHMARKS</p>
 <h1>phonedriver benchmarks: speed, tokens and real phone jobs</h1>
-<p class="lede">phonedriver reads a 1,000-row list in 24.0 ms where adb takes 2,352.4 ms: 98 times faster at p50 (95% CI on the ratio 92.2 to 106.0). The rest of this page is every operation we timed, what the agent spent in tokens, and the part we have not run yet.</p>
+<p class="lede">phonedriver reads a 1,000-row list in 24.0 ms where adb takes 2,352.4 ms: 98 times faster at p50 (95% CI on the ratio 92.2 to 106.0). The rest of this page is every operation we timed, what the agent spent in tokens, and nine real phone jobs.</p>
 <ul class="toc2"><li><a href="#speed">Speed: every operation</a></li><li><a href="#tokens">Tokens: agent runs</a></li><li><a href="#jobs">Real phone jobs</a></li><li><a href="#data">Raw data</a></li></ul>
 
 <h2 id="speed">Speed against adb and phone-harness</h2>
@@ -415,8 +425,9 @@ def build_benchmarks():
 <p>The fixed cost per turn is also measured: the first turn of a one-word <code>claude -p</code> costs 5,606 tokens with phonedriver's 14 MCP tools and 5,214 with phone-harness. <a href="{raw('docs/bench/tokens.md')}">All three rounds, the fixes between them and the caveats</a>.</p>
 
 <h2 id="jobs">Real phone jobs</h2>
-<p>Nine jobs only a phone can do: the result cannot be produced by adb, <code>am</code>, <code>cmd</code>, <code>settings</code>, <code>content</code> or a web search. Each is checked from device state by a script, not by the agent's say-so. The checks are built and proven by hand on an emulator. <strong>Agent runs have not finished.</strong> The results column fills in when they do.</p>
-<div class="tw"><table><thead><tr><th scope="col">Job</th><th scope="col">What the agent is asked</th><th scope="col">Why adb or the web cannot do it</th><th scope="col">phonedriver, mobile-mcp, phone-harness</th></tr></thead><tbody>{jobs_rows}</tbody></table></div>
+<p>Nine jobs only a phone can do: the result cannot be produced by adb, <code>am</code>, <code>cmd</code>, <code>settings</code>, <code>content</code> or a web search. Each is checked from device state by a script, not by the agent's say-so. Each harness ran each job twice on a tablet emulator (Claude Sonnet 5.5). Totals are sums of per-job medians: {jobs_tot}. adb ran only the two mixed jobs.</p>
+<p>Where phonedriver does not win: phone-harness is cheaper on photos-crop, clock-settings and log-code; mobile-mcp is 0.5 s faster on wakelock-restrict; and phonedriver's 23% token lead over phone-harness comes mostly from phone-harness's failed runs (14 of 18 passed). <a href="{raw('docs/bench/jobs.md')}">What each harness failed at</a>.</p>
+<div class="tw"><table><thead><tr><th scope="col">Job</th><th scope="col">What the agent is asked</th><th scope="col">Why adb or the web cannot do it</th><th scope="col">Result: passes, median tokens, median wall time</th></tr></thead><tbody>{jobs_rows}</tbody></table></div>
 <p>Method: <a href="/blog/benchmarking-ai-agents-on-jobs-only-a-phone-can-do/">Benchmarking AI agents on jobs only a phone can do</a>. Comparison write-up: <a href="/blog/phonedriver-vs-mobile-mcp-vs-phone-harness-vs-adb-real-phone-jobs/">phonedriver vs mobile-mcp vs phone-harness vs adb on real phone jobs</a>.</p>
 
 <h2 id="data">Raw data and reproduction</h2>
@@ -450,7 +461,7 @@ def benchmarks_md():
     s = "# phonedriver benchmarks\n\nSpeed, p50 and p95 in ms, Android 17 emulator, 50 runs after 20 warm-ups, tools interleaved on one host.\n\n| Operation | phonedriver p50 | p95 | adb p50 | p95 | phone-harness p50 | p95 | adb / phonedriver (95% CI) |\n|---|---|---|---|---|---|---|---|\n"
     for o in d["ops"]:
         s += "| %s | %s | %s | %s | %s | %s | %s | %s (%s to %s) |\n" % (o["label"], fmt(o["phonedriver"]), fmt(o["phonedriver_p95"]), fmt(o["adb"]), fmt(o["adb_p95"]), fmt(o["phone_harness"]), fmt(o.get("phone_harness_p95")), ratio(o["adb"] / o["phonedriver"]), fmt(o["adb_ratio_ci"][0]), fmt(o["adb_ratio_ci"][1]))
-    s += "\nTokens (Claude Sonnet 5.5, medians of 2 to 3 runs): sum over three tasks 218,357 for phonedriver and 330,375 for phone-harness (34% fewer). mobile-mcp failed every run for an environment reason and is not compared.\n\nReal phone jobs: nine jobs checked from device state; agent runs are not finished and results are pending.\n"
+    s += "\nTokens (Claude Sonnet 5.5, medians of 2 to 3 runs): sum over three tasks 218,357 for phonedriver and 330,375 for phone-harness (34% fewer). mobile-mcp failed every run for an environment reason and is not compared.\n\nReal phone jobs (nine jobs checked from device state, two runs each, sums of per-job medians): phonedriver 18/18 passed, 977,780 tokens, 466.5 s; mobile-mcp 18/18, 4,892,241 tokens, 910 s; phone-harness 14/18, 1,272,617 tokens, 1,946 s; adb 4/4 on the 2 mixed jobs. phone-harness is cheaper on photos-crop, clock-settings and log-code, mobile-mcp is 0.5 s faster on wakelock-restrict, and the 23% token lead over phone-harness comes mostly from its failed runs.\n"
     return s
 
 
@@ -595,7 +606,7 @@ def build_extras(posts):
     for s in DOCS:
         m = read_md(HERE / "content" / "docs" / (s + ".md"))[0]
         L.append("- [%s](%s/docs/%s/): %s" % (m["title"], SITE_URL, s, m["description"]))
-    L += ["", "## Benchmarks", "", "- [Benchmarks](%s/benchmarks/): speed against adb and phone-harness with p50, p95 and confidence intervals; agent token counts; real phone jobs (pending)" % SITE_URL,
+    L += ["", "## Benchmarks", "", "- [Benchmarks](%s/benchmarks/): speed against adb and phone-harness with p50, p95 and confidence intervals; agent token counts; real phone jobs (18 of 18 for phonedriver and mobile-mcp, 14 of 18 for phone-harness)" % SITE_URL,
           "- [Raw speed samples](%s/benchmarks/data/speed-samples.csv)" % SITE_URL, "", "## Comparisons", ""]
     for s, label in COMPARE:
         m = read_md(HERE / "content" / "compare" / (s + ".md"))[0]

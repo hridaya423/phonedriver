@@ -2,17 +2,17 @@
 title: "phonedriver vs mobile-mcp vs phone-harness vs adb: benchmarked on real phone jobs"
 seo: phonedriver vs mobile-mcp vs phone-harness vs adb on real phone jobs
 short: Benchmarked on real phone jobs
-meta: The method and result slots for a benchmark of phonedriver, mobile-mcp, phone-harness and adb on nine jobs only a phone can do. Results pending.
-description: The method and the slots for results of a benchmark that gives Claude nine jobs only a phone can do, with phonedriver, mobile-mcp, phone-harness and adb. Results are marked pending where the runs have not finished.
+meta: The method and results of a benchmark of phonedriver, mobile-mcp, phone-harness and adb on nine jobs only a phone can do. Results in.
+description: The method and results of a benchmark that gives Claude nine jobs only a phone can do, with phonedriver, mobile-mcp, phone-harness and adb. Every harness ran each job twice.
 date: 2026-11-07
 label: BENCHMARK
 short_card: phonedriver vs mobile-mcp vs phone-harness vs adb on real phone jobs
-card_sub: Nine jobs, independent checks, every result sourced. Results pending.
+card_sub: Nine jobs, independent checks, every result sourced. 18 of 18 for phonedriver and mobile-mcp, 14 of 18 for phone-harness.
 ---
 
-> **Status: the checks are built and proven, the agent runs are not finished.** Every number below that is a measurement comes from a finished run. Cells marked [RESULTS] are empty on purpose, and this post is updated in place when they fill. Nothing here is a projection.
+> **Status: finished.** Each harness ran each job twice on a tablet emulator. Every number below that is a measurement is the median of those two runs, and the raw runs are in the repository. Nothing here is a projection.
 
-Speed benchmarks tell you how fast a tool reads a screen. They do not tell you whether an agent finishes a job with it. For that you need jobs, a model, and a check that does not trust the model's word. This post is the comparison we are running, with its method written down before the results exist so that the results cannot shape it.
+Speed benchmarks tell you how fast a tool reads a screen. They do not tell you whether an agent finishes a job with it. For that you need jobs, a model, and a check that does not trust the model's word. This post is the comparison we ran, with its method written down before the results existed so that the results could not shape it.
 
 ## What is being compared
 
@@ -41,27 +41,43 @@ For every run we record whether it passed, tool calls, total tokens (input, outp
 
 ## Results
 
-Pass counts and median total tokens, per job and harness. The two mixed jobs have an adb column.
+Pass counts and medians (total tokens, tool calls, wall time) per job and harness. The two mixed jobs have an adb column.
 
 | Job | phonedriver | mobile-mcp | phone-harness | adb |
 |---|---|---|---|---|
-| qa-signup | [RESULTS] | [RESULTS] | [RESULTS] | not applicable |
-| qa-shop | [RESULTS] | [RESULTS] | [RESULTS] | not applicable |
-| relay-code | [RESULTS] | [RESULTS] | [RESULTS] | not applicable |
-| chrome-prefs | [RESULTS] | [RESULTS] | [RESULTS] | not applicable |
-| clock-settings | [RESULTS] | [RESULTS] | [RESULTS] | not applicable |
-| messages-pin-archive | [RESULTS] | [RESULTS] | [RESULTS] | not applicable |
-| photos-crop | [RESULTS] | [RESULTS] | [RESULTS] | not applicable |
-| wakelock-restrict (mixed) | [RESULTS] | [RESULTS] | [RESULTS] | [RESULTS] |
-| log-code (mixed) | [RESULTS] | [RESULTS] | [RESULTS] | [RESULTS] |
-| Jobs passed, of 9 | [RESULTS] | [RESULTS] | [RESULTS] | [RESULTS] |
+| qa-signup | 2/2, 181,518 tokens, 27 calls, 80 s | 2/2, 514,062 tokens, 39.5 calls, 110 s | 1/2, 246,327 tokens, 14.5 calls, 459 s | not applicable |
+| qa-shop | 2/2, 138,557 tokens, 18 calls, 65 s | 2/2, 476,136 tokens, 31.5 calls, 85.5 s | 1/2, 338,406 tokens, 13 calls, 392.5 s | not applicable |
+| relay-code | 2/2, 69,994 tokens, 9 calls, 38 s | 2/2, 611,976 tokens, 35.5 calls, 122 s | 0/2, 147,436 tokens, 14 calls, 280 s | not applicable |
+| chrome-prefs | 2/2, 104,302 tokens, 13.5 calls, 60.5 s | 2/2, 595,815 tokens, 33.5 calls, 179.5 s | 2/2, 193,370 tokens, 19 calls, 250.5 s | not applicable |
+| clock-settings | 2/2, 95,116 tokens, 13.5 calls, 48 s | 2/2, 843,472 tokens, 41.5 calls, 112.5 s | 2/2, 76,850 tokens, 8.5 calls, 162 s | not applicable |
+| messages-pin-archive | 2/2, 47,090 tokens, 6 calls, 30 s | 2/2, 497,776 tokens, 24.5 calls, 56.5 s | 2/2, 45,825 tokens, 5 calls, 57.5 s | not applicable |
+| photos-crop | 2/2, 220,836 tokens, 20.5 calls, 78 s | 2/2, 1,071,665 tokens, 47 calls, 112 s | 2/2, 103,776 tokens, 12 calls, 237.5 s | not applicable |
+| wakelock-restrict (mixed) | 2/2, 60,896 tokens, 8 calls, 29 s | 2/2, 152,188 tokens, 9 calls, 28.5 s | 2/2, 79,878 tokens, 9.5 calls, 65.5 s | 2/2, 78,510 tokens, 10 calls, 49 s |
+| log-code (mixed) | 2/2, 59,470 tokens, 8 calls, 38 s | 2/2, 129,150 tokens, 8.5 calls, 103.5 s | 2/2, 40,748 tokens, 5.5 calls, 41.5 s | 2/2, 66,158 tokens, 7.5 calls, 45.5 s |
+| Total (sum of per-job medians) | 18/18 runs, 977,780 tokens, 123.5 calls, 466.5 s | 18/18 runs, 4,892,241 tokens, 270.5 calls, 910 s | 14/18 runs, 1,272,617 tokens, 101 calls, 1946 s | 4/4 runs, 144,669 tokens, 17.5 calls, 94.5 s (2 mixed jobs only) |
 
-Wall time, tool calls and the written reason for each failure: [RESULTS].
+Each cell is passes out of 2, then the median of the two runs. The total adds the per-job medians, so phonedriver's 123.5 calls is a sum of medians and not a count of calls in any one run.
+
+### Where phonedriver does not win
+
+- **phone-harness is cheaper on three jobs.** photos-crop is 104k tokens against phonedriver's 221k, clock-settings 77k against 95k, and log-code 41k against 59k. messages-pin-archive is about equal (46k against 47k). phonedriver is cheaper on chrome-prefs (104k against 193k) and the rest.
+- **The 23% token lead over phone-harness (977,780 against 1,272,617) comes mostly from phone-harness's failed runs.** They spent tokens and finished nothing: two runs hit the 10-minute limit at 265k and 623k tokens. On the jobs phone-harness completed, it is often the cheaper one.
+- **mobile-mcp is 0.5 s faster on wakelock-restrict** (28.5 s against 29 s). phonedriver has the lowest median wall time on the other 8 jobs.
+- **A shell does not need us for the mixed jobs.** adb passed 4 of 4 on log-code and wakelock-restrict, in 45.5 s and 49 s against phonedriver's 38 s and 29 s, using 66k and 79k tokens against 59k and 61k.
+
+### What each harness failed at
+
+- **phone-harness, relay-code, 0 of 2.** It reads screens through uiautomator dumps, and the dump fails with "could not get idle state" on the Contacts list, so it could not see the Contacts app. One run gave up after 17 calls and the other after 11, asking the user whether to tap blind. The contact was never created.
+- **phone-harness, qa-signup and qa-shop, 1 of 2 each.** The first pass of each hit the 10-minute limit (601 s with 7 calls; 607 s with 20 calls). The second passed (317 s with 22 calls; 178 s with 6 calls). We did not diagnose why the first passes stalled beyond the wall time.
+- **mobile-mcp passed all 18 runs** but spent 4.9M tokens, 5 times phonedriver's, because every action returns a screenshot or an element list. photos-crop (1.07M) and clock-settings (843k) are the worst. It ran against a private adb server on the same machine, so the tunnel problem from the earlier token benchmark did not apply.
+- **phonedriver passed all 18.** One run was first scored a failure, a correct report with a "Bug 3: not a bug" heading, and passes under the second version of the rubric, which reads headings and sections as well as sentences. The original verdict is kept in `success_as_run` in the raw data.
+
+Raw runs, medians and totals: [`docs/bench/jobs.json`](https://github.com/hridaya423/phonedriver/blob/main/docs/bench/jobs.json) and the write-up in `docs/bench/jobs.md`. Setup: `claude -p` on a subscription, Claude Sonnet 5.5, a 2560x1600 tablet emulator.
 
 ## Known biases, stated now
 
-- **We are the author of one contestant.** phonedriver runs first, on its own, and a failure caused by a bug in phonedriver gets fixed before the next round. We have already fixed some: a dismissed approval prompt is not an answer, a field that refuses `set_text` is wiped with backspaces and then with select-all and paste, a formatted phone number now verifies, and the tool description now says that tools go one at a time. The other harnesses get no such rounds from us. When their failures look like setup problems rather than product limits, we will say which, and we will rerun them on a better setup before we publish a loss that is ours.
-- **mobile-mcp has not yet had a fair run.** In our earlier token benchmark it failed every run for an environment reason on a tunnelled emulator, so that table is not a comparison. The jobs run needs a local emulator or phone for it.
+- **We are the author of one contestant.** phonedriver runs first, on its own, and a failure caused by a bug in phonedriver gets fixed before the next round. We have already fixed some: a dismissed approval prompt is not an answer, a field that refuses `set_text` is selected with Ctrl+A and pasted over, a formatted phone number now verifies, and the tool description now says that tools go one at a time. The other harnesses get no such rounds from us. When their failures look like setup problems rather than product limits, we will say which, and we will rerun them on a better setup before we publish a loss that is ours.
+- **mobile-mcp needed a different setup.** In our earlier token benchmark it failed every run for an environment reason on a tunnelled emulator. Here it ran through a private adb server and passed all 18 runs, so its earlier numbers are not comparable.
 - **Small samples.** Two passes per cell give a median of two. That is a description of what happened, not a rate.
 - **One model, one device.** Claude Sonnet 5.5 on a tablet emulator. No physical phone.
 - **Chrome and Messages change.** The jobs depend on app versions in the emulator image. The image is recorded with the results.
