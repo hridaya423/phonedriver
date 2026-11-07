@@ -7,6 +7,7 @@ pub mod actor;
 #[cfg(feature = "android")]
 pub mod android;
 pub mod guard;
+pub mod checkbox;
 pub mod ios;
 pub mod progress;
 pub mod rpc;

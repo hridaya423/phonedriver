@@ -41,6 +41,9 @@ pub async fn install(adb: &Adb, serial: &str) {
         "{}",
         out.stdout_text()
     );
+    adb.shell(serial, "am force-stop dev.phoneuse.testbed")
+        .await
+        .unwrap();
 }
 
 pub async fn clear_log(adb: &Adb, serial: &str) {
