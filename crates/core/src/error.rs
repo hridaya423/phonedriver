@@ -9,6 +9,8 @@ pub type SessionName = String;
 /// A rendered element line, such as `@e9 button "Network & internet"`.
 pub type ElementLine = String;
 
+pub const REFUSED_SET_TEXT: &str = "this field refuses set_text";
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct DeviceSummary {
     pub id: DeviceId,

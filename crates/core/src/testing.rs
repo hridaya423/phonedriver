@@ -43,6 +43,7 @@ pub struct FakeDevice {
     events: broadcast::Sender<DeviceEvent>,
     frames: watch::Sender<FrameRef>,
     shell: Mutex<ShellReply>,
+    refuse_set_text: std::sync::atomic::AtomicBool,
 }
 
 impl FakeDevice {
@@ -73,6 +74,7 @@ impl FakeDevice {
             events: broadcast::channel(64).0,
             frames: watch::channel(FrameRef::default()).0,
             shell: Mutex::new(ShellReply::default()),
+            refuse_set_text: Default::default(),
         }
     }
 
@@ -102,6 +104,12 @@ impl FakeDevice {
     /// What `shell()` answers from now on.
     pub fn answer_shell(&self, reply: ShellReply) {
         *lock(&self.shell) = reply;
+    }
+
+    /// From now on `text(SetValue)` fails the way a field that does not accept `ACTION_SET_TEXT` does.
+    pub fn refuse_set_text(&self) {
+        self.refuse_set_text
+            .store(true, std::sync::atomic::Ordering::SeqCst);
     }
 
     pub fn set_screen(&self, state: ScreenState) {
@@ -193,7 +201,18 @@ impl Device for FakeDevice {
     }
 
     async fn text(&self, t: TextInput) -> Result<()> {
-        self.record(Call::Text(t))
+        let refused = matches!(t, TextInput::SetValue(_))
+            && self
+                .refuse_set_text
+                .load(std::sync::atomic::Ordering::SeqCst);
+        self.record(Call::Text(t))?;
+        if refused {
+            return Err(crate::error::Error::Unsupported {
+                op: crate::error::Op::Text,
+                reason: crate::error::REFUSED_SET_TEXT,
+            });
+        }
+        Ok(())
     }
 
     async fn clipboard(&self, op: ClipboardOp) -> Result<Option<String>> {

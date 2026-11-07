@@ -13,7 +13,7 @@ use phone_use_core::device::{
 };
 use phone_use_core::diff::{Change, DiffOrFull, diff};
 use phone_use_core::element::{Actions, Element, ElementState, Ref, Role, Source};
-use phone_use_core::error::{Direction, Error, Op, ScrollEnd, UserAction};
+use phone_use_core::error::{Direction, Error, Op, REFUSED_SET_TEXT, ScrollEnd, UserAction};
 use phone_use_core::geometry::{Point, Rect, Size};
 use phone_use_core::gesture;
 use phone_use_core::ocr::{merge, tree_is_hollow};
@@ -1736,15 +1736,21 @@ impl Actor {
                     }
                 }
                 if let Some(held) = held.filter(|_| wipe) {
-                    let emptied = if can_set {
-                        TextInput::SetValue(String::new())
+                    let backspaces = TextInput::Keystrokes("\u{8}".repeat(held.chars().count()));
+                    let wiped = if can_set {
+                        device.text(TextInput::SetValue(String::new())).await
                     } else {
-                        TextInput::Keystrokes("\u{8}".repeat(held.chars().count()))
+                        device.text(backspaces.clone()).await
                     };
-                    device
-                        .text(emptied)
-                        .await
-                        .map_err(|e| withhold(e, secure))?;
+                    match wiped {
+                        Err(Error::Unsupported { reason, .. }) if reason == REFUSED_SET_TEXT => {
+                            device
+                                .text(backspaces)
+                                .await
+                                .map_err(|e| withhold(e, secure))?;
+                        }
+                        other => other.map_err(|e| withhold(e, secure))?,
+                    }
                 }
                 let input = match (mode, secure) {
                     (TypeMode::Paste, true) => TextInput::PasteSecret(text.clone()),

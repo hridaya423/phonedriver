@@ -359,15 +359,31 @@ async fn allow_for_this_session_asks_once(v: ProtocolVersion) {
     assert_eq!(m.asked.lock().unwrap().len(), 1);
 }
 
-async fn declining_or_cancelling_taps_nothing_and_says_the_human_declined(v: ProtocolVersion) {
-    for action in [ElicitationAction::Decline, ElicitationAction::Cancel] {
-        let m = mcp(Some((action, None)), v.clone()).await;
-        let r = m.tap(json!({"target": "Place order"})).await;
-        assert_ne!(r.is_error, Some(true), "{r:?}");
-        assert!(text(&r).contains("The human declined"), "{}", text(&r));
-        assert!(text(&r).contains(PLACE_ORDER));
-        assert_eq!(m.rig.gestures(), 0);
-    }
+async fn declining_taps_nothing_and_says_the_human_declined(v: ProtocolVersion) {
+    let m = mcp(Some((ElicitationAction::Decline, None)), v).await;
+    let r = m.tap(json!({"target": "Place order"})).await;
+    assert_ne!(r.is_error, Some(true), "{r:?}");
+    assert!(text(&r).contains("The human declined"), "{}", text(&r));
+    assert!(text(&r).contains(PLACE_ORDER));
+    assert!(!text(&r).contains("autonomous"), "{}", text(&r));
+    assert_eq!(m.rig.gestures(), 0);
+}
+
+async fn a_dismissed_prompt_is_no_answer_and_names_the_way_forward(v: ProtocolVersion) {
+    let m = mcp(Some((ElicitationAction::Cancel, None)), v).await;
+    let r = m.tap(json!({"target": "Place order"})).await;
+    assert_ne!(r.is_error, Some(true), "{r:?}");
+    let t = text(&r);
+    assert!(!t.contains("The human declined"), "{t}");
+    assert!(
+        t.contains("Needs the human's approval; nothing was tapped") && t.contains(PLACE_ORDER),
+        "{t}"
+    );
+    assert!(
+        t.contains("no answer") && t.contains("autonomous: true"),
+        "{t}"
+    );
+    assert_eq!(m.rig.gestures(), 0);
 }
 
 async fn a_client_that_cannot_ask_gets_the_question_and_nothing_is_tapped(v: ProtocolVersion) {
@@ -423,7 +439,8 @@ macro_rules! on_both_protocols {
 on_both_protocols!(
     the_human_allows_and_the_tap_runs_inside_the_same_call,
     allow_for_this_session_asks_once,
-    declining_or_cancelling_taps_nothing_and_says_the_human_declined,
+    declining_taps_nothing_and_says_the_human_declined,
+    a_dismissed_prompt_is_no_answer_and_names_the_way_forward,
     a_client_that_cannot_ask_gets_the_question_and_nothing_is_tapped,
     autonomous_never_asks
 );
