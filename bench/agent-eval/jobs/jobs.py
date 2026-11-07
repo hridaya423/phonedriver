@@ -5,7 +5,7 @@ Usage: jobs.py seed|check|clean <task>; jobs.py purge messages-pin-archive remov
 Env: SERIAL (adb serial), EMU_ADB (optional command that reaches the emulator console, for example `ssh win-ts /d/Android/Sdk/platform-tools/adb.exe`; the local adb client cannot reach a tunnelled emulator's console), ADB_SERVER_SOCKET (inherited), ANSWER_FILE and TRANSCRIPT_FILE (check only).
 A check reads device state (private app state as root, content providers, dumpsys, appops, MediaStore, the
 testbed event log) and, for the bug-report jobs, matches the agent's report against the planted-bug list in
-BUGS (a bug counts as found when one line or sentence of the report matches every regex of its list, case-insensitive). Exit 0 is a pass; each failure reason is printed on its own line and the exit code is 1.
+BUGS (a bug counts as found when one sentence, or one section that starts at a heading or a bold line, matches every regex of its list, case-insensitive). Exit 0 is a pass; each failure reason is printed on its own line and the exit code is 1.
 """
 
 import json
@@ -39,7 +39,7 @@ BUGS = {
         ],
         "create-button-dead-after-an-error": [
             r"create|button|submit|sign.?up|tap",
-            r"nothing|no (response|effect|reaction|feedback)|ignor|unrespons|not respond|doesn.t (work|respond)",
+            r"nothing|no (response|effect|reaction|feedback|change)|ignor|unrespons|not (respond|register)|doesn.t (work|respond|register)|did ?n.t register|stayed|still (show|display)",
             r"second|2nd|again|retry|resubmit|after|re-?tap|follow",
         ],
     },
@@ -147,10 +147,20 @@ def log_events():
     return out
 
 
+SECTION = re.compile(r"^\s*(?:#{1,4}\s|\*\*|\d+[.)]\s+\*\*|Bug\s*\d)", re.I | re.M)
+
+
+def chunks(report):
+    sentences = [c for c in re.split(r"(?<=[.!?;])\s+|\n", report) if c.strip()]
+    starts = [m.start() for m in SECTION.finditer(report)] + [len(report)]
+    sections = [report[a:b] for a, b in zip(starts, starts[1:]) if report[a:b].strip()]
+    return sentences + sections
+
+
 def found_bugs(report, bugs):
-    chunks = [c for c in re.split(r"(?<=[.!?;])\s+|\n", report) if c.strip()]
+    parts = chunks(report)
     return {
-        name: any(all(re.search(p, c, re.I) for p in pats) for c in chunks)
+        name: any(all(re.search(p, c, re.I) for p in pats) for c in parts)
         for name, pats in bugs.items()
     }
 

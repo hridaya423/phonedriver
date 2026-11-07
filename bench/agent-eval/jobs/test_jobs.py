@@ -34,9 +34,22 @@ class Rubric(unittest.TestCase):
         self.assertEqual(sorted(k for k, v in got.items() if v), ["welcome-drops-last-char-of-email"])
         self.assertFalse(any(jobs.found_bugs("All good, no problems, total is right, promo works.", jobs.BUGS["qa-shop"]).values()))
         self.assertFalse(jobs.has_steps("it is broken"))
+        hedged = "**Possible bug: the first submit after ticking the box may not register**\n1. Tick the box.\n- Actual: the message stayed. A second tap produced the welcome."
+        self.assertTrue(jobs.found_bugs(hedged, jobs.BUGS["qa-signup"])["create-button-dead-after-an-error"])
 
 
 class Checks(unittest.TestCase):
+    def test_a_bug_described_over_several_lines_under_one_heading_is_found(self):
+        report = (
+            "**Bug 2: Total does not update when quantity changes**\n"
+            "1. Tap Decrease quantity once.\n"
+            "- Actual: Total stays at $38.00.\n"
+            "\n**Bug 3: Quantity floor is fine**\nWorks as expected.\n"
+        )
+        got = jobs.found_bugs(report, jobs.BUGS["qa-shop"])
+        self.assertTrue(got["total-stale-after-decrease"])
+        self.assertFalse(got["save10-takes-a-flat-10-off"])
+
     def test_a_decimal_point_does_not_split_a_sentence_of_the_report(self):
         got = jobs.found_bugs(
             "Quantity 3 to 2: the total stays $36.00 and is not updated after Decrease.",
