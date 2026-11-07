@@ -1,6 +1,6 @@
 # LinkedIn plan (round 3)
 
-Nothing here is posted. LinkedIn builds classifiers for generic AI text and reduces its reach (Entrepreneur, round 2), so retype each post in your own voice and keep the specifics. Slots: `[DEMO]`, `[JOBS]`, `[USER]`. Every number has a row in `claims-ledger.md`. Sources for the mechanics are in `research-2026-11.md`, LinkedIn: dwell counts when at least half the update is visible (official), engagement bait is demoted (official), documents beat video and text on company pages in one 1.3M-post dataset (anecdotal), and external links cost reach by an amount the sources disagree on (anecdotal).
+Nothing here is posted. LinkedIn builds classifiers for generic AI text and reduces its reach (Entrepreneur, round 2), so retype each post in your own voice and keep the specifics. Slots: `[DEMO]`, `[USER]`. Jobs result, if you want it in a post: 18 of 18 for phonedriver at 977,780 tokens, 18 of 18 for mobile-mcp at 4,892,241, 14 of 18 for phone-harness at 1,272,617, adb 4 of 4 on the 2 mixed jobs; say where phone-harness is cheaper (photos-crop, clock-settings, log-code) and that mobile-mcp was 0.5 s faster on wakelock-restrict. Every number has a row in `claims-ledger.md`. Sources for the mechanics are in `research-2026-11.md`, LinkedIn: dwell counts when at least half the update is visible (official), engagement bait is demoted (official), documents beat video and text on company pages in one 1.3M-post dataset (anecdotal), and external links cost reach by an amount the sources disagree on (anecdotal).
 
 ## What the post does
 

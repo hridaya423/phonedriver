@@ -14,7 +14,7 @@ Nothing is posted until every row is done. Owner: **U** = you, **A** = an agent 
 
 | # | Item | Owner | State on 2026-11-07 | Needed by |
 |---|---|---|---|---|
-| 1 | The rename pass: crate, binary (`phonedriver`), `PHONEDRIVER_*` env vars, MCP server name, docs, SVG and PNG assets, the demo terminal | A | Not done. Code, `Cargo.toml` URLs and the README still say `phone-use`; the site docs already say `PHONEDRIVER_GUARD` and `claude mcp add phonedriver`. The two disagree today. | T-3 |
+| 1 | The rename pass: crate, binary (`phonedriver`), `PHONEDRIVER_*` env vars, MCP server name, docs, SVG and PNG assets, the demo terminal | A | Done (D28). The demo video still says `phone-use` in its terminal until it is re-recorded. | T-3 |
 | 2 | Repo `github.com/hridaya423/phonedriver` created and public (a one-way door; the remote does not exist: the API returns 404) | U | Not done | T-3 |
 | 3 | A tagged release with binaries for macOS (arm64, x86_64), Linux (x86_64, arm64) and Windows (x86_64), each with the Android agent, plus the shell, PowerShell and Homebrew installers. `release.yml` and `dist-workspace.toml` exist. | U+A | Not run. README still says "nothing is published yet". | T-3 |
 | 4 | Clean-install proof on a machine that never built the repo: one-line installer, `phonedriver doctor`, `claude mcp add phonedriver -- phonedriver mcp`, `claude mcp list` shows Connected, "Open Settings and turn on dark mode" works. Time it. | U+A | Not done | T-2 |
@@ -23,10 +23,10 @@ Nothing is posted until every row is done. Owner: **U** = you, **A** = an agent 
 | 7 | `server.json`, `glama.json`, `SECURITY.md` in the repo; the official registry entry live and found by `search=phonedriver`; Glama listing and the awesome-mcp-servers PR open | U+A | Not done | T-1 |
 | 8 | The re-recorded demo (Opus 5.5, with the approval-prompt scene): terminal reads `phonedriver`; passes the checks in `short-video.md`; README and site updated | A | In progress | T-2 |
 | 9 | The vertical 20 to 30 s cut, burned-in captions, "10x speed" visible | A | Not started; needs 8 | T-1 |
-| 10 | `social-preview.png` rebuilt with the new name and uploaded in repo Settings; `tokens-light.png` rebuilt as a three-row sum chart (the current one is stale and says PHONE-USE) | A (build), U (upload) | Not done | T-2 |
+| 10 | `social-preview.png` rebuilt with the new name and uploaded in repo Settings; `tokens-light.png` rebuilt as a three-row sum chart | A (build), U (upload) | Built 2026-11-07, upload open | T-2 |
 | 11 | README: the install section no longer says "not published yet"; limits stated near the top; the Cursor deeplink only if tested | A | Not done | T-2 |
-| 12 | Real-jobs benchmark result in: blog post 4 and `docs/bench/jobs.md` have `[RESULTS]` cells today. Fill them or cut every claim that depends on them. Hold post 4's cross-post. | A | Runs pending | T-1 (or cut) |
-| 13 | Claims ledger checked against the launch commit; every `[DEMO]`, `[JOBS]`, `[USER]` slot in the drafts filled or deleted | U+A | Open | T-1 |
+| 12 | Real-jobs benchmark result in: blog post 4, the benchmarks page and `docs/bench/jobs.md` carry the results and the non-wins. | A | Done 2026-11-07 | T-1 (or cut) |
+| 13 | Claims ledger checked against the launch commit; every `[DEMO]`, `[USER]` slot in the drafts filled or deleted | U+A | Open | T-1 |
 | 14 | Your accounts: HN (age, karma, email in profile, Show HN not restricted: `news.ycombinator.com/showlim`), Reddit (karma per sub, comment history), X, LinkedIn. Spend the week before commenting honestly where you will post. | U | Unknown | T-3 |
 | 15 | Rules for 15 subreddits were read on 2026-11-07 (`reddit-rules-2026-11-07.md`). Reread each sidebar on the day you post, copy the flair names, check r/ClaudeAI karma above 100, and read the r/SideProject, r/iOSProgramming and r/opensource wikis | U | Rules read; day-of checks open | T-1 |
 | 16 | A physical Android phone run, if you have one. Ask first: `AGENTS.md` lists driving a physical device as a one-way door. If not, the drafts say "no Android phone measured", which is true. | U | Optional | |

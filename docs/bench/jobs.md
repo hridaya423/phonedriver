@@ -22,7 +22,7 @@ Files: `bench/agent-eval/tasks.yaml` (sets `jobs` and `jobs-mixed`), `bench/agen
 | clock-settings | jobs | Tokyo and London world clocks, snooze 15 min, silence after 5 min | World clocks and Clock settings live in Clock's private prefs; the AlarmClock intents set alarms and timers only. | Root read of Clock's prefs: Tokyo and London in the world-clock list, snooze 15, silence 5 |
 | messages-pin-archive | jobs | Pin Bob Park's thread, archive Carol Diaz's, leave Alice Chen's | Pin and archive are Messages-private flags. Seeding is `adb emu sms send` (harness side); setting the flags has no command. | Root read of Messages' `bugle_db`: `conversation_pin` and `conversations.archive_status` per person |
 | photos-crop | jobs | Crop jobs-harbor to a square, save a copy, keep the original | The Photos editor is the only crop tool on the image; a shell has no image editor. | MediaStore: original still 1200 wide; a new image added after the baseline, square, at most 800 px |
-| wakelock-restrict | jobs-mixed | Find the app holding a wakelock, set its battery usage to Restricted | Shell finds the holder (`dumpsys power`: `jobs:drain`, package `dev.phoneuse.testbed`); Settings sets the restriction. A shell could also run `cmd appops set`, so this job rewards the agent that combines them rather than requiring both. | `cmd appops query-op RUN_ANY_IN_BACKGROUND ignore` against a baseline: only the testbed is newly restricted |
+| wakelock-restrict | jobs-mixed | Find the app holding a wakelock, set its battery usage to Restricted | Shell finds the holder (`dumpsys power`: `jobs:drain`, package `dev.phonedriver.testbed`); Settings sets the restriction. A shell could also run `cmd appops set`, so this job rewards the agent that combines them rather than requiring both. | `cmd appops query-op RUN_ANY_IN_BACKGROUND ignore` against a baseline: only the testbed is newly restricted |
 | log-code | jobs-mixed | Find the pickup code the testbed wrote to the device log, put it in a contact "Locker 9" | The code is only in logcat (shell); the contact is made in the Contacts UI. | Same contact check as relay-code, shell allowed |
 
 ## Dropped candidates and why
@@ -31,7 +31,7 @@ Contact add (`content insert` does it), calendar event (provider insert), dark m
 
 ## Phase B step 0: checks proven by hand on emulator-5558 (2026-11-07)
 
-Image: `google/sdk_gphone64_x86_64/emu64xa:17`, userdebug, a 2560x1600 tablet, reached through the 5038 tunnel. `su 0` works; `run-as dev.phoneuse.testbed` works (debug build). Each check was driven by hand with adb input (no agent): a pass state, and a fail state for every distinct failure it reports. Commands were `python3 jobs.py seed|check|clean <task>` with `SERIAL=emulator-5558`.
+Image: `google/sdk_gphone64_x86_64/emu64xa:17`, userdebug, a 2560x1600 tablet, reached through the 5038 tunnel. `su 0` works; `run-as dev.phonedriver.testbed` works (debug build). Each check was driven by hand with adb input (no agent): a pass state, and a fail state for every distinct failure it reports. Commands were `python3 jobs.py seed|check|clean <task>` with `SERIAL=emulator-5558`.
 
 | Job | Pass | Fail cases shown | What the device showed and what changed |
 |---|---|---|---|
@@ -43,30 +43,30 @@ Image: `google/sdk_gphone64_x86_64/emu64xa:17`, userdebug, a 2560x1600 tablet, r
 | clock-settings | Tokyo, London, snooze 15, silence 5 | cleared Clock | Keys are `place_timezone_id_N` (`Asia/Tokyo`, `Europe/London`), `snooze_duration`, `auto_silence`. Changed: the old "any file mentions London" test would pass on a fresh Clock, because `home_time_zone` is `Europe/London` on this host; the check now reads only the world-clock list. |
 | messages-pin-archive | Bob pinned, Carol archived | both reset | Messages opens signed out via "Use Messages without an account"; pin and archive are by long press. Pins live in `bugle_db` table `conversation_pin`, archive in `conversations.archive_status`; the old check looked for a pin column in `conversations` and would never have passed. Changed: the check joins the two tables. |
 | photos-crop | cropped copy present | no copy; original removed | Photos opens signed out after a Back press on the backup screen. Edit, Crop, Square, Save copy produced `jobs-harbor~2.jpg` at 799x800, kept next to the 1200x800 original; the check allows a 1 px difference. Changed: cleanup now deletes `jobs-harbor*` through MediaStore. |
-| wakelock-restrict | testbed restricted | testbed not restricted; another app restricted | `dumpsys power` shows `jobs:drain` for uid 10234 (`dev.phoneuse.testbed`). In Settings, App info, App battery usage, turning off "Allow background usage" sets `RUN_ANY_IN_BACKGROUND ignore`. Restricting releases the wakelock. |
+| wakelock-restrict | testbed restricted | testbed not restricted; another app restricted | `dumpsys power` shows `jobs:drain` for uid 10234 (`dev.phonedriver.testbed`). In Settings, App info, App battery usage, turning off "Allow background usage" sets `RUN_ANY_IN_BACKGROUND ignore`. Restricting releases the wakelock. |
 
 Facts a run will meet:
 - The local adb client cannot reach a tunnelled emulator's console (`adb emu` connects to local port 5558). Seeding SMS goes through `EMU_ADB="ssh win-ts /d/Android/Sdk/platform-tools/adb.exe"`, which `jobs.py emu` uses. It is the only thing that needs the SSH host besides the tunnel.
 - Messages is seeded once: contacts Alice Chen, Bob Park and Carol Diaz and one SMS each stay on the emulator, and `seed`/`clean` only reset pins and archives (`jobs.py purge messages-pin-archive` removes everything). A "Spam protection" dialog was dismissed once.
 - Contacts and Photos first-run prompts were dismissed once (Contacts notification prompt: "Don't allow").
-- `uiautomator dump` fails with "could not get idle state" on the Contacts list screen. Anything that reads that screen through uiautomator (the `adb` harness) must retry; to look at in Phase B for phone-use and the others.
+- `uiautomator dump` fails with "could not get idle state" on the Contacts list screen. Anything that reads that screen through uiautomator (the `adb` harness) must retry; to look at in Phase B for phonedriver and the others.
 - Left on the emulator: the three seeded contacts and SMS above, the installed testbed, a Chrome and Clock state cleared by each cleanup. Nothing else.
 
 ## Run budget
 
-Core 7 + mixed 2 = 9 tasks. One pass per harness (phone-use, phone-harness, mobile-mcp) is 27 runs; the second pass for medians doubles it. The bug-report and Messages/Photos jobs are the longest. Phase B runs phone-use alone first, as asked.
+Core 7 + mixed 2 = 9 tasks. One pass per harness (phonedriver, phone-harness, mobile-mcp) is 27 runs; the second pass for medians doubles it. The bug-report and Messages/Photos jobs are the longest. Phase B runs phonedriver alone first, as asked.
 
 ## Phase B results (2026-11-07)
 
 Setup: `claude -p` on the subscription, `claude-sonnet-5-5`, `ANTHROPIC_API_KEY` unset, emulator-5558 (a 2560x1600 tablet image, API 37) through the 5038 tunnel, one agent at a time. Each harness ran the 9 jobs twice (18 runs), reset and checked by `jobs.py` (root reads of app state, never the agent's reply). Core jobs (7): harness limited to its own tools, no adb. Mixed jobs (log-code, wakelock-restrict): any route allowed, `ALLOW_ADB=1`, and the adb harness runs only these two. Tokens are input + output + cache creation + cache read. Raw runs: `docs/bench/jobs.json` (`runs`, `medians`, `totals`); rebuilt with `python3 bench/agent-eval/jobs/summarize.py p4=... --md`.
 
-phone-use is the final binary (`126db3e`), runs `p4` and `p5`. phone-harness 0.3.3 ran as `h1`, `h2` (its qa-shop run in `h2` was invalid: a permission pattern blocked the tool, 7 s, 1 call; rerun as `h3`, which is what the table uses). mobile-mcp ran through a private adb server on port 5097. The first rubric scored the report jobs by sentence; v2 reads headings and sections too and counts a message that stayed as a dead tap (the old rubric failed correct multi-line reports; rescoring is in `summarize.py`, `success_as_run` keeps the original verdict).
+phonedriver is the final binary (`126db3e`), runs `p4` and `p5`. phone-harness 0.3.3 ran as `h1`, `h2` (its qa-shop run in `h2` was invalid: a permission pattern blocked the tool, 7 s, 1 call; rerun as `h3`, which is what the table uses). mobile-mcp ran through a private adb server on port 5097. The first rubric scored the report jobs by sentence; v2 reads headings and sections too and counts a message that stayed as a dead tap (the old rubric failed correct multi-line reports; rescoring is in `summarize.py`, `success_as_run` keeps the original verdict).
 
 ### Totals (sum of per-job medians)
 
 | Harness | Passed | Tokens | Tool calls | Wall s |
 |---|---|---|---|---|
-| phone-use | 18/18 | 977,780 | 123.5 | 466.5 |
+| phonedriver | 18/18 | 977,780 | 123.5 | 466.5 |
 | phone-harness | 14/18 | 1,272,617 | 101 | 1,946 |
 | mobile-mcp | 18/18 | 4,892,241 | 270.5 | 910 |
 | adb (mixed jobs only) | 4/4 | 144,669 | 17.5 | 94.5 |
@@ -95,30 +95,30 @@ phone-use is the final binary (`126db3e`), runs `p4` and `p5`. phone-harness 0.3
 | qa-signup | phone-harness | 1/2 | 246,327 | 14.5 | 459 |
 | relay-code | phone-harness | 0/2 | 147,436 | 14 | 280 |
 | wakelock-restrict | phone-harness | 2/2 | 79,878 | 9.5 | 65.5 |
-| chrome-prefs | phone-use | 2/2 | 104,302 | 13.5 | 60.5 |
-| clock-settings | phone-use | 2/2 | 95,116 | 13.5 | 48 |
-| log-code | phone-use | 2/2 | 59,470 | 8 | 38 |
-| messages-pin-archive | phone-use | 2/2 | 47,090 | 6 | 30 |
-| photos-crop | phone-use | 2/2 | 220,836 | 20.5 | 78 |
-| qa-shop | phone-use | 2/2 | 138,557 | 18 | 65 |
-| qa-signup | phone-use | 2/2 | 181,518 | 27 | 80 |
-| relay-code | phone-use | 2/2 | 69,994 | 9 | 38 |
-| wakelock-restrict | phone-use | 2/2 | 60,896 | 8 | 29 |
+| chrome-prefs | phonedriver | 2/2 | 104,302 | 13.5 | 60.5 |
+| clock-settings | phonedriver | 2/2 | 95,116 | 13.5 | 48 |
+| log-code | phonedriver | 2/2 | 59,470 | 8 | 38 |
+| messages-pin-archive | phonedriver | 2/2 | 47,090 | 6 | 30 |
+| photos-crop | phonedriver | 2/2 | 220,836 | 20.5 | 78 |
+| qa-shop | phonedriver | 2/2 | 138,557 | 18 | 65 |
+| qa-signup | phonedriver | 2/2 | 181,518 | 27 | 80 |
+| relay-code | phonedriver | 2/2 | 69,994 | 9 | 38 |
+| wakelock-restrict | phonedriver | 2/2 | 60,896 | 8 | 29 |
 
 ### What each harness failed at
 
 - phone-harness, relay-code (0/2): it reads screens through uiautomator dumps, and the dump fails with "could not get idle state" on the Contacts list screen, so it could not see the Contacts app. Run 1 gave up after 17 calls, run 2 after 11, and asked the user whether to tap blind. The contact was never created.
 - phone-harness, qa-signup (1/2) and qa-shop (1/2): pass 1 of each hit the run limit (601 s with 7 calls; 607 s with 20 calls) and failed; pass 2 passed (317 s with 22 calls; 178 s with 6 calls). Why pass 1 stalled was not diagnosed beyond the wall time.
-- mobile-mcp: 18/18 but 4.9M tokens, 5x phone-use. Every action returns a screenshot or an element list; photos-crop (1.07M) and clock-settings (843k) are the worst.
-- phone-use: 18/18. Before the rubric rescoring p4 qa-shop was recorded as a failure (a correct report with a "Bug 3: not a bug" heading); it is a pass under rubric v2 and the original verdict stays in `success_as_run`.
+- mobile-mcp: 18/18 but 4.9M tokens, 5x phonedriver. Every action returns a screenshot or an element list; photos-crop (1.07M) and clock-settings (843k) are the worst.
+- phonedriver: 18/18. Before the rubric rescoring p4 qa-shop was recorded as a failure (a correct report with a "Bug 3: not a bug" heading); it is a pass under rubric v2 and the original verdict stays in `success_as_run`.
 
-### Where phone-use does not win
+### Where phonedriver does not win
 
-- Tokens: phone-harness is cheaper than phone-use on photos-crop (104k against 221k), clock-settings (77k against 95k), log-code (41k against 59k), chrome-prefs is higher for phone-harness (193k against 104k), and messages-pin-archive is about equal (46k against 47k). Over all 9 jobs phone-use is 23% lower in the sum only because phone-harness failed and spent tokens in the three jobs above.
-- Wall time: phone-use is lowest on 8 of 9 jobs; mobile-mcp is 0.5 s ahead on wakelock-restrict (28.5 s against 29 s). Even where a shell can do the work, adb took 45.5 s (log-code) and 49 s (wakelock-restrict) against 38 s and 29 s.
+- Tokens: phone-harness is cheaper than phonedriver on photos-crop (104k against 221k), clock-settings (77k against 95k), log-code (41k against 59k), chrome-prefs is higher for phone-harness (193k against 104k), and messages-pin-archive is about equal (46k against 47k). Over all 9 jobs phonedriver is 23% lower in the sum only because phone-harness failed and spent tokens in the three jobs above.
+- Wall time: phonedriver is lowest on 8 of 9 jobs; mobile-mcp is 0.5 s ahead on wakelock-restrict (28.5 s against 29 s). Even where a shell can do the work, adb took 45.5 s (log-code) and 49 s (wakelock-restrict) against 38 s and 29 s.
 - Not fixed: Photos screens are screenshots (the editor has no tree), the unlabeled child button inside a labeled group needs a point tap, and the first tap on the Messages archive action replies "no element changed" because the list settles late.
 
-### phone-use fixes from this benchmark
+### phonedriver fixes from this benchmark
 
 | Fix | Commit | Before | After |
 |---|---|---|---|
@@ -133,4 +133,4 @@ Round 1 (`p1`, before these fixes) was 9/9 passed at 955,535 tokens, 572 s; the 
 
 ### Notes for the site
 
-The site's blog text says wipes use backspaces and then select-all and paste. The final fix is Ctrl+A plus paste only.
+The site's blog text now says a field that refuses `set_text` is selected with Ctrl+A and pasted over, which is what `TextInput.java` and `Input.java` do. The results are on the benchmarks page and in blog post 4.

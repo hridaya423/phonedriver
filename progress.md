@@ -462,3 +462,10 @@ The pre-existing 8:30 and 9:00 alarms were left alone.
 - Found: phone-harness cannot read the Contacts screen (uiautomator dump killed, OCR errors), so relay-code is 0/2; two pass-1 runs hit the 600 s limit. phone-use is not cheaper than phone-harness on photos-crop, clock-settings and log-code. One phone-use qa-shop run was scored a fail by rubric v1 and passes under v2 (`success_as_run` keeps the original).
 - Not fixed: Photos editor screens are screenshots; an unlabeled child button in a labeled group needs a point tap; the Messages archive tap answers "no element changed" because the list settles late.
 - Left on the emulator: the seeded Messages contacts and SMS, the installed testbed. The site's blog says wipes use backspaces then select-all; the final fix is Ctrl+A plus paste only.
+
+## Rename landed on main, jobs results filled in (2026-11-07)
+
+- Changed: the 4 rename commits (D28) rebased onto main; `docs/bench/jobs.json`, `jobs.md` and the launch drafts renamed; blog post 4, the benchmarks page, `llms-full.txt` and the Show HN, LinkedIn, dev.to, plan and claims-ledger slots filled from `docs/bench/jobs.json`; `bench/src/scenario.rs` `Step::Expect` boxed (clippy `large_enum_variant`); `design/build/tokens_chart.py` now draws phonedriver round 3 against phone-harness per task plus the sum.
+- Command: `python3 bench/agent-eval/jobs/summarize.py p4=.. p5=.. h1=runs/h1c h2=runs/h2c m1=.. m2=.. a1=.. a2=..`, output with `phone-use` renamed, `diff` against `docs/bench/jobs.json`: identical (the original run labels h1 and h2 are the dirs `h1c` and `h2c`, found by matching the totals).
+- Found: the rebase conflicted in `crates/cli/src/mcp.rs` (the dropped batch sentence, kept, name renamed) and six docs files (taken from main, then renamed). The blog said wipes use backspaces then select-all and paste; the code does Ctrl+A then paste or delete only, fixed. The chart shows 218,357 against 330,375.
+- Left as `phone-use` on purpose: D28's text, historical progress.md entries, name-research and release-checklist text about the old name and `sauravtom/phone-use`, the demo video's terminal (re-record pending), and scratch paths.

@@ -146,7 +146,7 @@ Check the length before posting: about 270 characters with the URL counted as 23
 
 ### Follow-up 3 (T+5): the tokens
 
-Attach a three-row tokens chart [TODO: rebuild `.github/assets/tokens-light.png`; the current one is stale: it says PHONE-USE, mixes five series and does not show the sums].
+Attach a three-row tokens chart [`.github/assets/tokens-light.png`, rebuilt 2026-11-07: phonedriver against phone-harness, per task and the 218,357 against 330,375 sum].
 
 ```
 Three agent tasks, same model (Claude Sonnet 5.5), same emulator, every run passed:

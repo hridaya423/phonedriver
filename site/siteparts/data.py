@@ -57,7 +57,7 @@ FAQ = [
     ("What does it cost, and what is the license?",
      "It is free. The license is AGPL-3.0-only: if you distribute phonedriver, or run a modified version as a network service, you must publish your source under the same license. The Android agent contains files copied from scrcpy under Apache-2.0."),
     ("What does it not do well yet?",
-     "A bare tap misses its 15 ms budget. An iOS tap takes 357 ms on the Simulator and 454 to 534 ms on devices. WebViews and custom views can have an empty accessibility tree, where it falls back to OCR. The real-phone jobs benchmark has no agent results yet. Android hardware is untested."),
+     "A bare tap misses its 15 ms budget. An iOS tap takes 357 ms on the Simulator and 454 to 534 ms on devices. WebViews and custom views can have an empty accessibility tree, where it falls back to OCR. The real-phone jobs benchmark ran 2 passes per job on one tablet emulator, so its medians describe what happened and are not rates. Android hardware is untested."),
 ]
 
 COMPARE_TABLE = [

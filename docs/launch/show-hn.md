@@ -4,7 +4,7 @@ Nothing here is posted or submitted. This file is **fact notes and a structure. 
 
 > **Hacker News bans generated text and AI-edited text.** The guidelines say "Don't post generated text or AI-edited text", and moderators have said they ban accounts for it (`research-2026-11.md`, Hacker News). An agent wrote this file. So the title, the first comment and every reply must be typed by you, in your own words, from the facts below. Do not paste any sentence from this file into HN. Do not run your draft through a model "to tidy it". The README and the site you link also get read for this, so read both once more yourself before launch.
 
-Slots: `[JOBS: ...]` waits on the real-jobs benchmark. `[DEMO: ...]` waits on the re-recorded demo. `[USER: ...]` needs your own words or a decision. Every number below has a row in `claims-ledger.md`.
+Slots: `[DEMO: ...]` waits on the re-recorded demo. `[USER: ...]` needs your own words or a decision. Every number below has a row in `claims-ledger.md`.
 
 ## Gate: do not submit until all of these are true
 
@@ -60,7 +60,7 @@ Length target: 250 to 400 words. dang's structure: what it is, the backstory of 
    - Read a 1,000-row list: 24.0 ms against 2,352.4 ms for `adb shell uiautomator dump`. 98x, 95% CI on the ratio 92.2 to 106.0. phone-harness 0.3.3: 2,653.7 ms (111x).
    - Screenshot 41x. Type 100 characters 19x. Tap then know what changed 4.6x (586.9 ms against 2,725.8 ms for tap, dump and diff done by the caller). A bare tap is 2.1x back to back and 1.6x 1.5 s apart: the closest row.
    - Tokens, three agent tasks with `claude-sonnet-5-5`, sum of medians: 218,357 against 330,375 for phone-harness, 34% fewer, every run passed for both. phonedriver was behind on one task (57,753 against 53,403). mobile-mcp passed 0 of 3 for an environment reason, so it is not in the comparison.
-5. **Limits, plainly:** emulator only for speed, no physical Android phone measured. iOS needs a Mac with Xcode; an iPhone 14 Plus and an iPad Pro were tested through the CLI and MCP, a tap there is 454 to 534 ms, and the 12-scenario suite was not run on devices. The guard matches a fixed list of English labels: a button with no label is not guarded. Coding agents wrote part of the code (`AGENTS.md`, `progress.md`). [USER: say how much you wrote and how you reviewed the rest.] [JOBS: one sentence from `docs/bench/jobs.md` once the runs finish.]
+5. **Limits, plainly:** emulator only for speed, no physical Android phone measured. iOS needs a Mac with Xcode; an iPhone 14 Plus and an iPad Pro were tested through the CLI and MCP, a tap there is 454 to 534 ms, and the 12-scenario suite was not run on devices. The guard matches a fixed list of English labels: a button with no label is not guarded. Coding agents wrote part of the code (`AGENTS.md`, `progress.md`). [USER: say how much you wrote and how you reviewed the rest.] On nine real phone jobs, two runs each, phonedriver passed 18 of 18 at 977,780 tokens, mobile-mcp 18 of 18 at 4.9M, and phone-harness 14 of 18 at 1.27M; phone-harness is cheaper on photos-crop, clock-settings and log-code, mobile-mcp is 0.5 s faster on wakelock-restrict, and most of our 23% lead over phone-harness is its failed runs (`docs/bench/jobs.md`).
 6. **What you want back (two asks):** results on a real Android phone; apps where the snapshot is empty or wrong.
 
 Do not include the demo claim "real time". The demo is sped up 10x and says so.

@@ -39,9 +39,9 @@ GitHub has no API for the social preview: upload it under Settings, General, Soc
 
 | File | State on 2026-11-07 (opened and looked at) | Use |
 |---|---|---|
-| `.github/assets/social-preview.png` (1280x640) | Shows the wordmark `phone-use` and "phone-use against adb, p50". Stale after the rename, numbers are right (41x, 27x, 98x, 19x, 4.6x). | Rebuild with the new name with `design/build/build.py`, then upload. Do not upload it as is. |
+| `.github/assets/social-preview.png` (1280x640) | Rebuilt with the phonedriver name (D28), looked at 2026-11-07. Numbers are right (41x, 27x, 98x, 19x, 4.6x). | Upload in repo Settings. |
 | `.github/assets/hero-social.png` (1200x675) | "Up to 98x faster than adb", four bars, no product name in the image. Numbers match `speed.json`. | Good as the X and LinkedIn card image: the name is in the post. Add a small `phonedriver` wordmark if the build script allows. |
-| `.github/assets/tokens-light.png` | Legend says PHONE-USE and mixes every round (before, rounds 1 to 3) with raw adb and mobile-mcp. It does not show the 218,357 against 330,375 sum the launch quotes. | Do not use in any post. Rebuild a three-row chart: phonedriver round 3 against phone-harness, per task and sum. |
+| `.github/assets/tokens-light.png` | Rebuilt 2026-11-07: phonedriver round 3 against phone-harness, per task and sum (218,357 against 330,375), looked at. | Fine for posts. It is three tasks only; the jobs benchmark has its own numbers in `docs/bench/jobs.md`. |
 
 ## Other repository settings to do before launch
 

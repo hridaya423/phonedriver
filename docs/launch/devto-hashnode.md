@@ -11,7 +11,7 @@ Nothing here is posted. The four posts live on phonedriver.dev first and stay th
 - Links inside the copy: change every relative link to an absolute `https://phonedriver.dev/...` URL. The one link to GitHub stays.
 - Add the line at the end: "Originally published at https://phonedriver.dev/blog/<slug>/". The canonical setting is the signal; the line is for readers.
 - Do not put the HN link anywhere, and do not ask for reactions.
-- No cross-post of a post whose results are blank. Post 4 has `[RESULTS]` cells today (see the table). Hold it until the jobs benchmark lands.
+- Post 4 now has its results (`docs/bench/jobs.json`). Cross-post it with the non-wins section intact; do not cut it to a headline.
 
 ## The four posts
 
@@ -22,7 +22,7 @@ Site paths are `https://phonedriver.dev/blog/<slug>/`. Word counts from `site/co
 | 1 | `how-phonedriver-reads-a-screen-98x-faster-than-adb` | 2,662 | Engineering: on-device agent, H.264 frames, settle, the measurement method. The one for HN and the technical audience. | T+1 | How I made an AI agent read a phone screen 98x faster than adb | `android`, `mcp`, `rust`, `performance` | Android, Rust, Performance, AI |
 | 2 | `letting-claude-order-dinner-without-letting-it-spend-your-money` | 1,427 | Design: the approval guard (D27), what it does not catch. The most shareable one. | T+2 | Letting Claude order dinner without letting it spend your money | `ai`, `mcp`, `security`, `claude` | AI, Security, MCP, Claude |
 | 3 | `benchmarking-ai-agents-on-jobs-only-a-phone-can-do` | 1,244 | Method: how to benchmark fairly, checks from device state, no model judge. | T+4 | How to benchmark an AI phone agent without letting it cheat | `ai`, `testing`, `android`, `benchmarks` | Testing, AI, Android, Benchmarking |
-| 4 | `phonedriver-vs-mobile-mcp-vs-phone-harness-vs-adb-real-phone-jobs` | 1,233 | Benchmark results. Today the results table is `[RESULTS]`. | after the runs | [JOBS: write the title from the result, with the numbers] | `ai`, `android`, `mcp`, `benchmarks` | same |
+| 4 | `phonedriver-vs-mobile-mcp-vs-phone-harness-vs-adb-real-phone-jobs` | 1,233 | Benchmark results, filled from `docs/bench/jobs.json`. | after the runs | phonedriver, mobile-mcp, phone-harness and adb on 9 real phone jobs: 18/18, 18/18, 14/18 | `ai`, `android`, `mcp`, `benchmarks` | same |
 
 dev.to allows at most four tags per post, lower case, no spaces. Check each tag page for activity before using it; `mcp` is smaller than `ai` but its readers are the target. Hashnode tags map to its own tag list; pick from the suggestions it offers.
 

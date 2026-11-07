@@ -156,7 +156,7 @@ enum Step {
     RestoreSwitch(String),
     Dismiss(Vec<String>),
     Script(String),
-    Expect(Expect),
+    Expect(Box<Expect>),
     /// Steps that only exist on newer Android: `{at_least: 29, then: [...], otherwise: [...]}`.
     IfApi {
         at_least: u32,
@@ -1054,9 +1054,7 @@ cleanup:
         let y = "name: x\nsteps:\n  - script: \"seed.sh\"\n  - expect: {script: \"check.sh\"}\n";
         let s: Scenario = serde_yaml::from_str(y).unwrap();
         assert!(matches!(&s.steps[0], Step::Script(c) if c == "seed.sh"));
-        assert!(
-            matches!(&s.steps[1], Step::Expect(Expect { script: Some(c), .. }) if c == "check.sh")
-        );
+        assert!(matches!(&s.steps[1], Step::Expect(e) if e.script.as_deref() == Some("check.sh")));
     }
 
     #[test]
@@ -1070,7 +1068,7 @@ cleanup:
             assert!(
                 t.check
                     .iter()
-                    .any(|s| matches!(s, Step::Expect(Expect { script: Some(c), .. }) if c.ends_with(&t.name)))
+                    .any(|s| matches!(s, Step::Expect(e) if e.script.as_deref().is_some_and(|c| c.ends_with(&t.name))))
             );
         }
     }
