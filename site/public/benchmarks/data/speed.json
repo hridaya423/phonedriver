@@ -1,13 +1,13 @@
 {
- "title": "phone-use against adb and phone-harness",
+ "title": "phonedriver against adb and phone-harness",
  "subtitle": "Android 17 emulator (API 37), p50 of 50 runs",
  "source": "docs/bench/speed-2026-11-07.md",
  "ops": [
   {
    "id": "tap",
    "label": "Tap, back to back",
-   "phone_use": 117.6,
-   "phone_use_p95": 321.2,
+   "phonedriver": 117.6,
+   "phonedriver_p95": 321.2,
    "phone_harness": 289.0,
    "phone_harness_p95": 863.1,
    "adb": 250.5,
@@ -25,8 +25,8 @@
   {
    "id": "tap_paced",
    "label": "Tap, 1.5 s apart",
-   "phone_use": 72.4,
-   "phone_use_p95": 103.7,
+   "phonedriver": 72.4,
+   "phonedriver_p95": 103.7,
    "phone_harness": 342.9,
    "phone_harness_p95": 422.1,
    "adb": 114.5,
@@ -44,8 +44,8 @@
   {
    "id": "screenshot",
    "label": "Screenshot",
-   "phone_use": 11.6,
-   "phone_use_p95": 22.5,
+   "phonedriver": 11.6,
+   "phonedriver_p95": 22.5,
    "phone_harness": 570.5,
    "phone_harness_p95": 809.6,
    "adb": 476.3,
@@ -63,8 +63,8 @@
   {
    "id": "tree_settings",
    "label": "UI tree, Settings",
-   "phone_use": 89.3,
-   "phone_use_p95": 189.0,
+   "phonedriver": 89.3,
+   "phonedriver_p95": 189.0,
    "phone_harness": 2700.0,
    "phone_harness_p95": 2816.7,
    "adb": 2433.5,
@@ -82,8 +82,8 @@
   {
    "id": "tree_list",
    "label": "UI tree, 1,000-row list",
-   "phone_use": 24.0,
-   "phone_use_p95": 36.6,
+   "phonedriver": 24.0,
+   "phonedriver_p95": 36.6,
    "phone_harness": 2653.7,
    "phone_harness_p95": 2803.8,
    "adb": 2352.4,
@@ -101,8 +101,8 @@
   {
    "id": "type100",
    "label": "Type 100 characters",
-   "phone_use": 251.1,
-   "phone_use_p95": 395.0,
+   "phonedriver": 251.1,
+   "phonedriver_p95": 395.0,
    "phone_harness": 5523.3,
    "phone_harness_p95": 6409.6,
    "adb": 4840.9,
@@ -120,8 +120,8 @@
   {
    "id": "tap_diff",
    "label": "Tap, then what changed",
-   "phone_use": 586.9,
-   "phone_use_p95": 704.8,
+   "phonedriver": 586.9,
+   "phonedriver_p95": 704.8,
    "phone_harness": null,
    "phone_harness_p95": null,
    "adb": 2725.8,

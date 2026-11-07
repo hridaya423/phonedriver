@@ -343,7 +343,7 @@ def speed_block():
     blocks = ""
     rows = ""
     for o in d["ops"]:
-        mx = max(x for x in (o["phone_use_p95"], o["adb_p95"], o.get("phone_harness_p95")) if x)
+        mx = max(x for x in (o["phonedriver_p95"], o["adb_p95"], o.get("phone_harness_p95")) if x)
         def bar(name, p50, p95, cls):
             if p50 is None:
                 return '<div class="brow"><span class="bn">%s</span><span class="bt na">not supported</span></div>' % name
@@ -352,13 +352,13 @@ def speed_block():
             return ('<div class="brow"><span class="bn">%s</span><span class="bt" aria-hidden="true"><i class="fill %s" style="width:%.2f%%"></i><i class="tick" style="left:%.2f%%"></i></span>'
                     '<span class="bv">%s ms<small> p95 %s</small></span></div>') % (name, cls, w, t, fmt(p50), fmt(p95))
         blocks += '<div class="bblock"><h3>%s</h3>%s%s%s<p class="small">phonedriver is %s faster than adb (95%% CI %s to %s)%s.</p></div>' % (
-            esc(o["label"]), bar("phonedriver", o["phone_use"], o["phone_use_p95"], "pd"),
+            esc(o["label"]), bar("phonedriver", o["phonedriver"], o["phonedriver_p95"], "pd"),
             bar("adb", o["adb"], o["adb_p95"], "adb"), bar("phone-harness", o["phone_harness"], o.get("phone_harness_p95"), "ph"),
-            ratio(o["adb"] / o["phone_use"]), fmt(o["adb_ratio_ci"][0]), fmt(o["adb_ratio_ci"][1]),
-            (", and %s faster than phone-harness (95%% CI %s to %s)" % (ratio(o["phone_harness"] / o["phone_use"]), fmt(o["phone_harness_ratio_ci"][0]), fmt(o["phone_harness_ratio_ci"][1]))) if o["phone_harness"] else "; phone-harness has no equivalent")
+            ratio(o["adb"] / o["phonedriver"]), fmt(o["adb_ratio_ci"][0]), fmt(o["adb_ratio_ci"][1]),
+            (", and %s faster than phone-harness (95%% CI %s to %s)" % (ratio(o["phone_harness"] / o["phonedriver"]), fmt(o["phone_harness_ratio_ci"][0]), fmt(o["phone_harness_ratio_ci"][1]))) if o["phone_harness"] else "; phone-harness has no equivalent")
         rows += "<tr><th scope=\"row\">%s</th><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td></tr>" % (
-            esc(o["label"]), fmt(o["phone_use"]), fmt(o["phone_use_p95"]), fmt(o["adb"]), fmt(o["adb_p95"]),
-            fmt(o["phone_harness"]), fmt(o.get("phone_harness_p95")), ratio(o["adb"] / o["phone_use"]) + " (%s to %s)" % (fmt(o["adb_ratio_ci"][0]), fmt(o["adb_ratio_ci"][1])))
+            esc(o["label"]), fmt(o["phonedriver"]), fmt(o["phonedriver_p95"]), fmt(o["adb"]), fmt(o["adb_p95"]),
+            fmt(o["phone_harness"]), fmt(o.get("phone_harness_p95")), ratio(o["adb"] / o["phonedriver"]) + " (%s to %s)" % (fmt(o["adb_ratio_ci"][0]), fmt(o["adb_ratio_ci"][1])))
     table = ('<div class="tw"><table><thead><tr><th scope="col">Operation</th><th scope="col">phonedriver p50</th><th scope="col">p95</th><th scope="col">adb p50</th><th scope="col">p95</th>'
              '<th scope="col">phone-harness p50</th><th scope="col">p95</th><th scope="col">adb / phonedriver (95%% CI)</th></tr></thead><tbody>%s</tbody></table></div>') % rows
     return blocks, table
@@ -449,7 +449,7 @@ def benchmarks_md():
     d = json.loads((ROOT / "docs/bench/speed.json").read_text())
     s = "# phonedriver benchmarks\n\nSpeed, p50 and p95 in ms, Android 17 emulator, 50 runs after 20 warm-ups, tools interleaved on one host.\n\n| Operation | phonedriver p50 | p95 | adb p50 | p95 | phone-harness p50 | p95 | adb / phonedriver (95% CI) |\n|---|---|---|---|---|---|---|---|\n"
     for o in d["ops"]:
-        s += "| %s | %s | %s | %s | %s | %s | %s | %s (%s to %s) |\n" % (o["label"], fmt(o["phone_use"]), fmt(o["phone_use_p95"]), fmt(o["adb"]), fmt(o["adb_p95"]), fmt(o["phone_harness"]), fmt(o.get("phone_harness_p95")), ratio(o["adb"] / o["phone_use"]), fmt(o["adb_ratio_ci"][0]), fmt(o["adb_ratio_ci"][1]))
+        s += "| %s | %s | %s | %s | %s | %s | %s | %s (%s to %s) |\n" % (o["label"], fmt(o["phonedriver"]), fmt(o["phonedriver_p95"]), fmt(o["adb"]), fmt(o["adb_p95"]), fmt(o["phone_harness"]), fmt(o.get("phone_harness_p95")), ratio(o["adb"] / o["phonedriver"]), fmt(o["adb_ratio_ci"][0]), fmt(o["adb_ratio_ci"][1]))
     s += "\nTokens (Claude Sonnet 5.5, medians of 2 to 3 runs): sum over three tasks 218,357 for phonedriver and 330,375 for phone-harness (34% fewer). mobile-mcp failed every run for an environment reason and is not compared.\n\nReal phone jobs: nine jobs checked from device state; agent runs are not finished and results are pending.\n"
     return s
 

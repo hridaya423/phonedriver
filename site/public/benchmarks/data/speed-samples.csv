@@ -1,54 +1,54 @@
 op,tool,i,ms
-tap,phone-use,0,222.214
-tap,phone-use,1,161.652
-tap,phone-use,2,182.060
-tap,phone-use,3,192.421
-tap,phone-use,4,122.737
-tap,phone-use,5,176.445
-tap,phone-use,6,152.763
-tap,phone-use,7,189.935
-tap,phone-use,8,167.206
-tap,phone-use,9,162.218
-tap,phone-use,10,201.461
-tap,phone-use,11,214.878
-tap,phone-use,12,215.753
-tap,phone-use,13,175.618
-tap,phone-use,14,208.827
-tap,phone-use,15,246.609
-tap,phone-use,16,229.702
-tap,phone-use,17,162.796
-tap,phone-use,18,182.904
-tap,phone-use,19,129.648
-tap,phone-use,20,167.065
-tap,phone-use,21,187.379
-tap,phone-use,22,229.091
-tap,phone-use,23,205.946
-tap,phone-use,24,170.749
-tap,phone-use,25,176.419
-tap,phone-use,26,155.900
-tap,phone-use,27,131.716
-tap,phone-use,28,215.645
-tap,phone-use,29,150.367
-tap,phone-use,30,180.462
-tap,phone-use,31,145.907
-tap,phone-use,32,171.675
-tap,phone-use,33,158.460
-tap,phone-use,34,162.648
-tap,phone-use,35,225.267
-tap,phone-use,36,127.683
-tap,phone-use,37,137.513
-tap,phone-use,38,184.117
-tap,phone-use,39,199.420
-tap,phone-use,40,151.907
-tap,phone-use,41,302.157
-tap,phone-use,42,162.656
-tap,phone-use,43,201.816
-tap,phone-use,44,228.625
-tap,phone-use,45,213.513
-tap,phone-use,46,169.764
-tap,phone-use,47,152.080
-tap,phone-use,48,142.384
-tap,phone-use,49,128.015
+tap,phonedriver,0,222.214
+tap,phonedriver,1,161.652
+tap,phonedriver,2,182.060
+tap,phonedriver,3,192.421
+tap,phonedriver,4,122.737
+tap,phonedriver,5,176.445
+tap,phonedriver,6,152.763
+tap,phonedriver,7,189.935
+tap,phonedriver,8,167.206
+tap,phonedriver,9,162.218
+tap,phonedriver,10,201.461
+tap,phonedriver,11,214.878
+tap,phonedriver,12,215.753
+tap,phonedriver,13,175.618
+tap,phonedriver,14,208.827
+tap,phonedriver,15,246.609
+tap,phonedriver,16,229.702
+tap,phonedriver,17,162.796
+tap,phonedriver,18,182.904
+tap,phonedriver,19,129.648
+tap,phonedriver,20,167.065
+tap,phonedriver,21,187.379
+tap,phonedriver,22,229.091
+tap,phonedriver,23,205.946
+tap,phonedriver,24,170.749
+tap,phonedriver,25,176.419
+tap,phonedriver,26,155.900
+tap,phonedriver,27,131.716
+tap,phonedriver,28,215.645
+tap,phonedriver,29,150.367
+tap,phonedriver,30,180.462
+tap,phonedriver,31,145.907
+tap,phonedriver,32,171.675
+tap,phonedriver,33,158.460
+tap,phonedriver,34,162.648
+tap,phonedriver,35,225.267
+tap,phonedriver,36,127.683
+tap,phonedriver,37,137.513
+tap,phonedriver,38,184.117
+tap,phonedriver,39,199.420
+tap,phonedriver,40,151.907
+tap,phonedriver,41,302.157
+tap,phonedriver,42,162.656
+tap,phonedriver,43,201.816
+tap,phonedriver,44,228.625
+tap,phonedriver,45,213.513
+tap,phonedriver,46,169.764
+tap,phonedriver,47,152.080
+tap,phonedriver,48,142.384
+tap,phonedriver,49,128.015
 tap,phone-harness,0,209.504
 tap,phone-harness,1,215.883
 tap,phone-harness,2,655.629
@@ -149,56 +149,56 @@ tap,adb,46,222.182
 tap,adb,47,246.381
 tap,adb,48,205.800
 tap,adb,49,197.742
-screenshot,phone-use,0,11.260
-screenshot,phone-use,1,11.959
-screenshot,phone-use,2,12.349
-screenshot,phone-use,3,11.479
-screenshot,phone-use,4,12.845
-screenshot,phone-use,5,22.460
-screenshot,phone-use,6,12.468
-screenshot,phone-use,7,10.725
-screenshot,phone-use,8,11.075
-screenshot,phone-use,9,11.498
-screenshot,phone-use,10,11.748
-screenshot,phone-use,11,14.088
-screenshot,phone-use,12,11.241
-screenshot,phone-use,13,11.092
-screenshot,phone-use,14,11.204
-screenshot,phone-use,15,12.069
-screenshot,phone-use,16,17.159
-screenshot,phone-use,17,11.146
-screenshot,phone-use,18,14.550
-screenshot,phone-use,19,11.255
-screenshot,phone-use,20,11.692
-screenshot,phone-use,21,35.839
-screenshot,phone-use,22,11.527
-screenshot,phone-use,23,11.947
-screenshot,phone-use,24,19.191
-screenshot,phone-use,25,11.176
-screenshot,phone-use,26,8.797
-screenshot,phone-use,27,10.664
-screenshot,phone-use,28,18.122
-screenshot,phone-use,29,11.605
-screenshot,phone-use,30,11.173
-screenshot,phone-use,31,11.329
-screenshot,phone-use,32,12.936
-screenshot,phone-use,33,11.663
-screenshot,phone-use,34,11.833
-screenshot,phone-use,35,12.511
-screenshot,phone-use,36,11.198
-screenshot,phone-use,37,10.550
-screenshot,phone-use,38,11.631
-screenshot,phone-use,39,24.095
-screenshot,phone-use,40,10.358
-screenshot,phone-use,41,9.880
-screenshot,phone-use,42,15.574
-screenshot,phone-use,43,16.996
-screenshot,phone-use,44,10.641
-screenshot,phone-use,45,11.295
-screenshot,phone-use,46,11.695
-screenshot,phone-use,47,11.495
-screenshot,phone-use,48,10.666
-screenshot,phone-use,49,13.115
+screenshot,phonedriver,0,11.260
+screenshot,phonedriver,1,11.959
+screenshot,phonedriver,2,12.349
+screenshot,phonedriver,3,11.479
+screenshot,phonedriver,4,12.845
+screenshot,phonedriver,5,22.460
+screenshot,phonedriver,6,12.468
+screenshot,phonedriver,7,10.725
+screenshot,phonedriver,8,11.075
+screenshot,phonedriver,9,11.498
+screenshot,phonedriver,10,11.748
+screenshot,phonedriver,11,14.088
+screenshot,phonedriver,12,11.241
+screenshot,phonedriver,13,11.092
+screenshot,phonedriver,14,11.204
+screenshot,phonedriver,15,12.069
+screenshot,phonedriver,16,17.159
+screenshot,phonedriver,17,11.146
+screenshot,phonedriver,18,14.550
+screenshot,phonedriver,19,11.255
+screenshot,phonedriver,20,11.692
+screenshot,phonedriver,21,35.839
+screenshot,phonedriver,22,11.527
+screenshot,phonedriver,23,11.947
+screenshot,phonedriver,24,19.191
+screenshot,phonedriver,25,11.176
+screenshot,phonedriver,26,8.797
+screenshot,phonedriver,27,10.664
+screenshot,phonedriver,28,18.122
+screenshot,phonedriver,29,11.605
+screenshot,phonedriver,30,11.173
+screenshot,phonedriver,31,11.329
+screenshot,phonedriver,32,12.936
+screenshot,phonedriver,33,11.663
+screenshot,phonedriver,34,11.833
+screenshot,phonedriver,35,12.511
+screenshot,phonedriver,36,11.198
+screenshot,phonedriver,37,10.550
+screenshot,phonedriver,38,11.631
+screenshot,phonedriver,39,24.095
+screenshot,phonedriver,40,10.358
+screenshot,phonedriver,41,9.880
+screenshot,phonedriver,42,15.574
+screenshot,phonedriver,43,16.996
+screenshot,phonedriver,44,10.641
+screenshot,phonedriver,45,11.295
+screenshot,phonedriver,46,11.695
+screenshot,phonedriver,47,11.495
+screenshot,phonedriver,48,10.666
+screenshot,phonedriver,49,13.115
 screenshot,phone-harness,0,623.669
 screenshot,phone-harness,1,603.088
 screenshot,phone-harness,2,807.136
@@ -299,56 +299,56 @@ screenshot,adb,46,458.130
 screenshot,adb,47,513.913
 screenshot,adb,48,454.982
 screenshot,adb,49,455.307
-"tap, device side",phone-use,0,18.944
-"tap, device side",phone-use,1,16.682
-"tap, device side",phone-use,2,34.506
-"tap, device side",phone-use,3,35.077
-"tap, device side",phone-use,4,53.668
-"tap, device side",phone-use,5,35.889
-"tap, device side",phone-use,6,17.482
-"tap, device side",phone-use,7,24.972
-"tap, device side",phone-use,8,85.018
-"tap, device side",phone-use,9,31.762
-"tap, device side",phone-use,10,33.712
-"tap, device side",phone-use,11,33.140
-"tap, device side",phone-use,12,15.603
-"tap, device side",phone-use,13,25.739
-"tap, device side",phone-use,14,28.708
-"tap, device side",phone-use,15,37.318
-"tap, device side",phone-use,16,19.264
-"tap, device side",phone-use,17,36.537
-"tap, device side",phone-use,18,31.984
-"tap, device side",phone-use,19,23.279
-"tap, device side",phone-use,20,36.474
-"tap, device side",phone-use,21,24.424
-"tap, device side",phone-use,22,31.130
-"tap, device side",phone-use,23,27.498
-"tap, device side",phone-use,24,11.177
-"tap, device side",phone-use,25,22.516
-"tap, device side",phone-use,26,38.458
-"tap, device side",phone-use,27,27.626
-"tap, device side",phone-use,28,26.760
-"tap, device side",phone-use,29,25.904
-"tap, device side",phone-use,30,16.368
-"tap, device side",phone-use,31,23.432
-"tap, device side",phone-use,32,36.713
-"tap, device side",phone-use,33,31.617
-"tap, device side",phone-use,34,27.890
-"tap, device side",phone-use,35,59.329
-"tap, device side",phone-use,36,18.974
-"tap, device side",phone-use,37,25.257
-"tap, device side",phone-use,38,33.123
-"tap, device side",phone-use,39,26.020
-"tap, device side",phone-use,40,18.656
-"tap, device side",phone-use,41,37.137
-"tap, device side",phone-use,42,25.305
-"tap, device side",phone-use,43,19.694
-"tap, device side",phone-use,44,59.653
-"tap, device side",phone-use,45,19.940
-"tap, device side",phone-use,46,23.310
-"tap, device side",phone-use,47,35.495
-"tap, device side",phone-use,48,24.663
-"tap, device side",phone-use,49,29.684
+"tap, device side",phonedriver,0,18.944
+"tap, device side",phonedriver,1,16.682
+"tap, device side",phonedriver,2,34.506
+"tap, device side",phonedriver,3,35.077
+"tap, device side",phonedriver,4,53.668
+"tap, device side",phonedriver,5,35.889
+"tap, device side",phonedriver,6,17.482
+"tap, device side",phonedriver,7,24.972
+"tap, device side",phonedriver,8,85.018
+"tap, device side",phonedriver,9,31.762
+"tap, device side",phonedriver,10,33.712
+"tap, device side",phonedriver,11,33.140
+"tap, device side",phonedriver,12,15.603
+"tap, device side",phonedriver,13,25.739
+"tap, device side",phonedriver,14,28.708
+"tap, device side",phonedriver,15,37.318
+"tap, device side",phonedriver,16,19.264
+"tap, device side",phonedriver,17,36.537
+"tap, device side",phonedriver,18,31.984
+"tap, device side",phonedriver,19,23.279
+"tap, device side",phonedriver,20,36.474
+"tap, device side",phonedriver,21,24.424
+"tap, device side",phonedriver,22,31.130
+"tap, device side",phonedriver,23,27.498
+"tap, device side",phonedriver,24,11.177
+"tap, device side",phonedriver,25,22.516
+"tap, device side",phonedriver,26,38.458
+"tap, device side",phonedriver,27,27.626
+"tap, device side",phonedriver,28,26.760
+"tap, device side",phonedriver,29,25.904
+"tap, device side",phonedriver,30,16.368
+"tap, device side",phonedriver,31,23.432
+"tap, device side",phonedriver,32,36.713
+"tap, device side",phonedriver,33,31.617
+"tap, device side",phonedriver,34,27.890
+"tap, device side",phonedriver,35,59.329
+"tap, device side",phonedriver,36,18.974
+"tap, device side",phonedriver,37,25.257
+"tap, device side",phonedriver,38,33.123
+"tap, device side",phonedriver,39,26.020
+"tap, device side",phonedriver,40,18.656
+"tap, device side",phonedriver,41,37.137
+"tap, device side",phonedriver,42,25.305
+"tap, device side",phonedriver,43,19.694
+"tap, device side",phonedriver,44,59.653
+"tap, device side",phonedriver,45,19.940
+"tap, device side",phonedriver,46,23.310
+"tap, device side",phonedriver,47,35.495
+"tap, device side",phonedriver,48,24.663
+"tap, device side",phonedriver,49,29.684
 "tap, device side",phone-harness,0,61.289
 "tap, device side",phone-harness,1,66.558
 "tap, device side",phone-harness,2,242.414
@@ -449,56 +449,56 @@ screenshot,adb,49,455.307
 "tap, device side",adb,47,56.628
 "tap, device side",adb,48,67.018
 "tap, device side",adb,49,69.950
-"tap, then what changed",phone-use,0,533.027
-"tap, then what changed",phone-use,1,513.851
-"tap, then what changed",phone-use,2,572.063
-"tap, then what changed",phone-use,3,650.335
-"tap, then what changed",phone-use,4,827.047
-"tap, then what changed",phone-use,5,585.802
-"tap, then what changed",phone-use,6,485.990
-"tap, then what changed",phone-use,7,584.342
-"tap, then what changed",phone-use,8,586.873
-"tap, then what changed",phone-use,9,665.898
-"tap, then what changed",phone-use,10,646.693
-"tap, then what changed",phone-use,11,672.040
-"tap, then what changed",phone-use,12,599.354
-"tap, then what changed",phone-use,13,621.941
-"tap, then what changed",phone-use,14,576.663
-"tap, then what changed",phone-use,15,683.425
-"tap, then what changed",phone-use,16,629.564
-"tap, then what changed",phone-use,17,663.427
-"tap, then what changed",phone-use,18,521.130
-"tap, then what changed",phone-use,19,649.571
-"tap, then what changed",phone-use,20,573.953
-"tap, then what changed",phone-use,21,609.388
-"tap, then what changed",phone-use,22,468.943
-"tap, then what changed",phone-use,23,589.448
-"tap, then what changed",phone-use,24,579.888
-"tap, then what changed",phone-use,25,701.576
-"tap, then what changed",phone-use,26,604.338
-"tap, then what changed",phone-use,27,577.076
-"tap, then what changed",phone-use,28,622.109
-"tap, then what changed",phone-use,29,704.761
-"tap, then what changed",phone-use,30,606.837
-"tap, then what changed",phone-use,31,539.558
-"tap, then what changed",phone-use,32,586.593
-"tap, then what changed",phone-use,33,612.162
-"tap, then what changed",phone-use,34,472.597
-"tap, then what changed",phone-use,35,692.163
-"tap, then what changed",phone-use,36,574.492
-"tap, then what changed",phone-use,37,652.286
-"tap, then what changed",phone-use,38,570.358
-"tap, then what changed",phone-use,39,578.796
-"tap, then what changed",phone-use,40,580.863
-"tap, then what changed",phone-use,41,556.508
-"tap, then what changed",phone-use,42,543.573
-"tap, then what changed",phone-use,43,535.123
-"tap, then what changed",phone-use,44,581.544
-"tap, then what changed",phone-use,45,711.520
-"tap, then what changed",phone-use,46,667.442
-"tap, then what changed",phone-use,47,598.066
-"tap, then what changed",phone-use,48,525.285
-"tap, then what changed",phone-use,49,587.425
+"tap, then what changed",phonedriver,0,533.027
+"tap, then what changed",phonedriver,1,513.851
+"tap, then what changed",phonedriver,2,572.063
+"tap, then what changed",phonedriver,3,650.335
+"tap, then what changed",phonedriver,4,827.047
+"tap, then what changed",phonedriver,5,585.802
+"tap, then what changed",phonedriver,6,485.990
+"tap, then what changed",phonedriver,7,584.342
+"tap, then what changed",phonedriver,8,586.873
+"tap, then what changed",phonedriver,9,665.898
+"tap, then what changed",phonedriver,10,646.693
+"tap, then what changed",phonedriver,11,672.040
+"tap, then what changed",phonedriver,12,599.354
+"tap, then what changed",phonedriver,13,621.941
+"tap, then what changed",phonedriver,14,576.663
+"tap, then what changed",phonedriver,15,683.425
+"tap, then what changed",phonedriver,16,629.564
+"tap, then what changed",phonedriver,17,663.427
+"tap, then what changed",phonedriver,18,521.130
+"tap, then what changed",phonedriver,19,649.571
+"tap, then what changed",phonedriver,20,573.953
+"tap, then what changed",phonedriver,21,609.388
+"tap, then what changed",phonedriver,22,468.943
+"tap, then what changed",phonedriver,23,589.448
+"tap, then what changed",phonedriver,24,579.888
+"tap, then what changed",phonedriver,25,701.576
+"tap, then what changed",phonedriver,26,604.338
+"tap, then what changed",phonedriver,27,577.076
+"tap, then what changed",phonedriver,28,622.109
+"tap, then what changed",phonedriver,29,704.761
+"tap, then what changed",phonedriver,30,606.837
+"tap, then what changed",phonedriver,31,539.558
+"tap, then what changed",phonedriver,32,586.593
+"tap, then what changed",phonedriver,33,612.162
+"tap, then what changed",phonedriver,34,472.597
+"tap, then what changed",phonedriver,35,692.163
+"tap, then what changed",phonedriver,36,574.492
+"tap, then what changed",phonedriver,37,652.286
+"tap, then what changed",phonedriver,38,570.358
+"tap, then what changed",phonedriver,39,578.796
+"tap, then what changed",phonedriver,40,580.863
+"tap, then what changed",phonedriver,41,556.508
+"tap, then what changed",phonedriver,42,543.573
+"tap, then what changed",phonedriver,43,535.123
+"tap, then what changed",phonedriver,44,581.544
+"tap, then what changed",phonedriver,45,711.520
+"tap, then what changed",phonedriver,46,667.442
+"tap, then what changed",phonedriver,47,598.066
+"tap, then what changed",phonedriver,48,525.285
+"tap, then what changed",phonedriver,49,587.425
 "tap, then what changed",adb,0,2876.173
 "tap, then what changed",adb,1,2612.106
 "tap, then what changed",adb,2,2706.798
@@ -549,56 +549,56 @@ screenshot,adb,49,455.307
 "tap, then what changed",adb,47,2764.292
 "tap, then what changed",adb,48,2759.683
 "tap, then what changed",adb,49,2786.068
-"tree, Settings",phone-use,0,115.597
-"tree, Settings",phone-use,1,123.923
-"tree, Settings",phone-use,2,97.016
-"tree, Settings",phone-use,3,106.732
-"tree, Settings",phone-use,4,96.876
-"tree, Settings",phone-use,5,85.498
-"tree, Settings",phone-use,6,221.484
-"tree, Settings",phone-use,7,99.751
-"tree, Settings",phone-use,8,188.988
-"tree, Settings",phone-use,9,190.962
-"tree, Settings",phone-use,10,64.436
-"tree, Settings",phone-use,11,104.977
-"tree, Settings",phone-use,12,96.877
-"tree, Settings",phone-use,13,101.587
-"tree, Settings",phone-use,14,73.597
-"tree, Settings",phone-use,15,72.434
-"tree, Settings",phone-use,16,77.488
-"tree, Settings",phone-use,17,88.756
-"tree, Settings",phone-use,18,86.209
-"tree, Settings",phone-use,19,93.033
-"tree, Settings",phone-use,20,98.199
-"tree, Settings",phone-use,21,85.852
-"tree, Settings",phone-use,22,121.120
-"tree, Settings",phone-use,23,89.089
-"tree, Settings",phone-use,24,88.726
-"tree, Settings",phone-use,25,88.960
-"tree, Settings",phone-use,26,104.448
-"tree, Settings",phone-use,27,85.794
-"tree, Settings",phone-use,28,74.156
-"tree, Settings",phone-use,29,76.869
-"tree, Settings",phone-use,30,83.086
-"tree, Settings",phone-use,31,94.377
-"tree, Settings",phone-use,32,91.087
-"tree, Settings",phone-use,33,90.643
-"tree, Settings",phone-use,34,85.358
-"tree, Settings",phone-use,35,85.571
-"tree, Settings",phone-use,36,80.536
-"tree, Settings",phone-use,37,76.232
-"tree, Settings",phone-use,38,89.310
-"tree, Settings",phone-use,39,90.010
-"tree, Settings",phone-use,40,133.645
-"tree, Settings",phone-use,41,128.130
-"tree, Settings",phone-use,42,78.648
-"tree, Settings",phone-use,43,87.843
-"tree, Settings",phone-use,44,87.668
-"tree, Settings",phone-use,45,94.496
-"tree, Settings",phone-use,46,84.916
-"tree, Settings",phone-use,47,88.894
-"tree, Settings",phone-use,48,91.127
-"tree, Settings",phone-use,49,100.788
+"tree, Settings",phonedriver,0,115.597
+"tree, Settings",phonedriver,1,123.923
+"tree, Settings",phonedriver,2,97.016
+"tree, Settings",phonedriver,3,106.732
+"tree, Settings",phonedriver,4,96.876
+"tree, Settings",phonedriver,5,85.498
+"tree, Settings",phonedriver,6,221.484
+"tree, Settings",phonedriver,7,99.751
+"tree, Settings",phonedriver,8,188.988
+"tree, Settings",phonedriver,9,190.962
+"tree, Settings",phonedriver,10,64.436
+"tree, Settings",phonedriver,11,104.977
+"tree, Settings",phonedriver,12,96.877
+"tree, Settings",phonedriver,13,101.587
+"tree, Settings",phonedriver,14,73.597
+"tree, Settings",phonedriver,15,72.434
+"tree, Settings",phonedriver,16,77.488
+"tree, Settings",phonedriver,17,88.756
+"tree, Settings",phonedriver,18,86.209
+"tree, Settings",phonedriver,19,93.033
+"tree, Settings",phonedriver,20,98.199
+"tree, Settings",phonedriver,21,85.852
+"tree, Settings",phonedriver,22,121.120
+"tree, Settings",phonedriver,23,89.089
+"tree, Settings",phonedriver,24,88.726
+"tree, Settings",phonedriver,25,88.960
+"tree, Settings",phonedriver,26,104.448
+"tree, Settings",phonedriver,27,85.794
+"tree, Settings",phonedriver,28,74.156
+"tree, Settings",phonedriver,29,76.869
+"tree, Settings",phonedriver,30,83.086
+"tree, Settings",phonedriver,31,94.377
+"tree, Settings",phonedriver,32,91.087
+"tree, Settings",phonedriver,33,90.643
+"tree, Settings",phonedriver,34,85.358
+"tree, Settings",phonedriver,35,85.571
+"tree, Settings",phonedriver,36,80.536
+"tree, Settings",phonedriver,37,76.232
+"tree, Settings",phonedriver,38,89.310
+"tree, Settings",phonedriver,39,90.010
+"tree, Settings",phonedriver,40,133.645
+"tree, Settings",phonedriver,41,128.130
+"tree, Settings",phonedriver,42,78.648
+"tree, Settings",phonedriver,43,87.843
+"tree, Settings",phonedriver,44,87.668
+"tree, Settings",phonedriver,45,94.496
+"tree, Settings",phonedriver,46,84.916
+"tree, Settings",phonedriver,47,88.894
+"tree, Settings",phonedriver,48,91.127
+"tree, Settings",phonedriver,49,100.788
 "tree, Settings",phone-harness,0,2709.647
 "tree, Settings",phone-harness,1,2782.407
 "tree, Settings",phone-harness,2,2777.606
@@ -699,106 +699,106 @@ screenshot,adb,49,455.307
 "tree, Settings",adb,47,2468.253
 "tree, Settings",adb,48,2367.268
 "tree, Settings",adb,49,2344.981
-"tree, Settings","phone-use, settled",0,104.958
-"tree, Settings","phone-use, settled",1,94.019
-"tree, Settings","phone-use, settled",2,80.397
-"tree, Settings","phone-use, settled",3,76.892
-"tree, Settings","phone-use, settled",4,82.915
-"tree, Settings","phone-use, settled",5,76.983
-"tree, Settings","phone-use, settled",6,95.214
-"tree, Settings","phone-use, settled",7,80.094
-"tree, Settings","phone-use, settled",8,85.108
-"tree, Settings","phone-use, settled",9,75.203
-"tree, Settings","phone-use, settled",10,91.560
-"tree, Settings","phone-use, settled",11,104.434
-"tree, Settings","phone-use, settled",12,104.804
-"tree, Settings","phone-use, settled",13,94.205
-"tree, Settings","phone-use, settled",14,98.970
-"tree, Settings","phone-use, settled",15,85.825
-"tree, Settings","phone-use, settled",16,84.851
-"tree, Settings","phone-use, settled",17,95.138
-"tree, Settings","phone-use, settled",18,91.438
-"tree, Settings","phone-use, settled",19,86.000
-"tree, Settings","phone-use, settled",20,101.897
-"tree, Settings","phone-use, settled",21,85.490
-"tree, Settings","phone-use, settled",22,92.481
-"tree, Settings","phone-use, settled",23,99.050
-"tree, Settings","phone-use, settled",24,80.539
-"tree, Settings","phone-use, settled",25,78.882
-"tree, Settings","phone-use, settled",26,72.555
-"tree, Settings","phone-use, settled",27,101.050
-"tree, Settings","phone-use, settled",28,89.913
-"tree, Settings","phone-use, settled",29,71.218
-"tree, Settings","phone-use, settled",30,94.437
-"tree, Settings","phone-use, settled",31,100.467
-"tree, Settings","phone-use, settled",32,116.701
-"tree, Settings","phone-use, settled",33,110.081
-"tree, Settings","phone-use, settled",34,102.130
-"tree, Settings","phone-use, settled",35,120.249
-"tree, Settings","phone-use, settled",36,78.611
-"tree, Settings","phone-use, settled",37,83.821
-"tree, Settings","phone-use, settled",38,102.460
-"tree, Settings","phone-use, settled",39,78.236
-"tree, Settings","phone-use, settled",40,90.917
-"tree, Settings","phone-use, settled",41,136.929
-"tree, Settings","phone-use, settled",42,123.441
-"tree, Settings","phone-use, settled",43,126.904
-"tree, Settings","phone-use, settled",44,112.793
-"tree, Settings","phone-use, settled",45,124.439
-"tree, Settings","phone-use, settled",46,119.690
-"tree, Settings","phone-use, settled",47,123.249
-"tree, Settings","phone-use, settled",48,78.589
-"tree, Settings","phone-use, settled",49,79.452
-"tree, list",phone-use,0,20.384
-"tree, list",phone-use,1,25.777
-"tree, list",phone-use,2,42.170
-"tree, list",phone-use,3,19.679
-"tree, list",phone-use,4,17.437
-"tree, list",phone-use,5,18.746
-"tree, list",phone-use,6,21.723
-"tree, list",phone-use,7,32.402
-"tree, list",phone-use,8,22.312
-"tree, list",phone-use,9,22.212
-"tree, list",phone-use,10,25.513
-"tree, list",phone-use,11,31.689
-"tree, list",phone-use,12,28.945
-"tree, list",phone-use,13,20.911
-"tree, list",phone-use,14,26.421
-"tree, list",phone-use,15,16.103
-"tree, list",phone-use,16,20.695
-"tree, list",phone-use,17,28.302
-"tree, list",phone-use,18,18.627
-"tree, list",phone-use,19,24.550
-"tree, list",phone-use,20,22.498
-"tree, list",phone-use,21,24.411
-"tree, list",phone-use,22,25.357
-"tree, list",phone-use,23,21.579
-"tree, list",phone-use,24,19.061
-"tree, list",phone-use,25,27.626
-"tree, list",phone-use,26,36.570
-"tree, list",phone-use,27,19.650
-"tree, list",phone-use,28,19.203
-"tree, list",phone-use,29,23.843
-"tree, list",phone-use,30,24.848
-"tree, list",phone-use,31,32.892
-"tree, list",phone-use,32,26.525
-"tree, list",phone-use,33,18.624
-"tree, list",phone-use,34,21.577
-"tree, list",phone-use,35,24.898
-"tree, list",phone-use,36,23.245
-"tree, list",phone-use,37,45.699
-"tree, list",phone-use,38,27.222
-"tree, list",phone-use,39,20.132
-"tree, list",phone-use,40,25.837
-"tree, list",phone-use,41,29.538
-"tree, list",phone-use,42,23.977
-"tree, list",phone-use,43,28.567
-"tree, list",phone-use,44,24.565
-"tree, list",phone-use,45,23.907
-"tree, list",phone-use,46,20.484
-"tree, list",phone-use,47,30.980
-"tree, list",phone-use,48,25.644
-"tree, list",phone-use,49,23.394
+"tree, Settings","phonedriver, settled",0,104.958
+"tree, Settings","phonedriver, settled",1,94.019
+"tree, Settings","phonedriver, settled",2,80.397
+"tree, Settings","phonedriver, settled",3,76.892
+"tree, Settings","phonedriver, settled",4,82.915
+"tree, Settings","phonedriver, settled",5,76.983
+"tree, Settings","phonedriver, settled",6,95.214
+"tree, Settings","phonedriver, settled",7,80.094
+"tree, Settings","phonedriver, settled",8,85.108
+"tree, Settings","phonedriver, settled",9,75.203
+"tree, Settings","phonedriver, settled",10,91.560
+"tree, Settings","phonedriver, settled",11,104.434
+"tree, Settings","phonedriver, settled",12,104.804
+"tree, Settings","phonedriver, settled",13,94.205
+"tree, Settings","phonedriver, settled",14,98.970
+"tree, Settings","phonedriver, settled",15,85.825
+"tree, Settings","phonedriver, settled",16,84.851
+"tree, Settings","phonedriver, settled",17,95.138
+"tree, Settings","phonedriver, settled",18,91.438
+"tree, Settings","phonedriver, settled",19,86.000
+"tree, Settings","phonedriver, settled",20,101.897
+"tree, Settings","phonedriver, settled",21,85.490
+"tree, Settings","phonedriver, settled",22,92.481
+"tree, Settings","phonedriver, settled",23,99.050
+"tree, Settings","phonedriver, settled",24,80.539
+"tree, Settings","phonedriver, settled",25,78.882
+"tree, Settings","phonedriver, settled",26,72.555
+"tree, Settings","phonedriver, settled",27,101.050
+"tree, Settings","phonedriver, settled",28,89.913
+"tree, Settings","phonedriver, settled",29,71.218
+"tree, Settings","phonedriver, settled",30,94.437
+"tree, Settings","phonedriver, settled",31,100.467
+"tree, Settings","phonedriver, settled",32,116.701
+"tree, Settings","phonedriver, settled",33,110.081
+"tree, Settings","phonedriver, settled",34,102.130
+"tree, Settings","phonedriver, settled",35,120.249
+"tree, Settings","phonedriver, settled",36,78.611
+"tree, Settings","phonedriver, settled",37,83.821
+"tree, Settings","phonedriver, settled",38,102.460
+"tree, Settings","phonedriver, settled",39,78.236
+"tree, Settings","phonedriver, settled",40,90.917
+"tree, Settings","phonedriver, settled",41,136.929
+"tree, Settings","phonedriver, settled",42,123.441
+"tree, Settings","phonedriver, settled",43,126.904
+"tree, Settings","phonedriver, settled",44,112.793
+"tree, Settings","phonedriver, settled",45,124.439
+"tree, Settings","phonedriver, settled",46,119.690
+"tree, Settings","phonedriver, settled",47,123.249
+"tree, Settings","phonedriver, settled",48,78.589
+"tree, Settings","phonedriver, settled",49,79.452
+"tree, list",phonedriver,0,20.384
+"tree, list",phonedriver,1,25.777
+"tree, list",phonedriver,2,42.170
+"tree, list",phonedriver,3,19.679
+"tree, list",phonedriver,4,17.437
+"tree, list",phonedriver,5,18.746
+"tree, list",phonedriver,6,21.723
+"tree, list",phonedriver,7,32.402
+"tree, list",phonedriver,8,22.312
+"tree, list",phonedriver,9,22.212
+"tree, list",phonedriver,10,25.513
+"tree, list",phonedriver,11,31.689
+"tree, list",phonedriver,12,28.945
+"tree, list",phonedriver,13,20.911
+"tree, list",phonedriver,14,26.421
+"tree, list",phonedriver,15,16.103
+"tree, list",phonedriver,16,20.695
+"tree, list",phonedriver,17,28.302
+"tree, list",phonedriver,18,18.627
+"tree, list",phonedriver,19,24.550
+"tree, list",phonedriver,20,22.498
+"tree, list",phonedriver,21,24.411
+"tree, list",phonedriver,22,25.357
+"tree, list",phonedriver,23,21.579
+"tree, list",phonedriver,24,19.061
+"tree, list",phonedriver,25,27.626
+"tree, list",phonedriver,26,36.570
+"tree, list",phonedriver,27,19.650
+"tree, list",phonedriver,28,19.203
+"tree, list",phonedriver,29,23.843
+"tree, list",phonedriver,30,24.848
+"tree, list",phonedriver,31,32.892
+"tree, list",phonedriver,32,26.525
+"tree, list",phonedriver,33,18.624
+"tree, list",phonedriver,34,21.577
+"tree, list",phonedriver,35,24.898
+"tree, list",phonedriver,36,23.245
+"tree, list",phonedriver,37,45.699
+"tree, list",phonedriver,38,27.222
+"tree, list",phonedriver,39,20.132
+"tree, list",phonedriver,40,25.837
+"tree, list",phonedriver,41,29.538
+"tree, list",phonedriver,42,23.977
+"tree, list",phonedriver,43,28.567
+"tree, list",phonedriver,44,24.565
+"tree, list",phonedriver,45,23.907
+"tree, list",phonedriver,46,20.484
+"tree, list",phonedriver,47,30.980
+"tree, list",phonedriver,48,25.644
+"tree, list",phonedriver,49,23.394
 "tree, list",phone-harness,0,2654.469
 "tree, list",phone-harness,1,2695.318
 "tree, list",phone-harness,2,2701.988
@@ -899,106 +899,106 @@ screenshot,adb,49,455.307
 "tree, list",adb,47,2327.232
 "tree, list",adb,48,2421.749
 "tree, list",adb,49,2314.071
-"tree, list","phone-use, settled",0,31.261
-"tree, list","phone-use, settled",1,19.827
-"tree, list","phone-use, settled",2,26.915
-"tree, list","phone-use, settled",3,29.632
-"tree, list","phone-use, settled",4,24.631
-"tree, list","phone-use, settled",5,22.556
-"tree, list","phone-use, settled",6,24.034
-"tree, list","phone-use, settled",7,19.186
-"tree, list","phone-use, settled",8,24.137
-"tree, list","phone-use, settled",9,22.370
-"tree, list","phone-use, settled",10,27.642
-"tree, list","phone-use, settled",11,17.416
-"tree, list","phone-use, settled",12,24.773
-"tree, list","phone-use, settled",13,30.687
-"tree, list","phone-use, settled",14,25.760
-"tree, list","phone-use, settled",15,19.668
-"tree, list","phone-use, settled",16,18.523
-"tree, list","phone-use, settled",17,23.516
-"tree, list","phone-use, settled",18,23.228
-"tree, list","phone-use, settled",19,25.472
-"tree, list","phone-use, settled",20,25.614
-"tree, list","phone-use, settled",21,36.248
-"tree, list","phone-use, settled",22,24.705
-"tree, list","phone-use, settled",23,25.744
-"tree, list","phone-use, settled",24,26.459
-"tree, list","phone-use, settled",25,33.620
-"tree, list","phone-use, settled",26,35.441
-"tree, list","phone-use, settled",27,22.819
-"tree, list","phone-use, settled",28,25.255
-"tree, list","phone-use, settled",29,19.365
-"tree, list","phone-use, settled",30,27.437
-"tree, list","phone-use, settled",31,22.388
-"tree, list","phone-use, settled",32,25.466
-"tree, list","phone-use, settled",33,32.354
-"tree, list","phone-use, settled",34,28.623
-"tree, list","phone-use, settled",35,20.774
-"tree, list","phone-use, settled",36,13.268
-"tree, list","phone-use, settled",37,18.492
-"tree, list","phone-use, settled",38,15.789
-"tree, list","phone-use, settled",39,23.271
-"tree, list","phone-use, settled",40,31.238
-"tree, list","phone-use, settled",41,38.150
-"tree, list","phone-use, settled",42,42.687
-"tree, list","phone-use, settled",43,44.515
-"tree, list","phone-use, settled",44,31.413
-"tree, list","phone-use, settled",45,32.187
-"tree, list","phone-use, settled",46,35.017
-"tree, list","phone-use, settled",47,31.804
-"tree, list","phone-use, settled",48,18.595
-"tree, list","phone-use, settled",49,25.335
-type 100 characters,phone-use,0,262.725
-type 100 characters,phone-use,1,263.758
-type 100 characters,phone-use,2,280.889
-type 100 characters,phone-use,3,237.388
-type 100 characters,phone-use,4,119.830
-type 100 characters,phone-use,5,321.035
-type 100 characters,phone-use,6,242.300
-type 100 characters,phone-use,7,297.155
-type 100 characters,phone-use,8,210.118
-type 100 characters,phone-use,9,301.373
-type 100 characters,phone-use,10,192.129
-type 100 characters,phone-use,11,184.689
-type 100 characters,phone-use,12,205.277
-type 100 characters,phone-use,13,225.869
-type 100 characters,phone-use,14,228.259
-type 100 characters,phone-use,15,267.590
-type 100 characters,phone-use,16,212.357
-type 100 characters,phone-use,17,391.656
-type 100 characters,phone-use,18,174.364
-type 100 characters,phone-use,19,221.313
-type 100 characters,phone-use,20,211.175
-type 100 characters,phone-use,21,205.159
-type 100 characters,phone-use,22,223.557
-type 100 characters,phone-use,23,355.358
-type 100 characters,phone-use,24,108.008
-type 100 characters,phone-use,25,721.035
-type 100 characters,phone-use,26,292.353
-type 100 characters,phone-use,27,287.321
-type 100 characters,phone-use,28,277.880
-type 100 characters,phone-use,29,331.110
-type 100 characters,phone-use,30,337.695
-type 100 characters,phone-use,31,360.005
-type 100 characters,phone-use,32,299.490
-type 100 characters,phone-use,33,236.938
-type 100 characters,phone-use,34,355.389
-type 100 characters,phone-use,35,428.094
-type 100 characters,phone-use,36,169.499
-type 100 characters,phone-use,37,334.067
-type 100 characters,phone-use,38,241.236
-type 100 characters,phone-use,39,330.620
-type 100 characters,phone-use,40,177.245
-type 100 characters,phone-use,41,503.794
-type 100 characters,phone-use,42,310.674
-type 100 characters,phone-use,43,292.130
-type 100 characters,phone-use,44,139.879
-type 100 characters,phone-use,45,289.130
-type 100 characters,phone-use,46,340.073
-type 100 characters,phone-use,47,257.821
-type 100 characters,phone-use,48,197.005
-type 100 characters,phone-use,49,282.780
+"tree, list","phonedriver, settled",0,31.261
+"tree, list","phonedriver, settled",1,19.827
+"tree, list","phonedriver, settled",2,26.915
+"tree, list","phonedriver, settled",3,29.632
+"tree, list","phonedriver, settled",4,24.631
+"tree, list","phonedriver, settled",5,22.556
+"tree, list","phonedriver, settled",6,24.034
+"tree, list","phonedriver, settled",7,19.186
+"tree, list","phonedriver, settled",8,24.137
+"tree, list","phonedriver, settled",9,22.370
+"tree, list","phonedriver, settled",10,27.642
+"tree, list","phonedriver, settled",11,17.416
+"tree, list","phonedriver, settled",12,24.773
+"tree, list","phonedriver, settled",13,30.687
+"tree, list","phonedriver, settled",14,25.760
+"tree, list","phonedriver, settled",15,19.668
+"tree, list","phonedriver, settled",16,18.523
+"tree, list","phonedriver, settled",17,23.516
+"tree, list","phonedriver, settled",18,23.228
+"tree, list","phonedriver, settled",19,25.472
+"tree, list","phonedriver, settled",20,25.614
+"tree, list","phonedriver, settled",21,36.248
+"tree, list","phonedriver, settled",22,24.705
+"tree, list","phonedriver, settled",23,25.744
+"tree, list","phonedriver, settled",24,26.459
+"tree, list","phonedriver, settled",25,33.620
+"tree, list","phonedriver, settled",26,35.441
+"tree, list","phonedriver, settled",27,22.819
+"tree, list","phonedriver, settled",28,25.255
+"tree, list","phonedriver, settled",29,19.365
+"tree, list","phonedriver, settled",30,27.437
+"tree, list","phonedriver, settled",31,22.388
+"tree, list","phonedriver, settled",32,25.466
+"tree, list","phonedriver, settled",33,32.354
+"tree, list","phonedriver, settled",34,28.623
+"tree, list","phonedriver, settled",35,20.774
+"tree, list","phonedriver, settled",36,13.268
+"tree, list","phonedriver, settled",37,18.492
+"tree, list","phonedriver, settled",38,15.789
+"tree, list","phonedriver, settled",39,23.271
+"tree, list","phonedriver, settled",40,31.238
+"tree, list","phonedriver, settled",41,38.150
+"tree, list","phonedriver, settled",42,42.687
+"tree, list","phonedriver, settled",43,44.515
+"tree, list","phonedriver, settled",44,31.413
+"tree, list","phonedriver, settled",45,32.187
+"tree, list","phonedriver, settled",46,35.017
+"tree, list","phonedriver, settled",47,31.804
+"tree, list","phonedriver, settled",48,18.595
+"tree, list","phonedriver, settled",49,25.335
+type 100 characters,phonedriver,0,262.725
+type 100 characters,phonedriver,1,263.758
+type 100 characters,phonedriver,2,280.889
+type 100 characters,phonedriver,3,237.388
+type 100 characters,phonedriver,4,119.830
+type 100 characters,phonedriver,5,321.035
+type 100 characters,phonedriver,6,242.300
+type 100 characters,phonedriver,7,297.155
+type 100 characters,phonedriver,8,210.118
+type 100 characters,phonedriver,9,301.373
+type 100 characters,phonedriver,10,192.129
+type 100 characters,phonedriver,11,184.689
+type 100 characters,phonedriver,12,205.277
+type 100 characters,phonedriver,13,225.869
+type 100 characters,phonedriver,14,228.259
+type 100 characters,phonedriver,15,267.590
+type 100 characters,phonedriver,16,212.357
+type 100 characters,phonedriver,17,391.656
+type 100 characters,phonedriver,18,174.364
+type 100 characters,phonedriver,19,221.313
+type 100 characters,phonedriver,20,211.175
+type 100 characters,phonedriver,21,205.159
+type 100 characters,phonedriver,22,223.557
+type 100 characters,phonedriver,23,355.358
+type 100 characters,phonedriver,24,108.008
+type 100 characters,phonedriver,25,721.035
+type 100 characters,phonedriver,26,292.353
+type 100 characters,phonedriver,27,287.321
+type 100 characters,phonedriver,28,277.880
+type 100 characters,phonedriver,29,331.110
+type 100 characters,phonedriver,30,337.695
+type 100 characters,phonedriver,31,360.005
+type 100 characters,phonedriver,32,299.490
+type 100 characters,phonedriver,33,236.938
+type 100 characters,phonedriver,34,355.389
+type 100 characters,phonedriver,35,428.094
+type 100 characters,phonedriver,36,169.499
+type 100 characters,phonedriver,37,334.067
+type 100 characters,phonedriver,38,241.236
+type 100 characters,phonedriver,39,330.620
+type 100 characters,phonedriver,40,177.245
+type 100 characters,phonedriver,41,503.794
+type 100 characters,phonedriver,42,310.674
+type 100 characters,phonedriver,43,292.130
+type 100 characters,phonedriver,44,139.879
+type 100 characters,phonedriver,45,289.130
+type 100 characters,phonedriver,46,340.073
+type 100 characters,phonedriver,47,257.821
+type 100 characters,phonedriver,48,197.005
+type 100 characters,phonedriver,49,282.780
 type 100 characters,phone-harness,0,5164.501
 type 100 characters,phone-harness,1,6299.822
 type 100 characters,phone-harness,2,7218.636
@@ -1099,66 +1099,66 @@ type 100 characters,adb,46,5332.375
 type 100 characters,adb,47,5153.528
 type 100 characters,adb,48,5336.907
 type 100 characters,adb,49,5819.076
-type 100 characters,"phone-use, mixed Unicode",0,201.030
-type 100 characters,"phone-use, mixed Unicode",1,300.151
-type 100 characters,"phone-use, mixed Unicode",2,202.410
-type 100 characters,"phone-use, mixed Unicode",3,260.031
-type 100 characters,"phone-use, mixed Unicode",4,135.852
-type 100 characters,"phone-use, mixed Unicode",5,125.483
-type 100 characters,"phone-use, mixed Unicode",6,205.064
-type 100 characters,"phone-use, mixed Unicode",7,251.722
-type 100 characters,"phone-use, mixed Unicode",8,94.665
-type 100 characters,"phone-use, mixed Unicode",9,186.247
-type 100 characters,"phone-use, mixed Unicode",10,380.322
-type 100 characters,"phone-use, mixed Unicode",11,280.766
-type 100 characters,"phone-use, mixed Unicode",12,212.963
-type 100 characters,"phone-use, mixed Unicode",13,132.481
-type 100 characters,"phone-use, mixed Unicode",14,231.664
-type 100 characters,"phone-use, mixed Unicode",15,340.849
-type 100 characters,"phone-use, mixed Unicode",16,243.070
-type 100 characters,"phone-use, mixed Unicode",17,251.639
-type 100 characters,"phone-use, mixed Unicode",18,249.939
-type 100 characters,"phone-use, mixed Unicode",19,235.844
-type 100 characters,"phone-use, mixed Unicode",20,285.450
-type 100 characters,"phone-use, mixed Unicode",21,252.180
-type 100 characters,"phone-use, mixed Unicode",22,193.033
-type 100 characters,"phone-use, mixed Unicode",23,262.558
-type 100 characters,"phone-use, mixed Unicode",24,290.443
-type 100 characters,"phone-use, mixed Unicode",25,641.465
-type 100 characters,"phone-use, mixed Unicode",26,245.085
-type 100 characters,"phone-use, mixed Unicode",27,211.020
-type 100 characters,"phone-use, mixed Unicode",28,229.859
-type 100 characters,"phone-use, mixed Unicode",29,225.504
-type 100 characters,"phone-use, mixed Unicode",30,293.083
-type 100 characters,"phone-use, mixed Unicode",31,221.462
-type 100 characters,"phone-use, mixed Unicode",32,306.326
-type 100 characters,"phone-use, mixed Unicode",33,387.315
-type 100 characters,"phone-use, mixed Unicode",34,157.663
-type 100 characters,"phone-use, mixed Unicode",35,357.681
-type 100 characters,"phone-use, mixed Unicode",36,280.566
-type 100 characters,"phone-use, mixed Unicode",37,245.267
-type 100 characters,"phone-use, mixed Unicode",38,250.069
-type 100 characters,"phone-use, mixed Unicode",39,372.462
-type 100 characters,"phone-use, mixed Unicode",40,237.868
-type 100 characters,"phone-use, mixed Unicode",41,310.561
-type 100 characters,"phone-use, mixed Unicode",42,404.678
-type 100 characters,"phone-use, mixed Unicode",43,183.485
-type 100 characters,"phone-use, mixed Unicode",44,244.202
-type 100 characters,"phone-use, mixed Unicode",45,293.911
-type 100 characters,"phone-use, mixed Unicode",46,215.807
-type 100 characters,"phone-use, mixed Unicode",47,181.431
-type 100 characters,"phone-use, mixed Unicode",48,305.423
-type 100 characters,"phone-use, mixed Unicode",49,311.448
-"cold start, first screen read",phone-use,0,1801.637
-"cold start, first screen read",phone-use,1,1807.790
-"cold start, first screen read",phone-use,2,1870.531
-"cold start, first screen read",phone-use,3,1881.388
-"cold start, first screen read",phone-use,4,1834.032
-"cold start, first screen read",phone-use,5,1785.417
-"cold start, first screen read",phone-use,6,1717.549
-"cold start, first screen read",phone-use,7,1731.252
-"cold start, first screen read",phone-use,8,1818.535
-"cold start, first screen read",phone-use,9,1833.689
+type 100 characters,"phonedriver, mixed Unicode",0,201.030
+type 100 characters,"phonedriver, mixed Unicode",1,300.151
+type 100 characters,"phonedriver, mixed Unicode",2,202.410
+type 100 characters,"phonedriver, mixed Unicode",3,260.031
+type 100 characters,"phonedriver, mixed Unicode",4,135.852
+type 100 characters,"phonedriver, mixed Unicode",5,125.483
+type 100 characters,"phonedriver, mixed Unicode",6,205.064
+type 100 characters,"phonedriver, mixed Unicode",7,251.722
+type 100 characters,"phonedriver, mixed Unicode",8,94.665
+type 100 characters,"phonedriver, mixed Unicode",9,186.247
+type 100 characters,"phonedriver, mixed Unicode",10,380.322
+type 100 characters,"phonedriver, mixed Unicode",11,280.766
+type 100 characters,"phonedriver, mixed Unicode",12,212.963
+type 100 characters,"phonedriver, mixed Unicode",13,132.481
+type 100 characters,"phonedriver, mixed Unicode",14,231.664
+type 100 characters,"phonedriver, mixed Unicode",15,340.849
+type 100 characters,"phonedriver, mixed Unicode",16,243.070
+type 100 characters,"phonedriver, mixed Unicode",17,251.639
+type 100 characters,"phonedriver, mixed Unicode",18,249.939
+type 100 characters,"phonedriver, mixed Unicode",19,235.844
+type 100 characters,"phonedriver, mixed Unicode",20,285.450
+type 100 characters,"phonedriver, mixed Unicode",21,252.180
+type 100 characters,"phonedriver, mixed Unicode",22,193.033
+type 100 characters,"phonedriver, mixed Unicode",23,262.558
+type 100 characters,"phonedriver, mixed Unicode",24,290.443
+type 100 characters,"phonedriver, mixed Unicode",25,641.465
+type 100 characters,"phonedriver, mixed Unicode",26,245.085
+type 100 characters,"phonedriver, mixed Unicode",27,211.020
+type 100 characters,"phonedriver, mixed Unicode",28,229.859
+type 100 characters,"phonedriver, mixed Unicode",29,225.504
+type 100 characters,"phonedriver, mixed Unicode",30,293.083
+type 100 characters,"phonedriver, mixed Unicode",31,221.462
+type 100 characters,"phonedriver, mixed Unicode",32,306.326
+type 100 characters,"phonedriver, mixed Unicode",33,387.315
+type 100 characters,"phonedriver, mixed Unicode",34,157.663
+type 100 characters,"phonedriver, mixed Unicode",35,357.681
+type 100 characters,"phonedriver, mixed Unicode",36,280.566
+type 100 characters,"phonedriver, mixed Unicode",37,245.267
+type 100 characters,"phonedriver, mixed Unicode",38,250.069
+type 100 characters,"phonedriver, mixed Unicode",39,372.462
+type 100 characters,"phonedriver, mixed Unicode",40,237.868
+type 100 characters,"phonedriver, mixed Unicode",41,310.561
+type 100 characters,"phonedriver, mixed Unicode",42,404.678
+type 100 characters,"phonedriver, mixed Unicode",43,183.485
+type 100 characters,"phonedriver, mixed Unicode",44,244.202
+type 100 characters,"phonedriver, mixed Unicode",45,293.911
+type 100 characters,"phonedriver, mixed Unicode",46,215.807
+type 100 characters,"phonedriver, mixed Unicode",47,181.431
+type 100 characters,"phonedriver, mixed Unicode",48,305.423
+type 100 characters,"phonedriver, mixed Unicode",49,311.448
+"cold start, first screen read",phonedriver,0,1801.637
+"cold start, first screen read",phonedriver,1,1807.790
+"cold start, first screen read",phonedriver,2,1870.531
+"cold start, first screen read",phonedriver,3,1881.388
+"cold start, first screen read",phonedriver,4,1834.032
+"cold start, first screen read",phonedriver,5,1785.417
+"cold start, first screen read",phonedriver,6,1717.549
+"cold start, first screen read",phonedriver,7,1731.252
+"cold start, first screen read",phonedriver,8,1818.535
+"cold start, first screen read",phonedriver,9,1833.689
 "cold start, first screen read",phone-harness,0,3305.703
 "cold start, first screen read",phone-harness,1,3205.842
 "cold start, first screen read",phone-harness,2,3220.868

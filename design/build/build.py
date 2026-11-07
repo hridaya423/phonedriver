@@ -80,7 +80,7 @@ def banner(tn):
             b += rule(px + 1, yy + 59, pw - 2, c["line"] if i == 2 else c["faint"])
         t, _ = runs(px + 18, yy + 30, 19.5, parts)
         b += t
-    return svg(W, H, b, f"phone-use. Let your AI agent use a phone. Android and iOS, CLI and MCP, up to {headline(load_speed()[1])} times faster than adb. A snapshot line, @e10 switch Dark theme off, is tapped and the diff reads off to on.", c["page"])
+    return svg(W, H, b, f"phonedriver. Let your AI agent use a phone. Android and iOS, CLI and MCP, up to {headline(load_speed()[1])} times faster than adb. A snapshot line, @e10 switch Dark theme off, is tapped and the diff reads off to on.", c["page"])
 
 
 def social():
@@ -95,7 +95,7 @@ def social():
     fx, fy, fw = 64, 400, 1152
     b += frame(fx, fy, fw, 176, c["line"], c["page"])
     b += rect(fx + 1, fy + 1, fw - 2, 46, c["panel"]) + rule(fx + 1, fy + 47, fw - 2, c["line"])
-    t, _ = mono("phone-use against adb, p50", fx + 16, fy + 24, 16, c["t1"])
+    t, _ = mono("phonedriver against adb, p50", fx + 16, fy + 24, 16, c["t1"])
     b += t
     t, _ = mono("Android 17 emulator, median of 50 runs", fx + fw - 16, fy + 24, 14, c["t3"], anchor="end")
     b += t
@@ -116,7 +116,7 @@ def social():
         b += t
         t, _ = text("x", x + 16 + w + 2, fy + 48 + 100, INTER, 28, c["t2"], -0.02)
         b += t
-    return svg(W, H, b, f"phone-use, {min(float(v.replace(',', '')) for _, v, _ in cells)} to {headline(load_speed()[1])} times faster than adb at p50", c["page"])
+    return svg(W, H, b, f"phonedriver, {min(float(v.replace(',', '')) for _, v, _ in cells)} to {headline(load_speed()[1])} times faster than adb at p50", c["page"])
 
 
 def loop(tn):
@@ -171,7 +171,7 @@ def load_speed():
     d = json.loads((ROOT / "docs" / "bench" / "speed.json").read_text())
     rows = []
     for o in d["ops"]:
-        pu, ph, adb = o["phone_use"], o["phone_harness"], o["adb"]
+        pu, ph, adb = o["phonedriver"], o["phone_harness"], o["adb"]
         rows.append(dict(o, vs_ph=(ph / pu if ph else None), vs_adb=adb / pu))
     rows.sort(key=lambda r: -r["vs_adb"])
     return d, rows
@@ -193,7 +193,7 @@ def speed_alt(rows):
     for r in rows:
         ph = f'phone-harness {ratio(r["vs_ph"])} times' if r["vs_ph"] else "phone-harness not supported"
         parts.append(f'{r["label"]} {ratio(r["vs_adb"])} times faster than adb ({ph})')
-    return "Bar chart, log scale, p50 on an Android 17 emulator. phone-use against plain adb and phone-harness 0.3.3. " + "; ".join(parts) + "."
+    return "Bar chart, log scale, p50 on an Android 17 emulator. phonedriver against plain adb and phone-harness 0.3.3. " + "; ".join(parts) + "."
 
 
 def speed(tn):
@@ -219,7 +219,7 @@ def speed(tn):
     t, _ = mono(d["title"] + " · " + d["subtitle"], fx + 20, fy + 100, 15, c["t3"], 0.02)
     b += t
     rx = fx + fw - 20
-    for i, (name, col) in enumerate((("adb", "d3"), ("phone-harness", "d5"), ("phone-use", "d1"))):
+    for i, (name, col) in enumerate((("adb", "d3"), ("phone-harness", "d5"), ("phonedriver", "d1"))):
         t, w = mono(name, rx, fy + 100, 15, c["t2"], 0.04, anchor="end", caps=True)
         b += t + rect(rx - w - 10 - 12, fy + 100 - 5, 10, 10, c[col])
         rx = rx - w - 10 - 12 - 24
@@ -256,7 +256,7 @@ def speed(tn):
         t, _ = mono(r["label"], px0 + 20, y + 16, 14, c["t1"], 0.03, caps=True)
         b += t
         x0 = round(X(10))
-        series = ((r["phone_use"], c["d1"], c["edge"], c["t1"], r.get("phone_use_p95")), (r["phone_harness"], c["d5"], None, c["t2"], r.get("phone_harness_p95")), (r["adb"], c["d3"], None, c["t2"], r.get("adb_p95")))
+        series = ((r["phonedriver"], c["d1"], c["edge"], c["t1"], r.get("phonedriver_p95")), (r["phone_harness"], c["d5"], None, c["t2"], r.get("phone_harness_p95")), (r["adb"], c["d3"], None, c["t2"], r.get("adb_p95")))
         for j, (v, col, ed, tc, p95) in enumerate(series):
             by = y + 28 + j * 24
             if v is None:
@@ -282,7 +282,7 @@ def speed(tn):
             t, _ = mono("faster than phone-harness" if r["vs_ph"] >= 1 else "phone-harness is faster", px1 + 20, y + 84, 12, c["t3"], 0.03)
             b += t
         else:
-            t, _ = text("Only phone-use", px1 + 20, y + 58, INTER, 24, c["t1"], -0.03)
+            t, _ = text("Only phonedriver", px1 + 20, y + 58, INTER, 24, c["t1"], -0.03)
             b += t
             t, _ = mono("phone-harness: not supported", px1 + 20, y + 84, 12, c["t3"], 0.03)
             b += t
@@ -303,7 +303,7 @@ def hero_alt(rows, picked):
     parts = []
     for r, lab, sub in picked:
         parts.append(f'{lab.lower() if lab != "Screenshot" else "screenshot"}{" (" + sub + ")" if sub and not sub.startswith("adb") else ""}: '
-                     f'{r["phone_use"]:,.1f} ms against {r["adb"]:,.1f} ms for adb, {ratio(r["vs_adb"])} times faster')
+                     f'{r["phonedriver"]:,.1f} ms against {r["adb"]:,.1f} ms for adb, {ratio(r["vs_adb"])} times faster')
     slower = [f'{ratio(r["vs_ph"])}' for r, _, _ in picked if r["vs_ph"]]
     unsup = [lab.lower() for r, lab, _ in picked if not r["vs_ph"]]
     tail = f' phone-harness is {", ".join(slower)} times slower than phonedriver on the first {len(slower)} rows' + (f' and does not support {unsup[0]}.' if unsup else ".")
@@ -331,11 +331,11 @@ def hero(tn, W=1280, H=None, social=False):
         t, _ = text(ratio(r["vs_adb"]) + "\u00d7", W - mx, y + 2 * k, INTER, 56 * k, c["t1"], -0.045, anchor="end")
         b += t
         by = y + round(26 * k)
-        pw = max(bw * r["phone_use"] / r["adb"], 4)
+        pw = max(bw * r["phonedriver"] / r["adb"], 4)
         b += rect(mx, by, bw, track, c["faint"] if tn == "light" else c["line"])
         b += rect(mx, by, pw, track, c["accent"])
         ly = by + track + round(24 * k)
-        t, _ = mono(f'phonedriver {r["phone_use"]:,.0f} ms', mx, ly, 26 * k, c["t1"])
+        t, _ = mono(f'phonedriver {r["phonedriver"]:,.0f} ms', mx, ly, 26 * k, c["t1"])
         b += t
         t, _ = mono(f'adb {r["adb"]:,.0f} ms', W - mx, ly, 26 * k, c["t3"], anchor="end")
         b += t
@@ -353,7 +353,7 @@ def sheet(tn):
     fx, fy, fw, fh = 24, 24, 1232, 688
     b += frame(fx, fy, fw, fh, c["line"], c["page"])
     b += rect(fx + 1, fy + 1, fw - 2, 45, c["panel"]) + rule(fx + 1, fy + 46, fw - 2, c["line"])
-    t, _ = mono("phone-use brand", fx + 14, fy + 24, 16, c["t1"])
+    t, _ = mono("phonedriver brand", fx + 14, fy + 24, 16, c["t1"])
     b += t
     t, _ = mono("Sodium, light and dark", fx + fw - 14, fy + 24, 14, c["t3"], anchor="end")
     b += t
@@ -401,12 +401,12 @@ def sheet(tn):
     b += runs(fx + half + 14, y2 + 104, 13, [("@e10 ", c["t3"]), ("switch ", c["t2"]), ('"Dark theme" ', c["t1"]), ("off", c["t1"])])[0]
     b += runs(fx + half + 14, y2 + 128, 13, [("~ ", c["atext"]), ("@e10 ", c["t3"]), ("switch ", c["t2"]), ('"Dark theme" ', c["t1"]), ("off → ", c["t2"]), ("on", c["ok"])])[0]
     b += runs(fx + half + 14, y2 + 152, 13, [("ok ", c["ok"]), ('tapped @e10 "Dark theme"', c["t1"]), (" · settled in 410ms", c["t2"])])[0]
-    return svg(W, H, b, "phone-use brand sheet: the lockup, the mark at four sizes, ten Sodium colour tokens and the two typefaces Inter Display and Commit Mono.", c["page"])
+    return svg(W, H, b, "phonedriver brand sheet: the lockup, the mark at four sizes, ten Sodium colour tokens and the two typefaces Inter Display and Commit Mono.", c["page"])
 
 
 def tile(size):
     c = DARK
-    return svg(size, size, mark(size, c, ground="#161512", inset=True, ink="#f5f3ee"), "phone-use")
+    return svg(size, size, mark(size, c, ground="#161512", inset=True, ink="#f5f3ee"), "phonedriver")
 
 
 def write(path, s):
@@ -434,13 +434,13 @@ def main():
         write(ASSETS / f"speed-{tn}.svg", speed(tn))
         write(ASSETS / f"brand-{tn}.svg", sheet(tn))
         write(ASSETS / f"hero-{tn}.svg", hero(tn)[0])
-    write(LOGO / "mark.svg", svg(16, 16, mark(16, LIGHT), "phone-use"))
-    write(LOGO / "mark-dark.svg", svg(16, 16, mark(16, DARK), "phone-use"))
-    write(LOGO / "mark-black.svg", svg(16, 16, mark(16, LIGHT, ink="#000000", solid=True), "phone-use"))
-    write(LOGO / "mark-white.svg", svg(16, 16, mark(16, LIGHT, ink="#ffffff", solid=True), "phone-use"))
+    write(LOGO / "mark.svg", svg(16, 16, mark(16, LIGHT), "phonedriver"))
+    write(LOGO / "mark-dark.svg", svg(16, 16, mark(16, DARK), "phonedriver"))
+    write(LOGO / "mark-black.svg", svg(16, 16, mark(16, LIGHT, ink="#000000", solid=True), "phonedriver"))
+    write(LOGO / "mark-white.svg", svg(16, 16, mark(16, LIGHT, ink="#ffffff", solid=True), "phonedriver"))
     for tn in THEMES:
         s, w = lockup(THEMES[tn], 4, 0, 32)
-        write(LOGO / ("lockup.svg" if tn == "light" else "lockup-dark.svg"), svg(round(w) + 8, 32, s.replace('transform="translate(', 'transform="translate(', 1), "phone-use"))
+        write(LOGO / ("lockup.svg" if tn == "light" else "lockup-dark.svg"), svg(round(w) + 8, 32, s.replace('transform="translate(', 'transform="translate(', 1), "phonedriver"))
     write(LOGO / "favicon.svg", tile(16))
     write(LOGO / "app-icon.svg", tile(512))
     soc = social()
