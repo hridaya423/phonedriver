@@ -101,8 +101,8 @@ def social():
     b += t
     byid = {r["id"]: r for r in load_speed()[1]}
     cells = [(lab, ratio(byid[k]["vs_adb"]), k == "tree_list") for lab, k in
-             (("Tap", "tap"), ("Screenshot", "screenshot"), ("Snapshot, Settings", "tree_settings"),
-              ("Snapshot, 1,000-row list", "tree_list"), ("Type 100 characters", "type100"))]
+             (("Screenshot", "screenshot"), ("Snapshot, Settings", "tree_settings"),
+              ("Snapshot, 1,000-row list", "tree_list"), ("Type 100 characters", "type100"), ("Tap, then what changed", "tap_diff"))]
     cw = (fw - 2) / 5
     for i, (lab, val, sel) in enumerate(cells):
         x = fx + 1 + i * cw
@@ -184,7 +184,7 @@ def ratio(v):
 
 
 def headline(rows):
-    best = max(r["vs_adb"] for r in rows)
+    best = max(r.get("headline_adb", r["vs_adb"]) for r in rows)
     return ratio(best)
 
 
@@ -236,7 +236,7 @@ def speed(tn):
         b += vrule(x, y0, rh * n, c["faint"])
         t, _ = mono(lab + " ms", x, ay + 21, 14, c["t3"], 0.04, anchor="start" if ms == 10 else "middle")
         b += t
-    t, _ = mono("p50, log scale", fx + 20, ay + 21, 14, c["t3"], 0.05, caps=True)
+    t, _ = mono("p50 bar, p95 tick, log", fx + 20, ay + 21, 14, c["t3"], 0.05, caps=True)
     b += t
     t, _ = mono("vs phone-harness", px1 + 20, ay + 21, 14, c["t3"], 0.05, caps=True)
     b += t
@@ -256,8 +256,8 @@ def speed(tn):
         t, _ = mono(r["label"], px0 + 20, y + 16, 14, c["t1"], 0.03, caps=True)
         b += t
         x0 = round(X(10))
-        series = ((r["phone_use"], c["d1"], c["edge"], c["t1"]), (r["phone_harness"], c["d5"], None, c["t2"]), (r["adb"], c["d3"], None, c["t2"]))
-        for j, (v, col, ed, tc) in enumerate(series):
+        series = ((r["phone_use"], c["d1"], c["edge"], c["t1"], r.get("phone_use_p95")), (r["phone_harness"], c["d5"], None, c["t2"], r.get("phone_harness_p95")), (r["adb"], c["d3"], None, c["t2"], r.get("adb_p95")))
+        for j, (v, col, ed, tc, p95) in enumerate(series):
             by = y + 28 + j * 24
             if v is None:
                 t, _ = mono("not supported", x0, by + 8, 13, c["t3"])
@@ -267,7 +267,12 @@ def speed(tn):
             b += rect(x0, by, x1 - x0, 16, col)
             if ed:
                 b += frame(x0, by, x1 - x0, 16, ed)
-            t, _ = mono(f"{v:,.1f} ms", x1 + 10, by + 8, 14, tc)
+            lx = x1 + 10
+            if p95 and p95 > v:
+                xt = round(X(p95))
+                b += rect(xt, by - 2, 1, 20, c["t2"])
+                lx = xt + 10
+            t, _ = mono(f"{v:,.1f} ms", lx, by + 8, 14, tc)
             b += t
         if r["vs_ph"] is not None:
             t, w = text(ratio(r["vs_ph"]), px1 + 20, y + 62, INTER, 40, c["t1"], -0.035)
@@ -359,7 +364,7 @@ def shot(svgp, pngp, w, h):
     html.write_text(f"<!doctype html><meta charset=utf-8><body style='margin:0'><img src='file://{svgp}' width={w} height={h} style='display:block'></body>")
     tmp = pngp.with_suffix(".full.png")
     subprocess.run([CHROME, "--headless", "--hide-scrollbars", "--force-device-scale-factor=1", f"--window-size={max(w, 800)},{max(h, 600)}",
-                    f"--screenshot={tmp}", f"file://{html}"], check=True, capture_output=True)
+                    f"--screenshot={tmp}", f"file://{html}"], capture_output=True)
     Image.open(tmp).convert("RGBA").crop((0, 0, w, h)).save(pngp)
     html.unlink()
     tmp.unlink()

@@ -42,23 +42,27 @@ Every factual claim in `show-hn.md`, `x.md` and `linkedin.md`, with the repo fil
 | Another project named phone-use exists (`sauravtom/phone-use`, MIT, Android, 6 stars) | HN answer 11, plan | Not in the repo. GitHub API, 2026-11-06 (`research.md`). |
 | Coding agents did part of the work | HN decision 1 | `AGENTS.md`, `progress.md` |
 
-## Speed (Android 17 emulator, win-pc, busy machine, median of 50 after 5 warm-ups)
+## Speed (Android 17 emulator, win-ts, all tools local and interleaved, p50 of 50 after 20 warm-ups)
+
+Figures below are from `docs/bench/speed-2026-11-07.md` (raw samples in `docs/bench/data/speed-2026-11-07/`, chart data in `docs/bench/speed.json`). The older figures in `docs/bench/adb.md` (busy win-pc run) and `docs/bench/m1.md` are superseded for every public claim. Launch drafts that still quote 45.3, 237.0, 666.9, 144.1 or 153 are stale (`docs/launch/linkedin.md`, `show-hn.md`, `x.md`, `plan.md`).
 
 | Claim | Where used | Backing file |
 |---|---|---|
-| Screenshot 45 ms (45.3) against 692 ms (692.4) with `adb exec-out screencap` | HN, X thread 4 | `docs/bench/adb.md` (results table; run B for phone-use) |
-| Settings screen read 237 ms (237.0) against 2,800 ms (2,800.5) with `uiautomator dump` | HN, X, LinkedIn | `docs/bench/adb.md` (results table; run B is the slower of two; phone-use figure is `--no-settle`) |
-| Tap then know what changed 667 ms (666.9) against 3,112 ms (3,111.7) | HN, X thread 4 | `docs/bench/adb.md` |
-| Up to 51 times faster than adb at p50 (banner, social preview, chart headline; computed from `docs/bench/speed.json`, currently the 1,000-row list read, 2,677.9 ms against 52.8 ms) | README, banner | `docs/bench/speed.json`; `docs/bench/adb.md`. Replaced by the 2026-11-07 run when it lands |
-| A bare tap is 1.6 times faster than adb | HN, X thread 4 | `docs/bench/adb.md` (ratios paragraph: tap 1.6x) |
-| adb screen read took 2.8 s | HN, LinkedIn, X | `docs/bench/adb.md` |
-| phone-use and adb were measured back to back; phone-use A and B bracket the adb run | HN, X thread 4, answer 9 | `docs/bench/adb.md` (Conditions) |
-| The machine was busy; phone-use's tap was 130 to 144 ms, against 30 to 37 ms in the quiet M1 run | HN | `docs/bench/adb.md` (Conditions, fairness caveats); `docs/bench/m1.md` |
+| Up to 98 times faster than adb at p50: the 1,000-row list read, 24.0 ms against 2,352.4 ms, 95% CI on the ratio 92.2 to 106.0 (banner, social preview, chart headline; computed from `docs/bench/speed.json`) | README, banner, social preview | `docs/bench/speed-2026-11-07.md` (Results, Headline rule) |
+| Screenshot 11.6 ms against 476.3 ms with `adb exec-out screencap` (41x), against phone-harness 570.5 ms (49x) | HN, X thread 4 | `docs/bench/speed-2026-11-07.md` |
+| Settings screen read 89.3 ms against 2,433.5 ms with `uiautomator dump` (27x), against phone-harness 2,700.0 ms (30x); the settled snapshot is 92.5 ms | HN, X, LinkedIn | `docs/bench/speed-2026-11-07.md` |
+| Type 100 ASCII characters 251.1 ms against 4,840.9 ms with `input text` (19x), against phone-harness 5,523.3 ms (22x) | HN, X | `docs/bench/speed-2026-11-07.md` (second pass, host load 20%) |
+| Tap then know what changed 586.9 ms against 2,725.8 ms for tap, one dump and a diff (4.6x) | HN, X thread 4 | `docs/bench/speed-2026-11-07.md` |
+| A bare tap is 1.1 times faster than adb when taps are back to back (175.6 ms against 199.5 ms), 1.7 times when 1.5 s apart (61.6 ms against 106.6 ms) | HN, X thread 4 | `docs/bench/speed-2026-11-07.md` (Results, What this does not show) |
+| On the device, from the host sending a tap to the app's touch listener, phone-use takes 27.5 ms, adb 71.2 ms, phone-harness 76.6 ms | HN, X | `docs/bench/speed-2026-11-07.md` (Method, Results: tap, device side; clock offset good to about 8 ms) |
+| Fresh daemon to first screen read 1,620.5 ms, phone-harness fresh process 2,999.4 ms, adb one dump 2,488.0 ms | HN | `docs/bench/speed-2026-11-07.md` (Cold start; adb has no cold start, so for scale only) |
+| Everything ran on the emulator's host with the three tools interleaved; mean host CPU load 13% to 39% per op from other work | HN, X thread 4, answer 9 | `docs/bench/speed-2026-11-07.md` (Machine and state, Method) |
+| The 153x of the first M1 run is not a current number: the list read is 111x phone-harness and 98x adb now | HN answer 9 | `docs/bench/speed-2026-11-07.md` (What happened to the 153x) |
 | Tap budget is 15 ms and is missed | HN | `docs/bench/m1.md` (verdict); `docs/decisions.md` D14 |
 | adb's tap returns before the app reacts; phone-use's waits for the app | HN answer 9 | `docs/bench/adb.md` (fairness caveats); `docs/decisions.md` D14 |
-| adb tree is raw XML and phone-use's is pruned text | HN answer 9 | `docs/bench/adb.md` (fairness caveats) |
-| The phone-harness numbers are from an earlier quiet run, in process, which favors phone-harness | HN answer 9 | `README.md` (Speed); `docs/bench/m1.md` |
-| `input text` fails on Unicode; phone-use typed mixed-script text | HN answer 2 | `docs/bench/adb.md` (fairness caveats); `docs/bench/m1.md` (Unicode) |
+| adb tree is raw XML and phone-use's is pruned text | HN answer 9 | `docs/bench/speed-2026-11-07.md` (What this does not show) |
+| phone-harness helpers were called in process (no Python start per call), which favors phone-harness | HN answer 9 | `docs/bench/speed-2026-11-07.md` (Machine and state) |
+| `input text` fails on Unicode; phone-use typed mixed-script text in 225.0 ms | HN answer 2 | `docs/bench/speed-2026-11-07.md`; `docs/bench/m1.md` (Unicode) |
 | No physical Android phone has been measured | HN, X, LinkedIn | `README.md` (Speed note; Supported devices); `docs/bench/m1.md` (Not done) |
 | Raw samples are in `docs/bench/data/`; `phone-use-bench` reproduces them | HN answer 9 | `docs/bench/adb.md`; `docs/bench/m1.md`; `bench/` |
 | Every fact above is for an emulator; `adb.md` has no quiet-machine re-run | HN, X | `docs/bench/adb.md` (Not done) |

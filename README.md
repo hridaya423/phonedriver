@@ -1,7 +1,7 @@
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset=".github/assets/banner-dark.svg">
-    <img alt="phone-use: Let your AI agent use a phone. Android and iOS, CLI and MCP, up to 153 times faster than phone-harness." src=".github/assets/banner-light.svg" width="100%">
+    <img alt="phone-use: Let your AI agent use a phone. Android and iOS, CLI and MCP, up to 98 times faster than adb." src=".github/assets/banner-light.svg" width="100%">
   </picture>
 </p>
 
@@ -23,28 +23,29 @@ phone-use gives an AI agent a text view of an Android or iOS screen and the mean
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset=".github/assets/speed-dark.svg">
-    <img alt="Bar chart, log scale, p50 on an Android 17 emulator: phone-use, phone-harness 0.3.3 and plain adb on tap, screenshot, two UI tree reads, typing 100 characters and tap then what changed. phone-use is 1.6 times faster than adb on a bare tap and 4.7 to 51 times faster on everything else." src=".github/assets/speed-light.svg" width="100%">
+    <img alt="Bar chart, log scale, p50 on an Android 17 emulator. phone-use against plain adb and phone-harness 0.3.3. UI tree, 1,000-row list 98 times faster than adb (phone-harness 111 times); Screenshot 41 times faster than adb (phone-harness 49 times); UI tree, Settings 27 times faster than adb (phone-harness 30 times); Type 100 characters 19 times faster than adb (phone-harness 22 times); Tap, then what changed 4.6 times faster than adb (phone-harness not supported); Tap, 1.5 s apart 1.7 times faster than adb (phone-harness 5.2 times); Tap, back to back 1.1 times faster than adb (phone-harness 1.3 times)." src=".github/assets/speed-light.svg" width="100%">
   </picture>
 </p>
 
-phone-use against plain `adb` and phone-harness 0.3.3 on an Android 17 emulator (API 37, headless, software rendering) on win-pc, median of 50 runs after 5 warm-ups. phone-use and adb were measured back to back on a busy machine with the same method ([`docs/bench/adb.md`](docs/bench/adb.md)); each phone-use figure is the slower of two runs. The phone-harness bars are the quieter-machine run of [`docs/bench/m1.md`](docs/bench/m1.md), run in process, so they favor phone-harness. `adb` returns raw XML and a tap that returns before the app reacts; phone-use returns a pruned tree and the settled diff, so "tap, then what changed" for adb is a tap, a `uiautomator dump` and a diff in the caller.
+phone-use against plain `adb` and phone-harness 0.3.3 on an Android 17 emulator (API 37, headless, software rendering), p50 of 50 runs after 20 warm-ups. Everything ran on the emulator's own host, the three tools interleaved, mean host CPU load 13% to 39% per op (other work on the machine). The bar is p50 and the tick is p95. Method, raw samples, bootstrap intervals and the one-command reproduction are in [`docs/bench/speed-2026-11-07.md`](docs/bench/speed-2026-11-07.md). The headline is the 1,000-row list read, 24.0 ms against 2,352.4 ms for adb (95% CI on the ratio 92 to 106). `adb` returns raw XML and a tap that returns before the app reacts; phone-use returns a pruned tree and the settled diff, so "tap, then what changed" for adb is a tap, a `uiautomator dump` and a diff in the caller.
 
 > [!NOTE]
-> On that busy machine a bare tap took 130 to 144 ms, against 30 to 37 ms on the quieter M1 run, so phone-harness's M1 tap (110.7 ms) is below it. Tap misses its 15 ms budget in both (D14). Typing 100 characters misses its 150 ms budget (755 ms here, 253 to 288 ms in M1). On the iOS 26.5 Simulator, tap is 357 ms against 80 ms, because XCTest takes about 240 ms to confirm the event (D15). On an iPhone 14 Plus and an iPad Pro (M5), tap is 534 and 454 ms. No physical Android phone has been measured.
+> The bare tap is the closest row. Host to reply, phone-use takes 175.6 ms when taps come back to back and 61.6 ms when they are 1.5 s apart, against 199.5 and 106.6 ms for adb. On the device, from send to the app seeing the touch, it is 27.5 ms against 71.2 ms for adb. Tap misses its 15 ms budget (D14), and typing 100 characters misses its 150 ms budget (251.1 ms). On the iOS 26.5 Simulator, tap is 357 ms against 80 ms, because XCTest takes about 240 ms to confirm the event (D15). On an iPhone 14 Plus and an iPad Pro (M5), tap is 534 and 454 ms. No physical Android phone has been measured in this run.
 
 <details>
 <summary>All figures</summary>
 
-| Operation | phone-use | adb | phone-harness (M1) |
+| Operation | phone-use | adb | phone-harness |
 |---|---|---|---|
-| tap | 144.1 ms | 223.7 ms | 110.7 ms |
-| screenshot | 45.3 ms | 692.4 ms | 390.1 ms |
-| UI tree, Settings | 237.0 ms | 2800.5 ms | 2426.4 ms |
-| UI tree, 1,000-row list | 52.8 ms | 2677.9 ms | 2370.0 ms |
-| type 100 characters | 755.0 ms | 5204.4 ms | 2104.5 ms |
-| tap, then what changed | 666.9 ms | 3111.7 ms | not supported |
+| tap, back to back | 175.6 ms | 199.5 ms | 232.5 ms |
+| tap, 1.5 s apart | 61.6 ms | 106.6 ms | 319.7 ms |
+| screenshot | 11.6 ms | 476.3 ms | 570.5 ms |
+| UI tree, Settings | 89.3 ms | 2,433.5 ms | 2,700.0 ms |
+| UI tree, 1,000-row list | 24.0 ms | 2,352.4 ms | 2,653.7 ms |
+| type 100 characters | 251.1 ms | 4,840.9 ms | 5,523.3 ms |
+| tap, then what changed | 586.9 ms | 2,725.8 ms | not supported |
 
-`adb input text` and phone-harness cannot type Unicode; phone-use typed mixed-script text in the typing row, adb and phone-harness ASCII.
+`adb input text` and phone-harness cannot type Unicode; phone-use typed the same ASCII text in the typing row, and mixed-script text in 225.0 ms. Fresh daemon to first screen read: phone-use 1,620.5 ms, phone-harness 2,999.4 ms (new Python process), adb 2,488.0 ms (one dump).
 
 </details>
 
