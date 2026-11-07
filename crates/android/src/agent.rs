@@ -4,7 +4,7 @@ use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-use phone_use_core::error::Error;
+use phonedriver_core::error::Error;
 use serde::Deserialize;
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
@@ -16,7 +16,7 @@ use crate::adb::{Adb, Result, ShellPacket, ShellStream};
 
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
-const JAR: &[u8] = include_bytes!(env!("PHONE_USE_AGENT_JAR"));
+const JAR: &[u8] = include_bytes!(env!("PHONEDRIVER_AGENT_JAR"));
 const JAR_MISSING: i32 = 99;
 const READY_TIMEOUT: Duration = Duration::from_secs(3);
 const LOG_LINES: usize = 200;
@@ -39,7 +39,7 @@ pub struct Deployed {
 fn jar_path() -> String {
     let digest = Sha256::digest(JAR);
     let sha8: String = digest.iter().take(4).map(|b| format!("{b:02x}")).collect();
-    format!("/data/local/tmp/phone-use-agent-{sha8}.jar")
+    format!("/data/local/tmp/phonedriver-agent-{sha8}.jar")
 }
 
 async fn start(adb: &Adb, serial: &str, jar: &str, name: &str, token: &str) -> Result<ShellStream> {
@@ -48,7 +48,7 @@ async fn start(adb: &Adb, serial: &str, jar: &str, name: &str, token: &str) -> R
         .shell_stream(
             serial,
             &format!(
-                "[ -f {jar} ] || exit {JAR_MISSING}; pkill -f 'dev.phoneuse.agent.[M]ain'; M=Main; CLASSPATH={jar} exec app_process / dev.phoneuse.agent.$M {VERSION} {name}"
+                "[ -f {jar} ] || exit {JAR_MISSING}; pkill -f 'dev.phonedriver.agent.[M]ain'; M=Main; CLASSPATH={jar} exec app_process / dev.phonedriver.agent.$M {VERSION} {name}"
             ),
         )
         .await?;
@@ -190,7 +190,7 @@ async fn wait_ready(shell: &mut ShellStream, log: &AgentLog) -> Result<bool> {
 /// pushed only when the shell reports it missing.
 pub async fn launch(adb: &Adb, serial: &str) -> Result<Launched> {
     let jar = jar_path();
-    let name = format!("phone-use-{VERSION}-{}", random_hex(4)?);
+    let name = format!("phonedriver-{VERSION}-{}", random_hex(4)?);
     let token = random_hex(32)?;
     let log = AgentLog::default();
     let mut shell = start(adb, serial, &jar, &name, &token).await?;

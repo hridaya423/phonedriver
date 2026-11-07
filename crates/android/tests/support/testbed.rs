@@ -1,10 +1,10 @@
 use std::path::PathBuf;
 use std::process::Command;
 
-use phone_use_android::adb::Adb;
+use phonedriver_android::adb::Adb;
 use serde_json::Value;
 
-pub const PACKAGE: &str = "dev.phoneuse.testbed";
+pub const PACKAGE: &str = "dev.phonedriver.testbed";
 
 fn project_dir() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../testbeds/android")
@@ -26,13 +26,18 @@ pub async fn install(adb: &Adb, serial: &str) {
     assert!(status.success(), "gradlew assembleDebug failed");
     let apk = std::fs::read(project_dir().join("app/build/outputs/apk/debug/app-debug.apk"))
         .expect("read apk");
-    adb.push(serial, &apk, "/data/local/tmp/phone-use-testbed.apk", 0o644)
-        .await
-        .unwrap();
+    adb.push(
+        serial,
+        &apk,
+        "/data/local/tmp/phonedriver-testbed.apk",
+        0o644,
+    )
+    .await
+    .unwrap();
     let out = adb
         .shell(
             serial,
-            "pm install -r /data/local/tmp/phone-use-testbed.apk",
+            "pm install -r /data/local/tmp/phonedriver-testbed.apk",
         )
         .await
         .unwrap();
@@ -41,7 +46,7 @@ pub async fn install(adb: &Adb, serial: &str) {
         "{}",
         out.stdout_text()
     );
-    adb.shell(serial, "am force-stop dev.phoneuse.testbed")
+    adb.shell(serial, "am force-stop dev.phonedriver.testbed")
         .await
         .unwrap();
 }

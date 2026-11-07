@@ -1,9 +1,9 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use phone_use::daemon::{Config, Daemon, DeviceSource, Listed};
-use phone_use_core::device::{Capabilities, Device};
-use phone_use_core::error::Error;
+use phonedriver::daemon::{Config, Daemon, DeviceSource, Listed};
+use phonedriver_core::device::{Capabilities, Device};
+use phonedriver_core::error::Error;
 use serde_json::json;
 
 struct Devices {
@@ -128,5 +128,9 @@ async fn an_unknown_action_still_says_to_stop_the_old_daemon_and_how() {
         .await
         .unwrap_err();
     assert!(e.message.contains("older"), "{}", e.message);
-    assert!(e.message.contains("phone-use daemon stop"), "{}", e.message);
+    assert!(
+        e.message.contains("phonedriver daemon stop"),
+        "{}",
+        e.message
+    );
 }

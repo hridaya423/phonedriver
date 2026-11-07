@@ -1,6 +1,6 @@
 //! Booted iOS simulators through `xcrun simctl`.
 
-use phone_use_core::error::{Error, Op};
+use phonedriver_core::error::{Error, Op};
 use serde_json::Value;
 use tokio::io::AsyncWriteExt;
 use tokio::process::Command;

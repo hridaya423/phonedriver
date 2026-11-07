@@ -1,6 +1,6 @@
 //! JSON-RPC 2.0 framing, one object per line (`docs/protocol.md` section 1).
 
-use phone_use_core::error::Error;
+use phonedriver_core::error::Error;
 use serde::Deserialize;
 use serde_json::{Value, json};
 

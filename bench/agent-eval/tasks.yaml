@@ -25,40 +25,40 @@ tasks:
 
   - name: testbed-web-form
     set: tuning
-    prompt: "In the phone-use testbed app, fill in the web form with the name Ada Lovelace, tick the agreement box and submit it."
+    prompt: "In the phonedriver testbed app, fill in the web form with the name Ada Lovelace, tick the agreement box and submit it."
     reset:
-      - shell: "am force-stop dev.phoneuse.testbed"
+      - shell: "am force-stop dev.phonedriver.testbed"
       - testbed: taps
     check:
       - expect: {log: {ev: web, field: name, value: "Ada Lovelace"}}
       - expect: {log: {ev: web, field: agree, value: true}}
       - expect: {log: {ev: web, field: send}}
     cleanup:
-      - shell: "am force-stop dev.phoneuse.testbed"
+      - shell: "am force-stop dev.phonedriver.testbed"
 
   - name: testbed-row-640
     set: tuning
-    prompt: "In the phone-use testbed app, find the list, scroll to the row called Row 640 and open it."
+    prompt: "In the phonedriver testbed app, find the list, scroll to the row called Row 640 and open it."
     reset:
-      - shell: "am force-stop dev.phoneuse.testbed"
+      - shell: "am force-stop dev.phonedriver.testbed"
       - testbed: taps
     check:
       - expect: {log: {ev: row, n: 640}}
     cleanup:
-      - shell: "am force-stop dev.phoneuse.testbed"
+      - shell: "am force-stop dev.phonedriver.testbed"
 
   - name: unicode-note
     set: tokens
-    prompt: "In the phone-use testbed app, open the Text tab and type `Zoë 你好 مرحبا 🙂` into the plain text field."
+    prompt: "In the phonedriver testbed app, open the Text tab and type `Zoë 你好 مرحبا 🙂` into the plain text field."
     reset:
-      - shell: "am force-stop dev.phoneuse.testbed"
-      - shell: "am start -n dev.phoneuse.testbed/.MainActivity --es tab text"
+      - shell: "am force-stop dev.phonedriver.testbed"
+      - shell: "am start -n dev.phonedriver.testbed/.MainActivity --es tab text"
       - sleep_ms: 1500
       - clear_log
     check:
       - expect: {log: {ev: text, field: plain, value: "Zoë 你好 مرحبا 🙂"}}
     cleanup:
-      - shell: "am force-stop dev.phoneuse.testbed"
+      - shell: "am force-stop dev.phonedriver.testbed"
 
   - name: alarm-gym
     set: tokens
@@ -85,11 +85,11 @@ tasks:
 
   - name: notification-code
     set: tuning
-    prompt: "The phone-use testbed app has posted a notification that contains a verification code. Find the code and type it into the plain text field in the testbed app."
+    prompt: "The phonedriver testbed app has posted a notification that contains a verification code. Find the code and type it into the plain text field in the testbed app."
     reset:
-      - shell: "am force-stop dev.phoneuse.testbed"
-      - shell: "pm grant dev.phoneuse.testbed android.permission.POST_NOTIFICATIONS"
-      - shell: "am start -n dev.phoneuse.testbed/.MainActivity --es tab text --es notify 'Your verification code is 482913'"
+      - shell: "am force-stop dev.phonedriver.testbed"
+      - shell: "pm grant dev.phonedriver.testbed android.permission.POST_NOTIFICATIONS"
+      - shell: "am start -n dev.phonedriver.testbed/.MainActivity --es tab text --es notify 'Your verification code is 482913'"
       - sleep_ms: 1500
       - shell: "cmd statusbar collapse"
       - clear_log
@@ -97,8 +97,8 @@ tasks:
       - expect: {log: {ev: text, field: plain, value: "482913"}}
     cleanup:
       - shell: "cmd statusbar collapse"
-      - shell: "cmd notification cancel dev.phoneuse.testbed 1"
-      - shell: "am force-stop dev.phoneuse.testbed"
+      - shell: "cmd notification cancel dev.phonedriver.testbed 1"
+      - shell: "am force-stop dev.phonedriver.testbed"
 
   - name: airplane-on-off
     set: heldout
@@ -117,17 +117,17 @@ tasks:
 
   - name: files-new-folder
     set: heldout
-    prompt: "Create a folder named \"phone-use\" in the Files app."
+    prompt: "Create a folder named \"phonedriver\" in the Files app."
     reset:
-      - shell: "find /sdcard/ -maxdepth 4 -type d -name phone-use -exec rm -rf {} +"
+      - shell: "find /sdcard/ -maxdepth 4 -type d -name phonedriver -exec rm -rf {} +"
       - shell: "pm clear com.google.android.providers.media.module"
       - shell: "pm clear com.google.android.documentsui"
       - sleep_ms: 6000
       - press: home
     check:
-      - expect: {shell: {cmd: "find /sdcard/ -maxdepth 4 -type d -name phone-use", contains: "/phone-use"}}
+      - expect: {shell: {cmd: "find /sdcard/ -maxdepth 4 -type d -name phonedriver", contains: "/phonedriver"}}
     cleanup:
-      - shell: "find /sdcard/ -maxdepth 4 -type d -name phone-use -exec rm -rf {} +"
+      - shell: "find /sdcard/ -maxdepth 4 -type d -name phonedriver -exec rm -rf {} +"
       - shell: "pm clear com.google.android.providers.media.module"
       - shell: "pm clear com.google.android.documentsui"
       - sleep_ms: 6000
@@ -147,16 +147,16 @@ tasks:
 
   - name: compose-third-switch
     set: heldout
-    prompt: "In the phone-use testbed app, open the Compose tab and turn on the third switch."
+    prompt: "In the phonedriver testbed app, open the Compose tab and turn on the third switch."
     reset:
-      - shell: "am force-stop dev.phoneuse.testbed"
+      - shell: "am force-stop dev.phonedriver.testbed"
       - testbed: taps
     check:
       - expect: {log: {ev: compose_toggle, id: compose_switch_3, on: true}}
       - expect: {no_log: {ev: compose_toggle, id: compose_switch}}
       - expect: {no_log: {ev: compose_toggle, id: compose_switch_2}}
     cleanup:
-      - shell: "am force-stop dev.phoneuse.testbed"
+      - shell: "am force-stop dev.phonedriver.testbed"
 
   - name: clock-timer-3min
     set: heldout
@@ -171,7 +171,7 @@ tasks:
 
   - name: qa-signup
     set: jobs
-    prompt: "Test the sign-up flow in the phone-use testbed app (the Signup tab). Try it the way a careful tester would, including the mistakes real users make. Report every bug you find. For each bug give numbered steps to reproduce it, what you expected and what happened."
+    prompt: "Test the sign-up flow in the phonedriver testbed app (the Signup tab). Try it the way a careful tester would, including the mistakes real users make. Report every bug you find. For each bug give numbered steps to reproduce it, what you expected and what happened."
     reset:
       - script: "python3 jobs/jobs.py seed qa-signup"
       - press: home
@@ -182,7 +182,7 @@ tasks:
 
   - name: qa-shop
     set: jobs
-    prompt: "Test the checkout in the phone-use testbed app (the Shop tab): quantity, totals and the promo code SAVE10 (it should take 10% off). Placing the test order charges nothing and you may place it. Report every bug you find. For each bug give numbered steps to reproduce it, what you expected and what happened."
+    prompt: "Test the checkout in the phonedriver testbed app (the Shop tab): quantity, totals and the promo code SAVE10 (it should take 10% off). Placing the test order charges nothing and you may place it. Report every bug you find. For each bug give numbered steps to reproduce it, what you expected and what happened."
     reset:
       - script: "python3 jobs/jobs.py seed qa-shop"
       - press: home
@@ -193,7 +193,7 @@ tasks:
 
   - name: relay-code
     set: jobs
-    prompt: "The phone-use testbed app has a Relay tab that shows a locker pickup code. In the Contacts app, create a new contact named Locker 7 whose phone number is that pickup code. Use the phone's screens only: no shell, adb or logs."
+    prompt: "The phonedriver testbed app has a Relay tab that shows a locker pickup code. In the Contacts app, create a new contact named Locker 7 whose phone number is that pickup code. Use the phone's screens only: no shell, adb or logs."
     reset:
       - script: "python3 jobs/jobs.py seed relay-code"
       - press: home
@@ -261,7 +261,7 @@ tasks:
 
   - name: log-code
     set: jobs-mixed
-    prompt: "The phone-use testbed app has written a locker pickup code to the device log. Find the code, then in the Contacts app create a contact named Locker 9 whose phone number is that code."
+    prompt: "The phonedriver testbed app has written a locker pickup code to the device log. Find the code, then in the Contacts app create a contact named Locker 9 whose phone number is that code."
     reset:
       - script: "python3 jobs/jobs.py seed log-code"
       - press: home

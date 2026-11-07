@@ -1,7 +1,7 @@
 mod support;
 
 #[tokio::test]
-#[ignore = "needs PHONE_USE_TEST_DEVICE"]
+#[ignore = "needs PHONEDRIVER_TEST_DEVICE"]
 async fn shell_echo_returns_hi() {
     let out = support::adb()
         .shell(&support::serial(), "echo hi")

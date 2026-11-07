@@ -20,11 +20,11 @@ import zlib
 
 CONTACTS = "content://com.android.contacts"
 BASELINE = "/data/local/tmp/jobs-baseline"
-TESTBED = "dev.phoneuse.testbed"
+TESTBED = "dev.phonedriver.testbed"
 CHROME_PREFS = "/data/data/com.android.chrome/app_chrome/Default/Preferences"
 CLOCK_DIR = "/data/user_de/0/com.google.android.deskclock"
 BUGLE_DB = "/data/user/0/com.google.android.apps.messaging/databases/bugle_db"
-SHELL_USE = r"phone-use__shell|\badb\b|\bshell\(|run-as|logcat|dumpsys|\bcmd\b|settings put"
+SHELL_USE = r"phonedriver__shell|\badb\b|\bshell\(|run-as|logcat|dumpsys|\bcmd\b|settings put"
 THREADS = {
     "Alice Chen": "+15551110001",
     "Bob Park": "+15551110002",

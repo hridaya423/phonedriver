@@ -131,9 +131,9 @@ impl Client {
             match Self::open(path, session).await {
                 Ok(c) => return Ok(c),
                 Err(e) if tokio::time::Instant::now() >= deadline => {
-                    let remote = std::env::var_os("PHONE_USE_SOCKET").map_or_else(String::new, |v| {
+                    let remote = std::env::var_os("PHONEDRIVER_SOCKET").map_or_else(String::new, |v| {
                         format!(
-                            " (PHONE_USE_SOCKET={}; if it is an ssh forward, check that the ssh process is still running)",
+                            " (PHONEDRIVER_SOCKET={}; if it is an ssh forward, check that the ssh process is still running)",
                             v.to_string_lossy()
                         )
                     });
@@ -253,10 +253,10 @@ fn log_path() -> PathBuf {
     socket::home().join("daemon.log")
 }
 
-/// Spawns `phone-use daemon --detach` and waits for its readiness line on a pipe, not for a fixed time.
+/// Spawns `phonedriver daemon --detach` and waits for its readiness line on a pipe, not for a fixed time.
 async fn start_daemon() -> Result<(), Failure> {
     let exe = std::env::current_exe()
-        .map_err(|e| Failure::Local(format!("cannot find the phone-use binary: {e}")))?;
+        .map_err(|e| Failure::Local(format!("cannot find the phonedriver binary: {e}")))?;
     let log = std::fs::create_dir_all(socket::home()).and_then(|()| {
         std::fs::OpenOptions::new()
             .create(true)

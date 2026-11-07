@@ -5,11 +5,11 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use fakes::tree;
-use phone_use::daemon::rpc::RpcError;
-use phone_use::daemon::{Config, Daemon, DeviceSource, Listed};
-use phone_use_core::device::{Capabilities, Device, ShellReply};
-use phone_use_core::error::Error;
-use phone_use_core::testing::{Call, FakeDevice};
+use phonedriver::daemon::rpc::RpcError;
+use phonedriver::daemon::{Config, Daemon, DeviceSource, Listed};
+use phonedriver_core::device::{Capabilities, Device, ShellReply};
+use phonedriver_core::error::Error;
+use phonedriver_core::testing::{Call, FakeDevice};
 use serde_json::{Value, json};
 
 struct One {
@@ -48,7 +48,7 @@ fn setup(id: &'static str, fake: FakeDevice) -> (Arc<Daemon>, Arc<FakeDevice>, t
     (d, fake, home)
 }
 
-fn polled(trees: Vec<phone_use_core::raw::RawTree>) -> FakeDevice {
+fn polled(trees: Vec<phonedriver_core::raw::RawTree>) -> FakeDevice {
     FakeDevice::new(trees).lacking(Capabilities::FRAMES)
 }
 

@@ -25,8 +25,8 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use async_trait::async_trait;
-use phone_use_core::device::{Capabilities, Device};
-use phone_use_core::error::{DeviceSummary, Error};
+use phonedriver_core::device::{Capabilities, Device};
+use phonedriver_core::error::{DeviceSummary, Error};
 use serde_json::{Value, json};
 use tokio::io::split;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
@@ -451,7 +451,7 @@ fn act_error(e: &serde_json::Error, params: &Value) -> RpcError {
     let message = e.to_string();
     if message.starts_with(&format!("unknown variant `{kind}`")) && kind.len() <= 32 {
         return RpcError::invalid_params(format!(
-            "this daemon does not know the action `{kind}`: it is older than the client, so run `phone-use daemon stop` and repeat the command to start a new one"
+            "this daemon does not know the action `{kind}`: it is older than the client, so run `phonedriver daemon stop` and repeat the command to start a new one"
         ));
     }
     if message.starts_with("unknown variant")

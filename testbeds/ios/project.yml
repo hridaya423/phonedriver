@@ -17,11 +17,11 @@ targets:
         UIApplicationSceneManifest:
           UIApplicationSupportsMultipleScenes: false
         CFBundleURLTypes:
-          - CFBundleURLName: dev.phoneuse.testbed
+          - CFBundleURLName: dev.phonedriver.testbed
             CFBundleURLSchemes: [putb]
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: dev.phoneuse.testbed
+        PRODUCT_BUNDLE_IDENTIFIER: dev.phonedriver.testbed
         SWIFT_VERSION: "5.0"
         TARGETED_DEVICE_FAMILY: "1,2"
         CODE_SIGN_IDENTITY: "-"

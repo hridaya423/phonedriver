@@ -1,4 +1,4 @@
-//! iOS devices: simulators through `simctl` and the PhoneUseRunner.
+//! iOS devices: simulators through `simctl` and the PhonedriverRunner.
 
 pub mod coredevice;
 pub mod device;

@@ -1,9 +1,9 @@
-//! What a physical device needs before phone-use can drive it, and `phone-use ios setup` (architecture 7.1, 7.4).
+//! What a physical device needs before phonedriver can drive it, and `phonedriver ios setup` (architecture 7.1, 7.4).
 
 use idevice::IdeviceService;
 use idevice::services::amfi::AmfiClient;
 use idevice::services::mobile_image_mounter::ImageMounter;
-use phone_use_core::error::{Error, UserAction};
+use phonedriver_core::error::{Error, UserAction};
 
 use crate::transport::{self, Wired, lockdown_service};
 

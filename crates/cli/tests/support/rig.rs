@@ -9,7 +9,7 @@ use std::path::PathBuf;
 use std::process::Output;
 
 use assert_cmd::Command;
-use phone_use_android::adb::Adb;
+use phonedriver_android::adb::Adb;
 use serde_json::Value;
 
 static DEVICE_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
@@ -22,7 +22,7 @@ pub struct Rig {
 }
 
 pub fn home() -> PathBuf {
-    let dir = std::env::temp_dir().join(format!("phone-use-e2e-{}", std::process::id()));
+    let dir = std::env::temp_dir().join(format!("phonedriver-e2e-{}", std::process::id()));
     std::fs::create_dir_all(&dir).unwrap();
     dir
 }
@@ -30,8 +30,8 @@ pub fn home() -> PathBuf {
 impl Rig {
     pub async fn new() -> Rig {
         let lock = DEVICE_LOCK.lock().await;
-        let target = std::env::var("PHONE_USE_TEST_DEVICE")
-            .expect("set PHONE_USE_TEST_DEVICE, for example android:emulator-5554");
+        let target = std::env::var("PHONEDRIVER_TEST_DEVICE")
+            .expect("set PHONEDRIVER_TEST_DEVICE, for example android:emulator-5554");
         let serial = target
             .strip_prefix("android:")
             .unwrap_or(&target)
@@ -49,10 +49,10 @@ impl Rig {
     }
 
     pub fn command(&self) -> Command {
-        let mut c = Command::cargo_bin("phone-use").unwrap();
-        c.env("PHONE_USE_HOME", &self.home)
-            .env_remove("PHONE_USE_SESSION")
-            .env_remove("PHONE_USE_SECRET")
+        let mut c = Command::cargo_bin("phonedriver").unwrap();
+        c.env("PHONEDRIVER_HOME", &self.home)
+            .env_remove("PHONEDRIVER_SESSION")
+            .env_remove("PHONEDRIVER_SECRET")
             .arg("--device")
             .arg(&self.serial);
         c
@@ -66,7 +66,7 @@ impl Rig {
         let out = self.cli(args);
         assert!(
             out.status.success(),
-            "phone-use {args:?} failed: {}",
+            "phonedriver {args:?} failed: {}",
             String::from_utf8_lossy(&out.stderr)
         );
         String::from_utf8(out.stdout).unwrap()

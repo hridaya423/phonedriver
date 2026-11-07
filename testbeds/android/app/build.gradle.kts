@@ -4,11 +4,11 @@ plugins {
 }
 
 android {
-    namespace = "dev.phoneuse.testbed"
+    namespace = "dev.phonedriver.testbed"
     compileSdk = 37
 
     defaultConfig {
-        applicationId = "dev.phoneuse.testbed"
+        applicationId = "dev.phonedriver.testbed"
         minSdk = 26
         targetSdk = 37
         versionCode = 1

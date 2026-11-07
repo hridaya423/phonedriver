@@ -201,7 +201,7 @@ const SDCARD_ROOTS: &[&str] = &[
     "/data/user/0",
 ];
 
-/// Why a physical device should not run this command, or `None`. `mine` are the packages phone-use installed there.
+/// Why a physical device should not run this command, or `None`. `mine` are the packages phonedriver installed there.
 pub fn refuse_on_physical(command: &str, mine: &[String]) -> Option<&'static str> {
     if ["MASTER_CLEAR", "FACTORY_RESET", "--wipe_data"]
         .iter()
@@ -267,7 +267,7 @@ pub fn refuse_on_physical(command: &str, mine: &[String]) -> Option<&'static str
                     && !mine.iter().any(|m| m == p)
                 {
                     return refuse!(
-                        "phone-use did not install that package on this physical device, so it will not clear or remove it"
+                        "phonedriver did not install that package on this physical device, so it will not clear or remove it"
                     );
                 }
             }
@@ -375,7 +375,7 @@ mod tests {
     }
 
     #[test]
-    fn ordinary_commands_and_phone_use_installs_pass() {
+    fn ordinary_commands_and_phonedriver_installs_pass() {
         let mine = vec!["com.mine".to_string()];
         for c in [
             "rm -rf /sdcard/Download/old",

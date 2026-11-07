@@ -1,10 +1,10 @@
-use phone_use_android::adb::Adb;
-use phone_use_android::agent::{self, Launched};
+use phonedriver_android::adb::Adb;
+use phonedriver_android::agent::{self, Launched};
 use serde_json::{Value, json};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
 
-pub use phone_use_android::agent::VERSION;
+pub use phonedriver_android::agent::VERSION;
 
 static DEVICE_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
 

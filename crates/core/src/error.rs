@@ -162,7 +162,7 @@ impl UserAction {
     pub fn message(&self) -> String {
         match self {
             UserAction::UnlockDevice => {
-                "The device is locked. Unlock it by hand; phone-use never enters passcodes.".into()
+                "The device is locked. Unlock it by hand; phonedriver never enters passcodes.".into()
             }
             UserAction::AcceptUsbDebugging => {
                 "The device is asking whether to allow USB debugging from this computer.".into()
@@ -178,10 +178,10 @@ impl UserAction {
                 "The Developer Disk Image is not mounted on the device.".into()
             }
             UserAction::ResignRunner => {
-                "The PhoneUseRunner on the device has an expired or missing signature.".into()
+                "The PhonedriverRunner on the device has an expired or missing signature.".into()
             }
             UserAction::SetSigningTeam => {
-                "Running on an iPhone or iPad needs an Apple developer team to sign the runner, and PHONE_USE_TEAM is not set."
+                "Running on an iPhone or iPad needs an Apple developer team to sign the runner, and PHONEDRIVER_TEAM is not set."
                     .into()
             }
             UserAction::ApproveSystemPrompt { text } => {
@@ -204,12 +204,12 @@ impl UserAction {
             UserAction::EnableDeveloperMode => {
                 "Turn on Settings > Privacy & Security > Developer Mode, then restart the device."
             }
-            UserAction::MountDeveloperImage => "Run `phone-use ios setup` to mount the image.",
+            UserAction::MountDeveloperImage => "Run `phonedriver ios setup` to mount the image.",
             UserAction::ResignRunner => {
-                "Run `phone-use doctor` to re-sign and reinstall the runner."
+                "Run `phonedriver doctor` to re-sign and reinstall the runner."
             }
             UserAction::SetSigningTeam => {
-                "Set PHONE_USE_TEAM to your team ID: ten letters and digits, shown in Xcode > Settings > Accounts, or in parentheses after your name in `security find-identity -v -p codesigning`. Export it in the shell that starts the daemon and run `phone-use daemon stop` if one is already running. `phone-use ios setup` checks pairing and Developer Mode first."
+                "Set PHONEDRIVER_TEAM to your team ID: ten letters and digits, shown in Xcode > Settings > Accounts, or in parentheses after your name in `security find-identity -v -p codesigning`. Export it in the shell that starts the daemon and run `phonedriver daemon stop` if one is already running. `phonedriver ios setup` checks pairing and Developer Mode first."
             }
             UserAction::ApproveSystemPrompt { .. } => {
                 "Answer the prompt on the device, then retry."
@@ -225,7 +225,7 @@ impl UserAction {
 pub enum Error {
     #[error("{}", no_device(requested.as_deref(), connected))]
     NoDevice {
-        /// The id passed with `--device` or `PHONE_USE_DEVICE` that matches no connected device.
+        /// The id passed with `--device` or `PHONEDRIVER_DEVICE` that matches no connected device.
         requested: Option<String>,
         connected: Vec<DeviceSummary>,
     },
@@ -383,17 +383,17 @@ impl Error {
                 requested: Some(_),
                 connected,
             } if !connected.is_empty() => format!(
-                "Pass `--device <id>` (or set PHONE_USE_DEVICE) to one of: {}.",
+                "Pass `--device <id>` (or set PHONEDRIVER_DEVICE) to one of: {}.",
                 ids(connected)
             ),
             Error::NoDevice { .. } => {
-                "Connect a device or start an emulator, then run `phone-use devices`.".into()
+                "Connect a device or start an emulator, then run `phonedriver devices`.".into()
             }
             Error::AmbiguousDevice { connected } => {
                 format!("Pass `--device <id>` with one of: {}.", ids(connected))
             }
             Error::DeviceGone { .. } => {
-                "Reconnect the device, then run `phone-use devices`.".into()
+                "Reconnect the device, then run `phonedriver devices`.".into()
             }
             Error::DeviceBusy {
                 held_by,
@@ -408,14 +408,14 @@ impl Error {
             Error::NeedsUser { action } => action.hint(),
             Error::StaleRef { closest, .. } => match closest {
                 Some(line) => {
-                    format!("Run `phone-use snapshot` for fresh refs; closest now: {line}")
+                    format!("Run `phonedriver snapshot` for fresh refs; closest now: {line}")
                 }
-                None => "Run `phone-use snapshot` for fresh refs.".into(),
+                None => "Run `phonedriver snapshot` for fresh refs.".into(),
             },
             Error::NotFound { similar, .. } if !similar.is_empty() => {
                 format!("Use one of these instead: {}", similar.join("; "))
             }
-            Error::NotFound { .. } => "Run `phone-use snapshot` to see what is on screen.".into(),
+            Error::NotFound { .. } => "Run `phonedriver snapshot` to see what is on screen.".into(),
             Error::UnknownKey { valid, .. } => {
                 format!("Use one of these keys: {}.", valid.join("; "))
             }
@@ -423,7 +423,7 @@ impl Error {
             Error::NoApp { similar, .. } if !similar.is_empty() => {
                 format!("Use one of these installed apps: {}.", similar.join("; "))
             }
-            Error::NoApp { .. } => "Use `phone-use apps` to list the installed apps.".into(),
+            Error::NoApp { .. } => "Use `phonedriver apps` to list the installed apps.".into(),
             Error::Ambiguous { matches, .. } => {
                 format!("Use a ref instead: {}", matches.join("; "))
             }
@@ -432,7 +432,7 @@ impl Error {
                 scroll_hint,
                 ..
             } => format!(
-                "Hide the keyboard with `phone-use press hide-keyboard`, or `phone-use scroll {}` to bring the element above it.",
+                "Hide the keyboard with `phonedriver press hide-keyboard`, or `phonedriver scroll {}` to bring the element above it.",
                 scroll_hint.name()
             ),
             Error::OffScreen {
@@ -440,46 +440,46 @@ impl Error {
                 covered_by: Some(name),
                 ..
             } => format!(
-                "Scroll first: `phone-use scroll {}` moves the element out from under the {name}.",
+                "Scroll first: `phonedriver scroll {}` moves the element out from under the {name}.",
                 scroll_hint.name()
             ),
             Error::OffScreen { scroll_hint, .. } => {
-                format!("Scroll first: `phone-use scroll {}`.", scroll_hint.name())
+                format!("Scroll first: `phonedriver scroll {}`.", scroll_hint.name())
             }
             Error::Unsupported { op: Op::Text, .. } => {
                 "Use `--mode paste` or `--mode keys`; `set` works only where the device can set field values.".into()
             }
             Error::Unsupported { op: Op::Key, .. } => {
-                "Use `phone-use press enter` or tap the field's Done button to end editing.".into()
+                "Use `phonedriver press enter` or tap the field's Done button to end editing.".into()
             }
             Error::Unsupported { op: Op::Ocr, .. } => {
-                "Use `phone-use screenshot` to look at the screen instead.".into()
+                "Use `phonedriver screenshot` to look at the screen instead.".into()
             }
             Error::Unsupported { .. } => {
-                "Run `phone-use doctor` to see what this device supports.".into()
+                "Run `phonedriver doctor` to see what this device supports.".into()
             }
             Error::NotSettled { .. } => {
-                "Run `phone-use snapshot --no-settle` to see the screen as it is.".into()
+                "Run `phonedriver snapshot --no-settle` to see the screen as it is.".into()
             }
             Error::Timeout { .. } => {
-                "Increase `--timeout`, or run `phone-use snapshot` to check the screen.".into()
+                "Increase `--timeout`, or run `phonedriver snapshot` to check the screen.".into()
             }
             Error::NotReached {
                 end: ScrollEnd::Ended,
                 ..
-            } => "Scroll the other way if it may be earlier in the list, or run `phone-use snapshot` to see where the list ended.".into(),
+            } => "Scroll the other way if it may be earlier in the list, or run `phonedriver snapshot` to see where the list ended.".into(),
             Error::NotReached {
                 end: ScrollEnd::Stuck,
                 ..
-            } => "Use `--within <list ref>` to name the list that should scroll, or run `phone-use snapshot`.".into(),
+            } => "Use `--within <list ref>` to name the list that should scroll, or run `phonedriver snapshot`.".into(),
             Error::NotReached {
                 end: ScrollEnd::Limit,
                 ..
-            } => "Increase `--max` to keep scrolling, or run `phone-use snapshot` to see where the list is.".into(),
+            } => "Increase `--max` to keep scrolling, or run `phonedriver snapshot` to see where the list is.".into(),
             Error::AutomationConflict { holder } => {
                 format!("Stop {holder}, then retry the command.")
             }
-            Error::Transport { .. } => "Run `phone-use doctor` to check the connection.".into(),
+            Error::Transport { .. } => "Run `phonedriver doctor` to check the connection.".into(),
         }
     }
 
@@ -606,8 +606,8 @@ mod tests {
                 condition: "appears \"Done\"".into(),
             },
             Error::NoApp {
-                query: "phone-use testbed".into(),
-                similar: vec!["Testbed (dev.phoneuse.testbed)".into()],
+                query: "phonedriver testbed".into(),
+                similar: vec!["Testbed (dev.phonedriver.testbed)".into()],
             },
             Error::NoApp {
                 query: "Zork".into(),
@@ -744,7 +744,7 @@ mod tests {
             closest: Some("@e9 button \"Network & internet\"".into()),
         };
         let hint = e.hint();
-        assert!(hint.contains("phone-use snapshot"), "{hint}");
+        assert!(hint.contains("phonedriver snapshot"), "{hint}");
         assert!(hint.contains("@e9 button \"Network & internet\""), "{hint}");
         assert!(e.to_string().contains("@e4"));
     }
@@ -788,7 +788,7 @@ mod tests {
         );
         assert_eq!(
             e.hint(),
-            "Pass `--device <id>` (or set PHONE_USE_DEVICE) to one of: android:emulator-5554."
+            "Pass `--device <id>` (or set PHONEDRIVER_DEVICE) to one of: android:emulator-5554."
         );
         let none = Error::NoDevice {
             requested: Some("sim:BAD".into()),
@@ -813,11 +813,11 @@ mod tests {
         };
         let hint = e.hint();
         for needle in [
-            "PHONE_USE_TEAM",
+            "PHONEDRIVER_TEAM",
             "Xcode > Settings > Accounts",
             "security find-identity -v -p codesigning",
-            "phone-use ios setup",
-            "phone-use daemon stop",
+            "phonedriver ios setup",
+            "phonedriver daemon stop",
         ] {
             assert!(hint.contains(needle), "{needle} not in {hint}");
         }

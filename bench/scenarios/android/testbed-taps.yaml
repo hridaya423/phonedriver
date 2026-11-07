@@ -1,7 +1,7 @@
 name: testbed-taps
 device: android
 steps:
-  - shell: "am force-stop dev.phoneuse.testbed"
+  - shell: "am force-stop dev.phonedriver.testbed"
   - testbed: taps
   - wait: "b10"
   - tap: {text: "b10", role: button}
@@ -9,4 +9,4 @@ steps:
   - tap: "Dark theme"
   - expect: {log: {ev: toggle, on: true}}
 cleanup:
-  - shell: "am force-stop dev.phoneuse.testbed"
+  - shell: "am force-stop dev.phonedriver.testbed"

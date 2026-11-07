@@ -19,7 +19,7 @@ import sys
 import tempfile
 import time
 
-BUNDLE_ID = "dev.phoneuse.testbed"
+BUNDLE_ID = "dev.phonedriver.testbed"
 HERE = os.path.dirname(os.path.abspath(__file__))
 BUILD = os.path.join(HERE, "build")
 

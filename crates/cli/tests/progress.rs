@@ -2,10 +2,10 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use async_trait::async_trait;
-use phone_use::daemon::progress::after_a_second;
-use phone_use::daemon::{Config, Daemon, DeviceSource, Listed, socket};
-use phone_use_core::device::{Capabilities, Device};
-use phone_use_core::error::Error;
+use phonedriver::daemon::progress::after_a_second;
+use phonedriver::daemon::{Config, Daemon, DeviceSource, Listed, socket};
+use phonedriver_core::device::{Capabilities, Device};
+use phonedriver_core::error::Error;
 use serde_json::{Value, json};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 

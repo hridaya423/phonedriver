@@ -1,16 +1,16 @@
-//! Booted iOS simulators, driven through the PhoneUseRunner (Simulator tier).
+//! Booted iOS simulators, driven through the PhonedriverRunner (Simulator tier).
 
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 
 use async_trait::async_trait;
-use phone_use_core::device::Device;
-use phone_use_core::error::{Error, UserAction};
-use phone_use_ios::coredevice::CoreDevice;
-use phone_use_ios::device::IosDevice;
-use phone_use_ios::simulator::Simulator;
-use phone_use_ios::{discovery, transport};
+use phonedriver_core::device::Device;
+use phonedriver_core::error::{Error, UserAction};
+use phonedriver_ios::coredevice::CoreDevice;
+use phonedriver_ios::device::IosDevice;
+use phonedriver_ios::simulator::Simulator;
+use phonedriver_ios::{discovery, transport};
 use tokio::sync::Mutex;
 use tokio::time::Instant;
 
@@ -90,17 +90,17 @@ impl DeviceSource for SimSource {
     }
 }
 
-/// An iOS 27 device is driven through the runner unless `PHONE_USE_IOS_TIER=coredevice` asks for the CoreDevice
+/// An iOS 27 device is driven through the runner unless `PHONEDRIVER_IOS_TIER=coredevice` asks for the CoreDevice
 /// services: that tier's screen can fall behind when the host is starved of CPU (architecture 7.2, spike I6).
 fn tier_of(found: discovery::Tier) -> discovery::Tier {
-    match (found, std::env::var("PHONE_USE_IOS_TIER").as_deref()) {
+    match (found, std::env::var("PHONEDRIVER_IOS_TIER").as_deref()) {
         (discovery::Tier::CoreDevice, Ok("coredevice")) => discovery::Tier::CoreDevice,
         _ => discovery::Tier::Runner,
     }
 }
 
-/// Wired physical devices (ids `ios:<udid>`), driven through the PhoneUseRunner signed with the Apple developer
-/// team in `PHONE_USE_TEAM`.
+/// Wired physical devices (ids `ios:<udid>`), driven through the PhonedriverRunner signed with the Apple developer
+/// team in `PHONEDRIVER_TEAM`.
 pub struct PhysicalSource {
     home: PathBuf,
     described: Mutex<Vec<discovery::Found>>,
@@ -182,8 +182,8 @@ impl DeviceSource for PhysicalSource {
                 .find(|f| f.udid == udid)
                 .is_none_or(|f| tier_of(f.tier) == discovery::Tier::Runner)
         });
-        (runner_tier && std::env::var_os("PHONE_USE_TEAM").is_none())
-            .then_some("PHONE_USE_TEAM is not set")
+        (runner_tier && std::env::var_os("PHONEDRIVER_TEAM").is_none())
+            .then_some("PHONEDRIVER_TEAM is not set")
     }
 
     async fn connect(&self, id: &str) -> Result<Arc<dyn Device>, Error> {
@@ -197,7 +197,7 @@ impl DeviceSource for PhysicalSource {
         if tier_of(found.tier) == discovery::Tier::CoreDevice {
             return Ok(Arc::new(CoreDevice::connect(&wired, &found.model).await?));
         }
-        let team = std::env::var("PHONE_USE_TEAM").map_err(|_| Error::NeedsUser {
+        let team = std::env::var("PHONEDRIVER_TEAM").map_err(|_| Error::NeedsUser {
             action: UserAction::SetSigningTeam,
         })?;
         let connecting = IosDevice::connect_physical(&wired, &found.model, &team, &self.home);

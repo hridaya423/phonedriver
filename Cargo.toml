@@ -6,8 +6,8 @@ members = ["crates/*", "bench"]
 version = "0.1.0"
 edition = "2024"
 license = "AGPL-3.0-only"
-repository = "https://github.com/hridaya423/phone-use"
-homepage = "https://github.com/hridaya423/phone-use"
+repository = "https://github.com/hridaya423/phonedriver"
+homepage = "https://phonedriver.dev"
 description = "phonedriver is an open-source MCP server and CLI that lets AI agents like Claude Code see and control Android and iOS phones."
 
 [workspace.lints.rust]
@@ -20,7 +20,7 @@ all = { level = "deny", priority = -1 }
 version = "0.20261030.1"
 
 [workspace.metadata.blaze.sandbox]
-unsandboxed-build-scripts = ["phone-use-android"]
+unsandboxed-build-scripts = ["phonedriver-android"]
 
 [profile.dist]
 inherits = "release"

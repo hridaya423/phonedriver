@@ -1,12 +1,12 @@
 name: testbed-list-row-750
 device: android
 steps:
-  - shell: "am force-stop dev.phoneuse.testbed"
-  - open: "dev.phoneuse.testbed://list/0"
+  - shell: "am force-stop dev.phonedriver.testbed"
+  - open: "dev.phonedriver.testbed://list/0"
   - sleep_ms: 1500
   - shell: "logcat -c"
   - scroll: {direction: down, until: "Row 750"}
   - tap: "Row 750"
   - expect: {log: {ev: row, n: 750}}
 cleanup:
-  - shell: "am force-stop dev.phoneuse.testbed"
+  - shell: "am force-stop dev.phonedriver.testbed"

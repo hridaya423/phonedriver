@@ -58,7 +58,7 @@ async fn tap(c: &mut RawControl, x: i64, y: i64) {
 }
 
 #[tokio::test]
-#[ignore = "needs PHONE_USE_TEST_DEVICE"]
+#[ignore = "needs PHONEDRIVER_TEST_DEVICE"]
 async fn main_and_control_hello_token_and_unknown_op() {
     let (raw, mut control, _g) = start().await;
     assert_eq!(control.hello["ok"], true, "{}", control.hello);
@@ -89,7 +89,7 @@ async fn main_and_control_hello_token_and_unknown_op() {
 }
 
 #[tokio::test]
-#[ignore = "needs PHONE_USE_TEST_DEVICE"]
+#[ignore = "needs PHONEDRIVER_TEST_DEVICE"]
 async fn accessibility_tree_of_the_taps_tab_has_24_buttons() {
     let (raw, mut c, _g) = start().await;
     testbed::open_tab(&raw.adb, &raw.serial, "taps").await;
@@ -116,7 +116,7 @@ async fn accessibility_tree_of_the_taps_tab_has_24_buttons() {
             .iter()
             .find(|n| n["id"].as_str().is_some_and(|id| id.ends_with(&suffix)))
             .unwrap_or_else(|| panic!("b{i} missing"));
-        assert_eq!(n["id"], format!("dev.phoneuse.testbed:id/b{i}"));
+        assert_eq!(n["id"], format!("dev.phonedriver.testbed:id/b{i}"));
         assert_eq!(n["cls"], "android.widget.Button");
         assert_eq!(n["text"], format!("b{i}"));
         for key in ["p", "w", "b", "f", "a", "n"] {
@@ -142,7 +142,7 @@ async fn accessibility_tree_of_the_taps_tab_has_24_buttons() {
 }
 
 #[tokio::test]
-#[ignore = "needs PHONE_USE_TEST_DEVICE"]
+#[ignore = "needs PHONEDRIVER_TEST_DEVICE"]
 async fn tap_gesture_lands_within_one_pixel_and_two_pointers_both_log() {
     let (raw, mut c, _g) = start().await;
     let density = c.hello["density"].as_f64().unwrap();
@@ -191,7 +191,7 @@ async fn tap_gesture_lands_within_one_pixel_and_two_pointers_both_log() {
 }
 
 #[tokio::test]
-#[ignore = "needs PHONE_USE_TEST_DEVICE"]
+#[ignore = "needs PHONEDRIVER_TEST_DEVICE"]
 async fn video_header_keeps_the_display_shape_and_a_frame_follows() {
     let (raw, c, _g) = start().await;
     let (w, h) = (
@@ -238,7 +238,7 @@ async fn video_header_keeps_the_display_shape_and_a_frame_follows() {
 }
 
 #[tokio::test]
-#[ignore = "needs PHONE_USE_TEST_DEVICE"]
+#[ignore = "needs PHONEDRIVER_TEST_DEVICE"]
 async fn paste_types_unicode_exactly_and_restores_the_clipboard() {
     let (raw, mut c, _g) = start().await;
     testbed::open_tab(&raw.adb, &raw.serial, "text").await;
@@ -263,7 +263,7 @@ async fn paste_types_unicode_exactly_and_restores_the_clipboard() {
 }
 
 #[tokio::test]
-#[ignore = "needs PHONE_USE_TEST_DEVICE"]
+#[ignore = "needs PHONEDRIVER_TEST_DEVICE"]
 async fn set_and_keys_modes_type_and_keys_reports_unmappable_characters() {
     let (raw, mut c, _g) = start().await;
     testbed::open_tab(&raw.adb, &raw.serial, "text").await;
@@ -308,7 +308,7 @@ async fn set_and_keys_modes_type_and_keys_reports_unmappable_characters() {
 }
 
 #[tokio::test]
-#[ignore = "needs PHONE_USE_TEST_DEVICE"]
+#[ignore = "needs PHONEDRIVER_TEST_DEVICE"]
 async fn apps_lists_the_testbed_and_launch_foregrounds_it() {
     let (_raw, mut c, _g) = start().await;
     let apps = c.ok(json!({"op":"apps"})).await;
@@ -318,7 +318,7 @@ async fn apps_lists_the_testbed_and_launch_foregrounds_it() {
         .iter()
         .find(|a| a["package"] == testbed::PACKAGE)
         .unwrap_or_else(|| panic!("testbed not listed: {apps}"));
-    assert_eq!(testbed_app["label"], "phone-use testbed");
+    assert_eq!(testbed_app["label"], "phonedriver testbed");
     assert_eq!(testbed_app["system"], false);
 
     c.ok(json!({"op":"key","keycode":3})).await;
@@ -337,7 +337,7 @@ async fn apps_lists_the_testbed_and_launch_foregrounds_it() {
 }
 
 #[tokio::test]
-#[ignore = "needs PHONE_USE_TEST_DEVICE"]
+#[ignore = "needs PHONEDRIVER_TEST_DEVICE"]
 async fn state_reports_the_screen_off_after_sleep_and_on_after_wake() {
     let (_raw, mut c, _g) = start().await;
     assert_eq!(c.ok(json!({"op":"state"})).await["screen_on"], true);
@@ -376,7 +376,7 @@ fn is_shade(focus: &str) -> bool {
 }
 
 #[tokio::test]
-#[ignore = "needs PHONE_USE_TEST_DEVICE with su"]
+#[ignore = "needs PHONEDRIVER_TEST_DEVICE with su"]
 async fn the_shade_kick_leaves_the_shade_closed_when_system_ui_stalls() {
     let (raw, mut c, _g) = start().await;
     let sh = |cmd: String| {
@@ -417,7 +417,7 @@ async fn the_shade_kick_leaves_the_shade_closed_when_system_ui_stalls() {
 }
 
 #[tokio::test]
-#[ignore = "needs PHONE_USE_TEST_DEVICE"]
+#[ignore = "needs PHONEDRIVER_TEST_DEVICE"]
 async fn paste_waits_for_a_field_that_takes_focus_late() {
     let (raw, mut c, _g) = start().await;
     testbed::open_tab(&raw.adb, &raw.serial, "text").await;
@@ -440,7 +440,7 @@ async fn paste_waits_for_a_field_that_takes_focus_late() {
 }
 
 #[tokio::test]
-#[ignore = "needs PHONE_USE_TEST_DEVICE"]
+#[ignore = "needs PHONEDRIVER_TEST_DEVICE"]
 async fn set_into_a_field_that_refuses_set_text_selects_all_and_pastes_over_it() {
     let (raw, mut c, _g) = start().await;
     testbed::open_tab(&raw.adb, &raw.serial, "stubborn").await;

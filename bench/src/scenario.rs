@@ -1,4 +1,4 @@
-//! Scenario runner: `phone-use-bench scenario --phone-use <binary> --device <android:serial|sim:udid>
+//! Scenario runner: `phonedriver-bench scenario --phonedriver <binary> --device <android:serial|sim:udid>
 //! [--dir bench/scenarios/<android|ios>] [--only name] [--runs 3] [--out results.jsonl]`.
 //!
 //! A scenario is a list of verbs and expectations run through the real CLI, without an LLM (task 3.11). Steps run
@@ -11,12 +11,12 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::{Duration, Instant};
 
-use phone_use_android::adb::Adb;
+use phonedriver_android::adb::Adb;
 use serde::Deserialize;
 use serde_json::Value;
 
 const EXPECT_WITHIN: Duration = Duration::from_secs(8);
-const PACKAGE: &str = "dev.phoneuse.testbed";
+const PACKAGE: &str = "dev.phonedriver.testbed";
 
 #[derive(Deserialize)]
 struct Scenario {
@@ -212,8 +212,8 @@ struct JobFiles {
 impl Ctx {
     fn cli(&self, args: &[&str]) -> Result<String, String> {
         let out = Command::new(&self.bin)
-            .env("PHONE_USE_HOME", &self.home)
-            .env("PHONE_USE_SESSION", format!("scenario-{}", self.device))
+            .env("PHONEDRIVER_HOME", &self.home)
+            .env("PHONEDRIVER_SESSION", format!("scenario-{}", self.device))
             .arg("--device")
             .arg(&self.device)
             .args(args)
@@ -224,7 +224,7 @@ impl Ctx {
             Ok(stdout)
         } else {
             Err(format!(
-                "phone-use {} failed: {}",
+                "phonedriver {} failed: {}",
                 args.join(" "),
                 String::from_utf8_lossy(&out.stderr).trim()
             ))
@@ -239,8 +239,8 @@ impl Ctx {
         c.args(["-c", cmd])
             .current_dir(&self.files.dir)
             .env("SERIAL", serial)
-            .env("PHONE_USE_BIN", &self.bin)
-            .env("PHONE_USE_DEVICE", &self.device);
+            .env("PHONEDRIVER_BIN", &self.bin)
+            .env("PHONEDRIVER_DEVICE", &self.device);
         if let Some(a) = &self.files.answer {
             c.env("ANSWER_FILE", a);
         }
@@ -647,7 +647,7 @@ fn flatten(steps: &[Step], api: u32) -> Vec<Step> {
 }
 
 struct Args {
-    phone_use: PathBuf,
+    phonedriver: PathBuf,
     device: String,
     dir: Option<PathBuf>,
     only: Option<String>,
@@ -657,12 +657,12 @@ struct Args {
 
 fn parse(args: &[String]) -> Result<Args, String> {
     let mut it = args.iter();
-    let (mut phone_use, mut device, mut dir, mut only, mut runs, mut out) =
+    let (mut phonedriver, mut device, mut dir, mut only, mut runs, mut out) =
         (None, None, None, None, 1usize, None);
     while let Some(a) = it.next() {
         let mut value = || it.next().cloned().ok_or(format!("{a} needs a value"));
         match a.as_str() {
-            "--phone-use" => phone_use = Some(PathBuf::from(value()?)),
+            "--phonedriver" => phonedriver = Some(PathBuf::from(value()?)),
             "--device" => device = Some(value()?),
             "--dir" => dir = Some(PathBuf::from(value()?)),
             "--only" => only = Some(value()?),
@@ -672,7 +672,7 @@ fn parse(args: &[String]) -> Result<Args, String> {
         }
     }
     Ok(Args {
-        phone_use: phone_use.ok_or("--phone-use <binary> is required")?,
+        phonedriver: phonedriver.ok_or("--phonedriver <binary> is required")?,
         device: device.ok_or("--device <android:serial|sim:udid> is required")?,
         dir,
         only,
@@ -723,9 +723,9 @@ pub fn load_tasks(path: &Path) -> Result<Vec<Task>, String> {
         .map_err(|e| format!("{}: {e}", path.display()))
 }
 
-/// `phone-use-bench eval list|prompt|reset|check|cleanup ...` for `bench/agent-eval/run.sh`.
+/// `phonedriver-bench eval list|prompt|reset|check|cleanup ...` for `bench/agent-eval/run.sh`.
 /// `list <tasks.yaml> <set>` prints task names; `prompt <tasks.yaml> <name>` prints a prompt;
-/// `reset|check|cleanup <tasks.yaml> <name> <phone-use> <device> [answer-file]` runs that part of a task and exits 1 on failure.
+/// `reset|check|cleanup <tasks.yaml> <name> <phonedriver> <device> [answer-file]` runs that part of a task and exits 1 on failure.
 pub async fn eval_main(args: &[String]) -> i32 {
     let [verb, file, rest @ ..] = args else {
         eprintln!("usage: eval list|prompt|reset|check|cleanup <tasks.yaml> ...");
@@ -762,7 +762,8 @@ pub async fn eval_main(args: &[String]) -> i32 {
                 .strip_prefix("android:")
                 .unwrap_or(device)
                 .to_string();
-            let home = std::env::temp_dir().join(format!("phone-use-eval-{}", std::process::id()));
+            let home =
+                std::env::temp_dir().join(format!("phonedriver-eval-{}", std::process::id()));
             let _ = std::fs::create_dir_all(&home);
             let mut ctx = Ctx {
                 bin: PathBuf::from(bin),
@@ -876,9 +877,9 @@ pub async fn main(args: &[String]) -> i32 {
             return 2;
         }
     };
-    let shared_home = std::env::var_os("PHONE_USE_HOME").map(PathBuf::from);
+    let shared_home = std::env::var_os("PHONEDRIVER_HOME").map(PathBuf::from);
     let home = shared_home.clone().unwrap_or_else(|| {
-        std::env::temp_dir().join(format!("phone-use-scenarios-{}", std::process::id()))
+        std::env::temp_dir().join(format!("phonedriver-scenarios-{}", std::process::id()))
     });
     let _ = std::fs::create_dir_all(&home);
     let device = match &platform {
@@ -886,7 +887,7 @@ pub async fn main(args: &[String]) -> i32 {
         Platform::Ios { udid } => format!("sim:{udid}"),
     };
     let mut ctx = Ctx {
-        bin: args.phone_use,
+        bin: args.phonedriver,
         device,
         platform,
         home,
@@ -1020,7 +1021,7 @@ cleanup:
 
     fn script_ctx(dir: &Path) -> Ctx {
         Ctx {
-            bin: PathBuf::from("phone-use"),
+            bin: PathBuf::from("phonedriver"),
             device: "android:emulator-5558".into(),
             platform: Platform::Android {
                 adb: Adb::from_env(),

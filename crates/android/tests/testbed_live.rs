@@ -12,7 +12,7 @@ fn parse_log_keeps_only_json_lines() {
 }
 
 #[tokio::test]
-#[ignore = "needs PHONE_USE_TEST_DEVICE"]
+#[ignore = "needs PHONEDRIVER_TEST_DEVICE"]
 async fn every_tab_logs_its_selection() {
     let (adb, serial) = (support::adb(), support::serial());
     testbed::install(&adb, &serial).await;

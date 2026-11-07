@@ -12,7 +12,7 @@ use rig::*;
 
 async fn opaque_web(rig: &Rig) {
     rig.adb
-        .shell(&rig.serial, "am force-stop dev.phoneuse.testbed")
+        .shell(&rig.serial, "am force-stop dev.phonedriver.testbed")
         .await
         .unwrap();
     rig.ok(&["snapshot", "--no-settle"]);
@@ -22,7 +22,7 @@ async fn opaque_web(rig: &Rig) {
 }
 
 #[tokio::test]
-#[ignore = "needs PHONE_USE_TEST_DEVICE"]
+#[ignore = "needs PHONEDRIVER_TEST_DEVICE"]
 async fn a_webview_with_no_tree_gets_ocr_lines_in_a_plain_snapshot_and_they_can_be_tapped() {
     let rig = Rig::new().await;
     opaque_web(&rig).await;
@@ -49,7 +49,7 @@ async fn a_webview_with_no_tree_gets_ocr_lines_in_a_plain_snapshot_and_they_can_
 }
 
 #[tokio::test]
-#[ignore = "needs PHONE_USE_TEST_DEVICE"]
+#[ignore = "needs PHONEDRIVER_TEST_DEVICE"]
 async fn pixels_forces_ocr_on_a_screen_whose_tree_is_fine() {
     let rig = Rig::new().await;
     rig.tab("web").await;

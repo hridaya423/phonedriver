@@ -1,17 +1,17 @@
 //! `AndroidDevice`: the `Device` port over the on-device agent.
 
 use async_trait::async_trait;
-use phone_use_core::device::{
+use phonedriver_core::device::{
     App, AppId, AppOp, Button, Capabilities, ClipboardOp, Device, DeviceEvent, DeviceInfo,
     FrameRef, Gesture, Image, ImageFormat, Key, Quality, Result, ScreenState, ShellReply,
     ShellRequest, TextInput, Url,
 };
-use phone_use_core::error::{Error, Op};
-use phone_use_core::geometry::{Rect, Size};
-use phone_use_core::raw::{NodeFlags, RawTree};
-use phone_use_video::frame_store::FrameStore;
-use phone_use_video::image::{encode_png, scaled_size};
-use phone_use_video::stream::VideoStream;
+use phonedriver_core::error::{Error, Op};
+use phonedriver_core::geometry::{Rect, Size};
+use phonedriver_core::raw::{NodeFlags, RawTree};
+use phonedriver_video::frame_store::FrameStore;
+use phonedriver_video::image::{encode_png, scaled_size};
+use phonedriver_video::stream::VideoStream;
 use serde_json::{Value, json};
 use tokio::sync::{broadcast, watch};
 
@@ -306,7 +306,7 @@ impl Device for AndroidDevice {
             detail: format!("cannot read {}: {e}", path.display()),
         })?;
         let before = self.packages().await?;
-        let remote = "/data/local/tmp/phone-use-install.apk";
+        let remote = "/data/local/tmp/phonedriver-install.apk";
         self.adb.push(&self.serial, &bytes, remote, 0o644).await?;
         let installed = self.pm(&format!("pm install -r {remote}")).await;
         let _ = self.adb.shell(&self.serial, &format!("rm {remote}")).await;

@@ -1,7 +1,7 @@
 //! Did typing land? What a text field shows after `type`, `clear` or a replace, and why not when it differs.
 
-use phone_use_core::element::{Element, ElementState, Ref, Role};
-use phone_use_core::render::Rendered;
+use phonedriver_core::element::{Element, ElementState, Ref, Role};
+use phonedriver_core::render::Rendered;
 use serde::{Deserialize, Serialize};
 
 /// What the field should hold afterwards.
@@ -128,7 +128,7 @@ impl Verify {
             return Some(Unverified {
                 shows: "no text field is on screen".into(),
                 hint:
-                    "the screen moved away from the field; `phone-use snapshot` shows what is there"
+                    "the screen moved away from the field; `phonedriver snapshot` shows what is there"
                         .into(),
             });
         }
@@ -144,7 +144,7 @@ impl Verify {
             let ok = matches!(&self.expect, Expect::Exactly(t) if t.is_empty());
             return (!ok).then(|| Unverified {
                 shows: format!("{name} shows no text"),
-                hint: "the text may not have landed (type again, or `--mode keys`), or the field does not expose its text; `phone-use screenshot` shows what it displays".into(),
+                hint: "the text may not have landed (type again, or `--mode keys`), or the field does not expose its text; `phonedriver screenshot` shows what it displays".into(),
             });
         };
         let (got, wanted) = (value.chars().count(), want.chars().count());
@@ -181,7 +181,7 @@ impl Verify {
         } else if !typed.is_empty() && is_subsequence(value, &want) {
             "the field dropped some characters: it accepts only some kinds (digits, for one)".into()
         } else if typed.is_empty() {
-            "the field would not clear; `phone-use snapshot` shows what it holds".into()
+            "the field would not clear; `phonedriver snapshot` shows what it holds".into()
         } else {
             "the field holds other text than typed: it may reformat what it receives or have taken input from elsewhere".into()
         };
@@ -209,7 +209,7 @@ impl Verify {
 fn shown(name: &str, value: Option<&str>, secure: bool) -> String {
     match value {
         _ if secure => format!("{name} is a secure field"),
-        Some(v) if !v.is_empty() => format!("{name} shows {}", phone_use_core::render::quote(v)),
+        Some(v) if !v.is_empty() => format!("{name} shows {}", phonedriver_core::render::quote(v)),
         _ => format!("{name} shows nothing"),
     }
 }

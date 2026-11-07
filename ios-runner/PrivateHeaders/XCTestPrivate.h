@@ -1,4 +1,4 @@
-// Declarations of private XCTest API, trimmed to what PhoneUseRunner calls.
+// Declarations of private XCTest API, trimmed to what PhonedriverRunner calls.
 // Derived from WebDriverAgent's PrivateHeaders/XCTest (BSD-3, see NOTICE):
 // XCSynthesizedEventRecord.h, XCPointerEventPath.h, XCUIDevice.h, XCAXClient_iOS.h,
 // XCUIApplicationProcessTracker-Protocol.h, XCUIApplication.h, and
@@ -47,13 +47,13 @@ NS_ASSUME_NONNULL_BEGIN
                                    error:(NSError **)error;
 @end
 
-@interface XCUIDevice (PhoneUsePrivate)
+@interface XCUIDevice (PhonedriverPrivate)
 - (XCAXClient_iOS *)accessibilityInterface;
 - (id<XCUIEventSynthesizing>)eventSynthesizer;
 - (void)pressLockButton;
 @end
 
-@interface XCUIApplication (PhoneUsePrivate)
+@interface XCUIApplication (PhonedriverPrivate)
 @property (readonly) NSString *bundleID;
 @end
 

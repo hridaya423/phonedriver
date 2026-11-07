@@ -14,7 +14,7 @@ static NSString *const PURunnerVersion = @"0.1.0";
 static const uint16_t PUDefaultPort = 27753;
 static const NSInteger PUDefaultMaxDepth = 30;
 
-@interface PhoneUseRunnerTests : XCTestCase
+@interface PhonedriverRunnerTests : XCTestCase
 @property (nonatomic, nullable) NSString *issue;
 @end
 
@@ -41,9 +41,9 @@ static NSDictionary *PUHello(void)
         @"model": PUModel(),
         @"screen": @{@"w": @(bounds.size.width), @"h": @(bounds.size.height), @"scale": @(UIScreen.mainScreen.scale)},
     } mutableCopy];
-    NSString *udid = env[@"SIMULATOR_UDID"] ?: env[@"PHONE_USE_UDID"];
+    NSString *udid = env[@"SIMULATOR_UDID"] ?: env[@"PHONEDRIVER_UDID"];
     if (udid) hello[@"udid"] = udid;
-    if (env[@"PHONE_USE_BUILD"]) hello[@"build"] = env[@"PHONE_USE_BUILD"];
+    if (env[@"PHONEDRIVER_BUILD"]) hello[@"build"] = env[@"PHONEDRIVER_BUILD"];
     return hello;
 }
 
@@ -113,7 +113,7 @@ static NSDictionary *PUPerform(NSDictionary *request, NSError **error)
     return nil;
 }
 
-@implementation PhoneUseRunnerTests
+@implementation PhonedriverRunnerTests
 
 // XCTest reports UI API failures (for example typing with no focused field) as test issues and,
 // with continueAfterFailure off, aborts the test. Capturing them turns each into an error reply.
@@ -149,9 +149,9 @@ static NSDictionary *PUPerform(NSDictionary *request, NSError **error)
 - (void)testServe
 {
     self.continueAfterFailure = YES;
-    NSString *portString = NSProcessInfo.processInfo.environment[@"PHONE_USE_PORT"];
+    NSString *portString = NSProcessInfo.processInfo.environment[@"PHONEDRIVER_PORT"];
     uint16_t port = portString.length ? (uint16_t)portString.integerValue : PUDefaultPort;
-    __weak PhoneUseRunnerTests *weakSelf = self;
+    __weak PhonedriverRunnerTests *weakSelf = self;
     PUServer *server = [[PUServer alloc] initWithPort:port handler:^NSDictionary *(NSDictionary *request) {
         return [weakSelf reply:request];
     }];

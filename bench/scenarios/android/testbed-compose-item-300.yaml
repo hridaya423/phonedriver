@@ -1,7 +1,7 @@
 name: testbed-compose-item-300
 device: android
 steps:
-  - shell: "am force-stop dev.phoneuse.testbed"
+  - shell: "am force-stop dev.phonedriver.testbed"
   - testbed: compose
   - wait: "Compose button"
   - shell: "logcat -c"
@@ -9,4 +9,4 @@ steps:
   - tap: "Item 300"
   - expect: {log: {ev: compose_item, n: 300}}
 cleanup:
-  - shell: "am force-stop dev.phoneuse.testbed"
+  - shell: "am force-stop dev.phonedriver.testbed"

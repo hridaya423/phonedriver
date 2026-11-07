@@ -19,7 +19,7 @@ async fn click_events(rig: &Rig, id: &str) -> usize {
 }
 
 #[tokio::test]
-#[ignore = "needs PHONE_USE_TEST_DEVICE"]
+#[ignore = "needs PHONEDRIVER_TEST_DEVICE"]
 async fn a_screen_that_opens_700_ms_after_the_tap_is_in_the_reply_with_a_wider_first_change_window()
 {
     let rig = Rig::new().await;
@@ -39,7 +39,7 @@ async fn a_screen_that_opens_700_ms_after_the_tap_is_in_the_reply_with_a_wider_f
 }
 
 #[tokio::test]
-#[ignore = "needs PHONE_USE_TEST_DEVICE"]
+#[ignore = "needs PHONEDRIVER_TEST_DEVICE"]
 async fn a_tap_that_does_nothing_says_so_within_the_first_change_window() {
     let rig = Rig::new().await;
     rig.tab("settle").await;
@@ -52,7 +52,7 @@ async fn a_tap_that_does_nothing_says_so_within_the_first_change_window() {
 }
 
 #[tokio::test]
-#[ignore = "needs PHONE_USE_TEST_DEVICE"]
+#[ignore = "needs PHONEDRIVER_TEST_DEVICE"]
 async fn a_400_ms_animation_settles_after_it_ends_and_a_quiet_period() {
     let rig = Rig::new().await;
     rig.tab("settle").await;
@@ -66,7 +66,7 @@ async fn a_400_ms_animation_settles_after_it_ends_and_a_quiet_period() {
 }
 
 #[tokio::test]
-#[ignore = "needs PHONE_USE_TEST_DEVICE"]
+#[ignore = "needs PHONEDRIVER_TEST_DEVICE"]
 async fn a_ticker_does_not_keep_the_busy_tab_from_settling() {
     let rig = Rig::new().await;
     rig.tab("busy").await;
@@ -82,7 +82,7 @@ async fn a_ticker_does_not_keep_the_busy_tab_from_settling() {
 }
 
 #[tokio::test]
-#[ignore = "needs PHONE_USE_TEST_DEVICE"]
+#[ignore = "needs PHONEDRIVER_TEST_DEVICE"]
 async fn a_flashing_area_keeps_the_screen_unsettled_until_it_ends() {
     let rig = Rig::new().await;
     rig.tab("settle").await;

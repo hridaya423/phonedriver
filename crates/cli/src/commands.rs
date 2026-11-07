@@ -17,20 +17,20 @@ use crate::daemon::ios::{PhysicalSource, SimSource};
 use crate::daemon::sources::Sources;
 use crate::daemon::trace::TraceOptions;
 use crate::daemon::{Config, Daemon, socket};
-use phone_use_core::error::span;
+use phonedriver_core::error::span;
 
 use crate::wire::{
     ActionResult, Approval, BatchResult, DeviceEntry, Kind, Observation, ScreenshotResult,
     ShellResult, VERSION,
 };
 
-const USAGE: &str = "usage: phone-use <command>\n\nrun `phone-use --help` for the options and exit codes\n\ncommands:\n  devices\n  snapshot\n  screenshot\n  find\n  launch\n  open\n  apps\n  swipe\n  drag\n  pinch\n  scroll\n  gesture\n  tap\n  type\n  clear\n  clipboard\n  shell\n  press\n  wait\n  batch\n  release\n  daemon\n  doctor\n  ios\n  mcp\n  skill\n  version";
+const USAGE: &str = "usage: phonedriver <command>\n\nrun `phonedriver --help` for the options and exit codes\n\ncommands:\n  devices\n  snapshot\n  screenshot\n  find\n  launch\n  open\n  apps\n  swipe\n  drag\n  pinch\n  scroll\n  gesture\n  tap\n  type\n  clear\n  clipboard\n  shell\n  press\n  wait\n  batch\n  release\n  daemon\n  doctor\n  ios\n  mcp\n  skill\n  version";
 
 const AFTER_HELP: &str = "Examples:
-  phone-use devices
-  phone-use snapshot
-  phone-use tap \"Dark theme\"
-  phone-use scroll down --until \"About\"
+  phonedriver devices
+  phonedriver snapshot
+  phonedriver tap \"Dark theme\"
+  phonedriver scroll down --until \"About\"
 
 Exit codes:
   0  done
@@ -41,25 +41,25 @@ Exit codes:
   5  the tap spends money or cannot be undone and the human has not approved it; ask them, then add --autonomous
 
 When something goes wrong, see Debugging in the README: traces, daemon.log and the runner log.
-Settings by environment variable are in the README's table (PHONE_USE_HOME, PHONE_USE_TEAM, ...).";
+Settings by environment variable are in the README's table (PHONEDRIVER_HOME, PHONEDRIVER_TEAM, ...).";
 
 #[derive(Parser)]
 #[command(
-    name = "phone-use",
+    name = "phonedriver",
     version,
     disable_help_subcommand = true,
     after_help = AFTER_HELP,
     next_help_heading = "Global options"
 )]
 pub struct Cli {
-    /// The device to use: an id from `phone-use devices` such as `android:emulator-5554` or `sim:<udid>`, or just the part after the colon. With one device connected it is the default.
-    #[arg(long, global = true, env = "PHONE_USE_DEVICE")]
+    /// The device to use: an id from `phonedriver devices` such as `android:emulator-5554` or `sim:<udid>`, or just the part after the colon. With one device connected it is the default.
+    #[arg(long, global = true, env = "PHONEDRIVER_DEVICE")]
     device: Option<String>,
     /// A name for this agent's refs, diff baselines and device lease. Give each agent that shares a daemon its own.
     #[arg(
         long,
         global = true,
-        env = "PHONE_USE_SESSION",
+        env = "PHONEDRIVER_SESSION",
         default_value = "default"
     )]
     session: String,
@@ -225,11 +225,11 @@ pub(crate) enum Verb {
     },
     /// Open an app by name or package and show its first screen.
     Launch {
-        /// The app's name, package or bundle id; `phone-use apps` lists them.
+        /// The app's name, package or bundle id; `phonedriver apps` lists them.
         app: String,
         /// Grant these runtime permissions first, so their dialog never appears: `notifications`, `camera`,
         /// `location`, or a full name such as `android.permission.CAMERA` (Android); `photos`, `location` and the other
-        /// `simctl privacy` services (Simulator). A physical device only takes this for apps phone-use installed.
+        /// `simctl privacy` services (Simulator). A physical device only takes this for apps phonedriver installed.
         #[arg(long, value_delimiter = ',')]
         grant: Vec<String>,
     },
@@ -242,7 +242,7 @@ pub(crate) enum Verb {
         app: Option<String>,
     },
     /// List the apps that can be launched, or `install <path>`, `stop`, `clear` (data) or `uninstall` one by name or id.
-    /// On a physical device `clear` and `uninstall` only touch apps phone-use installed.
+    /// On a physical device `clear` and `uninstall` only touch apps phonedriver installed.
     Apps {
         /// What to do to an app. Omit it to list apps.
         #[arg(value_parser = ["install", "stop", "clear", "uninstall"])]
@@ -288,7 +288,7 @@ pub(crate) enum Verb {
         #[arg(long)]
         role: Option<String>,
     },
-    /// Type text into a field. With `--into` the text replaces what the field holds. Secrets come from stdin or PHONE_USE_SECRET, never from arguments.
+    /// Type text into a field. With `--into` the text replaces what the field holds. Secrets come from stdin or PHONEDRIVER_SECRET, never from arguments.
     Type {
         /// The text. Leave it out with `--secret`.
         text: Option<String>,
@@ -304,7 +304,7 @@ pub(crate) enum Verb {
         /// With `--into`, add to the field's text instead of replacing it.
         #[arg(long)]
         append: bool,
-        /// Read the text from stdin or PHONE_USE_SECRET and keep it out of logs and traces.
+        /// Read the text from stdin or PHONEDRIVER_SECRET and keep it out of logs and traces.
         #[arg(long)]
         secret: bool,
         /// With `--submit`, send a form that spends money or cannot be undone without asking the human. Only when the user has granted full autonomy.
@@ -318,7 +318,7 @@ pub(crate) enum Verb {
     },
     /// Run a command in the device's shell (Android: the agent's shell, no `adb` spawn; Simulator: `simctl spawn`, or
     /// `simctl <subcommand> ...` with the device filled in). Prints the exit code, trimmed output, and what changed on
-    /// screen. Secrets come from stdin or PHONE_USE_SECRET.
+    /// screen. Secrets come from stdin or PHONEDRIVER_SECRET.
     Shell {
         /// The command, such as `cmd uimode night yes`. Leave it out with `--secret`.
         command: Option<String>,
@@ -328,13 +328,13 @@ pub(crate) enum Verb {
         /// Keep this many lines of output (default 40, 0 keeps all).
         #[arg(long)]
         head: Option<usize>,
-        /// Run a command that is refused on a physical device (wipes, `rm -r` of storage, removing apps phone-use did not install).
+        /// Run a command that is refused on a physical device (wipes, `rm -r` of storage, removing apps phonedriver did not install).
         #[arg(long)]
         force: bool,
         /// Kill the command after this many seconds (default 30).
         #[arg(long)]
         time_limit: Option<u64>,
-        /// Read the command from stdin or PHONE_USE_SECRET and keep it out of logs and traces.
+        /// Read the command from stdin or PHONEDRIVER_SECRET and keep it out of logs and traces.
         #[arg(long)]
         secret: bool,
     },
@@ -372,17 +372,17 @@ pub(crate) enum Verb {
         #[arg(long)]
         detach: bool,
         /// Keep observation text and text targets in the trace files.
-        #[arg(long, env = "PHONE_USE_TRACE_FULL", value_parser = BoolishValueParser::new())]
+        #[arg(long, env = "PHONEDRIVER_TRACE_FULL", value_parser = BoolishValueParser::new())]
         trace_full: bool,
         /// Keep a copy of every screenshot next to the trace file.
-        #[arg(long, env = "PHONE_USE_TRACE_SCREENS", value_parser = BoolishValueParser::new())]
+        #[arg(long, env = "PHONEDRIVER_TRACE_SCREENS", value_parser = BoolishValueParser::new())]
         trace_screens: bool,
     },
     /// Check adb, Android devices and their agent, Xcode, booted simulators and their runners, wired iPhones, and the daemon socket; each line says ok, warn or fail, with a fix.
     Doctor,
     /// Serve the tools over MCP on stdio.
     Mcp,
-    /// Print SKILL.md, the instructions an agent reads before it uses phone-use.
+    /// Print SKILL.md, the instructions an agent reads before it uses phonedriver.
     Skill,
     /// Prepare a physical iOS device: pairing, Developer Mode, the developer disk image.
     Ios {
@@ -413,7 +413,7 @@ pub fn run(cli: Cli) -> ExitCode {
     };
     match verb {
         Verb::Version => {
-            println!("phone-use {VERSION}");
+            println!("phonedriver {VERSION}");
             ExitCode::SUCCESS
         }
         Verb::Daemon {
@@ -500,7 +500,7 @@ pub(crate) struct Globals {
     pub approval: Option<Approval>,
 }
 
-/// The guard's answer that does not come from asking: `--autonomous`, or `PHONE_USE_GUARD=off` for the whole process.
+/// The guard's answer that does not come from asking: `--autonomous`, or `PHONEDRIVER_GUARD=off` for the whole process.
 fn guard_override(verb: &Verb, given: Option<Approval>, env: Option<&str>) -> Option<Approval> {
     let flag = matches!(
         verb,
@@ -524,7 +524,7 @@ fn guard_off(env: Option<&str>) -> bool {
 }
 
 fn guard_env() -> Option<String> {
-    std::env::var("PHONE_USE_GUARD").ok()
+    std::env::var("PHONEDRIVER_GUARD").ok()
 }
 
 /// The text of a `type --secret`, read before any connection is made so a usage error types nothing.
@@ -538,12 +538,12 @@ fn secret_text(verb: &Verb) -> Result<Option<String>, String> {
     };
     match (secret, text) {
         (true, Some(_)) => Err(
-            "with --secret the text must come from stdin or PHONE_USE_SECRET, not from the command line (arguments show in `ps` and shell history)\nexample: echo -n \"$PW\" | phone-use type --secret --into @e3".into(),
+            "with --secret the text must come from stdin or PHONEDRIVER_SECRET, not from the command line (arguments show in `ps` and shell history)\nexample: echo -n \"$PW\" | phonedriver type --secret --into @e3".into(),
         ),
-        (false, None) if matches!(verb, Verb::Shell { .. }) => Err("shell needs a command\nexample: phone-use shell \"cmd uimode night yes\"".into()),
-        (false, None) => Err("type needs the text to type\nexample: phone-use type \"hello\" --into @e3".into()),
+        (false, None) if matches!(verb, Verb::Shell { .. }) => Err("shell needs a command\nexample: phonedriver shell \"cmd uimode night yes\"".into()),
+        (false, None) => Err("type needs the text to type\nexample: phonedriver type \"hello\" --into @e3".into()),
         (true, None) => {
-            let text = match std::env::var("PHONE_USE_SECRET") {
+            let text = match std::env::var("PHONEDRIVER_SECRET") {
                 Ok(t) => t,
                 Err(_) => {
                     let mut buf = String::new();
@@ -1006,10 +1006,10 @@ fn split_words(line: &str) -> Result<Vec<String>, String> {
     Ok(words)
 }
 
-/// One step of `phone-use batch`, written as the command line it would be on its own.
+/// One step of `phonedriver batch`, written as the command line it would be on its own.
 fn parse_step_line(line: &str) -> Result<Value, String> {
     let words = split_words(line)?;
-    let cli = Cli::try_parse_from(std::iter::once("phone-use".to_string()).chain(words))
+    let cli = Cli::try_parse_from(std::iter::once("phonedriver".to_string()).chain(words))
         .map_err(|e| e.to_string().lines().next().unwrap_or_default().to_string())?;
     let verb = cli.command.ok_or("the step is empty")?;
     if matches!(&verb, Verb::Type { secret: true, .. }) {
@@ -1104,7 +1104,7 @@ fn show_batch(result: &Value, json: bool, sent: usize) -> Result<String, Failure
 }
 
 fn role_json(word: &str) -> Result<Value, Failure> {
-    phone_use_core::element::Role::from_word(word)
+    phonedriver_core::element::Role::from_word(word)
         .and_then(|r| serde_json::to_value(r).ok())
         .ok_or_else(|| Failure::Local(format!("unknown role {word:?}; use a word from a snapshot line such as button, cell, textbox or switch")))
 }
@@ -1230,7 +1230,7 @@ fn show_action(result: &Value, json: bool) -> Result<String, Failure> {
         out.push_str(&r.observation.text);
     }
     if r.settled && !r.changed {
-        out.push_str("\nhint: nothing changed; `phone-use wait settled` waits for the screen, `phone-use snapshot` shows it");
+        out.push_str("\nhint: nothing changed; `phonedriver wait settled` waits for the screen, `phonedriver snapshot` shows it");
     }
     if let Some(u) = &r.unverified {
         out.push_str("\nhint: ");

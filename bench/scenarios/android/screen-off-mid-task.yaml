@@ -1,7 +1,7 @@
 name: screen-off-mid-task
 device: android
 steps:
-  - shell: "am force-stop dev.phoneuse.testbed"
+  - shell: "am force-stop dev.phonedriver.testbed"
   - testbed: taps
   - shell: "input keyevent KEYCODE_SLEEP"
   - sleep_ms: 1500
@@ -10,4 +10,4 @@ steps:
 cleanup:
   - shell: "input keyevent KEYCODE_WAKEUP"
   - shell: "wm dismiss-keyguard"
-  - shell: "am force-stop dev.phoneuse.testbed"
+  - shell: "am force-stop dev.phonedriver.testbed"

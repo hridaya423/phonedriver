@@ -6,7 +6,7 @@ use std::time::{Duration, Instant};
 
 use serde_json::Value;
 
-pub const BUNDLE_ID: &str = "dev.phoneuse.testbed";
+pub const BUNDLE_ID: &str = "dev.phonedriver.testbed";
 
 fn dir() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../../testbeds/ios")

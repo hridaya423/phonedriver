@@ -1,8 +1,8 @@
 use std::sync::{Arc, Mutex};
 
-use phone_use::daemon::DeviceSource;
-use phone_use::daemon::android::AdbSource;
-use phone_use_android::adb::Adb;
+use phonedriver::daemon::DeviceSource;
+use phonedriver::daemon::android::AdbSource;
+use phonedriver_android::adb::Adb;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 

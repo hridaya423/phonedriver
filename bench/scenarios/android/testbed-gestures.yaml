@@ -1,7 +1,7 @@
 name: testbed-gestures
 device: android
 steps:
-  - shell: "am force-stop dev.phoneuse.testbed"
+  - shell: "am force-stop dev.phonedriver.testbed"
   - testbed: gestures
   - wait: "Gesture surface"
   - swipe: {direction: left}
@@ -10,4 +10,4 @@ steps:
   - tap: "Gesture surface"
   - expect: {log: {ev: touch, action: ACTION_UP}}
 cleanup:
-  - shell: "am force-stop dev.phoneuse.testbed"
+  - shell: "am force-stop dev.phonedriver.testbed"

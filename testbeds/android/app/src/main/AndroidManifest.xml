@@ -6,7 +6,7 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <application
-        android:label="phone-use testbed"
+        android:label="phonedriver testbed"
         android:allowBackup="false"
         android:theme="@android:style/Theme.Material.Light.NoActionBar">
         <activity
@@ -22,7 +22,7 @@
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="dev.phoneuse.testbed" android:host="list" />
+                <data android:scheme="dev.phonedriver.testbed" android:host="list" />
             </intent-filter>
         </activity>
         <activity

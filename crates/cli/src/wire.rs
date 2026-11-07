@@ -1,10 +1,10 @@
 //! Request and reply shapes of the client to daemon protocol (`docs/protocol.md` section 1).
 
-use phone_use_core::device::Capabilities;
-use phone_use_core::element::{Element, Ref, Role};
-use phone_use_core::error::Direction;
-use phone_use_core::geometry::Rect;
-use phone_use_core::render::Header;
+use phonedriver_core::device::Capabilities;
+use phonedriver_core::element::{Element, Ref, Role};
+use phonedriver_core::error::Direction;
+use phonedriver_core::geometry::Rect;
+use phonedriver_core::render::Header;
 use serde::{Deserialize, Serialize};
 
 /// What a serde error says about the action, without any value it echoes: a field name or a type, never the text typed.

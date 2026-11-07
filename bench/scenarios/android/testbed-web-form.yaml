@@ -1,7 +1,7 @@
 name: testbed-web-form
 device: android
 steps:
-  - shell: "am force-stop dev.phoneuse.testbed"
+  - shell: "am force-stop dev.phonedriver.testbed"
   - testbed: web
   - wait: "Send"
   - type: {text: "Ada Lovelace", into: "Name"}
@@ -11,4 +11,4 @@ steps:
   - tap: "Send"
   - expect: {log: {ev: web, field: send}}
 cleanup:
-  - shell: "am force-stop dev.phoneuse.testbed"
+  - shell: "am force-stop dev.phonedriver.testbed"

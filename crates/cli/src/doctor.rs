@@ -1,4 +1,4 @@
-//! `phone-use doctor`: checks the machine and the devices, one line each, `ok`, `warn` or `fail`, with a fix under
+//! `phonedriver doctor`: checks the machine and the devices, one line each, `ok`, `warn` or `fail`, with a fix under
 //! every line that is not `ok`: the adb server, each Android device and its agent, UiAutomation and video, the iOS
 //! Simulator tier, and the daemon socket's permissions.
 
@@ -6,7 +6,7 @@ use std::path::Path;
 use std::time::Instant;
 
 #[cfg(feature = "android")]
-use phone_use_android::adb::{Adb, AdbDevice, DeviceState};
+use phonedriver_android::adb::{Adb, AdbDevice, DeviceState};
 use serde_json::json;
 
 use crate::client::{Client, Failure};
@@ -124,7 +124,7 @@ pub async fn ios(home: &Path) -> Vec<Check> {
             false
         }
     };
-    let xcodegen = phone_use_ios::runner::find_tool("xcodegen");
+    let xcodegen = phonedriver_ios::runner::find_tool("xcodegen");
     match &xcodegen {
         Some(path) => checks.push(Check::ok("xcodegen", path.display().to_string())),
         None => checks.push(Check::bad(
@@ -137,7 +137,7 @@ pub async fn ios(home: &Path) -> Vec<Check> {
     if !xcode_ok {
         return checks;
     }
-    let sims = match phone_use_ios::simulator::Simulator::list().await {
+    let sims = match phonedriver_ios::simulator::Simulator::list().await {
         Ok(sims) if sims.is_empty() => {
             checks.push(Check::bad(
                 Status::Warn,
@@ -172,7 +172,7 @@ pub async fn ios(home: &Path) -> Vec<Check> {
         return checks;
     }
     let started = Instant::now();
-    match phone_use_ios::runner::build(home).await {
+    match phonedriver_ios::runner::build(home).await {
         Ok(b) if b.built => checks.push(Check::ok(
             "runner build",
             format!(
@@ -243,7 +243,7 @@ pub async fn android(adb: &Adb) -> Vec<Check> {
 fn adb_server(
     addr: &str,
     configured: Option<&str>,
-    version: &Result<String, phone_use_core::error::Error>,
+    version: &Result<String, phonedriver_core::error::Error>,
 ) -> Check {
     match (version, configured) {
         (Ok(v), _) => Check::ok("adb server", format!("{v} at {addr}")),
@@ -352,8 +352,9 @@ async fn agent_checks(id: &str) -> Vec<Check> {
             Status::Fail,
             format!("agent {id}"),
             e.message(),
-            e.hint()
-                .unwrap_or_else(|| "The daemon log is `daemon.log` in the phone-use home.".into()),
+            e.hint().unwrap_or_else(|| {
+                "The daemon log is `daemon.log` in the phonedriver home.".into()
+            }),
         )],
     }
 }
@@ -363,7 +364,7 @@ fn cannot_reach_daemon(name: String, e: &Failure) -> Check {
         Status::Fail,
         name,
         format!("cannot reach the daemon: {}", e.message()),
-        "Run `phone-use daemon` in a terminal and read what it prints.",
+        "Run `phonedriver daemon` in a terminal and read what it prints.",
     )
 }
 
@@ -443,7 +444,7 @@ async fn runner_answers(id: &str) -> Check {
             name,
             e.message(),
             e.hint().unwrap_or_else(|| {
-                "The runner log is in the phone-use home under runner/<udid>.log.".into()
+                "The runner log is in the phonedriver home under runner/<udid>.log.".into()
             }),
         ),
     }
@@ -452,15 +453,15 @@ async fn runner_answers(id: &str) -> Check {
 /// Each wired iOS device: paired, Developer Mode, developer disk image, tier and services, and the runner with the
 /// expiry of the profile that signed the local build.
 pub async fn physical(home: &Path) -> Vec<Check> {
-    use phone_use_core::error::{Error, UserAction};
-    let wired = match phone_use_ios::transport::wired().await {
+    use phonedriver_core::error::{Error, UserAction};
+    let wired = match phonedriver_ios::transport::wired().await {
         Ok(w) => w,
         Err(_) => return Vec::new(),
     };
     let mut checks = Vec::new();
     for device in wired {
         let name = format!("ios:{}", device.udid);
-        let found = match phone_use_ios::discovery::describe(&device).await {
+        let found = match phonedriver_ios::discovery::describe(&device).await {
             Ok(f) => f,
             Err(Error::NeedsUser {
                 action: UserAction::TrustComputer,
@@ -469,7 +470,7 @@ pub async fn physical(home: &Path) -> Vec<Check> {
                     Status::Fail,
                     format!("{name} paired"),
                     "this Mac is not trusted by the device",
-                    "Unlock the device and tap Trust when it asks, then run `phone-use ios setup`.",
+                    "Unlock the device and tap Trust when it asks, then run `phonedriver ios setup`.",
                 ));
                 continue;
             }
@@ -478,7 +479,7 @@ pub async fn physical(home: &Path) -> Vec<Check> {
                     Status::Fail,
                     format!("{name} reachable"),
                     format!("{e:?}"),
-                    "Unlock the device and reconnect the cable; `phone-use ios setup` shows what is missing.",
+                    "Unlock the device and reconnect the cable; `phonedriver ios setup` shows what is missing.",
                 ));
                 continue;
             }
@@ -493,7 +494,7 @@ pub async fn physical(home: &Path) -> Vec<Check> {
                 found.tier.name()
             ),
         ));
-        match phone_use_ios::setup::status(&device).await {
+        match phonedriver_ios::setup::status(&device).await {
             Ok(s) => {
                 checks.push(if s.developer_mode {
                     Check::ok(format!("{name} developer mode"), "on")
@@ -502,7 +503,7 @@ pub async fn physical(home: &Path) -> Vec<Check> {
                         Status::Fail,
                         format!("{name} developer mode"),
                         "off",
-                        "Run `phone-use ios setup`, then turn on Settings > Privacy & Security > Developer Mode and restart the device.",
+                        "Run `phonedriver ios setup`, then turn on Settings > Privacy & Security > Developer Mode and restart the device.",
                     )
                 });
                 checks.push(if s.image_mounted {
@@ -512,7 +513,7 @@ pub async fn physical(home: &Path) -> Vec<Check> {
                         Status::Fail,
                         format!("{name} developer disk image"),
                         "not mounted",
-                        "Run `phone-use ios setup`; it mounts the image with Xcode's tool.",
+                        "Run `phonedriver ios setup`; it mounts the image with Xcode's tool.",
                     )
                 });
             }
@@ -520,7 +521,7 @@ pub async fn physical(home: &Path) -> Vec<Check> {
                 Status::Fail,
                 format!("{name} developer services"),
                 format!("{e:?}"),
-                "Run `phone-use ios setup`.",
+                "Run `phonedriver ios setup`.",
             )),
         }
         checks.push(runner_expiry(&name, home));
@@ -538,7 +539,7 @@ fn runner_expiry(name: &str, home: &Path) -> Check {
         .flatten()
         .map(|e| {
             e.path()
-                .join("dd/Build/Products/Debug-iphoneos/PhoneUseRunner-Runner.app/embedded.mobileprovision")
+                .join("dd/Build/Products/Debug-iphoneos/PhonedriverRunner-Runner.app/embedded.mobileprovision")
         })
         .find(|p| p.is_file());
     let Some(profile) = profile else {
@@ -546,7 +547,7 @@ fn runner_expiry(name: &str, home: &Path) -> Check {
             Status::Warn,
             label,
             "not built for devices yet",
-            "Set PHONE_USE_TEAM to your Apple developer team ID (Xcode > Settings > Accounts, or `security find-identity -v -p codesigning`) and run any phone-use command on the device; the first one builds and signs the runner. `phone-use ios setup` checks pairing and Developer Mode.",
+            "Set PHONEDRIVER_TEAM to your Apple developer team ID (Xcode > Settings > Accounts, or `security find-identity -v -p codesigning`) and run any phonedriver command on the device; the first one builds and signs the runner. `phonedriver ios setup` checks pairing and Developer Mode.",
         );
     };
     let decoded = std::process::Command::new("security")
@@ -570,10 +571,10 @@ fn runner_expiry(name: &str, home: &Path) -> Check {
     }
 }
 
-/// `phone-use ios setup`: for each wired device, check pairing, Developer Mode and the developer disk image, and do
+/// `phonedriver ios setup`: for each wired device, check pairing, Developer Mode and the developer disk image, and do
 /// what needs no one at the device. Prints `ok` for a step already done.
 pub fn ios_setup() -> bool {
-    use phone_use_core::error::{Error, UserAction};
+    use phonedriver_core::error::{Error, UserAction};
     let Ok(rt) = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
@@ -582,7 +583,7 @@ pub fn ios_setup() -> bool {
         return false;
     };
     rt.block_on(async {
-        let wired = match phone_use_ios::transport::wired().await {
+        let wired = match phonedriver_ios::transport::wired().await {
             Ok(w) if !w.is_empty() => w,
             Ok(_) => {
                 println!("no iOS device is connected over USB");
@@ -596,7 +597,7 @@ pub fn ios_setup() -> bool {
         let mut all_ok = true;
         for device in wired {
             let name = device.udid.clone();
-            let status = match phone_use_ios::setup::status(&device).await {
+            let status = match phonedriver_ios::setup::status(&device).await {
                 Ok(s) => {
                     println!("ok    {name} paired");
                     s
@@ -617,7 +618,7 @@ pub fn ios_setup() -> bool {
             if status.developer_mode {
                 println!("ok    {name} developer mode");
             } else {
-                match phone_use_ios::setup::reveal_developer_mode(&device).await {
+                match phonedriver_ios::setup::reveal_developer_mode(&device).await {
                     Ok(()) => println!("need  {name} developer mode: turn on Settings > Privacy & Security > Developer Mode, restart the device, confirm"),
                     Err(e) => println!("fail  {name} developer mode: {e:?}"),
                 }
@@ -627,7 +628,7 @@ pub fn ios_setup() -> bool {
                 println!("ok    {name} developer disk image");
             } else {
                 println!("      {name} developer disk image: mounting with Xcode's devicectl (talks to Apple's signing server)");
-                match phone_use_ios::setup::mount_image(&name).await {
+                match phonedriver_ios::setup::mount_image(&name).await {
                     Ok(()) => println!("ok    {name} developer disk image"),
                     Err(e) => {
                         println!("fail  {name} developer disk image: {e:?}");
@@ -685,7 +686,7 @@ mod tests {
     #[test]
     #[cfg(feature = "android")]
     fn without_a_configured_adb_server_a_missing_one_is_a_warning() {
-        let down = Err(phone_use_core::error::Error::Transport {
+        let down = Err(phonedriver_core::error::Error::Transport {
             detail: "refused".into(),
         });
         let local = adb_server("127.0.0.1:5037", None, &down);

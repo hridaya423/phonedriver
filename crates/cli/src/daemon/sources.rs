@@ -3,8 +3,8 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use phone_use_core::device::Device;
-use phone_use_core::error::Error;
+use phonedriver_core::device::Device;
+use phonedriver_core::error::Error;
 
 use super::{DeviceSource, Listed};
 

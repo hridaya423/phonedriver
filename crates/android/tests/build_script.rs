@@ -65,7 +65,7 @@ fn missing_build_tools_names_the_version_what_was_found_and_the_way_out() {
         "ANDROID_BUILD_TOOLS",
         "ANDROID_HOME",
         "sdkmanager",
-        "PHONE_USE_AGENT_JAR",
+        "PHONEDRIVER_AGENT_JAR",
         "--no-default-features",
     ] {
         assert!(stderr.contains(needle), "{needle} not in:\n{stderr}");

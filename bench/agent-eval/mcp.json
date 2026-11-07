@@ -1,12 +1,12 @@
 {
   "mcpServers": {
-    "phone-use": {
-      "command": "${PHONE_USE_BIN}",
+    "phonedriver": {
+      "command": "${PHONEDRIVER_BIN}",
       "args": ["mcp"],
       "env": {
-        "PHONE_USE_HOME": "${PHONE_USE_HOME}",
-        "PHONE_USE_DEVICE": "${PHONE_USE_DEVICE}",
-        "PHONE_USE_TRACE_FULL": "1",
+        "PHONEDRIVER_HOME": "${PHONEDRIVER_HOME}",
+        "PHONEDRIVER_DEVICE": "${PHONEDRIVER_DEVICE}",
+        "PHONEDRIVER_TRACE_FULL": "1",
         "ADB_SERVER_SOCKET": "${ADB_SERVER_SOCKET}"
       }
     }

@@ -1,7 +1,7 @@
 name: testbed-dialogs
 device: android
 steps:
-  - shell: "am force-stop dev.phoneuse.testbed"
+  - shell: "am force-stop dev.phonedriver.testbed"
   - testbed: dialogs
   - tap: "Open dialog"
   - expect: {text: "Delete conversation?"}
@@ -9,4 +9,4 @@ steps:
   - expect: {log: {ev: dialog, button: cancel}}
   - expect: {absent: "Delete conversation?"}
 cleanup:
-  - shell: "am force-stop dev.phoneuse.testbed"
+  - shell: "am force-stop dev.phonedriver.testbed"

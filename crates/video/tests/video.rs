@@ -1,9 +1,9 @@
 use std::time::Duration;
 
-use phone_use_video::frame_store::{Frame, FrameStore, StreamState};
-use phone_use_video::h264::{self, Decoder, WirePacket};
-use phone_use_video::image::encode_png;
-use phone_use_video::stream::VideoStream;
+use phonedriver_video::frame_store::{Frame, FrameStore, StreamState};
+use phonedriver_video::h264::{self, Decoder, WirePacket};
+use phonedriver_video::image::encode_png;
+use phonedriver_video::stream::VideoStream;
 
 const DENSITY: f32 = 2.625;
 const FIXTURE: &[u8] = include_bytes!("fixtures/settings_scroll.h264");
@@ -117,7 +117,7 @@ async fn scrolled_fixture_frames_exceed_the_significant_area_and_the_box_covers_
     let mut previous = None;
     for f in frames {
         let r = store.publish(f);
-        if best.is_none_or(|b: phone_use_core::device::FrameRef| {
+        if best.is_none_or(|b: phonedriver_core::device::FrameRef| {
             r.changed_area_pt2 > b.changed_area_pt2
         }) {
             best = Some(r);
@@ -199,7 +199,7 @@ async fn the_pipeline_decodes_every_packet_without_dropping_any() {
 
 #[test]
 fn a_region_is_black_when_every_sample_in_it_is_at_the_black_level() {
-    use phone_use_core::geometry::Rect;
+    use phonedriver_core::geometry::Rect;
     let store = FrameStore::new(DENSITY);
     let region = Rect {
         x: 50.0,

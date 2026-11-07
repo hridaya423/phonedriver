@@ -1,5 +1,5 @@
 //! End-to-end tests: the real CLI and daemon against the Android testbed, checked against the testbed's own event log.
-//! Run with `ADB_SERVER_SOCKET=... PHONE_USE_TEST_DEVICE=android:emulator-5554 blaze test -p phone-use --test e2e -- --ignored`.
+//! Run with `ADB_SERVER_SOCKET=... PHONEDRIVER_TEST_DEVICE=android:emulator-5554 blaze test -p phonedriver --test e2e -- --ignored`.
 
 #![allow(dead_code)]
 
@@ -10,11 +10,11 @@ use rig::*;
 use serde_json::Value;
 
 #[tokio::test]
-#[ignore = "needs PHONE_USE_TEST_DEVICE"]
+#[ignore = "needs PHONEDRIVER_TEST_DEVICE"]
 async fn snapshot_json_save_fixture_writes_the_tree_and_a_screenshot() {
     let rig = Rig::new().await;
     rig.tab("taps").await;
-    let dir = std::env::temp_dir().join(format!("phone-use-fixture-{}", std::process::id()));
+    let dir = std::env::temp_dir().join(format!("phonedriver-fixture-{}", std::process::id()));
     let result = rig.json(&[
         "snapshot",
         "--save-fixture",
@@ -33,7 +33,7 @@ async fn snapshot_json_save_fixture_writes_the_tree_and_a_screenshot() {
 }
 
 #[tokio::test]
-#[ignore = "needs PHONE_USE_TEST_DEVICE"]
+#[ignore = "needs PHONEDRIVER_TEST_DEVICE"]
 async fn tap_on_a_ref_lands_within_one_dp_of_the_buttons_center() {
     let rig = Rig::new().await;
     rig.tab("taps").await;
@@ -50,7 +50,7 @@ async fn tap_on_a_ref_lands_within_one_dp_of_the_buttons_center() {
 }
 
 #[tokio::test]
-#[ignore = "needs PHONE_USE_TEST_DEVICE"]
+#[ignore = "needs PHONEDRIVER_TEST_DEVICE"]
 async fn tap_at_a_point_lands_within_one_dp_of_it() {
     let rig = Rig::new().await;
     rig.tab("taps").await;
@@ -61,7 +61,7 @@ async fn tap_at_a_point_lands_within_one_dp_of_it() {
 }
 
 #[tokio::test]
-#[ignore = "needs PHONE_USE_TEST_DEVICE"]
+#[ignore = "needs PHONEDRIVER_TEST_DEVICE"]
 async fn type_enters_unicode_exactly_and_reports_verified() {
     let rig = Rig::new().await;
     rig.tab("text").await;
@@ -91,7 +91,7 @@ async fn type_enters_unicode_exactly_and_reports_verified() {
 }
 
 #[tokio::test]
-#[ignore = "needs PHONE_USE_TEST_DEVICE"]
+#[ignore = "needs PHONEDRIVER_TEST_DEVICE"]
 async fn a_secret_from_stdin_types_by_length_and_leaves_no_trace() {
     let rig = Rig::new().await;
     rig.tab("text").await;
@@ -128,7 +128,7 @@ async fn a_secret_from_stdin_types_by_length_and_leaves_no_trace() {
 }
 
 #[tokio::test]
-#[ignore = "needs PHONE_USE_TEST_DEVICE"]
+#[ignore = "needs PHONEDRIVER_TEST_DEVICE"]
 async fn typing_into_a_password_field_without_the_flag_still_leaves_no_trace() {
     let rig = Rig::new().await;
     rig.tab("text").await;
@@ -152,7 +152,7 @@ async fn typing_into_a_password_field_without_the_flag_still_leaves_no_trace() {
 }
 
 #[tokio::test]
-#[ignore = "needs PHONE_USE_TEST_DEVICE"]
+#[ignore = "needs PHONEDRIVER_TEST_DEVICE"]
 async fn a_secret_on_argv_is_a_usage_error_and_nothing_is_typed() {
     let rig = Rig::new().await;
     rig.tab("text").await;
@@ -195,7 +195,7 @@ async fn display_px(rig: &Rig) -> (f64, f64, f64) {
 }
 
 #[tokio::test]
-#[ignore = "needs PHONE_USE_TEST_DEVICE"]
+#[ignore = "needs PHONEDRIVER_TEST_DEVICE"]
 async fn screenshot_has_the_display_size_in_points() {
     let rig = Rig::new().await;
     rig.tab("taps").await;
@@ -211,14 +211,14 @@ async fn screenshot_has_the_display_size_in_points() {
     );
     let path = shot["path"].as_str().unwrap();
     assert_eq!(&std::fs::read(path).unwrap()[..8], b"\x89PNG\r\n\x1a\n");
-    let keep = std::env::var("PHONE_USE_KEEP_SCREENSHOT").ok();
+    let keep = std::env::var("PHONEDRIVER_KEEP_SCREENSHOT").ok();
     if let Some(dest) = keep {
         std::fs::copy(path, dest).unwrap();
     }
 }
 
 #[tokio::test]
-#[ignore = "needs PHONE_USE_TEST_DEVICE"]
+#[ignore = "needs PHONEDRIVER_TEST_DEVICE"]
 async fn a_busy_screen_snapshots_without_an_idle_wait_and_says_loading() {
     let rig = Rig::new().await;
     rig.tab("busy").await;
@@ -240,7 +240,7 @@ async fn a_busy_screen_snapshots_without_an_idle_wait_and_says_loading() {
 }
 
 #[tokio::test]
-#[ignore = "needs PHONE_USE_TEST_DEVICE"]
+#[ignore = "needs PHONEDRIVER_TEST_DEVICE"]
 async fn a_secure_screen_says_so_and_its_tree_is_still_readable() {
     let rig = Rig::new().await;
     rig.tab("text").await;

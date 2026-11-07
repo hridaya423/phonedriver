@@ -64,17 +64,17 @@ impl Rig {
     fn command(&self, args: &[&str]) -> Command {
         let mut c = Command::new("sandbox-exec");
         c.args(["-p", PROFILE])
-            .arg(assert_cmd::cargo::cargo_bin("phone-use"))
+            .arg(assert_cmd::cargo::cargo_bin("phonedriver"))
             .args(args)
-            .env("PHONE_USE_HOME", self.home.path())
+            .env("PHONEDRIVER_HOME", self.home.path())
             .env(
-                "PHONE_USE_SOCKET",
+                "PHONEDRIVER_SOCKET",
                 self.home.path().join("run").join("d.sock"),
             )
             .env("ADB_SERVER_SOCKET", &self.adb)
             .env("USBMUXD_SOCKET_ADDRESS", "127.0.0.1:1")
-            .env_remove("PHONE_USE_SESSION")
-            .env_remove("PHONE_USE_DEVICE");
+            .env_remove("PHONEDRIVER_SESSION")
+            .env_remove("PHONEDRIVER_DEVICE");
         c
     }
 

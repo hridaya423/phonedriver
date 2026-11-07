@@ -1,4 +1,4 @@
-//! PhoneUseRunner on simulators: building it, starting it, and talking to it (protocol section 3).
+//! PhonedriverRunner on simulators: building it, starting it, and talking to it (protocol section 3).
 
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
@@ -6,7 +6,7 @@ use std::sync::Mutex;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 
-use phone_use_core::error::{Error, Op};
+use phonedriver_core::error::{Error, Op};
 use serde::Deserialize;
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
@@ -63,8 +63,8 @@ pub const SOURCES: &[(&str, &str)] = &[
         include_str!("../../../ios-runner/Runner/Json.m"),
     ),
     (
-        "Runner/PhoneUseRunnerTests.m",
-        include_str!("../../../ios-runner/Runner/PhoneUseRunnerTests.m"),
+        "Runner/PhonedriverRunnerTests.m",
+        include_str!("../../../ios-runner/Runner/PhonedriverRunnerTests.m"),
     ),
     (
         "Runner/Screenshot.h",
@@ -293,9 +293,9 @@ pub async fn build_for(home: &Path, team: Option<&str>) -> Result<Build> {
     let mut xcodebuild = Command::new("xcodebuild");
     xcodebuild.args([
         "-project",
-        "PhoneUseRunner.xcodeproj",
+        "PhonedriverRunner.xcodeproj",
         "-scheme",
-        "PhoneUseRunner",
+        "PhonedriverRunner",
     ]);
     match team {
         None => {
@@ -504,8 +504,8 @@ impl Runner {
             .arg(&build.xctestrun)
             .args(["-destination", &format!("id={udid}")])
             .args(["-test-timeouts-enabled", "NO"])
-            .env("TEST_RUNNER_PHONE_USE_PORT", port.to_string())
-            .env("TEST_RUNNER_PHONE_USE_BUILD", &build.hash)
+            .env("TEST_RUNNER_PHONEDRIVER_PORT", port.to_string())
+            .env("TEST_RUNNER_PHONEDRIVER_BUILD", &build.hash)
             .stdin(std::process::Stdio::null())
             .stdout(file)
             .stderr(err)
@@ -599,9 +599,9 @@ impl Runner {
             .arg(&build.xctestrun)
             .args(["-destination", &format!("id={udid}")])
             .args(["-test-timeouts-enabled", "NO"])
-            .env("TEST_RUNNER_PHONE_USE_PORT", DEVICE_PORT.to_string())
-            .env("TEST_RUNNER_PHONE_USE_BUILD", &build.hash)
-            .env("TEST_RUNNER_PHONE_USE_UDID", udid)
+            .env("TEST_RUNNER_PHONEDRIVER_PORT", DEVICE_PORT.to_string())
+            .env("TEST_RUNNER_PHONEDRIVER_BUILD", &build.hash)
+            .env("TEST_RUNNER_PHONEDRIVER_UDID", udid)
             .stdin(std::process::Stdio::null())
             .stdout(file)
             .stderr(err)

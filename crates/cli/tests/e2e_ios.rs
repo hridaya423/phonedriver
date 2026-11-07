@@ -1,11 +1,11 @@
 //! End-to-end tests: the real CLI and daemon against the iOS testbed on a booted simulator, checked against the
 //! testbed's event log. On the Mac that hosts the simulator:
-//! `PHONE_USE_TEST_DEVICE=sim:<udid> cargo test -p phone-use --test e2e_ios -- --ignored --test-threads=1`.
+//! `PHONEDRIVER_TEST_DEVICE=sim:<udid> cargo test -p phonedriver --test e2e_ios -- --ignored --test-threads=1`.
 
 #![cfg(unix)]
 #![allow(dead_code)]
 
-use phone_use_ios::testbed;
+use phonedriver_ios::testbed;
 
 use std::path::PathBuf;
 use std::process::Output;
@@ -19,7 +19,8 @@ use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 static INSTALL: Once = Once::new();
 
 fn udid() -> String {
-    let v = std::env::var("PHONE_USE_TEST_DEVICE").expect("set PHONE_USE_TEST_DEVICE=sim:<udid>");
+    let v =
+        std::env::var("PHONEDRIVER_TEST_DEVICE").expect("set PHONEDRIVER_TEST_DEVICE=sim:<udid>");
     v.strip_prefix("sim:").unwrap_or(&v).to_string()
 }
 
@@ -32,16 +33,16 @@ impl Rig {
     fn new() -> Rig {
         let udid = udid();
         INSTALL.call_once(|| testbed::install(&udid));
-        let home = std::env::temp_dir().join(format!("phone-use-e2e-ios-{}", std::process::id()));
+        let home = std::env::temp_dir().join(format!("phonedriver-e2e-ios-{}", std::process::id()));
         std::fs::create_dir_all(&home).unwrap();
         Rig { udid, home }
     }
 
     fn command(&self) -> Command {
-        let mut c = Command::cargo_bin("phone-use").unwrap();
-        c.env("PHONE_USE_HOME", &self.home)
-            .env_remove("PHONE_USE_SESSION")
-            .env_remove("PHONE_USE_SECRET")
+        let mut c = Command::cargo_bin("phonedriver").unwrap();
+        c.env("PHONEDRIVER_HOME", &self.home)
+            .env_remove("PHONEDRIVER_SESSION")
+            .env_remove("PHONEDRIVER_SECRET")
             .arg("--device")
             .arg(format!("sim:{}", self.udid));
         c
@@ -55,7 +56,7 @@ impl Rig {
         let out = self.cli(args);
         assert!(
             out.status.success(),
-            "phone-use {args:?} failed: {}",
+            "phonedriver {args:?} failed: {}",
             String::from_utf8_lossy(&out.stderr)
         );
         String::from_utf8(out.stdout).unwrap()
@@ -79,7 +80,7 @@ impl Rig {
     }
 
     async fn daemon_pid(&self) -> u32 {
-        let stream = phone_use::daemon::socket::connect(&self.home.join("run/daemon.sock"))
+        let stream = phonedriver::daemon::socket::connect(&self.home.join("run/daemon.sock"))
             .await
             .unwrap();
         let (read, mut write) = tokio::io::split(stream);
@@ -130,7 +131,7 @@ fn center(e: &Value) -> (f64, f64) {
 }
 
 #[test]
-#[ignore = "needs PHONE_USE_TEST_DEVICE=sim:<udid>"]
+#[ignore = "needs PHONEDRIVER_TEST_DEVICE=sim:<udid>"]
 fn devices_lists_the_simulator_tier() {
     let rig = Rig::new();
     let list = rig.json(&["devices"]);
@@ -145,7 +146,7 @@ fn devices_lists_the_simulator_tier() {
 }
 
 #[test]
-#[ignore = "needs PHONE_USE_TEST_DEVICE=sim:<udid>"]
+#[ignore = "needs PHONEDRIVER_TEST_DEVICE=sim:<udid>"]
 fn snapshot_then_tap_a_ref_lands_on_its_center_and_returns_a_diff() {
     let rig = Rig::new();
     rig.tab("taps");
@@ -154,7 +155,7 @@ fn snapshot_then_tap_a_ref_lands_on_its_center_and_returns_a_diff() {
         text.starts_with(&format!("device sim:{}", rig.udid)),
         "{text}"
     );
-    assert!(text.contains("app dev.phoneuse.testbed"), "{text}");
+    assert!(text.contains("app dev.phonedriver.testbed"), "{text}");
     let els = rig.elements();
     let b17 = find(&els, "button", "B17");
     let (x, y) = center(b17);
@@ -176,7 +177,7 @@ fn snapshot_then_tap_a_ref_lands_on_its_center_and_returns_a_diff() {
 }
 
 #[test]
-#[ignore = "needs PHONE_USE_TEST_DEVICE=sim:<udid>"]
+#[ignore = "needs PHONEDRIVER_TEST_DEVICE=sim:<udid>"]
 fn a_tab_switch_is_a_new_screen() {
     let rig = Rig::new();
     rig.tab("taps");
@@ -193,7 +194,7 @@ fn a_tab_switch_is_a_new_screen() {
 }
 
 #[test]
-#[ignore = "needs PHONE_USE_TEST_DEVICE=sim:<udid>"]
+#[ignore = "needs PHONEDRIVER_TEST_DEVICE=sim:<udid>"]
 fn type_unicode_into_a_field_is_exact_and_verified() {
     let rig = Rig::new();
     rig.tab("text");
@@ -211,7 +212,7 @@ fn type_unicode_into_a_field_is_exact_and_verified() {
 }
 
 #[test]
-#[ignore = "needs PHONE_USE_TEST_DEVICE=sim:<udid>"]
+#[ignore = "needs PHONEDRIVER_TEST_DEVICE=sim:<udid>"]
 fn a_secret_from_stdin_is_typed_and_never_written_down() {
     let rig = Rig::new();
     rig.tab("text");
@@ -260,7 +261,7 @@ fn walk(dir: &std::path::Path) -> Vec<PathBuf> {
 }
 
 #[test]
-#[ignore = "needs PHONE_USE_TEST_DEVICE=sim:<udid>"]
+#[ignore = "needs PHONEDRIVER_TEST_DEVICE=sim:<udid>"]
 fn press_back_says_it_used_the_nav_bar_button() {
     let rig = Rig::new();
     rig.tab("nav");
@@ -278,7 +279,7 @@ fn press_back_says_it_used_the_nav_bar_button() {
 }
 
 #[test]
-#[ignore = "needs PHONE_USE_TEST_DEVICE=sim:<udid>"]
+#[ignore = "needs PHONEDRIVER_TEST_DEVICE=sim:<udid>"]
 fn a_screenshot_is_one_pixel_per_point() {
     let rig = Rig::new();
     rig.tab("taps");
@@ -293,7 +294,7 @@ fn a_screenshot_is_one_pixel_per_point() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-#[ignore = "needs PHONE_USE_TEST_DEVICE=sim:<udid>"]
+#[ignore = "needs PHONEDRIVER_TEST_DEVICE=sim:<udid>"]
 async fn a_daemon_killed_alone_leaves_its_runner_to_the_next_and_its_process_group_ends_it() {
     let rig = Rig::new();
     let _ = std::process::Command::new("pkill")
@@ -331,12 +332,12 @@ async fn a_daemon_killed_alone_leaves_its_runner_to_the_next_and_its_process_gro
 }
 
 #[test]
-#[ignore = "needs PHONE_USE_TEST_DEVICE=sim:<udid>"]
+#[ignore = "needs PHONEDRIVER_TEST_DEVICE=sim:<udid>"]
 fn doctor_finds_xcode_the_simulator_and_a_runner_that_answers() {
     let rig = Rig::new();
     let out = rig
         .command()
-        .env_remove("PHONE_USE_DEVICE")
+        .env_remove("PHONEDRIVER_DEVICE")
         .arg("doctor")
         .output()
         .unwrap();

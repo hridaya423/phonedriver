@@ -19,7 +19,7 @@ static const uint32_t PUMaxFrame = 16 * 1024 * 1024;
     if ((self = [super init])) {
         _port = port;
         _handler = [handler copy];
-        _queue = dispatch_queue_create("dev.phoneuse.runner.server", DISPATCH_QUEUE_SERIAL);
+        _queue = dispatch_queue_create("dev.phonedriver.runner.server", DISPATCH_QUEUE_SERIAL);
     }
     return self;
 }
@@ -64,7 +64,7 @@ static const char *PUListenHost = "0.0.0.0";
         if (error) *error = PUError(PURunnerErrorFailed, [NSString stringWithFormat:@"listen on port %@ failed: %@", port, failure]);
         return NO;
     }
-    NSLog(@"PhoneUseRunner listening on %s:%@", PUListenHost, port);
+    NSLog(@"PhonedriverRunner listening on %s:%@", PUListenHost, port);
     return YES;
 }
 

@@ -62,7 +62,7 @@ class Checks(unittest.TestCase):
             ok = ([{"_id": "1"}], ["4829173"])
             with mock.patch.object(jobs, "contact_phones", return_value=ok):
                 self.assertEqual(jobs.check_locker("Locker 7", True), [])
-                with mock.patch.object(jobs, "shell_used", return_value="mcp__phone-use__shell {}"):
+                with mock.patch.object(jobs, "shell_used", return_value="mcp__phonedriver__shell {}"):
                     self.assertEqual(len(jobs.check_locker("Locker 7", True)), 1)
                     self.assertEqual(jobs.check_locker("Locker 9", False), [])
             with mock.patch.object(jobs, "contact_phones", return_value=([{"_id": "1"}], ["4829137"])):

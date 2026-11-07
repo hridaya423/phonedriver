@@ -1,4 +1,4 @@
-"""Latency baseline for phone-harness 0.3.3 on the same emulator and operations as phone-use-bench.
+"""Latency baseline for phone-harness 0.3.3 on the same emulator and operations as phonedriver-bench.
 
 Run inside the isolated venv with telemetry off:
   DO_NOT_TRACK=1 PHONE_HARNESS_TELEMETRY=0 PHONE_HARNESS_NO_UPDATE_CHECK=1 PHONE_HARNESS_PLATFORM=android \
@@ -11,7 +11,7 @@ import subprocess
 import sys
 import time
 
-PACKAGE = "dev.phoneuse.testbed"
+PACKAGE = "dev.phonedriver.testbed"
 MIXED = "héllo 世界 مرحبا 👋🏽 abc 123 "
 ASCII_100 = ("The quick brown fox jumps over the lazy dog 0123456789. " * 3)[:100]
 

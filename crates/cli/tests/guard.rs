@@ -1,4 +1,4 @@
-//! Decision D27: a tap that spends money or cannot be undone needs the human's word, asked by phone-use itself.
+//! Decision D27: a tap that spends money or cannot be undone needs the human's word, asked by phonedriver itself.
 
 #[path = "support/fakes.rs"]
 mod fakes;
@@ -7,13 +7,13 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
 use fakes::{OneDevice, PNG, Pixels};
-use phone_use::client::{Client, Failure};
-use phone_use::daemon::{Config, Daemon, socket};
-use phone_use::mcp::Mcp;
-use phone_use_core::device::{Capabilities, Device, DeviceEvent, FrameRef, Gesture};
-use phone_use_core::geometry::Scale;
-use phone_use_core::raw::RawTree;
-use phone_use_core::testing::{Call, FakeDevice};
+use phonedriver::client::{Client, Failure};
+use phonedriver::daemon::{Config, Daemon, socket};
+use phonedriver::mcp::Mcp;
+use phonedriver_core::device::{Capabilities, Device, DeviceEvent, FrameRef, Gesture};
+use phonedriver_core::geometry::Scale;
+use phonedriver_core::raw::RawTree;
+use phonedriver_core::testing::{Call, FakeDevice};
 use rmcp::model::{
     CallToolRequestParams, CallToolResult, ClientCapabilities, ClientConfig, ElicitRequestParams,
     ElicitResult, ElicitationAction, Implementation, ProtocolVersion,

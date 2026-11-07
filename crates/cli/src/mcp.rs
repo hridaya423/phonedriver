@@ -1,4 +1,4 @@
-//! `phone-use mcp`: the CLI verbs as MCP tools over stdio (architecture 10.2). A tool maps its arguments onto the
+//! `phonedriver mcp`: the CLI verbs as MCP tools over stdio (architecture 10.2). A tool maps its arguments onto the
 //! verb of the same name and returns the text the verb prints; nothing else happens here.
 
 use std::path::PathBuf;
@@ -385,7 +385,7 @@ impl Mcp {
 
     fn globals(device: Option<String>) -> Globals {
         Globals {
-            device: device.or_else(|| std::env::var("PHONE_USE_DEVICE").ok()),
+            device: device.or_else(|| std::env::var("PHONEDRIVER_DEVICE").ok()),
             json: false,
             no_settle: false,
             timeout: None,
@@ -697,17 +697,17 @@ fn success_text(text: String) -> String {
         .join("\n")
 }
 
-/// Hints are written for the command line. The MCP agent has tools and arguments, not `phone-use` commands and flags.
+/// Hints are written for the command line. The MCP agent has tools and arguments, not `phonedriver` commands and flags.
 fn for_mcp(hint: &str) -> String {
     const PHRASES: &[(&str, &str)] = &[
         (
-            "`phone-use press hide-keyboard`",
+            "`phonedriver press hide-keyboard`",
             "`press` with key `hide-keyboard`",
         ),
-        ("`phone-use press enter`", "`press` with key `enter`"),
-        ("`phone-use snapshot --no-settle`", "`snapshot`"),
+        ("`phonedriver press enter`", "`press` with key `enter`"),
+        ("`phonedriver snapshot --no-settle`", "`snapshot`"),
         (
-            "`phone-use wait settled`",
+            "`phonedriver wait settled`",
             "`wait` with condition `settled`",
         ),
         (
@@ -720,24 +720,24 @@ fn for_mcp(hint: &str) -> String {
         ("`--timeout`", "`timeout_ms`"),
         ("`--max`", "`max`"),
         (
-            "Run `phone-use doctor` to check the connection.",
-            "Ask the user to run `phone-use doctor` to check the connection.",
+            "Run `phonedriver doctor` to check the connection.",
+            "Ask the user to run `phonedriver doctor` to check the connection.",
         ),
         (
-            "Run `phone-use doctor` to see what this device supports.",
+            "Run `phonedriver doctor` to see what this device supports.",
             "Try another approach; this device does not support that.",
         ),
-        ("Run `phone-use ", "Call `"),
+        ("Run `phonedriver ", "Call `"),
     ];
     let mut out = hint.to_string();
     for (from, to) in PHRASES {
         out = out.replace(from, to);
     }
-    while let Some(start) = out.find("`phone-use ") {
+    while let Some(start) = out.find("`phonedriver ") {
         let Some(len) = out[start + 1..].find('`') else {
             break;
         };
-        let inner = out[start + 1 + "phone-use ".len()..start + 1 + len].to_string();
+        let inner = out[start + 1 + "phonedriver ".len()..start + 1 + len].to_string();
         let mut words = inner.split_whitespace();
         let tool = words.next().unwrap_or_default().to_string();
         let rest: Vec<&str> = words.collect();
@@ -995,7 +995,7 @@ impl Mcp {
 }
 
 #[tool_handler(
-    name = "phone-use",
+    name = "phonedriver",
     instructions = "Operate an Android or iOS device. System settings: `shell`. App UI: `launch` takes an app name (no `devices` or `apps` first), then `snapshot` once and act on its @refs; each action returns what changed. Send calls one at a time on the shared screen. If an error needs the user to act on the device, say so and go on when they are done. Passwords, payments, sending and deleting need the user's word for this task."
 )]
 impl ServerHandler for Mcp {
@@ -1118,11 +1118,11 @@ mod tests {
     fn hints_name_tools_and_arguments() {
         let cases = [
             (
-                "Run `phone-use snapshot` for fresh refs; closest now: @e9 button \"X\"",
+                "Run `phonedriver snapshot` for fresh refs; closest now: @e9 button \"X\"",
                 "Call `snapshot` for fresh refs; closest now: @e9 button \"X\"",
             ),
             (
-                "Hide the keyboard with `phone-use press hide-keyboard`, or `phone-use scroll down` to bring the element above it.",
+                "Hide the keyboard with `phonedriver press hide-keyboard`, or `phonedriver scroll down` to bring the element above it.",
                 "Hide the keyboard with `press` with key `hide-keyboard`, or `scroll` down to bring the element above it.",
             ),
             (
@@ -1134,11 +1134,11 @@ mod tests {
                 "Pass `device` with one of: a, b.",
             ),
             (
-                "Increase `--timeout`, or run `phone-use snapshot` to check the screen.",
+                "Increase `--timeout`, or run `phonedriver snapshot` to check the screen.",
                 "Increase `timeout_ms`, or run `snapshot` to check the screen.",
             ),
             (
-                "nothing changed; `phone-use wait settled` waits for the screen, `phone-use snapshot` shows it",
+                "nothing changed; `phonedriver wait settled` waits for the screen, `phonedriver snapshot` shows it",
                 "nothing changed; `wait` with condition `settled` waits for the screen, `snapshot` shows it",
             ),
         ];
@@ -1146,17 +1146,18 @@ mod tests {
             assert_eq!(for_mcp(from), to);
         }
         assert!(
-            !for_mcp("Run `phone-use doctor` to check the connection.").contains("Run `phone-use")
+            !for_mcp("Run `phonedriver doctor` to check the connection.")
+                .contains("Run `phonedriver")
         );
     }
 
     #[test]
     fn only_hint_lines_of_a_success_are_rewritten() {
-        let text = "ok tapped\n@e1 button \"phone-use snapshot\"\nhint: retry with `--mode keys`"
+        let text = "ok tapped\n@e1 button \"phonedriver snapshot\"\nhint: retry with `--mode keys`"
             .to_string();
         assert_eq!(
             success_text(text),
-            "ok tapped\n@e1 button \"phone-use snapshot\"\nhint: retry with `mode` `keys`"
+            "ok tapped\n@e1 button \"phonedriver snapshot\"\nhint: retry with `mode` `keys`"
         );
     }
 }

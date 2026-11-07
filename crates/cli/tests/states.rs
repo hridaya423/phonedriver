@@ -89,7 +89,7 @@ async fn toggled(rig: &Rig, on: bool) -> bool {
 }
 
 #[tokio::test]
-#[ignore = "needs PHONE_USE_TEST_DEVICE"]
+#[ignore = "needs PHONEDRIVER_TEST_DEVICE"]
 async fn a_dark_screen_is_woken_before_the_tap_and_the_reply_says_so() {
     let rig = Rig::new().await;
     rig.tab("taps").await;
@@ -107,7 +107,7 @@ async fn a_dark_screen_is_woken_before_the_tap_and_the_reply_says_so() {
 }
 
 #[tokio::test]
-#[ignore = "needs PHONE_USE_TEST_DEVICE"]
+#[ignore = "needs PHONEDRIVER_TEST_DEVICE"]
 async fn a_swipe_only_lock_screen_is_dismissed_and_the_tap_goes_through() {
     let rig = Rig::new().await;
     rig.tab("taps").await;
@@ -135,7 +135,7 @@ async fn a_swipe_only_lock_screen_is_dismissed_and_the_tap_goes_through() {
 }
 
 #[tokio::test]
-#[ignore = "needs PHONE_USE_TEST_DEVICE"]
+#[ignore = "needs PHONEDRIVER_TEST_DEVICE"]
 async fn a_pin_lock_screen_fails_needs_user_and_nothing_is_tapped() {
     let rig = Rig::new().await;
     rig.tab("taps").await;
@@ -173,7 +173,7 @@ async fn a_pin_lock_screen_fails_needs_user_and_nothing_is_tapped() {
 }
 
 #[tokio::test]
-#[ignore = "needs PHONE_USE_TEST_DEVICE"]
+#[ignore = "needs PHONEDRIVER_TEST_DEVICE"]
 async fn another_ui_automation_client_fails_with_its_name_and_how_to_stop_it() {
     let rig = Rig::new().await;
     rig.cli(&["release"]);
@@ -225,7 +225,7 @@ async fn tap_lands_on_b10(rig: &Rig) {
 }
 
 #[tokio::test]
-#[ignore = "needs PHONE_USE_TEST_DEVICE"]
+#[ignore = "needs PHONEDRIVER_TEST_DEVICE"]
 async fn rotating_the_display_changes_the_header_and_taps_still_land() {
     let rig = Rig::new().await;
     rig.tab("taps").await;
@@ -262,7 +262,7 @@ async fn rotating_the_display_changes_the_header_and_taps_still_land() {
 }
 
 #[tokio::test]
-#[ignore = "needs PHONE_USE_TEST_DEVICE"]
+#[ignore = "needs PHONEDRIVER_TEST_DEVICE"]
 async fn a_changed_wm_size_updates_the_header_and_taps_still_land() {
     let rig = Rig::new().await;
     rig.tab("taps").await;
@@ -285,7 +285,7 @@ async fn a_changed_wm_size_updates_the_header_and_taps_still_land() {
 }
 
 #[tokio::test]
-#[ignore = "needs PHONE_USE_TEST_DEVICE"]
+#[ignore = "needs PHONEDRIVER_TEST_DEVICE"]
 async fn a_changed_wm_density_updates_the_header_and_taps_still_land() {
     let rig = Rig::new().await;
     if sh(&rig, "getprop ro.build.version.sdk").await.trim() == "26" {
@@ -314,13 +314,13 @@ async fn a_changed_wm_density_updates_the_header_and_taps_still_land() {
 }
 
 #[tokio::test]
-#[ignore = "needs PHONE_USE_TEST_DEVICE"]
+#[ignore = "needs PHONEDRIVER_TEST_DEVICE"]
 async fn a_permission_dialog_shows_its_buttons_above_the_app() {
     let rig = Rig::new().await;
     // Two denials make Android answer the request without a dialog, so clearing the app resets the count.
     let reset = [
-        "pm clear dev.phoneuse.testbed",
-        "pm grant dev.phoneuse.testbed android.permission.POST_NOTIFICATIONS",
+        "pm clear dev.phonedriver.testbed",
+        "pm grant dev.phonedriver.testbed android.permission.POST_NOTIFICATIONS",
     ];
     let _restore = Restore::new(&rig, &reset);
     for c in reset {

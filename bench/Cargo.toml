@@ -1,20 +1,20 @@
 [package]
-name = "phone-use-bench"
+name = "phonedriver-bench"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 publish = false
 
 [[bin]]
-name = "phone-use-bench"
+name = "phonedriver-bench"
 path = "src/main.rs"
 
 [dependencies]
-phone-use = { version = "0.1.0", path = "../crates/cli" }
-phone-use-android = { version = "0.1.0", path = "../crates/android" }
+phonedriver = { version = "0.1.0", path = "../crates/cli" }
+phonedriver-android = { version = "0.1.0", path = "../crates/android" }
 serde = { version = "1.0.229", features = ["derive"] }
-phone-use-core = { version = "0.1.0", path = "../crates/core" }
-phone-use-ios = { version = "0.1.0", path = "../crates/ios" }
+phonedriver-core = { version = "0.1.0", path = "../crates/core" }
+phonedriver-ios = { version = "0.1.0", path = "../crates/ios" }
 serde_json = "1.0.154"
 serde_yaml = "0.9.34"
 tokio = { version = "1.54.1", features = ["rt-multi-thread", "macros", "time", "process", "io-util"] }

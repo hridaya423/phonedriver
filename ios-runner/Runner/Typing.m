@@ -16,7 +16,7 @@ BOOL PUType(NSString *text, NSUInteger speed, NSError **error)
         if (error) *error = PUError(PURunnerErrorBadRequest, @"text must be a non-empty string");
         return NO;
     }
-    XCSynthesizedEventRecord *record = [[XCSynthesizedEventRecord alloc] initWithName:@"phone-use type"
+    XCSynthesizedEventRecord *record = [[XCSynthesizedEventRecord alloc] initWithName:@"phonedriver type"
                                                                  interfaceOrientation:UIInterfaceOrientationPortrait];
     XCPointerEventPath *path = [[XCPointerEventPath alloc] initForTextInput];
     [path typeText:text atOffset:0 typingSpeed:speed ?: PUTypingSpeed shouldRedact:YES];
@@ -45,7 +45,7 @@ BOOL PUKey(NSString *key, NSArray *modifiers, NSError **error)
         }
         flags |= flag.unsignedLongLongValue;
     }
-    XCSynthesizedEventRecord *record = [[XCSynthesizedEventRecord alloc] initWithName:@"phone-use key"
+    XCSynthesizedEventRecord *record = [[XCSynthesizedEventRecord alloc] initWithName:@"phonedriver key"
                                                                  interfaceOrientation:UIInterfaceOrientationPortrait];
     XCPointerEventPath *path = [[XCPointerEventPath alloc] initForTextInput];
     [path typeKey:key modifiers:flags atOffset:0];

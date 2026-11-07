@@ -4,10 +4,10 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
 use async_trait::async_trait;
-use phone_use_android::adb::{Adb, AdbDevice, DeviceState};
-use phone_use_android::device::AndroidDevice;
-use phone_use_core::device::{Capabilities, Device};
-use phone_use_core::error::Error;
+use phonedriver_android::adb::{Adb, AdbDevice, DeviceState};
+use phonedriver_android::device::AndroidDevice;
+use phonedriver_core::device::{Capabilities, Device};
+use phonedriver_core::error::Error;
 
 use super::progress::after_a_second;
 use super::{DeviceSource, Listed};

@@ -2,14 +2,14 @@ mod support;
 
 use std::time::Duration;
 
-use phone_use_android::device::AndroidDevice;
-use phone_use_core::device::{
+use phonedriver_android::device::AndroidDevice;
+use phonedriver_core::device::{
     AppId, Button, ClipboardOp, Device, DeviceEvent, Gesture, ImageFormat, Key, Quality, TextInput,
     TimedPoint, Url,
 };
-use phone_use_core::element::Role;
-use phone_use_core::geometry::Point;
-use phone_use_core::prune::{Node, prune};
+use phonedriver_core::element::Role;
+use phonedriver_core::geometry::Point;
+use phonedriver_core::prune::{Node, prune};
 use support::agent as raw;
 use support::testbed;
 
@@ -70,7 +70,7 @@ async fn open_settings(serial: &str) {
 }
 
 #[tokio::test]
-#[ignore = "needs PHONE_USE_TEST_DEVICE"]
+#[ignore = "needs PHONEDRIVER_TEST_DEVICE"]
 async fn settings_tree_has_the_network_and_internet_button_and_a_tap_opens_it() {
     let (device, serial, _g) = connect().await;
     open_settings(&serial).await;
@@ -109,7 +109,7 @@ async fn settings_tree_has_the_network_and_internet_button_and_a_tap_opens_it() 
 }
 
 #[tokio::test]
-#[ignore = "needs PHONE_USE_TEST_DEVICE"]
+#[ignore = "needs PHONEDRIVER_TEST_DEVICE"]
 async fn screenshot_is_a_png_of_the_display_in_points_and_frames_move_after_input() {
     let (device, serial, _g) = connect().await;
     testbed::open_tab(&support::adb(), &serial, "taps").await;
@@ -151,7 +151,7 @@ async fn screenshot_is_a_png_of_the_display_in_points_and_frames_move_after_inpu
 }
 
 #[tokio::test]
-#[ignore = "needs PHONE_USE_TEST_DEVICE"]
+#[ignore = "needs PHONEDRIVER_TEST_DEVICE"]
 async fn text_clipboard_keys_buttons_apps_and_events() {
     let (device, serial, _g) = connect().await;
     let adb = support::adb();
@@ -193,7 +193,7 @@ async fn text_clipboard_keys_buttons_apps_and_events() {
     let apps = device.apps().await.unwrap();
     assert!(
         apps.iter()
-            .any(|a| a.id.0 == testbed::PACKAGE && a.name == "phone-use testbed")
+            .any(|a| a.id.0 == testbed::PACKAGE && a.name == "phonedriver testbed")
     );
 
     device.button(Button::Home).await.unwrap();
@@ -239,7 +239,7 @@ async fn text_clipboard_keys_buttons_apps_and_events() {
 }
 
 #[tokio::test]
-#[ignore = "needs PHONE_USE_TEST_DEVICE"]
+#[ignore = "needs PHONEDRIVER_TEST_DEVICE"]
 async fn screenshots_keep_working_while_the_screen_is_idle_and_no_frames_arrive() {
     let (device, serial, _g) = connect().await;
     testbed::open_tab(&support::adb(), &serial, "taps").await;
@@ -268,7 +268,7 @@ async fn screenshots_keep_working_while_the_screen_is_idle_and_no_frames_arrive(
 }
 
 #[tokio::test]
-#[ignore = "needs PHONE_USE_TEST_DEVICE"]
+#[ignore = "needs PHONEDRIVER_TEST_DEVICE"]
 async fn connect_returns_once_the_first_frame_has_arrived() {
     let (device, _serial, _g) = connect().await;
     let frames = device.frames().expect("android has a frame stream");

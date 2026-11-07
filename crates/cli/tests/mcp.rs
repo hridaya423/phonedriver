@@ -6,10 +6,10 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use fakes::{OneDevice, PNG, field_tree, pixel_device, tree};
-use phone_use::client::Client;
-use phone_use::daemon::{Config, Daemon, socket};
-use phone_use::mcp::Mcp;
-use phone_use_core::raw::RawTree;
+use phonedriver::client::Client;
+use phonedriver::daemon::{Config, Daemon, socket};
+use phonedriver::mcp::Mcp;
+use phonedriver_core::raw::RawTree;
 use rmcp::ServiceExt;
 use rmcp::model::{CallToolRequestParams, CallToolResult};
 use serde_json::{Value, json};
@@ -24,7 +24,7 @@ async fn rig(trees: Vec<RawTree>) -> Rig {
     rig_with(pixel_device(trees)).await
 }
 
-async fn rig_with(device: Arc<dyn phone_use_core::device::Device>) -> Rig {
+async fn rig_with(device: Arc<dyn phonedriver_core::device::Device>) -> Rig {
     let home = tempfile::tempdir().unwrap();
     let daemon = Daemon::new(
         Arc::new(OneDevice(device)),
@@ -63,7 +63,7 @@ impl Rig {
         &self,
         method: &str,
         params: Value,
-    ) -> Result<Value, phone_use::client::Failure> {
+    ) -> Result<Value, phonedriver::client::Failure> {
         let mut c = Client::connect_to(&self.socket, "mcp-test").await.unwrap();
         c.call(method, params).await
     }
@@ -266,7 +266,7 @@ async fn an_error_is_is_error_with_the_message_and_the_hint() {
         .await
         .unwrap_err();
     let hint = want.hint().expect("stale_ref has a hint");
-    assert!(hint.contains("phone-use snapshot"));
+    assert!(hint.contains("phonedriver snapshot"));
     assert_eq!(
         texts(&r),
         vec![format!(
@@ -378,8 +378,8 @@ async fn a_cli_connection_closing_keeps_its_lease_because_every_cli_call_is_a_ne
     assert_eq!(leased_by(&rig.socket).await, "keeper");
 }
 
-fn travel(call: &phone_use_core::testing::Call) -> f32 {
-    let phone_use_core::testing::Call::Gesture(g) = call else {
+fn travel(call: &phonedriver_core::testing::Call) -> f32 {
+    let phonedriver_core::testing::Call::Gesture(g) = call else {
         panic!("{call:?}")
     };
     let path = &g.fingers[0];
@@ -389,9 +389,9 @@ fn travel(call: &phone_use_core::testing::Call) -> f32 {
 #[test]
 fn calls_sent_together_run_one_at_a_time_in_the_order_they_were_sent() {
     for _ in 0..5 {
-        let rt = phone_use::mcp::server_runtime().unwrap();
+        let rt = phonedriver::mcp::server_runtime().unwrap();
         rt.block_on(async {
-            let fake = Arc::new(phone_use_core::testing::FakeDevice::new(vec![tree(&[
+            let fake = Arc::new(phonedriver_core::testing::FakeDevice::new(vec![tree(&[
                 "One",
             ])]));
             let rig = rig_with(fake.clone()).await;
@@ -524,7 +524,7 @@ async fn failures_and_hints_over_mcp_name_tools_and_arguments_not_cli_commands()
         assert_eq!(r.is_error, Some(true), "{r:?}");
         let text = texts(&r).join("\n");
         assert!(
-            !text.contains("phone-use") && !text.contains(" --"),
+            !text.contains("phonedriver") && !text.contains(" --"),
             "{text}"
         );
         assert!(text.contains("hint:"), "{text}");
@@ -571,7 +571,7 @@ async fn a_failing_batch_step_is_an_error_naming_the_step_with_hints_in_tool_wor
     let text = texts(&r).join("\n");
     assert!(text.starts_with("step 2 of 3 failed"), "{text}");
     assert!(text.contains("1. tapped @e1"), "{text}");
-    assert!(!text.contains("phone-use "), "{text}");
+    assert!(!text.contains("phonedriver "), "{text}");
 }
 
 #[tokio::test]

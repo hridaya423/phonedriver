@@ -1,9 +1,9 @@
 name: testbed-secure
 device: android
 steps:
-  - shell: "am force-stop dev.phoneuse.testbed"
+  - shell: "am force-stop dev.phonedriver.testbed"
   - testbed: secure
   - expect: {text: "secure content hidden"}
   - expect: {text: "SECRET code 123456"}
 cleanup:
-  - shell: "am force-stop dev.phoneuse.testbed"
+  - shell: "am force-stop dev.phonedriver.testbed"

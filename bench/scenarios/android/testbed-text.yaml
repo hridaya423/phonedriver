@@ -1,11 +1,11 @@
 name: testbed-text
 device: android
 steps:
-  - shell: "am force-stop dev.phoneuse.testbed"
+  - shell: "am force-stop dev.phonedriver.testbed"
   - testbed: text
   - type: {text: "hello world", into: "plain"}
   - expect: {log: {ev: text, field: plain, value: "hello world"}}
   - clear: "plain"
   - expect: {log: {ev: text, field: plain, value: ""}}
 cleanup:
-  - shell: "am force-stop dev.phoneuse.testbed"
+  - shell: "am force-stop dev.phonedriver.testbed"

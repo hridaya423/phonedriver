@@ -1,4 +1,4 @@
-package dev.phoneuse.testbed;
+package dev.phonedriver.testbed;
 
 import android.app.Activity;
 import android.content.Context;
