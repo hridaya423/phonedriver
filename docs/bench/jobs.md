@@ -55,3 +55,82 @@ Facts a run will meet:
 ## Run budget
 
 Core 7 + mixed 2 = 9 tasks. One pass per harness (phone-use, phone-harness, mobile-mcp) is 27 runs; the second pass for medians doubles it. The bug-report and Messages/Photos jobs are the longest. Phase B runs phone-use alone first, as asked.
+
+## Phase B results (2026-11-07)
+
+Setup: `claude -p` on the subscription, `claude-sonnet-5-5`, `ANTHROPIC_API_KEY` unset, emulator-5558 (a 2560x1600 tablet image, API 37) through the 5038 tunnel, one agent at a time. Each harness ran the 9 jobs twice (18 runs), reset and checked by `jobs.py` (root reads of app state, never the agent's reply). Core jobs (7): harness limited to its own tools, no adb. Mixed jobs (log-code, wakelock-restrict): any route allowed, `ALLOW_ADB=1`, and the adb harness runs only these two. Tokens are input + output + cache creation + cache read. Raw runs: `docs/bench/jobs.json` (`runs`, `medians`, `totals`); rebuilt with `python3 bench/agent-eval/jobs/summarize.py p4=... --md`.
+
+phone-use is the final binary (`126db3e`), runs `p4` and `p5`. phone-harness 0.3.3 ran as `h1`, `h2` (its qa-shop run in `h2` was invalid: a permission pattern blocked the tool, 7 s, 1 call; rerun as `h3`, which is what the table uses). mobile-mcp ran through a private adb server on port 5097. The first rubric scored the report jobs by sentence; v2 reads headings and sections too and counts a message that stayed as a dead tap (the old rubric failed correct multi-line reports; rescoring is in `summarize.py`, `success_as_run` keeps the original verdict).
+
+### Totals (sum of per-job medians)
+
+| Harness | Passed | Tokens | Tool calls | Wall s |
+|---|---|---|---|---|
+| phone-use | 18/18 | 977,780 | 123.5 | 466.5 |
+| phone-harness | 14/18 | 1,272,617 | 101 | 1,946 |
+| mobile-mcp | 18/18 | 4,892,241 | 270.5 | 910 |
+| adb (mixed jobs only) | 4/4 | 144,669 | 17.5 | 94.5 |
+
+### Per job
+
+| Job | Harness | Passes | Median tokens | Median calls | Median wall s |
+|---|---|---|---|---|---|
+| log-code | adb | 2/2 | 66,158 | 7.5 | 45.5 |
+| wakelock-restrict | adb | 2/2 | 78,510 | 10 | 49 |
+| chrome-prefs | mobile-mcp | 2/2 | 595,815 | 33.5 | 179.5 |
+| clock-settings | mobile-mcp | 2/2 | 843,472 | 41.5 | 112.5 |
+| log-code | mobile-mcp | 2/2 | 129,150 | 8.5 | 103.5 |
+| messages-pin-archive | mobile-mcp | 2/2 | 497,776 | 24.5 | 56.5 |
+| photos-crop | mobile-mcp | 2/2 | 1,071,665 | 47 | 112 |
+| qa-shop | mobile-mcp | 2/2 | 476,136 | 31.5 | 85.5 |
+| qa-signup | mobile-mcp | 2/2 | 514,062 | 39.5 | 110 |
+| relay-code | mobile-mcp | 2/2 | 611,976 | 35.5 | 122 |
+| wakelock-restrict | mobile-mcp | 2/2 | 152,188 | 9 | 28.5 |
+| chrome-prefs | phone-harness | 2/2 | 193,370 | 19 | 250.5 |
+| clock-settings | phone-harness | 2/2 | 76,850 | 8.5 | 162 |
+| log-code | phone-harness | 2/2 | 40,748 | 5.5 | 41.5 |
+| messages-pin-archive | phone-harness | 2/2 | 45,825 | 5 | 57.5 |
+| photos-crop | phone-harness | 2/2 | 103,776 | 12 | 237.5 |
+| qa-shop | phone-harness | 1/2 | 338,406 | 13 | 392.5 |
+| qa-signup | phone-harness | 1/2 | 246,327 | 14.5 | 459 |
+| relay-code | phone-harness | 0/2 | 147,436 | 14 | 280 |
+| wakelock-restrict | phone-harness | 2/2 | 79,878 | 9.5 | 65.5 |
+| chrome-prefs | phone-use | 2/2 | 104,302 | 13.5 | 60.5 |
+| clock-settings | phone-use | 2/2 | 95,116 | 13.5 | 48 |
+| log-code | phone-use | 2/2 | 59,470 | 8 | 38 |
+| messages-pin-archive | phone-use | 2/2 | 47,090 | 6 | 30 |
+| photos-crop | phone-use | 2/2 | 220,836 | 20.5 | 78 |
+| qa-shop | phone-use | 2/2 | 138,557 | 18 | 65 |
+| qa-signup | phone-use | 2/2 | 181,518 | 27 | 80 |
+| relay-code | phone-use | 2/2 | 69,994 | 9 | 38 |
+| wakelock-restrict | phone-use | 2/2 | 60,896 | 8 | 29 |
+
+### What each harness failed at
+
+- phone-harness, relay-code (0/2): it reads screens through uiautomator dumps, and the dump fails with "could not get idle state" on the Contacts list screen, so it could not see the Contacts app. Run 1 gave up after 17 calls, run 2 after 11, and asked the user whether to tap blind. The contact was never created.
+- phone-harness, qa-signup (1/2) and qa-shop (1/2): pass 1 of each hit the run limit (601 s with 7 calls; 607 s with 20 calls) and failed; pass 2 passed (317 s with 22 calls; 178 s with 6 calls). Why pass 1 stalled was not diagnosed beyond the wall time.
+- mobile-mcp: 18/18 but 4.9M tokens, 5x phone-use. Every action returns a screenshot or an element list; photos-crop (1.07M) and clock-settings (843k) are the worst.
+- phone-use: 18/18. Before the rubric rescoring p4 qa-shop was recorded as a failure (a correct report with a "Bug 3: not a bug" heading); it is a pass under rubric v2 and the original verdict stays in `success_as_run`.
+
+### Where phone-use does not win
+
+- Tokens: phone-harness is cheaper than phone-use on photos-crop (104k against 221k), clock-settings (77k against 95k), log-code (41k against 59k), chrome-prefs is higher for phone-harness (193k against 104k), and messages-pin-archive is about equal (46k against 47k). Over all 9 jobs phone-use is 23% lower in the sum only because phone-harness failed and spent tokens in the three jobs above.
+- Wall time: phone-use is lowest on 8 of 9 jobs; mobile-mcp is 0.5 s ahead on wakelock-restrict (28.5 s against 29 s). Even where a shell can do the work, adb took 45.5 s (log-code) and 49 s (wakelock-restrict) against 38 s and 29 s.
+- Not fixed: Photos screens are screenshots (the editor has no tree), the unlabeled child button inside a labeled group needs a point tap, and the first tap on the Messages archive action replies "no element changed" because the list settles late.
+
+### phone-use fixes from this benchmark
+
+| Fix | Commit | Before | After |
+|---|---|---|---|
+| A dismissed approval prompt (headless, no one to answer) returned "declined", a dead end; now it says what to retry | `ca5c56b`, D27 note | relay-code and qa-shop ended with the agent giving up on Place order | qa-shop completes; the agent retries with `autonomous: true` |
+| `autonomous: "true"` as a string was rejected as an invalid type | `66b96f7` | retry failed with invalid type | accepted |
+| Contacts' phone field refuses `set_text` and the error was mapped to "run doctor" | `aa3f4c3` (Java Ctrl+A plus paste; a backspace version was tried and failed on an unmappable key) | type failed, agent fell back to many taps | relay-code 112k tokens, 16 calls, 67 s (p1) to 70k, 9 calls, 38 s (p4/p5 median) |
+| A formatted phone number (`(555) 010-0100`) failed verification of a typed value | `ca5c56b` | extra confirming reads | verified |
+| `launch` takes an app name; the instructions and the tap description say tools go one at a time | `9e50691`, `ca5c56b` | agents opened with `devices` and `apps` | gone from the runs |
+| Server instructions batch sentence removed | `126db3e` | 1 batch call in 18 runs after it | no effect, so removed |
+
+Round 1 (`p1`, before these fixes) was 9/9 passed at 955,535 tokens, 572 s; the final `p5` was 9/9 at 932,417 tokens, 493 s and `p4` 9/9 (rubric v2) at 1,023,143 tokens, 440 s. The fixes mostly removed dead ends in single jobs (relay-code above); the sum of tokens did not move much, and run-to-run spread in qa-shop and photos-crop is larger than the difference.
+
+### Notes for the site
+
+The site's blog text says wipes use backspaces and then select-all and paste. The final fix is Ctrl+A plus paste only.
