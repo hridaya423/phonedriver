@@ -1,0 +1,13 @@
+{
+  "title": "phone-use against phone-harness and adb",
+  "subtitle": "Android 17 emulator, p50 of 50 runs",
+  "source": "docs/bench/adb.md and docs/bench/m1.md (provisional until docs/bench/speed-2026-11-07.md)",
+  "ops": [
+    {"id": "tap", "label": "Tap", "phone_use": 144.1, "phone_harness": 110.7, "adb": 223.7},
+    {"id": "screenshot", "label": "Screenshot", "phone_use": 45.3, "phone_harness": 390.1, "adb": 692.4},
+    {"id": "tree_settings", "label": "UI tree, Settings", "phone_use": 237.0, "phone_harness": 2426.4, "adb": 2800.5},
+    {"id": "tree_list", "label": "UI tree, 1,000-row list", "phone_use": 52.8, "phone_harness": 2370.0, "adb": 2677.9},
+    {"id": "type100", "label": "Type 100 characters", "phone_use": 755.0, "phone_harness": 2104.5, "adb": 5204.4},
+    {"id": "tap_diff", "label": "Tap, then what changed", "phone_use": 666.9, "phone_harness": null, "adb": 3111.7}
+  ]
+}

@@ -1,5 +1,6 @@
 """Builds every brand image from the Sodium tokens in sodium.py. Text is converted to outlines.
 Usage: python3 build.py [scratch dir for PNG renders]"""
+import json
 import pathlib
 import subprocess
 import sys
@@ -48,7 +49,7 @@ def banner(tn):
         b += t
     ry = 292
     b += rule(48, ry, 608, c["line"])
-    for i, s in enumerate(["Android + iOS · CLI + MCP", "Up to 153× faster than phone-harness"]):
+    for i, s in enumerate(["Android + iOS · CLI + MCP", f"Up to {headline(load_speed()[1])}× faster than phone-harness"]):
         t, _ = mono(s, 48, ry + 20 + 28 * i + 6, 16, c["t2"], 0.05, caps=True)
         b += t
     gx = 656
@@ -79,7 +80,7 @@ def banner(tn):
             b += rule(px + 1, yy + 59, pw - 2, c["line"] if i == 2 else c["faint"])
         t, _ = runs(px + 18, yy + 30, 19.5, parts)
         b += t
-    return svg(W, H, b, "phone-use. Let your AI agent use a phone. Android and iOS, CLI and MCP, up to 153 times faster than phone-harness. A snapshot line, @e10 switch Dark theme off, is tapped and the diff reads off to on.", c["page"])
+    return svg(W, H, b, f"phone-use. Let your AI agent use a phone. Android and iOS, CLI and MCP, up to {headline(load_speed()[1])} times faster than phone-harness. A snapshot line, @e10 switch Dark theme off, is tapped and the diff reads off to on.", c["page"])
 
 
 def social():
@@ -98,8 +99,10 @@ def social():
     b += t
     t, _ = mono("Android 17 emulator, median of 50 runs", fx + fw - 16, fy + 24, 14, c["t3"], anchor="end")
     b += t
-    cells = [("Tap", "3.0", False), ("Screenshot", "26", False), ("Snapshot, Settings", "36", False),
-             ("Snapshot, 1,000-row list", "153", True), ("Type 100 characters", "7.3", False)]
+    byid = {r["id"]: r for r in load_speed()[1]}
+    cells = [(lab, ratio(byid[k]["vs_ph"]), k == "tree_list") for lab, k in
+             (("Tap", "tap"), ("Screenshot", "screenshot"), ("Snapshot, Settings", "tree_settings"),
+              ("Snapshot, 1,000-row list", "tree_list"), ("Type 100 characters", "type100"))]
     cw = (fw - 2) / 5
     for i, (lab, val, sel) in enumerate(cells):
         x = fx + 1 + i * cw
@@ -113,7 +116,7 @@ def social():
         b += t
         t, _ = text("x", x + 16 + w + 2, fy + 48 + 100, INTER, 28, c["t2"], -0.02)
         b += t
-    return svg(W, H, b, "phone-use, 3.0 to 153 times faster than phone-harness at p50", c["page"])
+    return svg(W, H, b, f"phone-use, {min(float(v.replace(',', '')) for _, v, _ in cells)} to {headline(load_speed()[1])} times faster than phone-harness at p50", c["page"])
 
 
 def loop(tn):
@@ -164,76 +167,118 @@ def loop(tn):
     return svg(W, H, b, "The agent sends tap @e10 to the daemon. The daemon re-locates the ref and taps the device. The daemon waits until the screen has settled, then the diff comes back to the agent.", c["page"])
 
 
-TITLE = "phone-use against adb and phone-harness"
-ALT = "Bar chart, log scale, p50 on an Android 17 emulator: phone-use, phone-harness 0.3.3 and plain adb on tap, screenshot, two UI tree reads, typing 100 characters and tap then what changed. phone-use is 1.6 times faster than adb on a bare tap, 4.7 to 51 times faster on everything else."
-OPS = [
-    ("Tap", 144.1, 110.7, 223.7, "1.6", "adb; phone-harness 0.8x"),
-    ("Screenshot", 45.3, 390.1, 692.4, "15", "adb; phone-harness 8.6x"),
-    ("UI tree, Settings", 237.0, 2426.4, 2800.5, "12", "adb; phone-harness 10x"),
-    ("UI tree, 1,000-row list", 52.8, 2370.0, 2677.9, "51", "adb; phone-harness 45x"),
-    ("Type 100 characters", 755.0, 2104.5, 5204.4, "6.9", "adb; phone-harness 2.8x"),
-    ("Tap, then what changed", 666.9, None, 3111.7, "4.7", "adb; no phone-harness"),
-]
+def load_speed():
+    d = json.loads((ROOT / "docs" / "bench" / "speed.json").read_text())
+    rows = []
+    for o in d["ops"]:
+        pu, ph, adb = o["phone_use"], o["phone_harness"], o["adb"]
+        rows.append(dict(o, vs_ph=(ph / pu if ph else None), vs_adb=adb / pu))
+    rows.sort(key=lambda r: (r["vs_ph"] is None, -(r["vs_ph"] or 0), -r["vs_adb"]))
+    return d, rows
+
+
+def ratio(v):
+    if v >= 10:
+        return f"{round(v):,}"
+    return f"{v:.1f}"
+
+
+def headline(rows):
+    best = max(r["vs_ph"] for r in rows if r["vs_ph"])
+    return ratio(best)
+
+
+def speed_alt(rows):
+    parts = [f'{r["label"]} {ratio(r["vs_ph"])} times' if r["vs_ph"] else f'{r["label"]} not supported by phone-harness and {ratio(r["vs_adb"])} times against adb' for r in rows]
+    return ("Bar chart, log scale, p50 on an Android 17 emulator. phone-use against phone-harness 0.3.3 and plain adb. Faster than phone-harness by: " + "; ".join(parts) + ".")
 
 
 def speed(tn):
     import math
     c = THEMES[tn]
-    n = len(OPS)
+    d, rows = load_speed()
+    n = len(rows)
     W = 1280
     fx, fy, fw = 24, 24, 1232
-    rh = 100
-    fh = 46 + rh * n + 38 + 2
+    hh = 118
+    rh = 104
+    fh = hh + rh * n + 40 + 2
     H = fh + 48
     b = ""
     b += frame(fx, fy, fw, fh, c["line"], c["page"])
-    b += rect(fx + 1, fy + 1, fw - 2, 45, c["panel"]) + rule(fx + 1, fy + 46, fw - 2, c["line"])
-    t, _ = mono(TITLE, fx + 14, fy + 24, 18, c["t1"])
+    b += rect(fx + 1, fy + 1, fw - 2, hh - 1, c["panel"]) + rule(fx + 1, fy + hh, fw - 2, c["line"])
+    t, w = text("Up to ", fx + 20, fy + 72, INTER, 60, c["t1"], -0.04)
     b += t
-    rx = fx + fw - 14
-    for name, col in reversed((("phone-use", "d1"), ("phone-harness", "d5"), ("adb", "d3"))):
-        t, w = mono(name, rx, fy + 24, 15, c["t2"], 0.04, anchor="end", caps=True)
-        b += t + rect(rx - w - 10 - 12, fy + 24 - 5, 10, 10, c[col])
+    t, w2 = text(headline(rows) + "x", fx + 20 + w, fy + 72, INTER, 60, c["t1"], -0.04)
+    b += rect(fx + 20 + w - 4, fy + 78, w2 + 8, 6, c["accent"]) + t
+    t, _ = text(" faster than phone-harness", fx + 20 + w + w2, fy + 72, INTER, 60, c["t1"], -0.04)
+    b += t
+    t, _ = mono(d["title"] + " · " + d["subtitle"], fx + 20, fy + 100, 15, c["t3"], 0.02)
+    b += t
+    rx = fx + fw - 20
+    for i, (name, col) in enumerate((("adb", "d3"), ("phone-harness", "d5"), ("phone-use", "d1"))):
+        t, w = mono(name, rx, fy + 100, 15, c["t2"], 0.04, anchor="end", caps=True)
+        b += t + rect(rx - w - 10 - 12, fy + 100 - 5, 10, 10, c[col])
         rx = rx - w - 10 - 12 - 24
-    labw, facw = 264, 250
-    px0, px1 = fx + labw, fx + fw - facw
-    b += vrule(px0, fy + 47, fh - 48, c["line"]) + vrule(px1, fy + 47, fh - 48, c["line"])
-    X = lambda ms: px0 + 16 + (math.log10(ms) - 1) / 3 * (px1 - px0 - 32 - 90)
-    ay = fy + 46 + rh * n
+    ratw, facw = 250, 190
+    px0, px1 = fx + ratw, fx + fw - facw
+    y0 = fy + hh + 1
+    b += vrule(px0, y0, fh - hh - 2, c["line"]) + vrule(px1, y0, fh - hh - 2, c["line"])
+    lo, hi = 10, 10000
+    X = lambda ms: px0 + 20 + (math.log10(ms) - 1) / 3 * (px1 - px0 - 40 - 100)
+    ay = y0 + rh * n
     b += rule(fx + 1, ay, fw - 2, c["line"])
     for ms, lab in ((10, "10"), (100, "100"), (1000, "1,000"), (10000, "10,000")):
         x = round(X(ms))
-        b += vrule(x, fy + 47, rh * n, c["faint"])
-        t, _ = mono(lab + " ms", x, ay + 20, 14, c["t3"], 0.04, anchor="start" if ms == 10 else "middle")
+        b += vrule(x, y0, rh * n, c["faint"])
+        t, _ = mono(lab + " ms", x, ay + 21, 14, c["t3"], 0.04, anchor="start" if ms == 10 else "middle")
         b += t
-    t, _ = mono("p50, log scale", fx + 14, ay + 20, 14, c["t3"], 0.05, caps=True)
+    t, _ = mono("p50, log scale", fx + 20, ay + 21, 14, c["t3"], 0.05, caps=True)
     b += t
-    for i, (op, pu, ph, adb, fac, sub) in enumerate(OPS):
-        y = fy + 47 + rh * i
+    t, _ = mono("vs adb", px1 + 20, ay + 21, 14, c["t3"], 0.05, caps=True)
+    b += t
+    for i, r in enumerate(rows):
+        y = y0 + rh * i
+        win = r["vs_ph"] is None or r["vs_ph"] >= 1
+        if i == 0:
+            b += rect(fx + 1, y, ratw - 1, rh - 1, c["selected"])
         if i < n - 1:
             b += rule(fx + 1, y + rh - 1, fw - 2, c["faint"])
-        t, _ = mono(op, fx + 14, y + rh / 2 - 1, 15, c["t1"], 0.03, caps=True)
+        if r["vs_ph"] is not None:
+            t, w = text(ratio(r["vs_ph"]), fx + 20, y + 66, INTER, 56, c["t1"], -0.04)
+            b += t
+            t, _ = text("x", fx + 20 + w + 2, y + 66, INTER, 30, c["t2"], -0.02)
+            b += t
+            t, _ = mono("faster than phone-harness" if win else "phone-harness is faster", fx + 20, y + 88, 12, c["t3"], 0.03)
+            b += t
+        else:
+            t, _ = text("Only phone-use", fx + 20, y + 58, INTER, 30, c["t1"], -0.035)
+            b += t
+            t, _ = mono("phone-harness: not supported", fx + 20, y + 84, 12, c["t3"], 0.03)
+            b += t
+        t, _ = mono(r["label"], px0 + 20, y + 16, 14, c["t1"], 0.03, caps=True)
         b += t
         x0 = round(X(10))
-        for j, (v, col, ed, tc) in enumerate(((pu, c["d1"], c["edge"], c["t1"]), (ph, c["d5"], None, c["t2"]), (adb, c["d3"], None, c["t2"]))):
-            by = y + 12 + j * 27
+        series = ((r["phone_use"], c["d1"], c["edge"], c["t1"]), (r["phone_harness"], c["d5"], None, c["t2"]), (r["adb"], c["d3"], None, c["t2"]))
+        for j, (v, col, ed, tc) in enumerate(series):
+            by = y + 28 + j * 24
             if v is None:
-                t, _ = mono("not supported", x0, by + 10, 14, c["t3"])
+                t, _ = mono("not supported", x0, by + 8, 13, c["t3"])
                 b += t
                 continue
             x1 = round(X(v))
-            b += rect(x0, by, x1 - x0, 20, col)
+            b += rect(x0, by, x1 - x0, 16, col)
             if ed:
-                b += frame(x0, by, x1 - x0, 20, ed)
-            t, _ = mono(f"{v:,.1f} ms", x1 + 10, by + 10, 16, tc)
+                b += frame(x0, by, x1 - x0, 16, ed)
+            t, _ = mono(f"{v:,.1f} ms", x1 + 10, by + 8, 14, tc)
             b += t
-        t, w = text(fac, px1 + 16, y + rh / 2 + 8, INTER, 44, c["t1"], -0.035)
+        t, w = text(ratio(r["vs_adb"]), px1 + 20, y + 62, INTER, 40, c["t1"], -0.035)
         b += t
-        t, _ = text("x", px1 + 16 + w + 2, y + rh / 2 + 8, INTER, 26, c["t2"], -0.02)
+        t, _ = text("x", px1 + 20 + w + 2, y + 62, INTER, 24, c["t2"], -0.02)
         b += t
-        t, _ = mono(sub, px1 + 16, y + rh / 2 + 30, 12, c["t3"], 0.02)
+        t, _ = mono("faster than adb", px1 + 20, y + 84, 12, c["t3"], 0.03)
         b += t
-    return svg(W, H, b, ALT, c["page"])
+    return svg(W, H, b, speed_alt(rows), c["page"])
 
 
 def sheet(tn):
