@@ -192,7 +192,7 @@ async fn tap_gesture_lands_within_one_pixel_and_two_pointers_both_log() {
 
 #[tokio::test]
 #[ignore = "needs PHONE_USE_TEST_DEVICE"]
-async fn video_header_matches_the_display_and_a_frame_follows() {
+async fn video_header_keeps_the_display_shape_and_a_frame_follows() {
     let (raw, c, _g) = start().await;
     let (w, h) = (
         c.hello["display"]["w"].as_u64().unwrap() as u32,
@@ -205,8 +205,19 @@ async fn video_header_matches_the_display_and_a_frame_follows() {
         .expect("codec header")
         .unwrap();
     assert_eq!(&header[..4], b"h264");
-    assert_eq!(u32::from_be_bytes(header[4..8].try_into().unwrap()), w);
-    assert_eq!(u32::from_be_bytes(header[8..12].try_into().unwrap()), h);
+    let (vw, vh) = (
+        u32::from_be_bytes(header[4..8].try_into().unwrap()),
+        u32::from_be_bytes(header[8..12].try_into().unwrap()),
+    );
+    assert!(
+        vw <= w && vh <= h,
+        "video {vw}x{vh} is larger than the display {w}x{h}"
+    );
+    let (aspect, video_aspect) = (w as f32 / h as f32, vw as f32 / vh as f32);
+    assert!(
+        (aspect - video_aspect).abs() < 0.02,
+        "video {vw}x{vh} does not keep the display's shape {w}x{h}"
+    );
     let mut seen_frame = false;
     let started = std::time::Instant::now();
     while started.elapsed() < Duration::from_secs(1) && !seen_frame {

@@ -114,6 +114,7 @@ struct Thumb {
     samples: Vec<u8>,
     cols: usize,
     rows: usize,
+    sample_pt: f32,
 }
 
 struct Inner {
@@ -125,7 +126,7 @@ struct Inner {
 
 pub struct FrameStore {
     density: f32,
-    block: usize,
+    screen_long_pt: Option<f32>,
     inner: Mutex<Inner>,
     tx: watch::Sender<FrameRef>,
     decode_errors: AtomicU64,
@@ -135,9 +136,19 @@ pub struct FrameStore {
 impl FrameStore {
     /// `density` is device pixels per point, from the agent's `hello`.
     pub fn new(density: f32) -> FrameStore {
+        FrameStore::with_scale(density, None)
+    }
+
+    /// For a stream whose frames may be smaller than the screen: an encoder that rejects the display size
+    /// encodes a downscaled picture, so pixels per point come from each frame's long side.
+    pub fn fitted(screen_long_pt: f32) -> FrameStore {
+        FrameStore::with_scale(1.0, Some(screen_long_pt))
+    }
+
+    fn with_scale(density: f32, screen_long_pt: Option<f32>) -> FrameStore {
         FrameStore {
             density,
-            block: ((SAMPLE_POINTS * density).round() as usize).max(1),
+            screen_long_pt,
             inner: Mutex::new(Inner {
                 seq: 0,
                 latest: None,
@@ -150,9 +161,21 @@ impl FrameStore {
         }
     }
 
+    /// Frame pixels per screen point.
+    pub fn pixels_per_point(&self, frame: &Frame) -> f32 {
+        match self.screen_long_pt {
+            Some(long) => frame.width.max(frame.height) as f32 / long,
+            None => self.density,
+        }
+    }
+
+    fn block(&self, frame: &Frame) -> usize {
+        ((SAMPLE_POINTS * self.pixels_per_point(frame)).round() as usize).max(1)
+    }
+
     fn thumb(&self, frame: &Frame) -> Thumb {
         let (w, h) = (frame.width as usize, frame.height as usize);
-        let b = self.block;
+        let b = self.block(frame);
         let (shown_w, shown_h) = if frame.turned { (h, w) } else { (w, h) };
         let (cols, rows) = (shown_w / b, shown_h / b);
         let mut samples = vec![0u8; cols * rows];
@@ -183,17 +206,15 @@ impl FrameStore {
             samples,
             cols,
             rows,
+            sample_pt: b as f32 / self.pixels_per_point(frame),
         }
-    }
-
-    fn sample_pt(&self) -> f32 {
-        self.block as f32 / self.density
     }
 
     fn change(&self, previous: &Thumb, now: &Thumb, frame: &Frame) -> (f32, Option<Rect>) {
         if previous.cols != now.cols || previous.rows != now.rows {
             let (shown_w, shown_h) = frame.display_size();
-            let (w, h) = (shown_w as f32 / self.density, shown_h as f32 / self.density);
+            let ppp = self.pixels_per_point(frame);
+            let (w, h) = (shown_w as f32 / ppp, shown_h as f32 / ppp);
             return (
                 w * h,
                 Some(Rect {
@@ -221,7 +242,7 @@ impl FrameStore {
         if count == 0 {
             return (0.0, None);
         }
-        let s = self.sample_pt();
+        let s = now.sample_pt;
         (
             count as f32 * s * s,
             Some(Rect {
@@ -290,7 +311,7 @@ impl FrameStore {
         let Some(thumb) = &inner.thumb else {
             return false;
         };
-        let s = self.sample_pt();
+        let s = thumb.sample_pt;
         let col = |pt: f32| ((pt / s).max(0.0) as usize).min(thumb.cols);
         let row = |pt: f32| ((pt / s).max(0.0) as usize).min(thumb.rows);
         let (c0, c1) = (col(region.x), col(region.x + region.w));

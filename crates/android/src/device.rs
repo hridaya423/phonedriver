@@ -9,6 +9,7 @@ use phone_use_core::device::{
 use phone_use_core::error::{Error, Op};
 use phone_use_core::geometry::{Rect, Size};
 use phone_use_core::raw::{NodeFlags, RawTree};
+use phone_use_video::frame_store::FrameStore;
 use phone_use_video::image::{encode_png, scaled_size};
 use phone_use_video::stream::VideoStream;
 use serde_json::{Value, json};
@@ -50,7 +51,8 @@ impl AndroidDevice {
         let density = hello.density;
         let id = format!("android:{serial}");
         let (events, _) = broadcast::channel(EVENT_BACKLOG);
-        let video = VideoStream::spawn(video, density);
+        let screen_long_pt = hello.display.w.max(hello.display.h) as f32 / density;
+        let video = VideoStream::spawn(video, FrameStore::fitted(screen_long_pt));
         let mut first = video.store.subscribe();
         let _ = tokio::time::timeout(FIRST_FRAME_WAIT, first.wait_for(|f| f.seq > 0)).await;
         Ok(AndroidDevice {
@@ -155,7 +157,7 @@ impl Device for AndroidDevice {
         let frame = store.latest().ok_or_else(|| Error::Transport {
             detail: "no video frame".into(),
         })?;
-        let scale = 1.0 / self.density;
+        let scale = 1.0 / store.pixels_per_point(&frame);
         let (width, height) = scaled_size(frame.width, frame.height, scale);
         let bytes = tokio::task::spawn_blocking(move || encode_png(&frame, scale))
             .await

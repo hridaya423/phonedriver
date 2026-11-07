@@ -189,7 +189,7 @@ fn png_pixels_follow_the_luma_and_chroma() {
 
 #[tokio::test]
 async fn the_pipeline_decodes_every_packet_without_dropping_any() {
-    let stream = VideoStream::spawn(FIXTURE, DENSITY);
+    let stream = VideoStream::spawn(FIXTURE, FrameStore::new(DENSITY));
     stream.finished().await;
     assert_eq!(stream.store.latest().unwrap().seq, 59);
     assert_eq!(stream.store.decode_errors(), 0);
@@ -243,4 +243,26 @@ fn a_region_is_black_when_every_sample_in_it_is_at_the_black_level() {
         store.region_is_black(elsewhere),
         "the patch is outside this region"
     );
+}
+
+#[test]
+fn a_downscaled_frame_reports_its_change_in_screen_points() {
+    let store = FrameStore::fitted(480.0);
+    store.publish(flat(108, 240, 50));
+    let (w, h) = (108usize, 240usize);
+    let mut y = vec![50u8; w * h];
+    for row in 120..240 {
+        for col in 54..108 {
+            y[row * w + col] = 200;
+        }
+    }
+    let changed = store.publish(Frame::from_i420(
+        108,
+        240,
+        y,
+        vec![128; w * h / 4],
+        vec![128; w * h / 4],
+    ));
+    let b = changed.changed_box.expect("a change");
+    assert_eq!((b.x, b.y, b.w, b.h), (108.0, 240.0, 108.0, 240.0));
 }
