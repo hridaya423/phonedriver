@@ -146,6 +146,6 @@ Reading:
 
 - Against phone-harness phone-use is ahead on `alarm-gym` (110k against 221k) and on `testbed-web-form` (50k against 56k, 11% fewer) and on the sum (218k against 330k, 34% fewer). `wiki-birthdate` is 57,753 against 53,403: still 8% behind, from three runs spread 26k to 65k.
 - The cheap Wikipedia runs (26k, 3 calls) are `launch` with `app` and `url` straight to the article: the pair that used to fail with `pass app or url` now works. The 58k to 65k runs went through the site's search box, which now verifies; none of the three printed `NOT verified`.
-- Round 2 `testbed-web-form` runs took 1 and 2 screenshots to check the checkbox; the round 3 runs still took one each (`no element changed` after the Send tap, which the form does not change).
+- Round 2 `testbed-web-form` runs took 1 and 2 screenshots; the two round 3 runs rerun here took 1 and 0 (the Send tap still prints `no element changed`, the form shows nothing for it).
 - The prefix is unchanged: first turn 5,606 tokens against 5,214 for phone-harness; 14 MCP tools cost about 51 tokens each in Claude Code's wrapper whatever their text, so 392 tokens a turn are not description text that can be cut.
 - Wall time: alarm 55 s, wiki 71 s, form 41 s (round 2: 214 s sum; this round about 167 s).
