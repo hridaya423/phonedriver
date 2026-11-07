@@ -126,3 +126,26 @@ Reading:
 - phone-use's original `alarm-gym` run took 27 calls and the most tokens of the group (the Clock weekday chips and label dialog); phone-harness took 19. The original phone-use runs had no `shell` tool; runs 1 to 3 have it.
 - Run order and leftovers mattered: mobile-mcp's on-device server (`com.mobilenext.mobilecli.DeviceServer`) holds the accessibility bridge and made other harnesses fail (`another UiAutomation client`, `uiautomator dump ... Killed`). Those first `testbed-web-form` runs were discarded and rerun after killing it; the table shows the reruns. The run script now kills it after each run.
 - Prompt overhead differs per harness (MCP tool schemas vs Bash only), which is part of what the totals measure.
+
+## Round 3: web fixes
+
+Same runner, device, model and checks (`bench/agent-eval/run-harness.sh`, `claude-sonnet-5-5`, `ANTHROPIC_API_KEY` unset, `emulator-5558` only). Build a685b45 (typing follows a swapped web field, a navigating submit is not `NOT verified`, web checkbox state read from the screenshot, `launch` with `app` and `url`). phone-harness is the round 2 data, not rerun. Raw outputs: `bench/agent-eval/results/r3/runs/` (not committed).
+
+The host lost runs three times (an SSH tunnel dropping, an emulator whose shell hung, a `Too early to start activity` boot); those runs have 0 or near-0 tokens and are not in the table. A session restart wiped the first batch of outputs. Three results survived as numbers only (form 50,500, alarm 110,821, wiki 64,522: Wikipedia run 2 of an earlier batch on this build); the rest of each task's runs were rerun.
+
+| Task | phone-use round 3 runs (tokens) | Median, calls | phone-use round 2 | phone-harness |
+|---|---|---|---|---|
+| alarm-gym (2 runs) | 110,821 / 110,016 | 110,419, 19.5 | 104,418 | 220,723 |
+| wiki-birthdate (3 runs) | 64,522 / 26,147 / 57,753 | 57,753, 7 | 115,675 | 53,403 |
+| testbed-web-form (3 runs) | 50,500 / 50,185 / 48,329 | 50,185, 7 | 51,080 | 56,249 |
+| Sum of medians | | 218,357 | 271,174 | 330,375 |
+
+All runs passed. A fourth Wikipedia run (25,741 tokens, 3 calls, passed) began with a tunnel refusal the agent retried past; left out of the median, which would be 41,950 with it.
+
+Reading:
+
+- Against phone-harness phone-use is ahead on `alarm-gym` (110k against 221k) and on `testbed-web-form` (50k against 56k, 11% fewer) and on the sum (218k against 330k, 34% fewer). `wiki-birthdate` is 57,753 against 53,403: still 8% behind, from three runs spread 26k to 65k.
+- The cheap Wikipedia runs (26k, 3 calls) are `launch` with `app` and `url` straight to the article: the pair that used to fail with `pass app or url` now works. The 58k to 65k runs went through the site's search box, which now verifies; none of the three printed `NOT verified`.
+- Round 2 `testbed-web-form` runs took 1 and 2 screenshots to check the checkbox; the round 3 runs still took one each (`no element changed` after the Send tap, which the form does not change).
+- The prefix is unchanged: first turn 5,606 tokens against 5,214 for phone-harness; 14 MCP tools cost about 51 tokens each in Claude Code's wrapper whatever their text, so 392 tokens a turn are not description text that can be cut.
+- Wall time: alarm 55 s, wiki 71 s, form 41 s (round 2: 214 s sum; this round about 167 s).
