@@ -21,10 +21,15 @@ MCP_JSON = """{
 
 _svg = ROOT / ".github/assets/hero-light.svg"
 HERO_ALT = "Bar chart of phonedriver against adb at p50 on an Android emulator, up to 98 times faster."
+HERO_H = 832
 if _svg.exists():
-    m = re.search(r'aria-label="([^"]+)"', _svg.read_text()[:3000])
+    _head = _svg.read_text()[:3000]
+    m = re.search(r'aria-label="([^"]+)"', _head)
     if m:
         HERO_ALT = m.group(1)
+    m = re.search(r'viewBox="0 0 \d+ (\d+)"', _head)
+    if m:
+        HERO_H = int(m.group(1))
 
 FAQ = [
     ("How do I let an AI agent control my phone?",
