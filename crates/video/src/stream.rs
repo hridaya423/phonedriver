@@ -23,9 +23,9 @@ impl VideoStream {
     /// Reads the agent's video wire format from `reader` and decodes it into a new `FrameStore`.
     pub fn spawn<R: AsyncRead + Unpin + Send + 'static>(
         mut reader: R,
-        density: f32,
+        store: FrameStore,
     ) -> VideoStream {
-        let store = Arc::new(FrameStore::new(density));
+        let store = Arc::new(store);
         let (tx, mut rx) = mpsc::channel::<Vec<u8>>(QUEUE);
         let (done_tx, done) = watch::channel(false);
 
