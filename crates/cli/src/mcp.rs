@@ -95,6 +95,21 @@ struct SnapshotArgs {
     find: Option<String>,
 }
 
+/// `autonomous` is not in the lean tool schema, so a model that reads the refusal text guesses its type: one sent
+/// `"true"` and the call failed with `invalid type: string`.
+fn flag<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Option<bool>, D::Error> {
+    use serde::de::Error;
+    match Option::<serde_json::Value>::deserialize(d)? {
+        None | Some(serde_json::Value::Null) => Ok(None),
+        Some(serde_json::Value::Bool(b)) => Ok(Some(b)),
+        Some(serde_json::Value::String(t)) if t.eq_ignore_ascii_case("true") => Ok(Some(true)),
+        Some(serde_json::Value::String(t)) if t.eq_ignore_ascii_case("false") => Ok(Some(false)),
+        Some(other) => Err(D::Error::custom(format!(
+            "invalid value {other}, expected true or false"
+        ))),
+    }
+}
+
 #[derive(Clone, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 struct TapArgs {
@@ -106,6 +121,7 @@ struct TapArgs {
     /// Tap this many times; 2 is a double tap.
     count: Option<u32>,
     long: Option<u32>,
+    #[serde(default, deserialize_with = "flag")]
     autonomous: Option<bool>,
 }
 
@@ -123,6 +139,7 @@ struct TypeArgs {
     /// With `into`, add to the field's text instead of replacing it.
     append: Option<bool>,
     secret: Option<bool>,
+    #[serde(default, deserialize_with = "flag")]
     autonomous: Option<bool>,
 }
 
@@ -1084,6 +1101,18 @@ pub fn run() -> ExitCode {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn autonomous_takes_true_as_a_boolean_or_a_string_and_nothing_else() {
+        let tap = |v: serde_json::Value| serde_json::from_value::<TapArgs>(v);
+        let on = |v: serde_json::Value| tap(json!({"target": "x", "autonomous": v}));
+        assert_eq!(on(json!(true)).unwrap().autonomous, Some(true));
+        assert_eq!(on(json!("true")).unwrap().autonomous, Some(true));
+        assert_eq!(on(json!("False")).unwrap().autonomous, Some(false));
+        assert!(on(json!("yes")).is_err());
+        assert!(on(json!(1)).is_err());
+        assert_eq!(tap(json!({"target": "x"})).unwrap().autonomous, None);
+    }
 
     #[test]
     fn hints_name_tools_and_arguments() {
