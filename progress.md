@@ -401,3 +401,11 @@ The pre-existing 8:30 and 9:00 alarms were left alone.
 - Testbed: tabs `signup`, `shop` (two planted bugs each), `relay`, `relaylog`, `drain` (holds a `jobs:drain` wakelock) in `Buggy.java`; `WAKE_LOCK` permission; `gradlew --offline assembleDebug` built `app-debug.apk`. Not installed anywhere.
 - No device, emulator or adb was touched. Checks are not yet proven against a device; the list of guesses is in `docs/bench/jobs.md`, "Not yet proven".
 - Superseded in this phase: the first draft (contact add, calendar, SMS, dark mode, Chrome fact, cart, clock) was dropped for the UI-only rule; none of it was committed.
+
+## Real phone jobs benchmark, Phase B step 0 (2026-11-07)
+
+- emulator-5558 (tablet, userdebug API 37, through the 5038 tunnel): installed the testbed APK, did Chrome, Photos, Messages and Contacts first-run once, proved all 9 checks by hand (pass and fail), no agent runs. Results table in `docs/bench/jobs.md`.
+- Check bugs found and fixed: report sentence splitter broke at `$36.00` (qa-shop pass failed; test added); Chrome's switch is `https_first_balanced_mode_enabled`; Clock's old city test passed on a fresh app (home zone is London); Messages pins are in `conversation_pin`, not `conversations`; Photos copy is `jobs-harbor~2.jpg` and cleanup now goes through MediaStore; missing Chrome Preferences no longer crashes the check; phone digits compared by suffix. `python3 -m unittest test_jobs`: 10 tests OK.
+- SMS seeding needs the emulator console, which the local adb client cannot reach over the tunnel: `EMU_ADB="ssh win-ts /d/Android/Sdk/platform-tools/adb.exe"`.
+- Seen, not fixed: `uiautomator dump` reports "could not get idle state" on the Contacts list screen.
+- Not run: any `claude -p` agent. The speed benchmark on emulator-5554 was left alone; only tunnel commands to emulator-5558 and ssh `adb emu sms send` were used.
