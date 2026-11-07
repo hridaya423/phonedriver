@@ -77,11 +77,14 @@ pub enum Call {
     Leased,
 }
 
+/// Where an action's time went, in call order: `(phase, ms)`. In microseconds; written into the trace line as milliseconds.
+pub type Phases = Vec<(&'static str, u32)>;
+
 pub struct Job {
     pub session: String,
     pub share: bool,
     pub call: Call,
-    pub reply: oneshot::Sender<Result<Value, Error>>,
+    pub reply: oneshot::Sender<(Result<Value, Error>, Phases)>,
 }
 
 pub fn spawn(id: String, source: Arc<dyn DeviceSource>, home: PathBuf) -> mpsc::Sender<Job> {
@@ -98,6 +101,7 @@ pub fn spawn(id: String, source: Arc<dyn DeviceSource>, home: PathBuf) -> mpsc::
         unobserved: None,
         cold_until: None,
         awake: None,
+        phases: Vec::new(),
         names: Arc::default(),
     };
     tokio::spawn(actor.run(rx));
@@ -151,6 +155,7 @@ struct Actor {
     cold_until: Option<Duration>,
     /// When `prepare` last found the screen on and unlocked; cleared by any window or display event.
     awake: Option<Duration>,
+    phases: Phases,
     names: Arc<Mutex<HashMap<String, String>>>,
 }
 
@@ -190,7 +195,8 @@ impl Actor {
                 job = rx.recv() => {
                     let Some(job) = job else { break };
                     let result = self.handle(job.session, job.share, job.call).await;
-                    let _ = job.reply.send(result);
+                    let phases = std::mem::take(&mut self.phases);
+                    let _ = job.reply.send((result, phases));
                 }
                 () = async {
                     match expiry {
@@ -208,6 +214,11 @@ impl Actor {
 
     fn now(&self) -> Duration {
         self.base.elapsed()
+    }
+
+    fn lap(&mut self, phase: &'static str, since: Instant) {
+        self.phases
+            .push((phase, since.elapsed().as_micros() as u32));
     }
 
     fn drop_lease(&mut self) {
@@ -339,7 +350,10 @@ impl Actor {
             return Ok(json!({}));
         }
         self.acquire(&session, share)?;
-        if let Err(e) = self.ensure_live().await {
+        let t = Instant::now();
+        let live = self.ensure_live().await;
+        self.lap("connect", t);
+        if let Err(e) = live {
             if self.lease.as_ref().is_some_and(|l| l.session == session) {
                 self.lease = None;
             }
@@ -739,6 +753,12 @@ impl Actor {
         loop {
             let st = det.poll(self.now());
             if matches!(st, State::Done { .. }) {
+                if let Some(t) = det.last_significant() {
+                    self.phases.push((
+                        "last_change_at",
+                        t.saturating_sub(started).as_micros() as u32,
+                    ));
+                }
                 return st;
             }
             tokio::select! {
@@ -1018,7 +1038,10 @@ impl Actor {
     }
 
     async fn act(&mut self, s: &mut Session, p: ActParams) -> Result<ActionResult, Error> {
-        let (woke, unlocked) = self.prepare(&p.action).await?;
+        let t = Instant::now();
+        let prepared = self.prepare(&p.action).await;
+        self.lap("prepare", t);
+        let (woke, unlocked) = prepared?;
         let acted = self.act_now(s, p).await;
         if acted.is_err() {
             self.awake = None;
@@ -1057,7 +1080,12 @@ impl Actor {
                     element: found,
                     under_keyboard,
                     covered,
-                } = self.resolve_target(s, &target).await?;
+                } = {
+                    let t = Instant::now();
+                    let r = self.resolve_target(s, &target).await;
+                    self.lap("resolve", t);
+                    r?
+                };
                 if let (true, Some(e)) = (under_keyboard, &found) {
                     return Err(Error::OffScreen {
                         r#ref: e.r#ref,
@@ -1075,9 +1103,12 @@ impl Actor {
                     });
                 }
                 let started = self.begin_action();
-                device
+                let t = Instant::now();
+                let sent = device
                     .gesture(gesture::tap(at, count.unwrap_or(1), long))
-                    .await?;
+                    .await;
+                self.lap("input", t);
+                sent?;
                 let verb = match (count, long) {
                     (_, Some(ms)) => format!("long-pressed {ms} ms"),
                     (Some(n), None) if n > 1 => format!("tapped {n} times"),
@@ -1443,7 +1474,10 @@ impl Actor {
                     (TypeMode::Keys, _) => TextInput::Keystrokes(text.clone()),
                 };
                 if !(replace && text.is_empty()) {
-                    device.text(input).await.map_err(|e| withhold(e, secure))?;
+                    let t = Instant::now();
+                    let typed = device.text(input).await;
+                    self.lap("text", t);
+                    typed.map_err(|e| withhold(e, secure))?;
                 }
                 if submit {
                     device.key(Key::Enter).await?;
@@ -1658,7 +1692,9 @@ impl Actor {
             .capabilities
             .contains(Capabilities::FRAMES);
         let started = if polled { self.now() } else { started };
+        let t = Instant::now();
         let st = self.settle(cfg, started).await;
+        self.lap("settle", t);
         self.report(s, st, summary, via, verify, mask).await
     }
 
@@ -1694,10 +1730,15 @@ impl Actor {
         verify: Option<Verify>,
         mask: Option<String>,
     ) -> Result<ActionResult, Error> {
+        let t = Instant::now();
         let mut tree = self.device()?.tree().await?;
+        self.lap("tree", t);
         if matches!(st, State::Done { changed: true, .. }) || verify.is_some() || tree.loading() {
+            let t = Instant::now();
             tree = self.stabilize(tree).await?;
+            self.lap("stabilize", t);
         }
+        let render = Instant::now();
         let st = Some(st);
         let mut rendered = self.build(s, &tree, st.map(settle_line));
         if only_lost_lines(s, &rendered) {
@@ -1754,6 +1795,7 @@ impl Actor {
             capture: None,
         };
         s.last = Some(rendered);
+        self.lap("render", render);
         Ok(ActionResult {
             ok: true,
             summary,

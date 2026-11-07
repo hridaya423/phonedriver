@@ -46,6 +46,7 @@ impl Traces {
         params: &Value,
         result: &Result<Value, RpcError>,
         took: Duration,
+        phases: &[(&'static str, u32)],
     ) {
         let (ok, reply, settle_ms) = match result {
             Ok(v) if method == "shell" => (
@@ -72,6 +73,12 @@ impl Traces {
             "params": sanitize(method, params, self.options.full),
             "ok": ok, "reply": reply, "ms": took.as_millis() as u64, "settle_ms": settle_ms,
         });
+        if !phases.is_empty() {
+            line["phases"] = phases
+                .iter()
+                .map(|(k, v)| (k.to_string(), json!((f64::from(*v) / 100.0).round() / 10.0)))
+                .collect();
+        }
         if self.options.full
             && let Ok(v) = result
             && let Some(text) = v["text"]

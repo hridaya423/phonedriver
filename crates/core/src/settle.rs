@@ -117,6 +117,10 @@ impl Detector {
         self.last_significant = Some(self.last_significant.map_or(at, |t| t.max(at)));
     }
 
+    pub fn last_significant(&self) -> Option<Duration> {
+        self.last_significant
+    }
+
     pub fn poll(&mut self, now: Duration) -> State {
         if let Some(r) = self.result {
             return r;

@@ -333,6 +333,31 @@ async fn a_lease_expires_after_ten_minutes_without_calls() {
 }
 
 #[tokio::test(start_paused = true)]
+async fn a_settled_tap_leaves_its_phases_in_the_trace() {
+    let (source, fake) = FakeSource::with(vec![
+        tree(&["One", "Two", "Three"]),
+        tree(&["One", "Two", "Three!"]),
+    ]);
+    let (d, home) = daemon(source);
+    ok(&d, "default", "snapshot", json!({})).await;
+    tokio::spawn(async move {
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        fake.push_frame(big_frame(1));
+    });
+    ok(&d, "default", "act", tap_point(10.0, 10.0)).await;
+    let line = trace_text(home.path())
+        .lines()
+        .find(|l| l.contains("\"method\":\"act\""))
+        .map(|l| serde_json::from_str::<Value>(l).unwrap())
+        .unwrap();
+    let phases = line["phases"].as_object().unwrap();
+    for name in ["prepare", "input", "settle", "tree", "render"] {
+        assert!(phases.contains_key(name), "{name} missing in {phases:?}");
+    }
+    assert!(phases["settle"].as_f64().unwrap() >= 300.0, "{phases:?}");
+}
+
+#[tokio::test(start_paused = true)]
 async fn act_returns_a_diff_after_the_tree_changes_and_the_screen_goes_quiet() {
     let (source, fake) = FakeSource::with(vec![
         tree(&["One", "Two", "Three"]),
