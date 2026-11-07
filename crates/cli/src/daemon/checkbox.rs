@@ -8,8 +8,8 @@
 use phone_use_core::error::{Error, Op};
 use phone_use_core::geometry::Rect;
 
-const INSET: f32 = 0.25;
-const COLORED_SHARE: f32 = 0.35;
+const INSET: f32 = 0.2;
+const COLORED_SHARE: f32 = 0.2;
 const COLORED_SPREAD: i32 = 60;
 
 fn unreadable() -> Error {
@@ -101,7 +101,9 @@ mod tests {
     #[test]
     fn a_box_filled_with_the_accent_color_is_ticked_and_an_empty_one_is_not() {
         let png = screen(|x, y| {
-            if at(x, y, 5) && !edge(x, y, 5) {
+            if at(x, y, 5) && (9..18).contains(&x) && (14..23).contains(&y) {
+                WHITE
+            } else if at(x, y, 5) && !edge(x, y, 5) {
                 BLUE
             } else if edge(x, y, 5) || edge(x, y, 40) {
                 GRAY
