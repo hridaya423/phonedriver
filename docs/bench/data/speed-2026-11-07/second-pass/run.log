@@ -1,0 +1,10 @@
+load before tap, paced: [13.3, 9.2, 11.1, 26.1, 0.6]
+load after tap, paced: [16.6, 22.8, 9.5, 8.2, 14.3]
+tap, paced: done
+load before type 100 characters: [15.9, 16.2, 19.2, 17.9, 14.8]
+load after type 100 characters: [16.6, 19.5, 39.3, 21.2, 16.3]
+type 100 characters: done
+load before cold start: [15.1, 23.2, 15.2, 11.0, 14.6]
+load after cold start: [11.5, 15.7, 7.3, 32.6, 13.0]
+done
+EXIT 0

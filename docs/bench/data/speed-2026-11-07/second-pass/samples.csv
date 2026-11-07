@@ -1,0 +1,381 @@
+op,tool,i,ms
+"tap, paced",phone-use,0,53.873
+"tap, paced",phone-use,1,55.929
+"tap, paced",phone-use,2,76.034
+"tap, paced",phone-use,3,67.490
+"tap, paced",phone-use,4,53.236
+"tap, paced",phone-use,5,53.084
+"tap, paced",phone-use,6,58.441
+"tap, paced",phone-use,7,57.612
+"tap, paced",phone-use,8,47.200
+"tap, paced",phone-use,9,64.958
+"tap, paced",phone-use,10,61.593
+"tap, paced",phone-use,11,60.750
+"tap, paced",phone-use,12,52.738
+"tap, paced",phone-use,13,71.532
+"tap, paced",phone-use,14,61.284
+"tap, paced",phone-use,15,66.177
+"tap, paced",phone-use,16,59.842
+"tap, paced",phone-use,17,78.678
+"tap, paced",phone-use,18,78.278
+"tap, paced",phone-use,19,69.688
+"tap, paced",phone-use,20,70.572
+"tap, paced",phone-use,21,66.920
+"tap, paced",phone-use,22,50.073
+"tap, paced",phone-use,23,54.212
+"tap, paced",phone-use,24,66.168
+"tap, paced",phone-use,25,52.382
+"tap, paced",phone-use,26,68.299
+"tap, paced",phone-use,27,68.126
+"tap, paced",phone-use,28,61.686
+"tap, paced",phone-use,29,57.049
+"tap, paced",phone-use,30,65.977
+"tap, paced",phone-use,31,48.247
+"tap, paced",phone-use,32,50.109
+"tap, paced",phone-use,33,72.970
+"tap, paced",phone-use,34,110.964
+"tap, paced",phone-use,35,58.134
+"tap, paced",phone-use,36,63.484
+"tap, paced",phone-use,37,66.793
+"tap, paced",phone-use,38,73.712
+"tap, paced",phone-use,39,50.609
+"tap, paced",phone-use,40,75.178
+"tap, paced",phone-use,41,54.750
+"tap, paced",phone-use,42,52.373
+"tap, paced",phone-use,43,81.815
+"tap, paced",phone-use,44,67.069
+"tap, paced",phone-use,45,58.840
+"tap, paced",phone-use,46,75.661
+"tap, paced",phone-use,47,66.676
+"tap, paced",phone-use,48,54.139
+"tap, paced",phone-use,49,52.851
+"tap, paced",phone-harness,0,308.768
+"tap, paced",phone-harness,1,275.670
+"tap, paced",phone-harness,2,308.965
+"tap, paced",phone-harness,3,319.745
+"tap, paced",phone-harness,4,302.789
+"tap, paced",phone-harness,5,305.252
+"tap, paced",phone-harness,6,325.235
+"tap, paced",phone-harness,7,333.566
+"tap, paced",phone-harness,8,338.105
+"tap, paced",phone-harness,9,304.112
+"tap, paced",phone-harness,10,344.686
+"tap, paced",phone-harness,11,300.138
+"tap, paced",phone-harness,12,309.492
+"tap, paced",phone-harness,13,296.456
+"tap, paced",phone-harness,14,329.666
+"tap, paced",phone-harness,15,322.912
+"tap, paced",phone-harness,16,303.890
+"tap, paced",phone-harness,17,294.643
+"tap, paced",phone-harness,18,340.086
+"tap, paced",phone-harness,19,308.093
+"tap, paced",phone-harness,20,309.440
+"tap, paced",phone-harness,21,333.005
+"tap, paced",phone-harness,22,359.326
+"tap, paced",phone-harness,23,296.597
+"tap, paced",phone-harness,24,290.716
+"tap, paced",phone-harness,25,327.821
+"tap, paced",phone-harness,26,298.594
+"tap, paced",phone-harness,27,335.961
+"tap, paced",phone-harness,28,312.928
+"tap, paced",phone-harness,29,329.136
+"tap, paced",phone-harness,30,298.462
+"tap, paced",phone-harness,31,322.612
+"tap, paced",phone-harness,32,346.966
+"tap, paced",phone-harness,33,385.520
+"tap, paced",phone-harness,34,359.508
+"tap, paced",phone-harness,35,351.461
+"tap, paced",phone-harness,36,289.808
+"tap, paced",phone-harness,37,348.595
+"tap, paced",phone-harness,38,352.667
+"tap, paced",phone-harness,39,297.351
+"tap, paced",phone-harness,40,323.229
+"tap, paced",phone-harness,41,310.345
+"tap, paced",phone-harness,42,299.938
+"tap, paced",phone-harness,43,320.539
+"tap, paced",phone-harness,44,289.588
+"tap, paced",phone-harness,45,281.610
+"tap, paced",phone-harness,46,333.606
+"tap, paced",phone-harness,47,333.318
+"tap, paced",phone-harness,48,373.792
+"tap, paced",phone-harness,49,321.541
+"tap, paced",adb,0,123.375
+"tap, paced",adb,1,91.215
+"tap, paced",adb,2,97.965
+"tap, paced",adb,3,112.480
+"tap, paced",adb,4,96.484
+"tap, paced",adb,5,94.268
+"tap, paced",adb,6,122.416
+"tap, paced",adb,7,100.414
+"tap, paced",adb,8,114.968
+"tap, paced",adb,9,111.101
+"tap, paced",adb,10,88.663
+"tap, paced",adb,11,110.100
+"tap, paced",adb,12,106.551
+"tap, paced",adb,13,97.972
+"tap, paced",adb,14,119.895
+"tap, paced",adb,15,93.104
+"tap, paced",adb,16,98.692
+"tap, paced",adb,17,104.823
+"tap, paced",adb,18,98.024
+"tap, paced",adb,19,121.513
+"tap, paced",adb,20,117.712
+"tap, paced",adb,21,99.299
+"tap, paced",adb,22,105.633
+"tap, paced",adb,23,117.412
+"tap, paced",adb,24,111.186
+"tap, paced",adb,25,101.305
+"tap, paced",adb,26,109.104
+"tap, paced",adb,27,101.688
+"tap, paced",adb,28,91.424
+"tap, paced",adb,29,111.973
+"tap, paced",adb,30,108.147
+"tap, paced",adb,31,105.938
+"tap, paced",adb,32,118.443
+"tap, paced",adb,33,118.951
+"tap, paced",adb,34,193.352
+"tap, paced",adb,35,101.371
+"tap, paced",adb,36,113.406
+"tap, paced",adb,37,104.394
+"tap, paced",adb,38,117.098
+"tap, paced",adb,39,134.356
+"tap, paced",adb,40,113.457
+"tap, paced",adb,41,113.040
+"tap, paced",adb,42,120.844
+"tap, paced",adb,43,99.159
+"tap, paced",adb,44,117.355
+"tap, paced",adb,45,141.185
+"tap, paced",adb,46,106.422
+"tap, paced",adb,47,93.990
+"tap, paced",adb,48,95.199
+"tap, paced",adb,49,101.031
+type 100 characters,phone-use,0,166.365
+type 100 characters,phone-use,1,226.016
+type 100 characters,phone-use,2,256.867
+type 100 characters,phone-use,3,323.099
+type 100 characters,phone-use,4,193.522
+type 100 characters,phone-use,5,429.270
+type 100 characters,phone-use,6,394.958
+type 100 characters,phone-use,7,259.191
+type 100 characters,phone-use,8,180.668
+type 100 characters,phone-use,9,490.455
+type 100 characters,phone-use,10,292.453
+type 100 characters,phone-use,11,375.868
+type 100 characters,phone-use,12,191.805
+type 100 characters,phone-use,13,325.249
+type 100 characters,phone-use,14,384.206
+type 100 characters,phone-use,15,379.250
+type 100 characters,phone-use,16,192.064
+type 100 characters,phone-use,17,225.660
+type 100 characters,phone-use,18,167.677
+type 100 characters,phone-use,19,243.200
+type 100 characters,phone-use,20,164.395
+type 100 characters,phone-use,21,296.803
+type 100 characters,phone-use,22,183.999
+type 100 characters,phone-use,23,284.493
+type 100 characters,phone-use,24,151.263
+type 100 characters,phone-use,25,392.738
+type 100 characters,phone-use,26,367.765
+type 100 characters,phone-use,27,276.894
+type 100 characters,phone-use,28,177.690
+type 100 characters,phone-use,29,305.551
+type 100 characters,phone-use,30,214.076
+type 100 characters,phone-use,31,257.280
+type 100 characters,phone-use,32,154.983
+type 100 characters,phone-use,33,251.105
+type 100 characters,phone-use,34,291.304
+type 100 characters,phone-use,35,204.060
+type 100 characters,phone-use,36,109.037
+type 100 characters,phone-use,37,231.145
+type 100 characters,phone-use,38,214.702
+type 100 characters,phone-use,39,227.939
+type 100 characters,phone-use,40,203.335
+type 100 characters,phone-use,41,225.711
+type 100 characters,phone-use,42,354.000
+type 100 characters,phone-use,43,220.464
+type 100 characters,phone-use,44,141.307
+type 100 characters,phone-use,45,273.155
+type 100 characters,phone-use,46,358.483
+type 100 characters,phone-use,47,299.451
+type 100 characters,phone-use,48,262.198
+type 100 characters,phone-use,49,386.552
+type 100 characters,phone-harness,0,5245.001
+type 100 characters,phone-harness,1,5577.274
+type 100 characters,phone-harness,2,5757.853
+type 100 characters,phone-harness,3,6409.585
+type 100 characters,phone-harness,4,5100.976
+type 100 characters,phone-harness,5,5785.842
+type 100 characters,phone-harness,6,5277.973
+type 100 characters,phone-harness,7,5668.425
+type 100 characters,phone-harness,8,5758.328
+type 100 characters,phone-harness,9,5674.110
+type 100 characters,phone-harness,10,5992.791
+type 100 characters,phone-harness,11,5509.278
+type 100 characters,phone-harness,12,5561.757
+type 100 characters,phone-harness,13,5211.775
+type 100 characters,phone-harness,14,5282.316
+type 100 characters,phone-harness,15,5153.896
+type 100 characters,phone-harness,16,5295.723
+type 100 characters,phone-harness,17,5231.817
+type 100 characters,phone-harness,18,5688.313
+type 100 characters,phone-harness,19,6283.218
+type 100 characters,phone-harness,20,5317.333
+type 100 characters,phone-harness,21,5120.979
+type 100 characters,phone-harness,22,5805.295
+type 100 characters,phone-harness,23,6075.631
+type 100 characters,phone-harness,24,5248.558
+type 100 characters,phone-harness,25,5689.134
+type 100 characters,phone-harness,26,5427.886
+type 100 characters,phone-harness,27,5791.414
+type 100 characters,phone-harness,28,5219.830
+type 100 characters,phone-harness,29,5334.514
+type 100 characters,phone-harness,30,5736.241
+type 100 characters,phone-harness,31,5690.416
+type 100 characters,phone-harness,32,5024.054
+type 100 characters,phone-harness,33,5358.998
+type 100 characters,phone-harness,34,5586.930
+type 100 characters,phone-harness,35,5856.133
+type 100 characters,phone-harness,36,6009.526
+type 100 characters,phone-harness,37,5293.601
+type 100 characters,phone-harness,38,5451.754
+type 100 characters,phone-harness,39,5407.615
+type 100 characters,phone-harness,40,5381.402
+type 100 characters,phone-harness,41,5523.308
+type 100 characters,phone-harness,42,5895.456
+type 100 characters,phone-harness,43,5714.918
+type 100 characters,phone-harness,44,7475.695
+type 100 characters,phone-harness,45,6235.561
+type 100 characters,phone-harness,46,5337.235
+type 100 characters,phone-harness,47,6452.356
+type 100 characters,phone-harness,48,5038.936
+type 100 characters,phone-harness,49,5003.721
+type 100 characters,adb,0,5267.422
+type 100 characters,adb,1,4769.074
+type 100 characters,adb,2,5660.070
+type 100 characters,adb,3,5193.145
+type 100 characters,adb,4,5136.913
+type 100 characters,adb,5,4134.521
+type 100 characters,adb,6,5631.228
+type 100 characters,adb,7,5565.906
+type 100 characters,adb,8,4627.187
+type 100 characters,adb,9,4777.182
+type 100 characters,adb,10,5560.096
+type 100 characters,adb,11,5100.654
+type 100 characters,adb,12,4964.927
+type 100 characters,adb,13,4221.908
+type 100 characters,adb,14,5177.446
+type 100 characters,adb,15,4643.432
+type 100 characters,adb,16,5107.765
+type 100 characters,adb,17,5026.322
+type 100 characters,adb,18,5297.361
+type 100 characters,adb,19,4652.455
+type 100 characters,adb,20,4739.897
+type 100 characters,adb,21,4634.867
+type 100 characters,adb,22,4960.452
+type 100 characters,adb,23,4294.650
+type 100 characters,adb,24,5264.870
+type 100 characters,adb,25,5254.594
+type 100 characters,adb,26,4802.647
+type 100 characters,adb,27,4376.013
+type 100 characters,adb,28,4434.223
+type 100 characters,adb,29,4466.137
+type 100 characters,adb,30,4483.758
+type 100 characters,adb,31,5080.228
+type 100 characters,adb,32,4967.221
+type 100 characters,adb,33,4622.148
+type 100 characters,adb,34,4996.340
+type 100 characters,adb,35,4659.497
+type 100 characters,adb,36,4189.811
+type 100 characters,adb,37,4510.612
+type 100 characters,adb,38,5164.841
+type 100 characters,adb,39,5251.539
+type 100 characters,adb,40,4597.642
+type 100 characters,adb,41,4654.317
+type 100 characters,adb,42,5347.188
+type 100 characters,adb,43,4602.065
+type 100 characters,adb,44,5245.556
+type 100 characters,adb,45,5220.072
+type 100 characters,adb,46,5917.264
+type 100 characters,adb,47,4336.876
+type 100 characters,adb,48,4840.904
+type 100 characters,adb,49,4659.062
+type 100 characters,"phone-use, mixed Unicode",0,149.174
+type 100 characters,"phone-use, mixed Unicode",1,127.777
+type 100 characters,"phone-use, mixed Unicode",2,225.002
+type 100 characters,"phone-use, mixed Unicode",3,331.801
+type 100 characters,"phone-use, mixed Unicode",4,317.039
+type 100 characters,"phone-use, mixed Unicode",5,244.348
+type 100 characters,"phone-use, mixed Unicode",6,259.389
+type 100 characters,"phone-use, mixed Unicode",7,202.782
+type 100 characters,"phone-use, mixed Unicode",8,156.793
+type 100 characters,"phone-use, mixed Unicode",9,206.210
+type 100 characters,"phone-use, mixed Unicode",10,434.167
+type 100 characters,"phone-use, mixed Unicode",11,284.489
+type 100 characters,"phone-use, mixed Unicode",12,186.391
+type 100 characters,"phone-use, mixed Unicode",13,287.387
+type 100 characters,"phone-use, mixed Unicode",14,72.257
+type 100 characters,"phone-use, mixed Unicode",15,195.314
+type 100 characters,"phone-use, mixed Unicode",16,119.006
+type 100 characters,"phone-use, mixed Unicode",17,211.483
+type 100 characters,"phone-use, mixed Unicode",18,146.648
+type 100 characters,"phone-use, mixed Unicode",19,242.661
+type 100 characters,"phone-use, mixed Unicode",20,231.551
+type 100 characters,"phone-use, mixed Unicode",21,296.863
+type 100 characters,"phone-use, mixed Unicode",22,534.224
+type 100 characters,"phone-use, mixed Unicode",23,275.558
+type 100 characters,"phone-use, mixed Unicode",24,119.862
+type 100 characters,"phone-use, mixed Unicode",25,173.973
+type 100 characters,"phone-use, mixed Unicode",26,276.847
+type 100 characters,"phone-use, mixed Unicode",27,360.283
+type 100 characters,"phone-use, mixed Unicode",28,289.199
+type 100 characters,"phone-use, mixed Unicode",29,214.942
+type 100 characters,"phone-use, mixed Unicode",30,301.456
+type 100 characters,"phone-use, mixed Unicode",31,302.316
+type 100 characters,"phone-use, mixed Unicode",32,135.713
+type 100 characters,"phone-use, mixed Unicode",33,230.037
+type 100 characters,"phone-use, mixed Unicode",34,307.865
+type 100 characters,"phone-use, mixed Unicode",35,142.444
+type 100 characters,"phone-use, mixed Unicode",36,224.609
+type 100 characters,"phone-use, mixed Unicode",37,197.034
+type 100 characters,"phone-use, mixed Unicode",38,385.724
+type 100 characters,"phone-use, mixed Unicode",39,225.933
+type 100 characters,"phone-use, mixed Unicode",40,284.111
+type 100 characters,"phone-use, mixed Unicode",41,182.410
+type 100 characters,"phone-use, mixed Unicode",42,203.877
+type 100 characters,"phone-use, mixed Unicode",43,249.444
+type 100 characters,"phone-use, mixed Unicode",44,194.021
+type 100 characters,"phone-use, mixed Unicode",45,296.804
+type 100 characters,"phone-use, mixed Unicode",46,159.986
+type 100 characters,"phone-use, mixed Unicode",47,163.857
+type 100 characters,"phone-use, mixed Unicode",48,257.773
+type 100 characters,"phone-use, mixed Unicode",49,149.712
+"cold start, first screen read",phone-use,0,1620.506
+"cold start, first screen read",phone-use,1,1811.037
+"cold start, first screen read",phone-use,2,1681.512
+"cold start, first screen read",phone-use,3,1595.158
+"cold start, first screen read",phone-use,4,1508.060
+"cold start, first screen read",phone-use,5,1740.823
+"cold start, first screen read",phone-use,6,1853.839
+"cold start, first screen read",phone-use,7,1557.889
+"cold start, first screen read",phone-use,8,1567.393
+"cold start, first screen read",phone-use,9,1728.077
+"cold start, first screen read",phone-harness,0,2938.798
+"cold start, first screen read",phone-harness,1,2999.435
+"cold start, first screen read",phone-harness,2,3014.765
+"cold start, first screen read",phone-harness,3,3107.093
+"cold start, first screen read",phone-harness,4,2976.640
+"cold start, first screen read",phone-harness,5,3082.553
+"cold start, first screen read",phone-harness,6,2967.533
+"cold start, first screen read",phone-harness,7,3030.147
+"cold start, first screen read",phone-harness,8,2846.915
+"cold start, first screen read",phone-harness,9,3023.458
+"cold start, first screen read",adb,0,2429.817
+"cold start, first screen read",adb,1,2470.521
+"cold start, first screen read",adb,2,2553.126
+"cold start, first screen read",adb,3,2491.334
+"cold start, first screen read",adb,4,2488.013
+"cold start, first screen read",adb,5,2431.218
+"cold start, first screen read",adb,6,2531.856
+"cold start, first screen read",adb,7,2584.433
+"cold start, first screen read",adb,8,2413.076
+"cold start, first screen read",adb,9,2518.389

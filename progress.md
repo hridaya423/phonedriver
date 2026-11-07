@@ -409,3 +409,11 @@ The pre-existing 8:30 and 9:00 alarms were left alone.
 - SMS seeding needs the emulator console, which the local adb client cannot reach over the tunnel: `EMU_ADB="ssh win-ts /d/Android/Sdk/platform-tools/adb.exe"`.
 - Seen, not fixed: `uiautomator dump` reports "could not get idle state" on the Contacts list screen.
 - Not run: any `claude -p` agent. The speed benchmark on emulator-5554 was left alone; only tunnel commands to emulator-5558 and ssh `adb emu sms send` were used.
+
+## Speed re-measurement, 2026-11-07
+
+- Changed: `bench/speed/run_speed.py` (one process runs phone-use over its daemon pipe, phone-harness 0.3.3 in process and adb, interleaved, 20 warm-ups, 50 samples, device-side tap latency from the testbed's logcat events, cold start), `bench/speed/stats.py` (p50, p95, bootstrap 95% CI on the p50 ratios, writes `docs/bench/speed.json`), `bench/speed/reproduce.sh`. Chart, banner, social preview, README and claims ledger now read the new numbers.
+- Command, on win-ts next to `emulator-5554` with the local adb server (no tunnel): `python bench/speed/run_speed.py --phone-use target\release\phone-use.exe --apk app-debug.apk --out DIR`, then a second pass `--only "tap, paced;type;cold"`; main `04b61a1`. Raw: `docs/bench/data/speed-2026-11-07/`. Doc: `docs/bench/speed-2026-11-07.md`.
+- Result: up to 98x faster than adb (1,000-row list read, 24.0 ms against 2,352.4 ms, CI 92.2 to 106.0), 111x phone-harness. Screenshot 41x, Settings tree 27x, typing 19x, tap then what changed 4.6x. Bare tap 1.1x adb back to back (175.6 ms against 199.5 ms), 1.7x at 1.5 s apart, 2.6x on the device (27.5 ms against 71.2 ms).
+- Found: phone-use's agent holds the one UiAutomation connection, so `uiautomator dump` (adb, phone-harness) fails with "Killed" while the phone-use daemon is up; tree ops therefore alternate in blocks with the daemon stopped. Tap latency depends on spacing (back to back 179.7 ms, 1.5 s apart 56.7 ms in a diagnostic run); the earlier 30 to 37 ms tap was not reproduced on this host. The first pass of typing and cold start ran at 32% to 47% host load, so both were measured again at about 20%; the first pass stays in the CSV.
+- Not done: no physical device, no iOS; the launch drafts (`docs/launch/linkedin.md`, `show-hn.md`, `x.md`, `plan.md`) still quote the old numbers.
