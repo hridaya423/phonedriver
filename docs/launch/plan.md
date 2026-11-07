@@ -28,7 +28,7 @@ Nothing is posted until every row is done. Owner: **U** = you, **A** = an agent 
 | 12 | Real-jobs benchmark result in: blog post 4 and `docs/bench/jobs.md` have `[RESULTS]` cells today. Fill them or cut every claim that depends on them. Hold post 4's cross-post. | A | Runs pending | T-1 (or cut) |
 | 13 | Claims ledger checked against the launch commit; every `[DEMO]`, `[JOBS]`, `[USER]` slot in the drafts filled or deleted | U+A | Open | T-1 |
 | 14 | Your accounts: HN (age, karma, email in profile, Show HN not restricted: `news.ycombinator.com/showlim`), Reddit (karma per sub, comment history), X, LinkedIn. Spend the week before commenting honestly where you will post. | U | Unknown | T-3 |
-| 15 | Each subreddit's sidebar and rules read in a browser (the research could not read them); flair names copied | U | Open | T-1 |
+| 15 | Rules for 15 subreddits were read on 2026-11-07 (`reddit-rules-2026-11-07.md`). Reread each sidebar on the day you post, copy the flair names, check r/ClaudeAI karma above 100, and read the r/SideProject, r/iOSProgramming and r/opensource wikis | U | Rules read; day-of checks open | T-1 |
 | 16 | A physical Android phone run, if you have one. Ask first: `AGENTS.md` lists driving a physical device as a one-way door. If not, the drafts say "no Android phone measured", which is true. | U | Optional | |
 | 17 | Open `docs/decisions.md` D6 and make it match D21 (`shell` exists). HN readers will quote D6 against you. | A | Check | T-3 |
 | 18 | GitHub: topics, description, homepage, Discussions on, a pinned "Known limits" issue, 3 `good first issue` labels (`github-metadata.md`) | U+A | Not done | T-2 |
@@ -57,18 +57,22 @@ T-3 is Friday 2026-11-20. Everything is UTC.
 | | **13:30** (08:30 ET, 05:30 PT) | **X launch thread** (`x.md`): hook with the native video, link in the first reply. Reply to everything for 2 hours. Record HN rank and points at each check. | U |
 | | 15:00 | If HN found a real error in a claim, fix the claim in the repo and the post before posting anything else. | U |
 | **T+1 Tue 11-24** | 13:30 | **LinkedIn launch post** (video; link in the first comment). Reply for an hour. | U |
-| | 14:00 | **r/ClaudeAI** post, project flair, the first comment at once. Reply for two hours. | U |
+| | 14:00 | **r/ClaudeAI** post (rule 7: author, how Claude helped, free to try; karma above 100), project flair, the first comment at once. Reply for two hours. | U |
 | | 16:30 | **X follow-up 1**: the 98x chart. | U |
-| **T+2 Wed 11-25** | 14:00 | **r/mcp** post. | U |
+| **T+2 Wed 11-25** | 14:00 | **r/mcp** post, `showcase` tag, typed by you from the fact notes (rule 2 bans AI-generated posts). | U |
 | | 15:00 | **dev.to and Hashnode** copy of blog post 1 (the engineering post), canonical to the site. **YouTube Shorts** upload of the vertical cut. | U |
 | | any | claudemarketplaces.com and mcpmarket.com submissions. | U |
-| **T+3 Thu 11-26** (US Thanksgiving) | 14:00 | **LinkedIn carousel** (`linkedin.md`). Light day: one r/androiddev comment in the showcase thread if the sub allows it. | U |
+| **T+3 Thu 11-26** (US Thanksgiving) | 14:00 | **LinkedIn carousel** (`linkedin.md`). Light day: no Reddit. | U |
 | | 16:30 | **X follow-up 2**: the approval guard (with the clip). | U |
-| **T+4 Fri 11-27** | 14:00 | **r/ClaudeCode** post (different angle from r/ClaudeAI). dev.to and Hashnode copy of post 2 (the guard). **TikTok and Reels** upload. | U |
-| **T+5 Sat 11-28** | 16:30 | **X follow-up 3**: the tokens. Quiet day otherwise. Triage issues. | U |
-| **T+6 Sun 11-29** | any | **r/SideProject** (optional). dev.to and Hashnode copy of post 3 (method). | U |
+| **T+4 Fri 11-27** | 14:00 | **r/ClaudeCode** comment in the weekly showcase thread (rule 5; different text from r/ClaudeAI). dev.to and Hashnode copy of post 2 (the guard). **TikTok and Reels** upload. | U |
+| **T+5 Sat 11-28** | 15:00 | **r/iOSProgramming**, Saturday only (rule 7), only if the `app-saturday` wiki allows a tool; otherwise skip. | U |
+| | 16:30 | **X follow-up 3**: the tokens. Triage issues. | U |
+| **T+6 Sun 11-29** | any | **r/SideProject** at 16:00 (optional; read its wiki first, the sidebar has no rules). dev.to and Hashnode copy of post 3 (method). | U |
 | | 20:00 | Review the week's numbers. If HN never took off, email hn@ycombinator.com once about the second-chance pool; never repost. | U |
-| **T+7 Mon 11-30** | any | Retro in `progress.md`. If the jobs benchmark is in, publish post 4 and its cross-posts. Decide on Product Hunt for T+14 (`product-hunt.md`). Submit to awesome-claude-code when the repo is 14 days old or has 100 stars. | U |
+| **T+7 Mon 11-30** | 14:00 | **r/AI_Agents**: a comment in the weekly project display thread (rule 3: links go in comments). | U |
+| | any | Retro in `progress.md`. If the jobs benchmark is in, publish post 4 and its cross-posts. Decide on Product Hunt for T+14 (`product-hunt.md`). Submit to awesome-claude-code when the repo is 14 days old or has 100 stars. | U |
+| **T+8 Tue 12-01** | 14:00 | **r/rust**: a comment in "What's Everyone Working on this Week?", about the Rust work, typed by you (rules 6 and 7). | U |
+| **T+9 Wed 12-02** | 14:00 | **r/opensource** (optional, last): `Promotional` flair, typed by you, only if its wiki does not bar AI projects. | U |
 
 HN is first because it is the least tolerant of a weak first hour and the one place that needs you at a fixed time. X goes thirteen and a half hours later, once you know what HN found. LinkedIn and Reddit are a day apart because each needs a free hour of replies, and because Reddit filters the same link posted in several subs the same day. If HN does not take off, the plan continues: X, Reddit, LinkedIn and the registries each stand on their own.
 
@@ -79,7 +83,7 @@ Rules across channels:
 - You write every word that is posted. Hacker News bans generated text; LinkedIn reduces reach for it; Reddit readers punish it.
 - State the same limits everywhere: emulator-only speed numbers, no physical Android measured, iOS needs a Mac with Xcode, the guard reads English labels only, the demo is sped up 10x.
 - Same number, same source, same caveat, everywhere.
-- Do not post to r/opensource or r/programming.
+- Do not post to r/programming, r/LocalLLaMA, r/androiddev, r/commandline, r/cursor, r/vibecoding or r/selfhosted; the sidebar rules decide it (`reddit.md`). r/opensource is optional and last. One subreddit per day; never the same text twice.
 - Do not post Show HN twice, and do not delete and repost.
 
 ## How to respond in comments
@@ -120,7 +124,7 @@ Targets, as bands, not promises: 30 stars by T0 end is a healthy HN day; 100 by 
 - Phone-agent Show HNs scored 2 to 7 points in round 2; the best scored 53. Plan for a modest result.
 - HN readers look for LLM-written text and AI-built repos. Say it first, plainly.
 - Show HN may be restricted for a new HN account.
-- r/opensource barred AI-related projects in October 2026; r/programming ran an LLM ban trial. Do not post there.
+- r/programming bans LLM-written content and project promotion (rules 1 and 5); r/commandline bans generative-AI projects (rule 6); r/androiddev bans sharing applications (rule 2). Do not post there. r/mcp, r/opensource and r/rust remove AI-written text, so you type those posts.
 - The speed numbers are emulator-only; the tap row is the closest (1.6x to 2.1x), the 98x is for one specific read. Readers will test. The drafts state the setting everywhere.
 - The guard's limits (English labels only; a model set on bypassing it can; `shell` input is not seen; headless `claude -p` has nobody to ask) are written in D27 and the blog post. Readers will find them. Say them first.
 - The demo is sped up 10x and, today, stops at a sign-in page without showing the approval prompt. The re-recording fixes that; do not caption the old clip with the guard.
