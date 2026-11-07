@@ -1,53 +1,28 @@
-<p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset=".github/assets/banner-dark.svg">
-    <img alt="phone-use: Let your AI agent use a phone. Android and iOS, CLI and MCP, up to 98 times faster than adb." src=".github/assets/banner-light.svg" width="100%">
-  </picture>
-</p>
+<p align="center"><picture> <source media="(prefers-color-scheme: dark)" srcset=".github/assets/banner-dark.svg"> <img alt="phonedriver: Let your AI agent use a phone. Android and iOS, CLI and MCP, up to 98 times faster than adb." src=".github/assets/banner-light.svg" width="100%"> </picture></p>
+
+phonedriver is an open-source MCP server and CLI that lets AI agents like Claude Code see and control Android and iOS phones. It shows a screen as numbered text, and every tap, type or swipe returns only the lines that changed.
 
 <p align="center">
   <a href="LICENSE"><img alt="License: AGPL-3.0" src="https://img.shields.io/badge/license-AGPL--3.0-6b675e?style=flat-square&labelColor=161512"></a>
   <img alt="Tested on Android emulators, the iOS Simulator and iOS devices" src="https://img.shields.io/badge/tested-android%20emulator%20%7C%20ios-6b675e?style=flat-square&labelColor=161512">
 </p>
 
-phone-use gives an AI agent a text view of an Android or iOS screen and the means to tap, type and swipe. Every action returns only the lines that changed.
+<p align="center">
+  <a href="docs/bench/speed-2026-11-07.md">
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset=".github/assets/hero-dark.svg">
+      <img alt="Bar chart of phonedriver against adb at p50 on an Android emulator, up to 98 times faster. read the screen (1,000-row UI tree): 24.0 ms against 2,352.4 ms for adb, 98 times faster; screenshot: 11.6 ms against 476.3 ms for adb, 41 times faster; type 100 characters: 251.1 ms against 4,840.9 ms for adb, 19 times faster; tap and see what changed: 586.9 ms against 2,725.8 ms for adb, 4.6 times faster. phone-harness is 111, 49, 22 times slower than phonedriver on the first 3 rows and does not support tap and see what changed." src=".github/assets/hero-light.svg" width="100%">
+    </picture>
+  </a>
+</p>
+
+<sub>phonedriver against plain adb on an Android 17 emulator, p50 of 50 runs. adb is the full-width bar; phonedriver's bar is its true fraction of it. <a href="docs/bench/speed-2026-11-07.md">Method, p95, confidence intervals and raw data</a>.</sub>
 
 <p align="center">
   <img alt="Claude Code's real terminal on the left and the iPhone 17 Simulator on the right. Claude Code is asked to open Safari, search Wikipedia for Grace Hopper and say when she was born. It opens Safari, loads her Wikipedia article and answers December 9, 1906." src=".github/assets/demo.gif" width="100%">
 </p>
 
 <sub>Claude Code's real terminal driving the iOS Simulator through phone-use, in real time. An <a href=".github/assets/demo.mp4">MP4</a> is at higher quality.</sub>
-
-## Speed
-
-<p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset=".github/assets/speed-dark.svg">
-    <img alt="Bar chart, log scale, p50 on an Android 17 emulator. phone-use against plain adb and phone-harness 0.3.3. UI tree, 1,000-row list 98 times faster than adb (phone-harness 111 times); Screenshot 41 times faster than adb (phone-harness 49 times); UI tree, Settings 27 times faster than adb (phone-harness 30 times); Type 100 characters 19 times faster than adb (phone-harness 22 times); Tap, then what changed 4.6 times faster than adb (phone-harness not supported); Tap, 1.5 s apart 1.7 times faster than adb (phone-harness 5.2 times); Tap, back to back 1.1 times faster than adb (phone-harness 1.3 times)." src=".github/assets/speed-light.svg" width="100%">
-  </picture>
-</p>
-
-phone-use against plain `adb` and phone-harness 0.3.3 on an Android 17 emulator (API 37, headless, software rendering), p50 of 50 runs after 20 warm-ups. Everything ran on the emulator's own host, the three tools interleaved, mean host CPU load 13% to 39% per op (other work on the machine). The bar is p50 and the tick is p95. Method, raw samples, bootstrap intervals and the one-command reproduction are in [`docs/bench/speed-2026-11-07.md`](docs/bench/speed-2026-11-07.md). The headline is the 1,000-row list read, 24.0 ms against 2,352.4 ms for adb (95% CI on the ratio 92 to 106). `adb` returns raw XML and a tap that returns before the app reacts; phone-use returns a pruned tree and the settled diff, so "tap, then what changed" for adb is a tap, a `uiautomator dump` and a diff in the caller.
-
-> [!NOTE]
-> The bare tap is the closest row. Host to reply, phone-use takes 175.6 ms when taps come back to back and 61.6 ms when they are 1.5 s apart, against 199.5 and 106.6 ms for adb. On the device, from send to the app seeing the touch, it is 27.5 ms against 71.2 ms for adb. Tap misses its 15 ms budget (D14), and typing 100 characters misses its 150 ms budget (251.1 ms). On the iOS 26.5 Simulator, tap is 357 ms against 80 ms, because XCTest takes about 240 ms to confirm the event (D15). On an iPhone 14 Plus and an iPad Pro (M5), tap is 534 and 454 ms. No physical Android phone has been measured in this run.
-
-<details>
-<summary>All figures</summary>
-
-| Operation | phone-use | adb | phone-harness |
-|---|---|---|---|
-| tap, back to back | 175.6 ms | 199.5 ms | 232.5 ms |
-| tap, 1.5 s apart | 61.6 ms | 106.6 ms | 319.7 ms |
-| screenshot | 11.6 ms | 476.3 ms | 570.5 ms |
-| UI tree, Settings | 89.3 ms | 2,433.5 ms | 2,700.0 ms |
-| UI tree, 1,000-row list | 24.0 ms | 2,352.4 ms | 2,653.7 ms |
-| type 100 characters | 251.1 ms | 4,840.9 ms | 5,523.3 ms |
-| tap, then what changed | 586.9 ms | 2,725.8 ms | not supported |
-
-`adb input text` and phone-harness cannot type Unicode; phone-use typed the same ASCII text in the typing row, and mixed-script text in 225.0 ms. Fresh daemon to first screen read: phone-use 1,620.5 ms, phone-harness 2,999.4 ms (new Python process), adb 2,488.0 ms (one dump).
-
-</details>
 
 ## Try it
 
@@ -150,37 +125,27 @@ phone-use --device ios:<udid> snapshot
 
 Without a team, the command stops with exit code 3 and says so. With a booted Simulator and an iPhone that has no team, the Simulator is the default device. The daemon reads `PHONE_USE_TEAM` when it starts, so run `phone-use daemon stop` after setting it.
 
-## Environment variables
+## Numbers
 
-| Name | Default | Meaning |
-|---|---|---|
-| `PHONE_USE_HOME` | `~/.phone-use` | Where the daemon keeps its socket (`run/`), `daemon.log`, `traces/`, `tmp/` and the iOS `runner/` builds. Set it to run a separate daemon. On macOS the socket path must stay under about 100 bytes. |
-| `PHONE_USE_SOCKET` | under `PHONE_USE_HOME` (else `$XDG_RUNTIME_DIR/phone-use`) | The daemon's socket or named pipe. Point it at an `ssh -L` forward to use a remote machine's devices. |
-| `PHONE_USE_DEVICE` | none | The device to use when `--device` is not given. Also read by `phone-use mcp`. |
-| `PHONE_USE_SESSION` | `default` | The session name, as `--session`. |
-| `PHONE_USE_TEAM` | none | Apple developer team ID that signs the iOS runner on a physical device. |
-| `PHONE_USE_IOS_TIER` | `runner` | `coredevice` selects the CoreDevice tier on iOS 27 devices. Experimental. |
-| `PHONE_USE_GUARD` | on | `off` stops phone-use asking the human before a tap that spends money or cannot be undone (`Place order`, `Pay`, `Delete account`). Set it for `phone-use mcp` or the CLI only when you grant the agent full autonomy. |
-| `PHONE_USE_SECRET` | none | The text for `type --secret`, instead of stdin. |
-| `PHONE_USE_TRACE_FULL` | off | `1` keeps observation text and text targets in traces (the daemon reads it at start). |
-| `PHONE_USE_TRACE_SCREENS` | off | `1` copies every screenshot next to its trace file. |
-| `PHONE_USE_AGENT_JAR` | built by `android-agent/build.sh` | Build time only: use this prebuilt Android agent jar. |
-| `ADB_SERVER_SOCKET` | `tcp:127.0.0.1:5037` | The adb server to use, for example a tunnel to another machine. |
-| `PHONE_USE_TEST_DEVICE`, `PHONE_USE_TEST_IOS_UDID`, `PHONE_USE_BENCH`, `PHONE_USE_BIN` | none | Tests and benchmarks only. |
+Speed is p50 of 50 runs on an Android 17 emulator (API 37). Tokens are the sum of per-task medians over three agent tasks with `claude-sonnet-5-5`; every run passed for phonedriver and phone-harness. The speed-up over adb is in brackets.
 
-The runner's own `PHONE_USE_PORT`, `PHONE_USE_BUILD` and `PHONE_USE_UDID` are set by phone-use for the iOS runner and are not for you.
+| | phonedriver | adb | phone-harness 0.3.3 | mobile-mcp 1.0.16 |
+|---|---|---|---|---|
+| Read a 1,000-row UI tree | 24.0 ms (98x) | 2,352.4 ms | 2,653.7 ms | not measured |
+| Screenshot | 11.6 ms (41x) | 476.3 ms | 570.5 ms | not measured |
+| Type 100 characters | 251.1 ms (19x) | 4,840.9 ms | 5,523.3 ms | not measured |
+| Tap and see what changed | 586.9 ms (4.6x) | 2,725.8 ms | not supported | not measured |
+| Tokens, three tasks | 218,357 (34% fewer than phone-harness) | one task failed | 330,375 | 0 of 3 passed (environment failure) |
+| Diff after each action | Yes | No | Not supported | No |
+| Approval guard on payments | Yes | No | Not checked | Not checked |
+| iOS | Simulator, iPhone, iPad | No | iPhone via Mac mirroring | Yes |
+| Shell on the device | Yes | Yes | Not checked | Not documented |
+| MCP and CLI | Both | CLI | CLI | MCP |
 
-## Debugging
+Full benchmark: [every op, p95, confidence intervals, raw data](docs/bench/speed-2026-11-07.md). Tokens: [`docs/bench/tokens.md`](docs/bench/tokens.md). Machine-readable: [`speed.json`](docs/bench/speed.json), [`tokens.json`](docs/bench/tokens.json). Side by side: [`docs/compare.md`](docs/compare.md).
 
-When something does not work:
-
-- `phone-use doctor` checks the toolchain, devices and the socket, and says how to fix each problem.
-- `$PHONE_USE_HOME/daemon.log` (default `~/.phone-use/daemon.log`) holds the daemon's own messages and startup errors.
-- `$PHONE_USE_HOME/traces/<id>.jsonl` has one line per request: method, parameters, the reply's summary, `ms` and settle time. Typed text is recorded only as a length. Start the daemon with `PHONE_USE_TRACE_FULL=1` to keep observation text, and `PHONE_USE_TRACE_SCREENS=1` to keep screenshots. A running daemon keeps its options: `phone-use daemon stop` first.
-- iOS: `$PHONE_USE_HOME/runner/<udid>.log` is the runner's output, and `runner/<hash>/build.log` is its first build.
-- `phone-use daemon stop` stops the daemon and the iOS runners it started. The next command starts a new one.
-
-Exit codes: `0` done, `1` the command failed, `2` the command line is wrong, `3` a person must act on the device (unlock, trust, allow), `4` no matching device or it was disconnected, `5` a tap that spends money or cannot be undone needs the human's approval (add `--autonomous` only when the user has granted full autonomy). On a terminal, a first command that takes more than a second says what it is doing (building the runner, starting the agent).
+> [!NOTE]
+> The bare tap is the closest row. Host to reply, phonedriver takes 175.6 ms when taps come back to back and 61.6 ms when they are 1.5 s apart, against 199.5 and 106.6 ms for adb. Tap misses its 15 ms budget (D14), and typing 100 characters misses its 150 ms budget (251.1 ms). On the iOS 26.5 Simulator, tap is 357 ms against 80 ms, because XCTest takes about 240 ms to confirm the event (D15). On an iPhone 14 Plus and an iPad Pro (M5), tap is 534 and 454 ms. No physical Android phone has been measured in this run. mobile-mcp has no speed figure here, and its token runs failed for an environment reason, so its column says nothing about its design.
 
 ## Supported devices
 
@@ -226,32 +191,6 @@ ok tapped @e10 "Dark theme" · settled in 410ms
 ~ @e10 switch "Dark theme" off → on
 ```
 
-### Use a device on another machine
-
-The daemon listens on a Unix socket and nowhere else. To drive a simulator or phone that is plugged into another machine, forward that socket over `ssh` and point the CLI at the local end:
-
-```sh
-ssh -N -L /tmp/phone-use-mini.sock:/Users/you/.phone-use/run/daemon.sock mini &
-export PHONE_USE_SOCKET=/tmp/phone-use-mini.sock
-phone-use snapshot
-```
-
-On the other machine, run any `phone-use` command once, or `phone-use daemon`, so that the socket exists. Both machines need the same `phone-use` version. If the forward is down, the error names `PHONE_USE_SOCKET`.
-
-Two things differ from a local run. `phone-use screenshot` prints a path on the machine that has the device; `phone-use screenshot -o shot.png` writes the file on your machine instead. The MCP `screenshot` tool returns the image itself, so it works unchanged.
-
-### Android over Wi-Fi
-
-An Android 11 or later phone on the same network needs no cable. On the phone, turn on Developer options, then Wireless debugging, and choose Pair device with pairing code. Then:
-
-```sh
-adb pair 192.168.1.20:37099
-adb connect 192.168.1.20:41233
-phone-use devices
-```
-
-The first address and the six-digit code are on the pairing screen; the second address is on the Wireless debugging screen (the port changes each time wireless debugging is switched on). The phone then appears as `android:192.168.1.20:41233`. If it shows `offline`, `phone-use doctor` says what to check.
-
 ## Use with other MCP clients
 
 Any client that starts a stdio server can use this entry.
@@ -268,33 +207,39 @@ The server has fourteen tools: `devices`, `apps`, `snapshot`, `screenshot`, `tap
 
 Typed secrets (`phone-use type --secret`, or `secret: true` over MCP) never reach logs, traces or replies. phone-use sends no telemetry. It talks to the device and nothing else: the local daemon socket, the local adb server (or the address in `ADB_SERVER_SOCKET`) and the device, plus Apple only when mounting an iOS developer disk image. `cargo test -p phone-use --test network` runs the CLI, the daemon and the MCP server under a macOS sandbox that kills a process the moment it opens a connection to a non-local address (it runs on the macOS CI job; Linux and Windows are not covered).
 
-### Shell
+## FAQ
 
-`phone-use shell "cmd uimode night yes"` runs a command on the device and prints the exit code, the output (cut at 40 lines; `--grep`, `--head`) and what changed on screen. On Android it runs in the agent already on the device, not in a new `adb shell`. On an iOS Simulator it runs through `simctl spawn`, and `shell "simctl ui appearance dark"` fills in the device for `simctl` subcommands. A physical iPhone has no shell. A physical device refuses wipes and removing apps phone-use did not install unless you pass `--force`. See `docs/bench/shell.md` and decision D21.
+### How do I let Claude control my Android phone?
 
-## Development
+Add phonedriver to Claude Code as an MCP server with `claude mcp add`, then connect a phone with USB debugging on or start an emulator; nothing is installed on the phone. The suite passes on emulators (API 26 and 37); a phone uses the same path and is not tested on hardware. See [Try it](#try-it).
 
-```sh
-blaze build
-BLAZE_TESTS=all blaze test
-cargo clippy --all-targets -- -D warnings
-```
+### What is the fastest way for an AI agent to control a phone?
 
-Tests that need a device are ignored by default. Set `PHONE_USE_TEST_DEVICE` (for example `android:emulator-5554` or `sim:<udid>`) and pass `--ignored`. [`AGENTS.md`](AGENTS.md) holds the rules for working in this repository.
+phonedriver reads a 1,000-row Android screen in 24.0 ms where `adb` takes 2,352.4 ms, 98x faster at p50 on an emulator. It is 41x faster for a screenshot and 19x faster for typing 100 characters; a tap sent back to back is 1.1x faster. No physical phone is measured yet.
 
-<details>
-<summary>Brand</summary>
+### Does phonedriver work with iPhone?
 
-<p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset=".github/assets/brand-dark.svg">
-    <img alt="Brand sheet: the lockup, the mark at 16, 32, 64 and 128 pixels, ten Sodium colour tokens, and the two typefaces Inter Display and Commit Mono." src=".github/assets/brand-light.svg" width="100%">
-  </picture>
-</p>
+Yes. It drives the iOS Simulator, and iPhones and iPads when the runner is signed with an Apple developer team, tested on an iPhone 14 Plus and an iPad Pro. A tap on a device takes 454 to 534 ms. It needs a Mac with Xcode.
 
-The brand is built on the [Sodium](https://design.how/systems/sodium) design system: square corners, 1px rules, one weight, and one yellow. The mark is a phone frame drawn in rule weight with one row on the selection yellow, the ref that was tapped. Names and sentences are Inter Display 400; refs, code and labels in capitals are Commit Mono 400. [`design/logo/`](design/logo) holds the logo and favicon files, [`design/brand.md`](design/brand.md) the rules, and `python3 design/build/build.py` rebuilds every image. Text in the images is converted to outlines; both fonts are under the SIL Open Font License 1.1, and Sodium is MIT licensed (see [`NOTICE`](NOTICE)).
+### Can an AI agent buy things with phonedriver?
 
-</details>
+Not without a person. The approval guard stops a tap on a label such as `Place order`, `Pay` or `Delete account` and waits for the human to approve (exit code 5 on the CLI). It matches a fixed list of English labels, so a button with no label is not guarded.
+
+### How is phonedriver different from adb or mobile-mcp?
+
+adb sends raw input and returns raw XML; phonedriver returns a pruned numbered tree and, after each action, the lines that changed. mobile-mcp is another MCP server for Android and iOS; its source has no wait after actions, so an agent lists elements again, and it has no speed figure here. See [`docs/compare.md`](docs/compare.md).
+
+### How many tokens does it use?
+
+Across three tasks phonedriver used 218,357 tokens against 330,375 for phone-harness, 34% fewer, and it passed every run. It used more on one task (57,753 against 53,403), and each figure is a median of two to three runs.
+
+### Is phonedriver free?
+
+Yes. It is AGPL-3.0-only: if you run a modified version as a network service, you must publish your source under the same license. It sends no telemetry.
+
+## More
+
+[`docs/reference.md`](docs/reference.md) holds the environment variables, debugging and exit codes, using a device on another machine, Android over Wi-Fi, the `shell` verb, and the development and brand notes. [`llms.txt`](llms.txt) indexes the docs for language models.
 
 ## License
 

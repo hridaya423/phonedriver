@@ -8,7 +8,7 @@ edition = "2024"
 license = "AGPL-3.0-only"
 repository = "https://github.com/hridaya423/phone-use"
 homepage = "https://github.com/hridaya423/phone-use"
-description = "Lets AI agents see and operate Android and iOS devices."
+description = "phonedriver is an open-source MCP server and CLI that lets AI agents like Claude Code see and control Android and iOS phones."
 
 [workspace.lints.rust]
 unsafe_code = "deny"
