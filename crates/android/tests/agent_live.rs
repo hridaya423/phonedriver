@@ -438,3 +438,28 @@ async fn paste_waits_for_a_field_that_takes_focus_late() {
         "{log:?}"
     );
 }
+
+#[tokio::test]
+#[ignore = "needs PHONE_USE_TEST_DEVICE"]
+async fn set_into_a_field_that_refuses_set_text_selects_all_and_pastes_over_it() {
+    let (raw, mut c, _g) = start().await;
+    testbed::open_tab(&raw.adb, &raw.serial, "stubborn").await;
+    let field = find_node(&mut c, ":id/stubborn").await;
+    let (x, y) = center(&field);
+    tap(&mut c, x, y).await;
+    tokio::time::sleep(Duration::from_millis(800)).await;
+    testbed::clear_log(&raw.adb, &raw.serial).await;
+    c.ok(json!({"op":"text","mode":"set","text":""})).await;
+    c.ok(json!({"op":"text","mode":"set","text":"3710658"}))
+        .await;
+    let log = testbed::wait_for_log(&raw.adb, &raw.serial, 2000, |l| {
+        l.iter()
+            .any(|e| e["ev"] == "text" && e["field"] == "stubborn" && e["value"] == "3710658")
+    })
+    .await;
+    assert!(
+        log.iter()
+            .any(|e| e["field"] == "stubborn" && e["value"] == "3710658"),
+        "{log:?}"
+    );
+}

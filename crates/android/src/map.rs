@@ -125,12 +125,6 @@ pub fn reply_error(op: Op, error: &str) -> Error {
             reason: "keystroke mode has no key for this character; use paste mode",
         };
     }
-    if error.contains("refused set_text") {
-        return Error::Unsupported {
-            op,
-            reason: phone_use_core::error::REFUSED_SET_TEXT,
-        };
-    }
     Error::Transport {
         detail: format!("the agent could not run {}: {error}", op.name()),
     }
@@ -296,13 +290,6 @@ mod tests {
                 "java.lang.IllegalArgumentException: unmappable character U+E9 at 1"
             ),
             Error::Unsupported { op: Op::Text, .. }
-        ));
-        assert!(matches!(
-            reply_error(
-                Op::Text,
-                "java.lang.IllegalStateException: the field refused set_text"
-            ),
-            Error::Unsupported { op: Op::Text, reason } if reason == phone_use_core::error::REFUSED_SET_TEXT
         ));
         assert!(matches!(
             reply_error(Op::Tree, "boom"),

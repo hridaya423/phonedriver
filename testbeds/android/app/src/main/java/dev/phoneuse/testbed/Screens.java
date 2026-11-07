@@ -135,6 +135,24 @@ final class Screens {
         return frame;
     }
 
+    static View stubborn(Activity a) {
+        LinearLayout root = column(a);
+        EditText e = field(a, "stubborn", InputType.TYPE_CLASS_PHONE, false);
+        e.setText("+1");
+        e.setAccessibilityDelegate(
+                new View.AccessibilityDelegate() {
+                    @Override
+                    public boolean performAccessibilityAction(View host, int action, android.os.Bundle args) {
+                        if (action == android.view.accessibility.AccessibilityNodeInfo.ACTION_SET_TEXT) {
+                            return false;
+                        }
+                        return super.performAccessibilityAction(host, action, args);
+                    }
+                });
+        root.addView(e);
+        return root;
+    }
+
     static View lateFocus(Activity a) {
         LinearLayout root = column(a);
         View f = field(a, "late", InputType.TYPE_CLASS_TEXT, false);

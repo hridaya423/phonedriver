@@ -26,6 +26,7 @@
     <item name="b23" type="id" />
     <item name="plain" type="id" />
     <item name="late" type="id" />
+    <item name="stubborn" type="id" />
     <item name="multiline" type="id" />
     <item name="password" type="id" />
     <item name="rows" type="id" />

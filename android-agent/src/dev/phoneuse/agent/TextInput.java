@@ -105,11 +105,8 @@ final class TextInput {
         if (n.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)) {
             return;
         }
-        // Input focus in a web page is reported on the WebView itself, which has no set_text, so the page's field is
-        // selected with Ctrl+A and then deleted or pasted over.
-        if (!"android.webkit.WebView".contentEquals(String.valueOf(n.getClassName()))) {
-            throw new IllegalStateException("the field refused set_text");
-        }
+        // Input focus in a web page is reported on the WebView itself, which has no set_text, and Contacts' phone field
+        // (prefilled "+1") refuses it, so the field is selected with Ctrl+A and then deleted or pasted over.
         Input.selectAll();
         if (text.isEmpty()) {
             Input.key(KeyEvent.KEYCODE_DEL, "press");
