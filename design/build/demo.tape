@@ -11,7 +11,7 @@ Set Theme { "name": "Sodium", "black": "#141412", "red": "#ff6b57", "green": "#8
 
 Hide
 Type "unset ANTHROPIC_API_KEY; export DISABLE_COST_WARNINGS=1; export PS1='$ '; cd {{OUT}}/cwd" Enter
-Type `claude() { command claude --model sonnet --verbose --mcp-config {{OUT}}/mcp.json --strict-mcp-config --allowedTools 'mcp__phone-use__*' --tools ToolSearch --append-system-prompt 'You operate a phone with the phone-use MCP tools. Use only those tools.' "$@"; }` Enter
+Type `claude() { command claude --model sonnet --mcp-config {{OUT}}/mcp.json --strict-mcp-config --allowedTools 'mcp__phone-use__*' --tools ToolSearch --append-system-prompt 'You operate a phone with the phone-use MCP tools. Use only those tools.' "$@"; }` Enter
 Type "clear" Enter
 Sleep 500ms
 Type "python3 -c 'import time;print(time.time())' > {{OUT}}/term-start.txt; clear" Enter

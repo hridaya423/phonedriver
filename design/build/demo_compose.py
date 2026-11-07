@@ -31,11 +31,11 @@ img.save(bg)
 tmp.unlink()
 fc = (
     "[0:v]scale=640:-2:flags=lanczos,setpts=PTS-STARTPTS[t];"
-    f"[1:v]fps=30,trim=start={off}:duration={END},setpts=PTS-STARTPTS,scale=272:-2:flags=lanczos[p];"
+    "[1:v]fps=30,setpts=PTS-STARTPTS,scale=272:-2:flags=lanczos[p];"
     "[2:v][t]overlay=16:52:shortest=1[a];[a][p]overlay=672:52:shortest=1[v]"
 )
 mp4 = OUT / "demo.mp4"
-subprocess.run(["ffmpeg", "-v", "error", "-y", "-t", str(END), "-i", str(RUN / "term.mp4"), "-i", str(RUN / "screen.mov"), "-loop", "1", "-framerate", "30", "-i", str(bg),
+subprocess.run(["ffmpeg", "-v", "error", "-y", "-t", str(END), "-i", str(RUN / "term.mp4"), "-ss", str(off), "-i", str(RUN / "screen.mov"), "-loop", "1", "-framerate", "30", "-i", str(bg),
                 "-filter_complex", fc, "-map", "[v]", "-t", str(END), "-c:v", "libx264", "-crf", "20", "-pix_fmt", "yuv420p", "-movflags", "+faststart", str(mp4)], check=True)
 last = RUN / "last.png"
 subprocess.run(["ffmpeg", "-v", "error", "-y", "-sseof", "-0.1", "-i", str(mp4), "-frames:v", "1", str(last)], check=True)

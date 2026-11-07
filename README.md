@@ -13,10 +13,10 @@
 phone-use gives an AI agent a text view of an Android or iOS screen and the means to tap, type and swipe. Every action returns only the lines that changed.
 
 <p align="center">
-  <img alt="The real Claude Code terminal on the left and the iPhone 17 Simulator on the right. Claude Code is asked to open Safari, search Wikipedia for Grace Hopper and say when she was born. It opens Safari, types into the search box, ends up on a donation page, loads the Grace Hopper article by URL, and answers December 9, 1906." src=".github/assets/demo.gif" width="100%">
+  <img alt="Claude Code's real terminal on the left and the iPhone 17 Simulator on the right. Claude Code is asked to open Safari, search Wikipedia for Grace Hopper and say when she was born. It opens Safari, loads her Wikipedia article and answers December 9, 1906." src=".github/assets/demo.gif" width="100%">
 </p>
 
-<sub>A real recording, not a re-rendering: Claude Code's own terminal UI (captured with VHS) running Sonnet 5.5 on a subscription, driving the iOS 26.5 Simulator through the phone-use MCP server, next to the Simulator's own screen video. The two are aligned by wall-clock start times and played at real speed, cut only at the start and end of the run (nothing trimmed between tool calls); 24 s from prompt to answer. The prompt is `Open Safari, search Wikipedia for Grace Hopper and tell me when she was born.` It is a first take, not a clean one: the agent's typed search did not register, Safari landed on a Wikipedia donation page, and the agent recovered by loading the article by URL; every call succeeded. Safari started from cleared tabs. The yellow usage-limit notice in the terminal is Claude Code's own and could not be switched off. An <a href=".github/assets/demo.mp4">MP4</a> is at higher quality. Recorded by `design/build/demo_record.py` and `demo_compose.py`.</sub>
+<sub>Claude Code's real terminal driving the iOS Simulator through phone-use, in real time. An <a href=".github/assets/demo.mp4">MP4</a> is at higher quality.</sub>
 
 ## Speed
 
