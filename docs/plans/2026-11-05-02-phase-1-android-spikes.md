@@ -26,7 +26,7 @@
 
 **Build script:** `spikes/android-agent/build.sh` modeled on `scrcpy/server/build_without_gradle.sh` (javac with `-bootclasspath android.jar`, then `d8 --min-api 26 --output out.jar classes/**/*.class`).
 
-**Run:** push, then `adb shell CLASSPATH=/data/local/tmp/spike.jar app_process / dev.phoneuse.spike.Main tree` on both emulators with Settings open.
+**Run:** push, then `adb shell CLASSPATH=/data/local/tmp/spike.jar app_process / dev.phonedriver.spike.Main tree` on both emulators with Settings open.
 
 Connect with `UiAutomation.FLAG_DONT_SUPPRESS_ACCESSIBILITY_SERVICES`. Emit the tree in the exact `RawNode` format of `docs/protocol.md` section 2, so the dumps double as real fixtures.
 
@@ -73,7 +73,7 @@ Connect with `UiAutomation.FLAG_DONT_SUPPRESS_ACCESSIBILITY_SERVICES`. Emit the 
 
 ## Spike A5: agent launch hygiene
 
-**Run:** start the spike agent through a `shell,v2,raw:` stream from the Rust host, then (a) close that stream and check the agent process is gone within 1 s (`pidof app_process` / `ps -A | grep dev.phoneuse`); (b) confirm `pkill -f dev.phoneuse.agent.Main` matches it and `pkill -f phone-use-agent` does not; (c) push the jar with mode 0444 and confirm `app_process` loads it on API 26 and 37; (d) write a token to the agent's stdin and confirm a connection without it is dropped.
+**Run:** start the spike agent through a `shell,v2,raw:` stream from the Rust host, then (a) close that stream and check the agent process is gone within 1 s (`pidof app_process` / `ps -A | grep dev.phonedriver`); (b) confirm `pkill -f dev.phonedriver.agent.Main` matches it and `pkill -f phonedriver-agent` does not; (c) push the jar with mode 0444 and confirm `app_process` loads it on API 26 and 37; (d) write a token to the agent's stdin and confirm a connection without it is dropped.
 
 **Record:** the four results. They fix the launch rules in architecture 6.2.
 

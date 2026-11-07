@@ -1,8 +1,8 @@
-# Phase 5: iOS Simulator tier and PhoneUseRunner
+# Phase 5: iOS Simulator tier and PhonedriverRunner
 
 > **For Claude:** REQUIRED SUB-SKILL: Use `executing-plans` to implement task-by-task.
 
-**Goal:** The PhoneUseRunner serves trees, input and screenshots; the Simulator tier passes an iOS scenario suite; the runner's tree is at least 2x faster than WebDriverAgent's. Milestone **M4**.
+**Goal:** The PhonedriverRunner serves trees, input and screenshots; the Simulator tier passes an iOS scenario suite; the runner's tree is at least 2x faster than WebDriverAgent's. Milestone **M4**.
 
 **Architecture:** `docs/architecture.md` sections 7 and 7.3. Protocol: `docs/protocol.md` section 3. Prior art: `docs/research/prior-art.md` WebDriverAgent rows.
 
@@ -14,9 +14,9 @@
 
 ### Task 5.1: iOS testbed
 
-**Files:** Create `testbeds/ios/project.yml` (XcodeGen; iOS 17 deployment target; bundle id `dev.phoneuse.testbed`), `testbeds/ios/Testbed/*.swift`.
+**Files:** Create `testbeds/ios/project.yml` (XcodeGen; iOS 17 deployment target; bundle id `dev.phonedriver.testbed`), `testbeds/ios/Testbed/*.swift`.
 
-Same tabs as the Android testbed (Phase 2 task 2.8), in SwiftUI with `accessibilityIdentifier` on every control, plus a **Nav** tab with a `NavigationStack` two levels deep (to test `back`). Logging: append JSON lines to `Documents/putb.log`; touches are captured with a `UIWindow` subclass overriding `sendEvent(_:)` so raw touch phases, locations in points and timestamps are logged. Add `crates/ios/tests/support/testbed.rs`: build and install to a simulator (`xcodegen && xcodebuild -scheme Testbed -destination id=<udid> build`, then `simctl install`), `clear_log`, `read_log` (path from `xcrun simctl get_app_container <udid> dev.phoneuse.testbed data`).
+Same tabs as the Android testbed (Phase 2 task 2.8), in SwiftUI with `accessibilityIdentifier` on every control, plus a **Nav** tab with a `NavigationStack` two levels deep (to test `back`). Logging: append JSON lines to `Documents/putb.log`; touches are captured with a `UIWindow` subclass overriding `sendEvent(_:)` so raw touch phases, locations in points and timestamps are logged. Add `crates/ios/tests/support/testbed.rs`: build and install to a simulator (`xcodegen && xcodebuild -scheme Testbed -destination id=<udid> build`, then `simctl install`), `clear_log`, `read_log` (path from `xcrun simctl get_app_container <udid> dev.phonedriver.testbed data`).
 
 *As built (2026-11-05):* the host helper is `testbeds/ios/testbed.py` (Python 3 standard library), because the mini has no Rust toolchain and tasks 5.1 to 5.3 have no Rust consumer yet; task 5.5 ports it to `crates/ios/tests/support/testbed.rs` when the first Rust live test needs it. Nine tabs do not fit a system `TabView` on a phone (five would hide behind "More"), so the testbed draws its own one-row tab bar (`tab.<name>` identifiers). Tests select a tab with the launch argument `-tab <name>`; `simctl openurl putb://tab/<name>` works too but raises a system "Open in Testbed?" confirmation first. The log is opened with `O_APPEND`, so `clear_log` truncates it rather than deleting it. The mini has only the iOS 26.5 simulator runtime (11 GB free disk, not enough for the iOS 27 runtime), so Phase 5 runs on an iPhone 17 simulator with iOS 26.5, built with the iOS 27 SDK.
 
@@ -28,14 +28,14 @@ Same tabs as the Android testbed (Phase 2 task 2.8), in SwiftUI with `accessibil
 
 Build WebDriverAgent at `3d6a4e0` for the simulator. Time `GET /source` on the testbed List tab and on Settings, 20 runs, with default settings and with `snapshotMaxDepth = 30`. Then, in a minimal XCTest, time `XCUIApplication` snapshot through `XCAXClient_iOS` with bounded `maxDepth` and the reduced attribute list (label, value, identifier, frame, elementType, enabled, selected, hasFocus, placeholderValue). Record both in `docs/spikes/ios.md`. This sets the D4 bar: the runner must be at least 2x faster than tuned WDA.
 
-### Task 5.3: PhoneUseRunner
+### Task 5.3: PhonedriverRunner
 
-**Files:** Create `ios-runner/project.yml`, `ios-runner/Runner/PhoneUseRunnerTests.m`, `ios-runner/Runner/{Server,Snapshot,Gesture,Screenshot,Typing,Buttons,Json}.{h,m}`, `ios-runner/PrivateHeaders/` (only the headers used, copied from WDA with license notice in `NOTICE`).
+**Files:** Create `ios-runner/project.yml`, `ios-runner/Runner/PhonedriverRunnerTests.m`, `ios-runner/Runner/{Server,Snapshot,Gesture,Screenshot,Typing,Buttons,Json}.{h,m}`, `ios-runner/PrivateHeaders/` (only the headers used, copied from WDA with license notice in `NOTICE`).
 
 **Step 1: Failing test** (`crates/ios/tests/runner_live.rs`, `#[ignore]`): launch the runner on the simulator, connect, `hello` returns the screen size in points; `snapshot` of the testbed contains the identifier `taps.b17`.
 
 **Step 2:** FAIL. **Step 3: Implement.**
-- `testRun` starts the server on `PHONE_USE_PORT` (default 27753) and blocks the test forever on a run loop. Set `executionTimeAllowance` off for this test and launch `xcodebuild` with `-test-timeouts-enabled NO` so XCTest never kills it.
+- `testRun` starts the server on `PHONEDRIVER_PORT` (default 27753) and blocks the test forever on a run loop. Set `executionTimeAllowance` off for this test and launch `xcodebuild` with `-test-timeouts-enabled NO` so XCTest never kills it.
 - `open_url`: `XCUIDevice.sharedDevice.system openURL:` (Xcode 14.3+).
 - `Server`: `NWListener` (Network.framework), one connection at a time, `u32` length + JSON framing.
 - `Snapshot`: active application via the `fb_activeApplication` approach; bounded depth and reduced attributes from spike I4; flatten to `RawNode` preorder with parent indexes.
@@ -52,9 +52,9 @@ Build WebDriverAgent at `3d6a4e0` for the simulator. Time `GET /source` on the t
 
 **Files:** Create `crates/ios/src/simulator.rs`, `crates/ios/src/runner.rs`.
 
-**Tests** (`#[ignore]`): `Simulator::list()` parses `xcrun simctl list devices -j` and returns booted devices. Starting the runner builds once (`xcodebuild build-for-testing`, cached by a hash of `ios-runner/`), then launches with `xcodebuild test-without-building -xctestrun <file> -destination id=<udid>` as a child process with `TEST_RUNNER_PHONE_USE_PORT` set to `27753 + index` (xcodebuild strips the prefix and passes `PHONE_USE_PORT` to the test). Test: two simulators get two runners on two ports with no collision. The daemon polls `hello` on the port every 100 ms (up to 60 s for a cold build) instead of reading xcodebuild's output. Killing the daemon kills the child (process group). A second daemon start reuses a running runner if `hello` answers with the same version.
+**Tests** (`#[ignore]`): `Simulator::list()` parses `xcrun simctl list devices -j` and returns booted devices. Starting the runner builds once (`xcodebuild build-for-testing`, cached by a hash of `ios-runner/`), then launches with `xcodebuild test-without-building -xctestrun <file> -destination id=<udid>` as a child process with `TEST_RUNNER_PHONEDRIVER_PORT` set to `27753 + index` (xcodebuild strips the prefix and passes `PHONEDRIVER_PORT` to the test). Test: two simulators get two runners on two ports with no collision. The daemon polls `hello` on the port every 100 ms (up to 60 s for a cold build) instead of reading xcodebuild's output. Killing the daemon kills the child (process group). A second daemon start reuses a running runner if `hello` answers with the same version.
 
-*As built (2026-11-05):* the port is not `27753 + index` but the first free port from 27753 (an index into the booted list shifts when a simulator boots or shuts down, and then a reused runner would be attributed to the wrong simulator). To make reuse safe the runner's `hello` gained `udid` (from `SIMULATOR_UDID`) and `build` (the source hash, passed as `TEST_RUNNER_PHONE_USE_BUILD`); "same version" means same wire version and same build. The sources are embedded in the binary and the build is cached under `~/.phone-use/runner/<hash>`; it targets `generic/platform=iOS Simulator`, so one build serves every simulator. The 60 s readiness wait starts after the build. Live tests: `crates/ios/tests/runner_live.rs`.
+*As built (2026-11-05):* the port is not `27753 + index` but the first free port from 27753 (an index into the booted list shifts when a simulator boots or shuts down, and then a reused runner would be attributed to the wrong simulator). To make reuse safe the runner's `hello` gained `udid` (from `SIMULATOR_UDID`) and `build` (the source hash, passed as `TEST_RUNNER_PHONEDRIVER_BUILD`); "same version" means same wire version and same build. The sources are embedded in the binary and the build is cached under `~/.phonedriver/runner/<hash>`; it targets `generic/platform=iOS Simulator`, so one build serves every simulator. The 60 s readiness wait starts after the build. Live tests: `crates/ios/tests/runner_live.rs`.
 
 ### Task 5.5: IosDevice, Simulator tier
 
@@ -68,13 +68,13 @@ Implements `Device`: `tree` and `gesture` and `screenshot` and `text` (mode `Key
 
 ### Task 5.6: Scenario suite and benchmark (M4)
 
-**Files:** Create `bench/scenarios/ios/*.yaml` (12 scenarios: Settings appearance to dark, Settings search, Safari open URL and read title, Contacts add, Reminders add, each testbed tab's core check, Nav back twice, a long emoji text). Extend `phone-use-bench` for iOS ops.
+**Files:** Create `bench/scenarios/ios/*.yaml` (12 scenarios: Settings appearance to dark, Settings search, Safari open URL and read title, Contacts add, Reminders add, each testbed tab's core check, Nav back twice, a long emoji text). Extend `phonedriver-bench` for iOS ops.
 
 Record runner screenshot time (p50/p95) as its own number; it sets how fast the Simulator tier can poll for settle. If it is above 300 ms, try JPEG quality 30 at half scale for settle polling only.
 
 **Gate M4:** 12/12 scenarios pass three runs in a row on the iOS 27 simulator. Runner snapshot p50 is at most half of tuned WDA's on the same screens (D4); if not, follow D4: switch to WDA and delete the runner's snapshot code. Numbers in `docs/bench/m4.md`.
 
-*As built (2026-11-05):* the scenarios run through the CLI with `phone-use-bench scenario` (`bench/src/scenario.rs`), and the iOS benchmark is `phone-use-bench ios` (`bench/src/ios.rs`); `main.rs` only dispatches to them. Three scenarios differ from the list above, because the iOS 26.5 Simulator without an Apple Account cannot do them: Reminders and Calendar have no local list ("New Reminder" and "Add" stay disabled, and Reminders asks to enable iCloud on every launch), so `files-new-folder` (Files, On My iPhone) replaces "Reminders add"; Settings search answers "No Results" for every query on this simulator, so `settings-search` checks that the query reached the field and that Settings answered for it; Settings has no Display & Brightness on the Simulator, so dark appearance is Developer > Dark Appearance, checked with `simctl ui appearance`. The testbed's Taps tab gained a "Dark theme" toggle, as on Android, for the tap-to-settled-diff benchmark row. The gate runs on the iOS 26.5 simulator (see task 5.1). `launch`, `open` and `swipe` were first added here as minimal versions and replaced by Phase 3's at the merge; the scenario runner is the one Android runner with a platform chosen by device id (see `docs/bench/m4.md`). WebDriverAgent was not rebuilt for the D4 check: its checkout went with spike I4 and the mini had 2 GB free, so the runner is re-measured against task 5.3's WDA numbers, once as the machine was and once under 5.3's conditions.
+*As built (2026-11-05):* the scenarios run through the CLI with `phonedriver-bench scenario` (`bench/src/scenario.rs`), and the iOS benchmark is `phonedriver-bench ios` (`bench/src/ios.rs`); `main.rs` only dispatches to them. Three scenarios differ from the list above, because the iOS 26.5 Simulator without an Apple Account cannot do them: Reminders and Calendar have no local list ("New Reminder" and "Add" stay disabled, and Reminders asks to enable iCloud on every launch), so `files-new-folder` (Files, On My iPhone) replaces "Reminders add"; Settings search answers "No Results" for every query on this simulator, so `settings-search` checks that the query reached the field and that Settings answered for it; Settings has no Display & Brightness on the Simulator, so dark appearance is Developer > Dark Appearance, checked with `simctl ui appearance`. The testbed's Taps tab gained a "Dark theme" toggle, as on Android, for the tap-to-settled-diff benchmark row. The gate runs on the iOS 26.5 simulator (see task 5.1). `launch`, `open` and `swipe` were first added here as minimal versions and replaced by Phase 3's at the merge; the scenario runner is the one Android runner with a platform chosen by device id (see `docs/bench/m4.md`). WebDriverAgent was not rebuilt for the D4 check: its checkout went with spike I4 and the mini had 2 GB free, so the runner is re-measured against task 5.3's WDA numbers, once as the machine was and once under 5.3's conditions.
 
 ### Task 5.7: doctor for iOS Simulator
 

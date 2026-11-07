@@ -47,11 +47,11 @@ Record everything in `docs/spikes/ios.md`.
 
 **Files:** Create `crates/ios/src/transport.rs`, `crates/ios/src/discovery.rs`.
 
-**Unit tests:** map idevice errors to `core::Error`: not paired → `NeedsUser(TrustComputer)`; Developer Mode off → `NeedsUser(EnableDeveloperMode)`; DDI missing → `NeedsUser(MountDeveloperImage)` with the `phone-use ios setup` command; lost tunnel → `DeviceGone` after one reconnect attempt.
+**Unit tests:** map idevice errors to `core::Error`: not paired → `NeedsUser(TrustComputer)`; Developer Mode off → `NeedsUser(EnableDeveloperMode)`; DDI missing → `NeedsUser(MountDeveloperImage)` with the `phonedriver ios setup` command; lost tunnel → `DeviceGone` after one reconnect attempt.
 
 **Live tests** (`#[ignore]`, approved device only): discovery lists the device with tier chosen by OS version and available services; the daemon re-establishes the tunnel after unplug and replug within 5 s.
 
-### Task 6.4: `phone-use ios setup`
+### Task 6.4: `phonedriver ios setup`
 
 Pairs (prompts the user to tap Trust), reveals the Developer Mode toggle (`amfi`), and mounts the DDI. On macOS, uses Xcode's DDI files; elsewhere, prints the source it would download from and asks for confirmation (one-way door). Idempotent: a second run prints `ok` for each step.
 
@@ -71,13 +71,13 @@ Implements `Device` with: display stream started on lease and kept alive; `frame
 
 ### Task 6.6: Runner tier on device
 
-Build the runner for the device with the user's team (`xcodebuild build-for-testing -allowProvisioningUpdates DEVELOPMENT_TEAM=<team>`). Install and launch with `xcodebuild test-without-building` (idevice `xctest` is the Xcode-free path and is not built yet). Connect to device port 27753 through the idevice provider (as `services/wda.rs` does). `phone-use devices` shows the runner's profile expiry date.
+Build the runner for the device with the user's team (`xcodebuild build-for-testing -allowProvisioningUpdates DEVELOPMENT_TEAM=<team>`). Install and launch with `xcodebuild test-without-building` (idevice `xctest` is the Xcode-free path and is not built yet). Connect to device port 27753 through the idevice provider (as `services/wda.rs` does). `phonedriver devices` shows the runner's profile expiry date.
 
 **Live tests:** Phase 5's iOS live tests pass on the iOS 26.5 device (Runner tier) and, with the runner installed, on the iOS 27 device (CoreDevice tier with tree).
 
 ### Task 6.7: Benchmark (M5)
 
-Run `phone-use-bench` on each approved device and tier. **Gate M5:** budgets from architecture section 12 (iOS columns) met or, where missed, profiled with the cause recorded in `docs/bench/m5.md`. Run the iOS scenario suite on each device: 12/12.
+Run `phonedriver-bench` on each approved device and tier. **Gate M5:** budgets from architecture section 12 (iOS columns) met or, where missed, profiled with the cause recorded in `docs/bench/m5.md`. Run the iOS scenario suite on each device: 12/12.
 
 ### Task 6.8: doctor for devices
 

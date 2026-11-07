@@ -1,11 +1,11 @@
 ---
-name: phone-use
+name: phonedriver
 description: Use when the task needs a phone, tablet, iPhone, iPad, Android device, emulator or simulator, or a mobile app: look at the screen, tap, type, scroll, open an app, change a setting, or check what an app shows.
 ---
 
-# phone-use
+# phonedriver
 
-phone-use shows an Android or iOS device's screen as text and operates it. The MCP tools (`snapshot`, `tap`, `type`, ...) and the command line (`phone-use <verb>`) return the same text. Each tool's description holds its details; this file holds the strategy across tools.
+phonedriver shows an Android or iOS device's screen as text and operates it. The MCP tools (`snapshot`, `tap`, `type`, ...) and the command line (`phonedriver <verb>`) return the same text. Each tool's description holds its details; this file holds the strategy across tools.
 
 ## Settings and system actions: `shell` first
 
@@ -13,7 +13,7 @@ Run a setting, intent or key with `shell`: one call returns the exit code, the o
 
 - Android: `cmd uimode night yes`, `settings put system screen_brightness 20`, `am start -a android.intent.action.VIEW -d <url>`, `input keyevent 3`, `dumpsys window | grep mCurrentFocus`.
 - iOS Simulator: `simctl ui appearance dark`, `simctl openurl <url>`, `simctl privacy grant photos <bundle id>`, `simctl location set <lat>,<lon>`.
-- A physical iPhone has no shell. A physical Android refuses wipes and removing apps phone-use did not install; pass `force` only when the user asked for exactly that.
+- A physical iPhone has no shell. A physical Android refuses wipes and removing apps phonedriver did not install; pass `force` only when the user asked for exactly that.
 
 ## App UI: the loop
 
@@ -55,7 +55,7 @@ Unlocking the phone, a USB debugging prompt, a biometric prompt and a trust-this
 
 Each error has a hint that names the next step; follow it.
 
-- No device: run `phone-use doctor` and report what it says. More than one device: pass `device` with an id from `devices`.
+- No device: run `phonedriver doctor` and report what it says. More than one device: pass `device` with an id from `devices`.
 - Another session holds the device: wait or use another device; the error says how long it has been idle.
 - Text not found: the error lists similar text; scroll or fix the spelling.
 - Not supported on this device: the error says why; use another approach.

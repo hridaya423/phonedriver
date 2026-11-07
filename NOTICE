@@ -1,4 +1,4 @@
-phone-use
+phonedriver
 =========
 
 The on-device agent in android-agent/ contains source files copied from scrcpy
@@ -34,10 +34,10 @@ android-agent/src/com/genymobile/scrcpy/wrappers/StatusBarManager.java
 android-agent/src/com/genymobile/scrcpy/wrappers/SurfaceControl.java
 android-agent/src/com/genymobile/scrcpy/wrappers/WindowManager.java
 
-The video encoder settings (android-agent/src/dev/phoneuse/agent/Video.java) follow
+The video encoder settings (android-agent/src/dev/phonedriver/agent/Video.java) follow
 scrcpy's video/SurfaceEncoder.java; the gesture player and control server are new code.
 
-phone-use includes material derived from the following projects.
+phonedriver includes material derived from the following projects.
 
 ------------------------------------------------------------------------------
 WebDriverAgent

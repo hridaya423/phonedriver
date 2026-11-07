@@ -2,7 +2,7 @@
 
 > **For Claude:** REQUIRED SUB-SKILL: Use `executing-plans` to implement task-by-task.
 
-**Goal:** A Rust workspace with CI and the pure domain core (`phone-use-core`) fully tested before any device code exists.
+**Goal:** A Rust workspace with CI and the pure domain core (`phonedriver-core`) fully tested before any device code exists.
 
 **Architecture:** `docs/architecture.md` sections 3 and 4. Core has no IO. Everything here is testable on the MacBook alone.
 
@@ -18,15 +18,15 @@ Use `blaze build`, `blaze test`, `blaze check` instead of cargo (user rule). Use
 - Create: `Cargo.toml` (workspace, `resolver = "3"`, members `crates/*`, shared `[workspace.package] version = "0.1.0"`, `edition = "2024"`, `[workspace.lints]`)
 - Create: `crates/core/Cargo.toml`, `crates/core/src/lib.rs`
 - Create: `crates/video/…`, `crates/android/…`, `crates/ios/…` as empty libs (`lib.rs` with nothing)
-- Create: `crates/cli/Cargo.toml` (`[[bin]] name = "phone-use"`), `crates/cli/src/main.rs`
+- Create: `crates/cli/Cargo.toml` (`[[bin]] name = "phonedriver"`), `crates/cli/src/main.rs`
 - Create: `crates/cli/tests/cli.rs`
 - Create: `.gitignore` (`/target`, `/spikes/*/build`, `*.jar`, `.DS_Store`, `/testbeds/android/build`, `/testbeds/android/.gradle`, `/ios-runner/build`)
 
-**Step 1: Write the failing test.** `crates/cli/tests/cli.rs`: run the binary with `version`; assert stdout is exactly `phone-use 0.1.0\n` and exit 0. Second test: no args prints usage to stderr and exits 2.
+**Step 1: Write the failing test.** `crates/cli/tests/cli.rs`: run the binary with `version`; assert stdout is exactly `phonedriver 0.1.0\n` and exit 0. Second test: no args prints usage to stderr and exits 2.
 
-**Step 2: Run it.** `blaze test -p phone-use` → FAIL (binary prints nothing).
+**Step 2: Run it.** `blaze test -p phonedriver` → FAIL (binary prints nothing).
 
-**Step 3: Minimal implementation.** `main.rs` matches `std::env::args().nth(1)`: `"version"` prints `phone-use {CARGO_PKG_VERSION}`; otherwise usage to stderr, exit 2. No arg-parsing crate yet; `clap` arrives in Phase 2 when there are real verbs.
+**Step 3: Minimal implementation.** `main.rs` matches `std::env::args().nth(1)`: `"version"` prints `phonedriver {CARGO_PKG_VERSION}`; otherwise usage to stderr, exit 2. No arg-parsing crate yet; `clap` arrives in Phase 2 when there are real verbs.
 
 **Step 4: Run it.** Same command → PASS.
 
@@ -39,7 +39,7 @@ Use `blaze build`, `blaze test`, `blaze check` instead of cargo (user rule). Use
 - Create: `rustfmt.toml` (`max_width = 100`)
 - Create: `.github/workflows/ci.yml`: matrix macOS, Ubuntu, Windows; steps `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test --workspace`. CI uses cargo because blaze is a local daemon.
 
-**Step 1:** `cargo fmt --check && cargo clippy --all-targets -- -D warnings` → PASS. CI cannot run until a remote exists (one-way door); note that in `progress.md`. Also add to the root `Cargo.toml` `[workspace.metadata.blaze.sandbox] unsandboxed-build-scripts = ["phone-use-android"]` now: Phase 2's `crates/android/build.rs` runs `javac` and `d8` from outside the workspace, which blaze's sandbox blocks.
+**Step 1:** `cargo fmt --check && cargo clippy --all-targets -- -D warnings` → PASS. CI cannot run until a remote exists (one-way door); note that in `progress.md`. Also add to the root `Cargo.toml` `[workspace.metadata.blaze.sandbox] unsandboxed-build-scripts = ["phonedriver-android"]` now: Phase 2's `crates/android/build.rs` runs `javac` and `d8` from outside the workspace, which blaze's sandbox blocks.
 
 **Step 2:** Commit `chore: lints and CI`.
 
@@ -53,7 +53,7 @@ Use `blaze build`, `blaze test`, `blaze check` instead of cargo (user rule). Use
 - `Scale::to_device(point)` with density 2.625 maps `(100,200)` to `(262.5,525)` and `to_points` inverts it (property test: round-trip within 0.01 for any point in 0..10_000).
 - `Scale::to_hid(point, screen)` maps `(0,0)` to `(0,0)` and `(screen.w, screen.h)` to `(65535,65535)`.
 
-**Step 2:** `blaze test -p phone-use-core geometry` → FAIL (types missing).
+**Step 2:** `blaze test -p phonedriver-core geometry` → FAIL (types missing).
 
 **Step 3: Implement.** `Point { x: f32, y: f32 }`, `Size`, `Rect`, `Scale { density: f32 }` with `to_device`, `to_points`, `to_hid`. `#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]`.
 
@@ -69,7 +69,7 @@ Use `blaze build`, `blaze test`, `blaze check` instead of cargo (user rule). Use
 - `Role::from_android_class("android.widget.Switch")` is `Switch`; `"androidx.recyclerview.widget.RecyclerView"` is `List`; an unknown class is `Other`. Table-driven test with 25 classes.
 - `Role::from_xcui("XCUIElementTypeButton")` is `Button`. 20 types.
 
-**Step 2:** `blaze test -p phone-use-core element raw` → FAIL.
+**Step 2:** `blaze test -p phonedriver-core element raw` → FAIL.
 
 **Step 3: Implement.** Types from architecture 4.2. `RawTree { windows: Vec<RawWindow>, nodes: Vec<RawNode> }`. The role tables are two `match` blocks, one per platform. No trait for "platform mapper".
 
@@ -134,7 +134,7 @@ Use `blaze build`, `blaze test`, `blaze check` instead of cargo (user rule). Use
 
 **Files:** Create `crates/core/src/error.rs`.
 
-**Step 1: Failing tests.** Every variant serializes to `{code, code_name, message, hint}` with the codes in `docs/protocol.md` section 1. `StaleRef` hint names `phone-use snapshot` and the closest element line. `NeedsUser(UnlockDevice)` message tells the user to unlock and says phone-use never enters passcodes. Table test over all `Error` variants and all `UserAction` variants (architecture 4.7) checks no message is empty and every hint starts with a verb.
+**Step 1: Failing tests.** Every variant serializes to `{code, code_name, message, hint}` with the codes in `docs/protocol.md` section 1. `StaleRef` hint names `phonedriver snapshot` and the closest element line. `NeedsUser(UnlockDevice)` message tells the user to unlock and says phonedriver never enters passcodes. Table test over all `Error` variants and all `UserAction` variants (architecture 4.7) checks no message is empty and every hint starts with a verb.
 
 **Step 2:** FAIL. **Step 3:** `thiserror` enum from architecture 4.7, plus `fn rpc_code(&self) -> i32` and `fn hint(&self) -> String`. **Step 4:** PASS. Commit.
 

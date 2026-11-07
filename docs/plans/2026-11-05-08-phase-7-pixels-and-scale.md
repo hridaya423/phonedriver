@@ -39,7 +39,7 @@ No new code: `adb pair` and `adb connect` already exist, and a connected Wi-Fi d
 
 ### Task 7.6: Remote use over SSH
 
-Document in `README.md` and test once: daemon on the mini with a simulator, client on the MacBook through `ssh -N -L /tmp/phone-use-mini.sock:/Users/<user>/.phone-use/run/daemon.sock mini`, and `PHONE_USE_SOCKET=/tmp/phone-use-mini.sock phone-use snapshot`. `PHONE_USE_SOCKET` was already read (`daemon/socket.rs`, since Phase 2); the only code change is that a dead forward names the variable in the error. `screenshot` prints a path on the device's machine (README says how to fetch it). No new network code.
+Document in `README.md` and test once: daemon on the mini with a simulator, client on the MacBook through `ssh -N -L /tmp/phonedriver-mini.sock:/Users/<user>/.phonedriver/run/daemon.sock mini`, and `PHONEDRIVER_SOCKET=/tmp/phonedriver-mini.sock phonedriver snapshot`. `PHONEDRIVER_SOCKET` was already read (`daemon/socket.rs`, since Phase 2); the only code change is that a dead forward names the variable in the error. `screenshot` prints a path on the device's machine (README says how to fetch it). No new network code.
 
 ---
 

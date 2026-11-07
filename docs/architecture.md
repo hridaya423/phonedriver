@@ -1,13 +1,13 @@
-# phone-use architecture
+# phonedriver architecture
 
-phone-use lets an AI agent see and operate a real or virtual phone or tablet: Android and iOS, USB or network, device or emulator. This document is the design. `docs/decisions.md` records why each choice beat its alternatives. `docs/protocol.md` defines every wire format. Terms are defined in `docs/GLOSSARY.md`.
+phonedriver lets an AI agent see and operate a real or virtual phone or tablet: Android and iOS, USB or network, device or emulator. This document is the design. `docs/decisions.md` records why each choice beat its alternatives. `docs/protocol.md` defines every wire format. Terms are defined in `docs/GLOSSARY.md`.
 
 ## 1. What the agent experiences
 
 The design starts here. Everything below exists to make this loop fast, exact, and hard to misuse.
 
 ```console
-$ phone-use snapshot
+$ phonedriver snapshot
 device android:emulator-5554 · Pixel 9 · Android 17 · 412x915pt · portrait
 app com.android.settings (Settings) · keyboard hidden · settled in 212ms
 @e1 searchbox "Search settings"
@@ -17,14 +17,14 @@ app com.android.settings (Settings) · keyboard hidden · settled in 212ms
   @e5 button "Apps" "Recent apps, default apps"
   @e6 button "Display & touch" "Dark theme, font size, brightness"
 
-$ phone-use tap @e6
+$ phonedriver tap @e6
 ok tapped @e6 "Display & touch" at 206,488 · settled in 340ms · new screen
 app com.android.settings (Settings) · keyboard hidden
 @e9 heading "Display & touch"
 @e10 switch "Dark theme" off
 @e11 button "Brightness level" "64%"
 
-$ phone-use tap @e10
+$ phonedriver tap @e10
 ok tapped @e10 "Dark theme" · settled in 410ms
 ~ @e10 switch "Dark theme" off → on
 ```
@@ -40,36 +40,36 @@ Properties of that loop:
 ## 2. System shape
 
 ```
- agent ──CLI──┐                                ┌── Android device ── phone-use-agent (app_process, shell uid)
- agent ──MCP──┼─ JSON-RPC over local socket ─ phone-use daemon ──┼── iOS 27+ device ── CoreDevice services (no app)
- SDK  ────────┘                                │                 └── iOS ≤26 device / Simulator ── PhoneUseRunner (XCTest)
+ agent ──CLI──┐                                ┌── Android device ── phonedriver-agent (app_process, shell uid)
+ agent ──MCP──┼─ JSON-RPC over local socket ─ phonedriver daemon ──┼── iOS 27+ device ── CoreDevice services (no app)
+ SDK  ────────┘                                │                 └── iOS ≤26 device / Simulator ── PhonedriverRunner (XCTest)
                                                └── per device: DeviceActor { connection, FrameStore, Session state }
 ```
 
-One Rust binary, `phone-use`, plays three roles selected by subcommand:
+One Rust binary, `phonedriver`, plays three roles selected by subcommand:
 
-- `phone-use <verb>`: the CLI. A thin client. It connects to the daemon, sends one request, prints the reply.
-- `phone-use daemon`: the long-lived process that owns every device connection. Started on demand by the CLI.
-- `phone-use mcp`: an MCP server on stdio. Also a thin client of the daemon.
+- `phonedriver <verb>`: the CLI. A thin client. It connects to the daemon, sends one request, prints the reply.
+- `phonedriver daemon`: the long-lived process that owns every device connection. Started on demand by the CLI.
+- `phonedriver mcp`: an MCP server on stdio. Also a thin client of the daemon.
 
 The daemon exists because the expensive things are persistent: the on-device agent, the iOS tunnel, the video decoder, the tree cache, ref identity. A per-call process (the competitor's model) pays all of that every time.
 
 ## 3. Repository layout
 
 ```
-phone-use/
+phonedriver/
   Cargo.toml                    workspace
   crates/
-    core/      phone-use-core   pure domain: elements, refs, snapshot render, diff, settle, geometry, errors
-    video/     phone-use-video  H.264/HEVC decode to FrameStore (RGBA + luma thumbnail)
-    android/   phone-use-android adb server client, agent deploy, agent protocol client, AndroidDevice
-    ios/       phone-use-ios    idevice transport, CoreDevice tier, runner client, simulator, IosDevice
-    cli/       phone-use        the binary: cli, daemon, mcp, rpc
-  android-agent/                Java sources for the on-device agent, built to phone-use-agent.jar
-  ios-runner/                   XcodeGen project for PhoneUseRunner (XCTest UI test bundle)
+    core/      phonedriver-core   pure domain: elements, refs, snapshot render, diff, settle, geometry, errors
+    video/     phonedriver-video  H.264/HEVC decode to FrameStore (RGBA + luma thumbnail)
+    android/   phonedriver-android adb server client, agent deploy, agent protocol client, AndroidDevice
+    ios/       phonedriver-ios    idevice transport, CoreDevice tier, runner client, simulator, IosDevice
+    cli/       phonedriver        the binary: cli, daemon, mcp, rpc
+  android-agent/                Java sources for the on-device agent, built to phonedriver-agent.jar
+  ios-runner/                   XcodeGen project for PhonedriverRunner (XCTest UI test bundle)
   testbeds/android/             Gradle app with ground-truth UI and event logging
   testbeds/ios/                 XcodeGen SwiftUI app with ground-truth UI and event logging
-  bench/                        workspace member `phone-use-bench` (publish = false): latency, scenarios, baselines
+  bench/                        workspace member `phonedriver-bench` (publish = false): latency, scenarios, baselines
   NOTICE                        attribution for code copied from scrcpy and WebDriverAgent
   docs/
 ```
@@ -82,7 +82,7 @@ Why these crate boundaries (each must pay rent):
 
 No other shipped crates (`bench` is a dev-only binary). A new crate needs a second consumer or a disjoint dependency tree. OCR engines live in `cli` because they are IO; the pure merge logic lives in `core`.
 
-## 4. Domain model (`phone-use-core`)
+## 4. Domain model (`phonedriver-core`)
 
 ### 4.1 Coordinates
 
@@ -261,19 +261,19 @@ pub trait Device: Send + Sync {
 
 ## 5. Daemon (`crates/cli/src/daemon`)
 
-- **Socket.** `$XDG_RUNTIME_DIR/phone-use/daemon.sock`, else `~/.phone-use/run/daemon.sock` (Unix), or the named pipe `\\.\pipe\phone-use-<user>` (Windows), via the `interprocess` crate. A Unix path longer than 100 bytes (`sun_path` is 104 on macOS, 108 on Linux; a long `PHONE_USE_HOME` hit it: the CLI waited 3 s and printed `local socket name length exceeds capacity of sun_path`) becomes `$TMPDIR/phone-use-<hash of user and path>/daemon.sock` (`/tmp` when `$TMPDIR` is long too), in a 0700 directory like any other, so the client and the daemon compute the same short name. Directory mode 0700; on Windows the pipe's security descriptor grants only the current user. No TCP listener. `PHONE_USE_SOCKET` overrides the path. Remote use goes through `ssh -L` socket forwarding (zero network code, README). The `screenshot` method always saves the PNG on the daemon's machine and replies with its path; a client that asks with `inline: true` also gets the bytes in `data_b64`. The MCP tool always asks inline, so it returns the image over a forwarded socket (observed failing before: the MCP server read the daemon's path on its own disk). The CLI's `screenshot -o file` asks inline and writes the file locally; without `-o` it prints the path on the daemon's machine.
-- **Start.** The CLI connects; on `ENOENT`/`ECONNREFUSED` it spawns `phone-use daemon --detach`, then waits for the daemon's readiness line on an inherited pipe (not a sleep), up to 3 s.
+- **Socket.** `$XDG_RUNTIME_DIR/phonedriver/daemon.sock`, else `~/.phonedriver/run/daemon.sock` (Unix), or the named pipe `\\.\pipe\phonedriver-<user>` (Windows), via the `interprocess` crate. A Unix path longer than 100 bytes (`sun_path` is 104 on macOS, 108 on Linux; a long `PHONEDRIVER_HOME` hit it: the CLI waited 3 s and printed `local socket name length exceeds capacity of sun_path`) becomes `$TMPDIR/phonedriver-<hash of user and path>/daemon.sock` (`/tmp` when `$TMPDIR` is long too), in a 0700 directory like any other, so the client and the daemon compute the same short name. Directory mode 0700; on Windows the pipe's security descriptor grants only the current user. No TCP listener. `PHONEDRIVER_SOCKET` overrides the path. Remote use goes through `ssh -L` socket forwarding (zero network code, README). The `screenshot` method always saves the PNG on the daemon's machine and replies with its path; a client that asks with `inline: true` also gets the bytes in `data_b64`. The MCP tool always asks inline, so it returns the image over a forwarded socket (observed failing before: the MCP server read the daemon's path on its own disk). The CLI's `screenshot -o file` asks inline and writes the file locally; without `-o` it prints the path on the daemon's machine.
+- **Start.** The CLI connects; on `ENOENT`/`ECONNREFUSED` it spawns `phonedriver daemon --detach`, then waits for the daemon's readiness line on an inherited pipe (not a sleep), up to 3 s.
 - **Version.** First message is `hello { version }`. On mismatch the CLI sends `shutdown` and starts its own version.
-- **Progress.** A device connect that runs past one second says what it is doing (`daemon/progress.rs`): `starting the iOS runner on iPhone 17 (the first run builds it; logs are in <home>/runner)`, `starting the Android agent on emulator-5554 (the first run on a device pushes it)`. The daemon writes the line to its own stderr (`daemon.log`) and sends it as a `progress` notification to connections whose `hello` said `progress: true` and that are waiting on a request. The CLI says so only on a terminal, so stdout and piped stderr stay as they were, and `phone-use mcp` never does.
-- **Stop.** `phone-use daemon stop` connects without starting one, sends `shutdown` (no `hello`, so it works across a version mismatch), waits for the socket to go and for the pid to exit, and prints `stopped the daemon (pid N)`, or `no daemon is running` (exit 0). Exiting drops every device, and dropping an iOS runner kills the `xcodebuild` the daemon started (`kill_on_drop`), which ends the runner; a runner the daemon only reused keeps running.
+- **Progress.** A device connect that runs past one second says what it is doing (`daemon/progress.rs`): `starting the iOS runner on iPhone 17 (the first run builds it; logs are in <home>/runner)`, `starting the Android agent on emulator-5554 (the first run on a device pushes it)`. The daemon writes the line to its own stderr (`daemon.log`) and sends it as a `progress` notification to connections whose `hello` said `progress: true` and that are waiting on a request. The CLI says so only on a terminal, so stdout and piped stderr stay as they were, and `phonedriver mcp` never does.
+- **Stop.** `phonedriver daemon stop` connects without starting one, sends `shutdown` (no `hello`, so it works across a version mismatch), waits for the socket to go and for the pid to exit, and prints `stopped the daemon (pid N)`, or `no daemon is running` (exit 0). Exiting drops every device, and dropping an iOS runner kills the `xcodebuild` the daemon started (`kill_on_drop`), which ends the runner; a runner the daemon only reused keeps running.
 - **Idle exit.** No clients and no leases for 15 minutes.
 - **DeviceActor.** One tokio task per device owns the connection, FrameStore, and the sessions on that device. Requests arrive on an mpsc channel. No locks around device state.
-- **Sessions outlive connections.** Every CLI call is a new process and a new socket connection, so session state cannot belong to the connection. Each request names a session: `--session <name>`, else `PHONE_USE_SESSION`, else `default`. The session holds the ref table, the last rendered observation (the diff baseline), and the settle detector. An MCP server process uses one session named `mcp-<pid>` over one connection that it keeps for its whole life, and says `client: "mcp"` in `hello`. The daemon releases every session an `mcp` connection used on every device when that connection closes, so a client that exits or is killed before it can send `release` (observed with `claude -p`: the next agent was locked out for ten minutes) frees the device at once. CLI sessions are not released on close, since every CLI call is its own connection.
+- **Sessions outlive connections.** Every CLI call is a new process and a new socket connection, so session state cannot belong to the connection. Each request names a session: `--session <name>`, else `PHONEDRIVER_SESSION`, else `default`. The session holds the ref table, the last rendered observation (the diff baseline), and the settle detector. An MCP server process uses one session named `mcp-<pid>` over one connection that it keeps for its whole life, and says `client: "mcp"` in `hello`. The daemon releases every session an `mcp` connection used on every device when that connection closes, so a client that exits or is killed before it can send `release` (observed with `claude -p`: the next agent was locked out for ten minutes) frees the device at once. CLI sessions are not released on close, since every CLI call is its own connection.
 - **Leases belong to sessions.** A session acquires a device on its first device call. Another session gets `DeviceBusy` unless it passes `--share`. A lease ends on `release`, when an `mcp` connection closes, or after 10 minutes without calls. `DeviceBusy` and `devices` say how long the holder has been idle (`idle 3m, lease expires in 7m`); an agent cannot take a lease over, it waits or asks the user. Two agents on one machine should use different `--session` names; the default session is for one agent at a time.
 - **Discovery.** Android: adb `host:track-devices-l` push stream. iOS: usbmuxd listen. Simulators: `xcrun simctl list devices -j booted` on demand.
-- **Device ids.** `android:<serial>`, `ios:<udid>`, `sim:<udid>`, plus aliases in `~/.phone-use/config.toml`. With exactly one device connected, it is the default. With several, the default is the one that can be driven when only one can: a physical iPhone or iPad on the Runner tier counts as blocked while `PHONE_USE_TEAM` is unset (D18). Otherwise `AmbiguousDevice` lists them. A `--device` id that matches nothing fails `NoDevice` naming the id and the connected ids.
-- **Artifacts.** Screenshots go to `~/.phone-use/tmp/<device>/<ulid>.png`. Unique names. Cleared on daemon start when older than 24 h.
-- **Traces.** Per session, `~/.phone-use/traces/<ulid>.jsonl` (directory mode 0700, files 0600): one line per request with `method`, `params`, the reply's summary line, `ms` and the settle time. Typed text is replaced by its length, `{"secret_len": n}` with `--secret` and `{"text_len": n}` otherwise (D16). Text targets are replaced by their length, and observation text (which can hold messages or balances) is added, only when the daemon runs with `--trace-full` or `PHONE_USE_TRACE_FULL=1`. Each `screenshot` is copied next to the trace as `<ulid>-<n>.png` only with `--trace-screens` or `PHONE_USE_TRACE_SCREENS=1`. A running daemon keeps the options it started with, so a harness that wants them starts its own daemon under its own `PHONE_USE_HOME`. Traces older than 7 days are deleted on daemon start. Local only; nothing is uploaded.
+- **Device ids.** `android:<serial>`, `ios:<udid>`, `sim:<udid>`, plus aliases in `~/.phonedriver/config.toml`. With exactly one device connected, it is the default. With several, the default is the one that can be driven when only one can: a physical iPhone or iPad on the Runner tier counts as blocked while `PHONEDRIVER_TEAM` is unset (D18). Otherwise `AmbiguousDevice` lists them. A `--device` id that matches nothing fails `NoDevice` naming the id and the connected ids.
+- **Artifacts.** Screenshots go to `~/.phonedriver/tmp/<device>/<ulid>.png`. Unique names. Cleared on daemon start when older than 24 h.
+- **Traces.** Per session, `~/.phonedriver/traces/<ulid>.jsonl` (directory mode 0700, files 0600): one line per request with `method`, `params`, the reply's summary line, `ms` and the settle time. Typed text is replaced by its length, `{"secret_len": n}` with `--secret` and `{"text_len": n}` otherwise (D16). Text targets are replaced by their length, and observation text (which can hold messages or balances) is added, only when the daemon runs with `--trace-full` or `PHONEDRIVER_TRACE_FULL=1`. Each `screenshot` is copied next to the trace as `<ulid>-<n>.png` only with `--trace-screens` or `PHONEDRIVER_TRACE_SCREENS=1`. A running daemon keeps the options it started with, so a harness that wants them starts its own daemon under its own `PHONEDRIVER_HOME`. Traces older than 7 days are deleted on daemon start. Local only; nothing is uploaded.
 
 ## 6. Android
 
@@ -292,15 +292,15 @@ If the default local server is not running, the daemon runs `adb start-server` o
 
 ### 6.2 The on-device agent
 
-`android-agent/` builds `phone-use-agent.jar` (dex inside a jar) with `javac` against `android.jar` and `d8`, the way `scrcpy/server/build_without_gradle.sh` does. Minimum API 26 (decision D8).
+`android-agent/` builds `phonedriver-agent.jar` (dex inside a jar) with `javac` against `android.jar` and `d8`, the way `scrcpy/server/build_without_gradle.sh` does. Minimum API 26 (decision D8).
 
-Launch: push with mode 0444 to `/data/local/tmp/phone-use-agent-<sha8>.jar`, where `<sha8>` is the first 8 hex digits of the jar's SHA-256 computed on the host. The jar is already deployed when that path exists (`ls`); no hashing on the device. The push goes to `<path>.part` and is `mv`ed into place, so an interrupted push cannot leave a truncated jar at the final path. Then, over a `shell,v2,raw:` stream:
-`CLASSPATH=<jar> app_process / dev.phoneuse.agent.Main <version> <socket-name>` and write a 32-byte random token to its stdin.
+Launch: push with mode 0444 to `/data/local/tmp/phonedriver-agent-<sha8>.jar`, where `<sha8>` is the first 8 hex digits of the jar's SHA-256 computed on the host. The jar is already deployed when that path exists (`ls`); no hashing on the device. The push goes to `<path>.part` and is `mv`ed into place, so an interrupted push cannot leave a truncated jar at the final path. Then, over a `shell,v2,raw:` stream:
+`CLASSPATH=<jar> app_process / dev.phonedriver.agent.Main <version> <socket-name>` and write a 32-byte random token to its stdin.
 
 - The host holds that shell stream open for the agent's whole life and drains its stdout and stderr (logs go to the daemon's log). adbd kills the child when the stream closes, which is what guarantees a crashed daemon never leaves an agent running.
-- The agent listens on abstract socket `phone-use-<version>-<rand>`. Abstract sockets have no permissions: any app on the phone can connect. So the first request on each stream must carry the token, and the agent drops the connection otherwise. Without this, any installed app would get shell-uid input injection and a full screen reader.
+- The agent listens on abstract socket `phonedriver-<version>-<rand>`. Abstract sockets have no permissions: any app on the phone can connect. So the first request on each stream must carry the token, and the agent drops the connection otherwise. Without this, any installed app would get shell-uid input injection and a full screen reader.
 - The host opens two streams: `control` and `video`. The agent also exits when both streams close or when nothing connects within 10 s.
-- Before launch, the host kills agents of other versions with `pkill -f 'dev.phoneuse.agent.[M]ain'` (the jar path is in the environment, not the command line, so matching on the jar name would never match). The bracket matters: `shell,v2,raw:` runs the command as `sh -c "<command>"`, whose own command line contains the pattern, so the unbracketed form kills the shell that runs it and its `echo $?` never prints (spike A5, API 26 and 37).
+- Before launch, the host kills agents of other versions with `pkill -f 'dev.phonedriver.agent.[M]ain'` (the jar path is in the environment, not the command line, so matching on the jar name would never match). The bracket matters: `shell,v2,raw:` runs the command as `sh -c "<command>"`, whose own command line contains the pattern, so the unbracketed form kills the shell that runs it and its `echo $?` never prints (spike A5, API 26 and 37).
 - Measured (spike A5): closing the shell stream ends the agent in about 1.0 s (1054 and 1137 ms with our polling), not instantly; a jar pushed with mode 0444 loads on API 26 and 37 (0666 also loads for the shell user on the API 37 emulator, so 0444 is hygiene, not a requirement); a connection with a missing or wrong token is closed with no reply; the agent exits by itself 10 s after start when nothing connects.
 
 Components (one Java file each where possible):
@@ -338,13 +338,13 @@ Only display 0 is supported in v1.
 
 ## 7. iOS
 
-Three tiers, chosen automatically per device and reported in `phone-use devices`:
+Three tiers, chosen automatically per device and reported in `phonedriver devices`:
 
 | Tier | When | Screen | Input | Tree | Apps | Install on phone |
 |---|---|---|---|---|---|---|
 | **CoreDevice** | iOS 27+ physical device, Developer Mode on | RTP H.264 stream (displayservice) | HID: multitouch, buttons, keyboard | Runner if installed; else OCR | app_service | Nothing (runner optional) |
-| **Runner** | iOS 17 to 26 physical device | Runner screenshots, DVT screenshot | Runner (`XCSynthesizedEventRecord`) | Runner | app_service or runner | PhoneUseRunner (signed) |
-| **Simulator** | Booted simulator on a Mac | Runner screenshots | Runner | Runner | `simctl` | PhoneUseRunner (unsigned) |
+| **Runner** | iOS 17 to 26 physical device | Runner screenshots, DVT screenshot | Runner (`XCSynthesizedEventRecord`) | Runner | app_service or runner | PhonedriverRunner (signed) |
+| **Simulator** | Booted simulator on a Mac | Runner screenshots | Runner | Runner | `simctl` | PhonedriverRunner (unsigned) |
 
 Honest consequence: without the runner, a CoreDevice-tier phone has no accessibility tree, so snapshots are OCR text only, with no roles, no switches' states, and no icon-only buttons. The full product on iOS needs the runner, which needs code signing (a free Apple ID re-signs every 7 days). Spike I5 (Phase 6) tests whether the Accessibility Inspector audit service (go-ios `ios/accessibility/`) can give a signing-free tree fast enough; if it can, it replaces OCR as the CoreDevice tree source.
 
@@ -352,7 +352,7 @@ Not available on iOS in v1: `press recents` (no API; returns `Unsupported`).
 
 ### 7.1 Transport
 
-`idevice`: usbmuxd discovery and lockdown pairing (the user taps Trust once), then the CoreDevice tunnel over the userspace TCP stack, then RSD service lookup. Works on macOS, Linux, Windows. DDI: on macOS, use Xcode's personalized DDI files; elsewhere, `phone-use ios setup` downloads them only after the user confirms the source. Mounting needs Apple's TSS server.
+`idevice`: usbmuxd discovery and lockdown pairing (the user taps Trust once), then the CoreDevice tunnel over the userspace TCP stack, then RSD service lookup. Works on macOS, Linux, Windows. DDI: on macOS, use Xcode's personalized DDI files; elsewhere, `phonedriver ios setup` downloads them only after the user confirms the source. Mounting needs Apple's TSS server.
 
 ### 7.2 CoreDevice tier
 
@@ -363,10 +363,10 @@ Not available on iOS in v1: `press recents` (no API; returns `Unsupported`).
 - Touch: points → normalized 0..65535 per axis. Multitouch up to 5 contacts.
 - Buttons: Home, Lock, Volume via `send_button` (button usage codes confirmed in spike I1). `back` taps the navigation bar's back button when the tree shows one (`via: "nav-button"`), else performs a left-edge swipe (`via: "edge-swipe"`).
 - Text: pasteboard `set_text`, then HID keyboard Cmd+V. Observed on the iPad (iOS 27.0, spike I1): Cmd+V raises the system prompt "Testbed would like to paste from dtpasteboardd" every time, and the text arrives (accents, emoji, CJK intact) only after someone taps "Allow Paste"; so Paste mode reports `ApproveSystemPrompt` and Keystrokes (US layout, no prompt) is the prompt-free path. Creating the HID keyboard makes iOS treat a hardware keyboard as attached: the software keyboard does not show (the runner's snapshot says "keyboard hidden" with a field focused). A modifier sent in the same report as its key is ignored (paste arrived as "V", Shift+A as "a"), so keys go down one report at a time, modifiers first, and up in reverse, 25 ms apart (10 ms dropped the character after a Shift).
-- Frames: the stream is the panel's landscape frame with a portrait UI rotated a quarter turn counterclockwise, so the decoder output is rotated clockwise (2736 x 2064 becomes 2064 x 2736, 1032 x 1368 pt at 2x; the real screen is 1032 x 1376 pt, so a tap at a point of the frame lands 0.6% further down on the glass: the frame's normalized coordinates are the screen's). Orientation other than portrait is unobserved. The stream was not stale, it was late (2026-11-06, root cause): the receiver published every decoded picture (copy, rotation, thumbnail) and in an unoptimized build that cost about 190 ms against a decode of 11 ms, while the device sends 20 pictures a second, so the picture shown lagged by 2 s after 10 s and 34 s after 40 s, and a screenshot showed a screen from long ago (status bar included; the earlier "status bar updates" was a transitional picture). `phone_use_video::receive::decode_stream` now decodes every access unit (each is a reference for the next, and each is acknowledged) and publishes only when no datagram is waiting. Feedback was ruled out: acknowledging with the RTP timestamp, with the RTP extension's frame counter, with no acknowledgments, with no receiver-control reports, and without audio all behaved alike (docs/spikes/ios.md, I6). Still open: when the host is starved of CPU (load average above 20 while other builds ran) the decode thread cannot keep 20 pictures a second and the backlog returns; the Runner tier stays the default until a release build is measured on an idle host.
+- Frames: the stream is the panel's landscape frame with a portrait UI rotated a quarter turn counterclockwise, so the decoder output is rotated clockwise (2736 x 2064 becomes 2064 x 2736, 1032 x 1368 pt at 2x; the real screen is 1032 x 1376 pt, so a tap at a point of the frame lands 0.6% further down on the glass: the frame's normalized coordinates are the screen's). Orientation other than portrait is unobserved. The stream was not stale, it was late (2026-11-06, root cause): the receiver published every decoded picture (copy, rotation, thumbnail) and in an unoptimized build that cost about 190 ms against a decode of 11 ms, while the device sends 20 pictures a second, so the picture shown lagged by 2 s after 10 s and 34 s after 40 s, and a screenshot showed a screen from long ago (status bar included; the earlier "status bar updates" was a transitional picture). `phonedriver_video::receive::decode_stream` now decodes every access unit (each is a reference for the next, and each is acknowledged) and publishes only when no datagram is waiting. Feedback was ruled out: acknowledging with the RTP timestamp, with the RTP extension's frame counter, with no acknowledgments, with no receiver-control reports, and without audio all behaved alike (docs/spikes/ios.md, I6). Still open: when the host is starved of CPU (load average above 20 while other builds ran) the decode thread cannot keep 20 pictures a second and the backlog returns; the Runner tier stays the default until a release build is measured on an idle host.
 - Keyframe on demand with RTCP (idevice `display_stream/rtcp.rs`) when the session settles, for a sharp screenshot.
 
-### 7.3 PhoneUseRunner
+### 7.3 PhonedriverRunner
 
 An XCTest UI test bundle (`ios-runner/`), Objective-C for direct use of private headers copied from WebDriverAgent. One test method that never returns: it opens a TCP listener on device port 27753 and serves our framing.
 
@@ -378,15 +378,15 @@ Simulator tier (task 5.5, `crates/ios/src/device.rs`). `tree` is the runner's sn
 
 As built in task 5.6: the tree drops XCUI's scroll indicators ("Other" elements labeled "Vertical scroll bar, 2 pages" with a percentage value, matched on the English label the Simulator uses), which added two to four lines per list and, as the only labeled child of a multi-line field or a Files rename field, became that field's label. A toggle row (Settings, SwiftUI `Toggle`) is a labeled switch the width of the row around an unlabeled switch, the control itself; a tap at the row's center does not toggle, so the row takes the inner switch's bounds and the inner switch is dropped. For about 1.3 s after `simctl launch` returns, the runner's snapshot fails with `kAXErrorServerNotFound` or still reports the app that was in front (every launch of Settings), so `launch` returns once the snapshot reports the launched app, and a tree read retries `kAXErrorServerNotFound` for up to 5 s. `SimSource` reuses a simulator listing for 2 s: the daemon lists devices on every request and `simctl list` takes about 70 ms.
 
-Host connects through idevice's device-port connect (as `services/wda.rs` does), so no host port forwarding. usbmuxd reaches a device's TCP ports from a non-loopback address, so on a device the runner listens on `0.0.0.0` (the Simulator build stays on `127.0.0.1`); anything on the device's networks can reach port 27753 while the runner runs (observed 2026-11-06: a loopback-only listener was not reachable, the all-interfaces one was). Launch: on devices, `xcodebuild test-without-building -destination id=<udid>` signed with `PHONE_USE_TEAM` (idevice `xctest` is the way for a machine without Xcode and is not built yet); on simulators, `xcodebuild test-without-building -xctestrun ... -destination id=<udid>` as a child of the daemon, with the port passed as `TEST_RUNNER_PHONE_USE_PORT` (xcodebuild only forwards `TEST_RUNNER_`-prefixed variables to the test process, without the prefix). Readiness: the daemon polls the port with `hello` every 100 ms up to 60 s; it does not rely on xcodebuild's log output.
+Host connects through idevice's device-port connect (as `services/wda.rs` does), so no host port forwarding. usbmuxd reaches a device's TCP ports from a non-loopback address, so on a device the runner listens on `0.0.0.0` (the Simulator build stays on `127.0.0.1`); anything on the device's networks can reach port 27753 while the runner runs (observed 2026-11-06: a loopback-only listener was not reachable, the all-interfaces one was). Launch: on devices, `xcodebuild test-without-building -destination id=<udid>` signed with `PHONEDRIVER_TEAM` (idevice `xctest` is the way for a machine without Xcode and is not built yet); on simulators, `xcodebuild test-without-building -xctestrun ... -destination id=<udid>` as a child of the daemon, with the port passed as `TEST_RUNNER_PHONEDRIVER_PORT` (xcodebuild only forwards `TEST_RUNNER_`-prefixed variables to the test process, without the prefix). Readiness: the daemon polls the port with `hello` every 100 ms up to 60 s; it does not rely on xcodebuild's log output.
 
 Orientation (task 7.3). The simulator rotates only through the GUI or an XCUITest (`XCUIDevice.orientation`); the app's frame follows it. The runner's synthesized touches are expressed in the portrait frame whatever the orientation (observed on an iPad Pro 13-inch simulator in landscape: a tap at (519, 438) landed at (438, 513); the record's `interfaceOrientation` made no difference), so `Gesture.m` rotates each point back by `XCUIDevice.orientation`. The screen size in the header and in swipes comes from the application element's frame on every snapshot (`Device::current_screen`), not from the size the runner reported at connect.
 
-Simulator lifecycle (task 5.4, `crates/ios/src/runner.rs`). The runner's sources are compiled into the `phone-use` binary (`include_str!`), so the daemon builds the runner wherever it runs: it writes them to `~/.phone-use/runner/<hash>/src`, runs XcodeGen and `xcodebuild build-for-testing` for `generic/platform=iOS Simulator` once per source hash, and deletes builds of other hashes (2.4 s on the Mac mini with Xcode's module caches warm; the build log is `build.log` next to it). Ports: the first port from 27753 to 27784 that nothing listens on and no other simulator of this daemon claimed. Reuse: before launching, the daemon says `hello` on each runner port; a runner whose `hello` reports this simulator's `udid` and this binary's source hash as `build` is reused. Process groups: `xcodebuild` runs in the daemon's process group (the CLI starts the daemon as a group leader), and killing `xcodebuild`, even with `SIGKILL`, ends the runner inside the simulator (observed on the mini). So dropping the device or killing the daemon's process group ends the runner; a daemon killed alone leaves `xcodebuild` and the runner running, and the next daemon reuses that runner. The runner's output goes to `~/.phone-use/runner/<udid>.log`; typed text never reaches it (section 7.3, `type`).
+Simulator lifecycle (task 5.4, `crates/ios/src/runner.rs`). The runner's sources are compiled into the `phonedriver` binary (`include_str!`), so the daemon builds the runner wherever it runs: it writes them to `~/.phonedriver/runner/<hash>/src`, runs XcodeGen and `xcodebuild build-for-testing` for `generic/platform=iOS Simulator` once per source hash, and deletes builds of other hashes (2.4 s on the Mac mini with Xcode's module caches warm; the build log is `build.log` next to it). Ports: the first port from 27753 to 27784 that nothing listens on and no other simulator of this daemon claimed. Reuse: before launching, the daemon says `hello` on each runner port; a runner whose `hello` reports this simulator's `udid` and this binary's source hash as `build` is reused. Process groups: `xcodebuild` runs in the daemon's process group (the CLI starts the daemon as a group leader), and killing `xcodebuild`, even with `SIGKILL`, ends the runner inside the simulator (observed on the mini). So dropping the device or killing the daemon's process group ends the runner; a daemon killed alone leaves `xcodebuild` and the runner running, and the next daemon reuses that runner. The runner's output goes to `~/.phonedriver/runner/<udid>.log`; typed text never reaches it (section 7.3, `type`).
 
 Private headers drift between Xcode releases. The runner is built and tested against the Xcode on the build machine (27.0 at planning time); a build failure after an Xcode update is expected maintenance, not a design flaw.
 
-Signing: built with Xcode automatic signing for the user's team. A free Apple ID works and expires every 7 days; `phone-use devices` shows the expiry. Signing without a Mac is out of scope for v1 (see "Known gaps").
+Signing: built with Xcode automatic signing for the user's team. A free Apple ID works and expires every 7 days; `phonedriver devices` shows the expiry. Signing without a Mac is out of scope for v1 (see "Known gaps").
 
 ### 7.4 iOS states
 
@@ -398,7 +398,7 @@ Signing: built with Xcode automatic signing for the user's team. A free Apple ID
 | Runner expired | `NeedsUser(ResignRunner)` with the exact command |
 | Tunnel dropped | Actor reconnects once, then `DeviceGone` |
 
-## 8. Video (`phone-use-video`)
+## 8. Video (`phonedriver-video`)
 
 - Input: H.264 Annex-B access units from the Android agent, or RTP packets from iOS depacketized into access units (section 7.2).
 - Decode: `openh264` for H.264 on every OS. The CoreDevice tier asks the device for H.264 only (spike I3), so no HEVC decoder is needed.
@@ -418,32 +418,32 @@ For canvases, games, WebViews without accessibility, and CoreDevice devices with
 ### 10.1 CLI verbs
 
 ```
-phone-use devices                          list devices, tier, capabilities, leases
-phone-use snapshot [--diff] [--interactive] [--within @eN] [--pixels] [--max-lines N]
-phone-use screenshot [-o file] [--marks]
-phone-use find <text> [--role R]           refs matching text
-phone-use tap <@ref|x,y|"text"> [--role R] [--long [ms]] [--count N]
-phone-use type <text> [--into <target>] [--mode paste|set|keys] [--submit]
-phone-use type --secret [--into <target>]  text from stdin or PHONE_USE_SECRET, never argv
-phone-use clear <target>
-phone-use swipe <up|down|left|right> [--from <target>] [--distance 0..1] [--fast]
-phone-use drag <from> <to>                 press, hold 400 ms, move over 400 ms, hold 100 ms, lift
-phone-use pinch <in|out> [--at <target>] [--distance 0..1]
-phone-use scroll <up|down|left|right> [--within <target>] [--until "text"|@ref] [--max N]
-phone-use gesture <json>                   multi-finger paths with timing
-phone-use press <home|back|recents|notifications|lock|volume-up|volume-down|enter|hide-keyboard|...>
-phone-use launch <app name|package|bundle id>
-phone-use open <url>                       deep link or web URL in its handler app
-phone-use apps [install <path> | stop|clear|uninstall <app>]   list launchable apps, or manage one
-phone-use wait <"text"|@ref|gone:"text"|settled> [--timeout ms]
-phone-use batch "<step>" "<step>" ...      steps in order, one diff at the end, stops at the first failure
-phone-use clipboard [get|set <text>]
-phone-use shell <command> [--grep words] [--head n] [--force] [--time-limit s] [--secret]
-phone-use release
-phone-use daemon [--detach] | mcp | doctor | ios setup | version
+phonedriver devices                          list devices, tier, capabilities, leases
+phonedriver snapshot [--diff] [--interactive] [--within @eN] [--pixels] [--max-lines N]
+phonedriver screenshot [-o file] [--marks]
+phonedriver find <text> [--role R]           refs matching text
+phonedriver tap <@ref|x,y|"text"> [--role R] [--long [ms]] [--count N]
+phonedriver type <text> [--into <target>] [--mode paste|set|keys] [--submit]
+phonedriver type --secret [--into <target>]  text from stdin or PHONEDRIVER_SECRET, never argv
+phonedriver clear <target>
+phonedriver swipe <up|down|left|right> [--from <target>] [--distance 0..1] [--fast]
+phonedriver drag <from> <to>                 press, hold 400 ms, move over 400 ms, hold 100 ms, lift
+phonedriver pinch <in|out> [--at <target>] [--distance 0..1]
+phonedriver scroll <up|down|left|right> [--within <target>] [--until "text"|@ref] [--max N]
+phonedriver gesture <json>                   multi-finger paths with timing
+phonedriver press <home|back|recents|notifications|lock|volume-up|volume-down|enter|hide-keyboard|...>
+phonedriver launch <app name|package|bundle id>
+phonedriver open <url>                       deep link or web URL in its handler app
+phonedriver apps [install <path> | stop|clear|uninstall <app>]   list launchable apps, or manage one
+phonedriver wait <"text"|@ref|gone:"text"|settled> [--timeout ms]
+phonedriver batch "<step>" "<step>" ...      steps in order, one diff at the end, stops at the first failure
+phonedriver clipboard [get|set <text>]
+phonedriver shell <command> [--grep words] [--head n] [--force] [--time-limit s] [--secret]
+phonedriver release
+phonedriver daemon [--detach] | mcp | doctor | ios setup | version
 ```
 
-Global flags: `--device` (default from `PHONE_USE_DEVICE`), `--session`, `--json` (machine output), `--no-settle`, `--timeout`.
+Global flags: `--device` (default from `PHONEDRIVER_DEVICE`), `--session`, `--json` (machine output), `--no-settle`, `--timeout`.
 
 Scroll mechanics: `scroll` drags 60% of the largest scrollable container (or `--within`; `--in` is a hidden alias) in 10 steps over 250 ms, then holds 150 ms with a stationary sample every 25 ms before the lift (Android 8 flings a list that lifts after a gap with no samples), so it never flings. `scroll --until "Label N"` flings when the visible labels share the prefix, the target is over three screens away and the device has a frame stream (`FRAMES`; a fling moves nothing on the polled iOS runner, observed in the agent-experience audit, so there it drags one screen at a time), and turns back on overshoot; other targets scroll one drag at a time. Without `--max` the limit is 30 drags, or enough one-screen drags to cross a numbered target's distance (at most 300). The search ends with `NotReached` (code -32016) when two drags in a row change nothing (`the list ended at "Developer"` after it had moved, `the list did not move` when it never did) or the limit is hit (`scrolled 30 times and "Row 640" is still not on screen`); `NotFound` is only for a target that cannot be resolved.
 
@@ -453,11 +453,11 @@ Scroll mechanics: `scroll` drags 60% of the largest scrollable container (or `--
 
 `wait "text"`, `wait @ref` and `wait gone:"text"` read the tree once at the start and then once after each window change or frame with more than 128 pt² of change (100 ms after the burst's first signal), never on a timer; the reply's summary says how many tree reads it took. They resolve targets like `tap` does (substring match included), return a full snapshot, and fail `Timeout` naming the condition (default timeout 5 s). `snapshot --within @eN` prints only that element's subtree under the usual header, and a ref the screen no longer has is `StaleRef`.
 
-`screenshot --marks` (MCP `screenshot` with `marks`) draws a 2 px box and the `eN` label on every element that takes a tap, a long press or text, using the same fresh tree read a tap would use, so the label in the picture is the ref of the next `tap @eN`. Screenshots are one pixel per point, so element bounds are pixel coordinates. The reply says how many elements were boxed. The drawing is in `phone-use-video::marks` (a 3x5 bitmap font, no font dependency).
+`screenshot --marks` (MCP `screenshot` with `marks`) draws a 2 px box and the `eN` label on every element that takes a tap, a long press or text, using the same fresh tree read a tap would use, so the label in the picture is the ref of the next `tap @eN`. Screenshots are one pixel per point, so element bounds are pixel coordinates. The reply says how many elements were boxed. The drawing is in `phonedriver-video::marks` (a 3x5 bitmap font, no font dependency).
 
-`apps stop|clear|uninstall <app>` and `apps install <path>` (daemon method `app`, `Device::app_op` and `Device::install`) manage an app. Android: `am force-stop`, `pm clear`, `pm uninstall`, and install pushes the `.apk` over adb sync to `/data/local/tmp` and runs `pm install -r`; the new package id is the one in `pm list packages` that was not there before (a reinstall of an existing app has no new id, and the reply says it replaced one). iOS Simulator: `simctl terminate`, `simctl install` of an `.app` folder (the id is read from its `Info.plist`), `simctl uninstall`, and clear data empties the app's data container. The path is on the daemon's machine. iOS devices answer `Unsupported` (installation_proxy install and removal are not implemented). Safety on a physical device (any `ios:` device, and any `android:` serial that is not `emulator-*`): `clear` and `uninstall` refuse an app phone-use did not install; installs are recorded per device in `installed.json` under the daemon's home and the record ends with the uninstall. `stop` is allowed everywhere. The MCP `apps` tool takes `action` and `app` for these.
+`apps stop|clear|uninstall <app>` and `apps install <path>` (daemon method `app`, `Device::app_op` and `Device::install`) manage an app. Android: `am force-stop`, `pm clear`, `pm uninstall`, and install pushes the `.apk` over adb sync to `/data/local/tmp` and runs `pm install -r`; the new package id is the one in `pm list packages` that was not there before (a reinstall of an existing app has no new id, and the reply says it replaced one). iOS Simulator: `simctl terminate`, `simctl install` of an `.app` folder (the id is read from its `Info.plist`), `simctl uninstall`, and clear data empties the app's data container. The path is on the daemon's machine. iOS devices answer `Unsupported` (installation_proxy install and removal are not implemented). Safety on a physical device (any `ios:` device, and any `android:` serial that is not `emulator-*`): `clear` and `uninstall` refuse an app phonedriver did not install; installs are recorded per device in `installed.json` under the daemon's home and the record ends with the uninstall. `stop` is allowed everywhere. The MCP `apps` tool takes `action` and `app` for these.
 
-`batch` runs a short sequence in one call: `phone-use batch "tap @e3" "type hello --submit" "press enter"`. Each step is the command line of tap, type (not `--secret`), clear, swipe, scroll, gesture, press, launch, open or wait, parsed by the same parser. The daemon (`batch` method) runs the steps one after another in one lease, each acted on and settled like a single call (so a later step resolves its target on the screen the earlier one produced), and answers once: the numbered one-line summaries of the steps that ran, and the diff from what the session last observed before step 1 to the screen after the last step. The first step that fails ends the batch: the reply names the step (`step 2 of 3 failed: ...`), keeps the error's code and hint, lists the steps that did run, and shows the diff so far, so the agent knows the screen it now has. Steps after a failure never run. A malformed step is refused before any step runs. Typed text in a batch is traced by length like any `type` (D16); secret text is refused, because it must come from stdin or the `secret` flag of a single call. The MCP `batch` tool takes `steps`, objects of `tool` plus that tool's arguments (`{"tool":"tap","target":"@e3"}`), converted to the same wire steps.
+`batch` runs a short sequence in one call: `phonedriver batch "tap @e3" "type hello --submit" "press enter"`. Each step is the command line of tap, type (not `--secret`), clear, swipe, scroll, gesture, press, launch, open or wait, parsed by the same parser. The daemon (`batch` method) runs the steps one after another in one lease, each acted on and settled like a single call (so a later step resolves its target on the screen the earlier one produced), and answers once: the numbered one-line summaries of the steps that ran, and the diff from what the session last observed before step 1 to the screen after the last step. The first step that fails ends the batch: the reply names the step (`step 2 of 3 failed: ...`), keeps the error's code and hint, lists the steps that did run, and shows the diff so far, so the agent knows the screen it now has. Steps after a failure never run. A malformed step is refused before any step runs. Typed text in a batch is traced by length like any `type` (D16); secret text is refused, because it must come from stdin or the `secret` flag of a single call. The MCP `batch` tool takes `steps`, objects of `tool` plus that tool's arguments (`{"tool":"tap","target":"@e3"}`), converted to the same wire steps.
 
 Defaults: `scroll --max 30`; `swipe --distance 0.5`; `tap --count 1` (2 = double tap, taps 80 ms apart); `swipe --from` takes a target and starts the gesture at its center.
 
@@ -474,15 +474,15 @@ Text targets resolve by: exact label, then case-insensitive exact, then substrin
 
 ### 10.2 MCP
 
-`phone-use mcp` with `rmcp`, stdio. Fourteen tools: `devices`, `apps`, `snapshot`, `screenshot` (returns an image content block), `tap`, `type`, `swipe`, `scroll`, `press`, `launch` (takes `app` or `url`; a URL maps to the `open` verb), `wait`, `batch` (a list of steps; see 10.1), `clipboard` (`set` text, or read), `shell` (a command in the device's shell; decision D21). Tool argument structs reject unknown fields, so a misspelled argument is an error and not silently dropped. Each tool's input schema mirrors the CLI verb; outputs are the same text the CLI prints. Few, well-described tools beat many. Every tool also takes an optional `device` (default `PHONE_USE_DEVICE`). `type` takes `secret: true` instead of the CLI's stdin route, since the text already crossed the MCP channel to reach the server; it is masked in the reply and traced by length only. A failed call returns `isError: true` with the message and `hint: ...` as one text block. `screenshot` returns an `image/png` block and a text block `WxH at scale S`. The server is one session `mcp-<pid>` on the daemon (started on demand like for the CLI) and releases it when stdio closes (or, if the client dies first, when the daemon sees the connection close). Calls run one at a time on that connection, in the order they arrived: the server runs on a single-thread runtime, because rmcp starts one task per request and on several threads two calls sent together took the lock in either order (5 runs of 4 swipes in one turn: 3 of 3 failed on the multi-thread runtime). The `instructions` and the descriptions of `tap`, `type`, `swipe`, `scroll`, `press` and `launch` say that calls share one screen and go one at a time (agents sent tap and type together in 7 of 9 audit runs). `apps` was added after an audit run could not find the testbed app (`launch "phone-use testbed"` failed and the agent had no way to list names). Hints and `hint:` lines are rewritten into tool vocabulary before they reach the agent (`phone-use snapshot` becomes `snapshot`, `--mode keys` becomes `mode` `keys`). The CLI verbs without a tool of their own are folded into one: `swipe` takes `to` (a drag from `from` to `to`, the `drag` verb) or `pinch` (`in` or `out`, centered on `from` or the screen, the `pinch` verb) in place of `direction`; `type` with empty text and `into` is `clear`; `snapshot` with `find` is `find`; `devices` with `release` is `release`. Only the raw `gesture` JSON, `open` (it is `launch` with `url`) and `snapshot --save-fixture` stay CLI-only. `drag` holds before it moves so lists and drag handles pick the item up; `pinch` puts two fingers on a horizontal line through its center and needs `MULTI_TOUCH`; both are `act` actions, so they settle and return a diff like a tap.
+`phonedriver mcp` with `rmcp`, stdio. Fourteen tools: `devices`, `apps`, `snapshot`, `screenshot` (returns an image content block), `tap`, `type`, `swipe`, `scroll`, `press`, `launch` (takes `app` or `url`; a URL maps to the `open` verb), `wait`, `batch` (a list of steps; see 10.1), `clipboard` (`set` text, or read), `shell` (a command in the device's shell; decision D21). Tool argument structs reject unknown fields, so a misspelled argument is an error and not silently dropped. Each tool's input schema mirrors the CLI verb; outputs are the same text the CLI prints. Few, well-described tools beat many. Every tool also takes an optional `device` (default `PHONEDRIVER_DEVICE`). `type` takes `secret: true` instead of the CLI's stdin route, since the text already crossed the MCP channel to reach the server; it is masked in the reply and traced by length only. A failed call returns `isError: true` with the message and `hint: ...` as one text block. `screenshot` returns an `image/png` block and a text block `WxH at scale S`. The server is one session `mcp-<pid>` on the daemon (started on demand like for the CLI) and releases it when stdio closes (or, if the client dies first, when the daemon sees the connection close). Calls run one at a time on that connection, in the order they arrived: the server runs on a single-thread runtime, because rmcp starts one task per request and on several threads two calls sent together took the lock in either order (5 runs of 4 swipes in one turn: 3 of 3 failed on the multi-thread runtime). The `instructions` and the descriptions of `tap`, `type`, `swipe`, `scroll`, `press` and `launch` say that calls share one screen and go one at a time (agents sent tap and type together in 7 of 9 audit runs). `apps` was added after an audit run could not find the testbed app (`launch "phonedriver testbed"` failed and the agent had no way to list names). Hints and `hint:` lines are rewritten into tool vocabulary before they reach the agent (`phonedriver snapshot` becomes `snapshot`, `--mode keys` becomes `mode` `keys`). The CLI verbs without a tool of their own are folded into one: `swipe` takes `to` (a drag from `from` to `to`, the `drag` verb) or `pinch` (`in` or `out`, centered on `from` or the screen, the `pinch` verb) in place of `direction`; `type` with empty text and `into` is `clear`; `snapshot` with `find` is `find`; `devices` with `release` is `release`. Only the raw `gesture` JSON, `open` (it is `launch` with `url`) and `snapshot --save-fixture` stay CLI-only. `drag` holds before it moves so lists and drag handles pick the item up; `pinch` puts two fingers on a horizontal line through its center and needs `MULTI_TOUCH`; both are `act` actions, so they settle and return a diff like a tap.
 
 Agent-facing text has one home each (writing-for-agents pass, 2026-11-06): per-tool details live in the tool description and its argument docs, cross-tool strategy (shell for settings first, then the snapshot loop, batch, one call at a time) in the server `instructions` and `SKILL.md`. `list_tools` is the router's list with the argument schemas slimmed (`$schema`, `format`, `minimum: 0` and `null` in optional types removed). `tools/list` plus instructions went from 11,457 to 10,041 characters (about 2,938 to 2,575 tokens at 3.9 characters a token); `SKILL.md` from 6,312 to 4,597 characters. Each action tool keeps "One call at a time." because agents sent calls together before it was there. Token pass (`docs/audits/token-audit.md`): the prefix is re-read on every model turn and it is 4,204 measured tokens at 2.6 characters a token (not 3.9: JSON schemas tokenize densely), so `lean.rs` also hides from `tools/list` the `device` argument of every tool and the arguments no agent used in the audited runs (`snapshot` `diff`, `interactive`, `within`, `max_lines`, `pixels`; `tap` `role`, `count`, `long`; `type` `mode`, `append`; `swipe` `distance`, `fast`; `scroll` `in`, `max`; `shell` `grep`, `head`, `settle`, `force`, `secret`; `batch` `timeout_ms`). The server still accepts them and the hints that need one name it. Descriptions and argument docs were cut to what a model cannot guess. `tools/list` is 5,107 characters (was 10,987 before the dogfood pass).
 
-The approval guard in the MCP server (decision D27): `tap` and `type` call `guarded()`. It runs the action; on `needs_approval` it asks the human through the client's elicitation (one form, choices `Allow` and `Allow for this session`, Decline and Cancel are no) and runs the action again with `approval: "once"` or `"session"` in the same tool call. On protocol 2026-07-28 the server may not send a request during a call, so `call_tool` (overridden for `tap` and `type`) answers with an `input_required` result holding the form and the client repeats the call with `inputResponses.approve`; older protocols use `elicitation/create` on the open connection. A client that does not declare elicitation gets a normal text reply that nothing was tapped and how to continue (`autonomous: true`). `autonomous` and `PHONE_USE_GUARD=off` send `approval: "autonomous"`. Not in `tools/list` (cost 0).
+The approval guard in the MCP server (decision D27): `tap` and `type` call `guarded()`. It runs the action; on `needs_approval` it asks the human through the client's elicitation (one form, choices `Allow` and `Allow for this session`, Decline and Cancel are no) and runs the action again with `approval: "once"` or `"session"` in the same tool call. On protocol 2026-07-28 the server may not send a request during a call, so `call_tool` (overridden for `tap` and `type`) answers with an `input_required` result holding the form and the client repeats the call with `inputResponses.approve`; older protocols use `elicitation/create` on the open connection. A client that does not declare elicitation gets a normal text reply that nothing was tapped and how to continue (`autonomous: true`). `autonomous` and `PHONEDRIVER_GUARD=off` send `approval: "autonomous"`. Not in `tools/list` (cost 0).
 
 ### 10.3 Skill
 
-`SKILL.md` at the repo root, printed by `phone-use skill`: the loop (snapshot, act on refs, read the diff), when to use pixels, how to handle `NeedsUser`, and the rule that the agent never enters passwords or payment details without the user's explicit instruction.
+`SKILL.md` at the repo root, printed by `phonedriver skill`: the loop (snapshot, act on refs, read the diff), when to use pixels, how to handle `NeedsUser`, and the rule that the agent never enters passwords or payment details without the user's explicit instruction.
 
 ## 11. Development environment
 
@@ -490,7 +490,7 @@ The approval guard in the MCP server (decision D27): `tap` and `type` call `guar
 - Android emulator: Windows PC `win-pc`, AVD `Pixel_API_37`, SDK `D:\Android\Sdk`. Reach it from the Mac with `ssh -N -L 5038:127.0.0.1:5037 win-pc` and `ADB_SERVER_SOCKET=tcp:127.0.0.1:5038`. All agent streams flow through the adb server, so the daemon on the Mac drives the emulator on the PC.
 - Launch the API 37 emulator with `emulator.exe -avd Pixel_API_37 -port 5554 -no-snapshot -no-audio -no-boot-anim -no-window -gpu swangle_indirect` (the AVD's `config.ini` also says `hw.gpu.mode=swangle_indirect`). Without `-gpu swangle_indirect` the emulator picks lavapipe (software Vulkan; the old `swiftshader_indirect` mode is rejected at launch and falls back to it), and with lavapipe the emulator crashes within 2 to 10 s of the first WebView, with no UiAutomation client involved; when its crash reporter also crashes, the process is left suspended and `adb shell` never answers. With swangle 11 trials had no hang or death, but two emulators launched with it still stopped later (`docs/bench/m2.md`), so it is not shown to be sufficient.
 - An API 26 emulator for the minimum-version checks: create `Pixel_API_26` on win-pc.
-- iOS simulators and any GUI: the Mac mini (cua Space `mini` for shell and files, `mini-desktop` MCP for its screen). Never drive GUIs on the MacBook's own screen. On 2026-11-05 the mini had Xcode 27.0, the iOS 26.5 simulator runtime only (no iOS 27), Python 3.14, XcodeGen 2.46 (installed with Homebrew), and no Rust toolchain. Sources reach it by `cua` upload into `~/phone-use-work/`.
+- iOS simulators and any GUI: the Mac mini (cua Space `mini` for shell and files, `mini-desktop` MCP for its screen). Never drive GUIs on the MacBook's own screen. On 2026-11-05 the mini had Xcode 27.0, the iOS 26.5 simulator runtime only (no iOS 27), Python 3.14, XcodeGen 2.46 (installed with Homebrew), and no Rust toolchain. Sources reach it by `cua` upload into `~/phonedriver-work/`.
 - Physical phones: the MacBook currently sees a paired iPhone 14 Plus on iOS 26.5 and two other iOS devices. These belong to people. Ask the user before driving any physical device.
 
 ## 12. Performance budgets
@@ -518,7 +518,7 @@ Measured in task 5.6 (`docs/bench/m4.md`, Mac mini M4, iPhone 17 simulator, iOS 
 - No telemetry. Nothing leaves the machine except traffic to the device and, for iOS DDI mounting, Apple's TSS server. `crates/cli/tests/network.rs` checks it under a macOS sandbox (decision D25).
 - The daemon socket is user-only. No network listener.
 - Never executes agent-supplied code.
-- Secret text arrives on stdin or in `PHONE_USE_SECRET`, never on the command line (argv is visible in `ps` and shell history). It is never logged, traced, or echoed. Typing into a `SecureField` is treated as secret even without the flag. `SecureField` values never render.
+- Secret text arrives on stdin or in `PHONEDRIVER_SECRET`, never on the command line (argv is visible in `ps` and shell history). It is never logged, traced, or echoed. Typing into a `SecureField` is treated as secret even without the flag. `SecureField` values never render.
 - The Android agent's socket requires the per-launch token (section 6.2).
 - Clipboard is restored after paste on Android. On the iOS Simulator, typing never touches the pasteboard (section 7.3). The CoreDevice tier pastes through it (section 7.2) and the pasteboard holds the text afterwards; replies say so.
 
