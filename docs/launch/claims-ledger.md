@@ -49,6 +49,7 @@ Every factual claim in `show-hn.md`, `x.md` and `linkedin.md`, with the repo fil
 | Screenshot 45 ms (45.3) against 692 ms (692.4) with `adb exec-out screencap` | HN, X thread 4 | `docs/bench/adb.md` (results table; run B for phone-use) |
 | Settings screen read 237 ms (237.0) against 2,800 ms (2,800.5) with `uiautomator dump` | HN, X, LinkedIn | `docs/bench/adb.md` (results table; run B is the slower of two; phone-use figure is `--no-settle`) |
 | Tap then know what changed 667 ms (666.9) against 3,112 ms (3,111.7) | HN, X thread 4 | `docs/bench/adb.md` |
+| Up to 51 times faster than adb at p50 (banner, social preview, chart headline; computed from `docs/bench/speed.json`, currently the 1,000-row list read, 2,677.9 ms against 52.8 ms) | README, banner | `docs/bench/speed.json`; `docs/bench/adb.md`. Replaced by the 2026-11-07 run when it lands |
 | A bare tap is 1.6 times faster than adb | HN, X thread 4 | `docs/bench/adb.md` (ratios paragraph: tap 1.6x) |
 | adb screen read took 2.8 s | HN, LinkedIn, X | `docs/bench/adb.md` |
 | phone-use and adb were measured back to back; phone-use A and B bracket the adb run | HN, X thread 4, answer 9 | `docs/bench/adb.md` (Conditions) |
