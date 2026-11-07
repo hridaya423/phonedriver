@@ -979,7 +979,7 @@ impl Mcp {
 
 #[tool_handler(
     name = "phone-use",
-    instructions = "Operate an Android or iOS device. System settings: `shell`. App UI: `snapshot` once, then act on its @refs; each action returns what changed. Send calls one at a time on the shared screen. If an error needs the user to act on the device, say so and go on when they are done. Passwords, payments, sending and deleting need the user's word for this task."
+    instructions = "Operate an Android or iOS device. System settings: `shell`. App UI: `launch` takes an app name (no `devices` or `apps` first), then `snapshot` once and act on its @refs; each action returns what changed. Send calls one at a time on the shared screen. If an error needs the user to act on the device, say so and go on when they are done. Passwords, payments, sending and deleting need the user's word for this task."
 )]
 impl ServerHandler for Mcp {
     async fn call_tool(

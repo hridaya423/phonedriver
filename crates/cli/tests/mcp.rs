@@ -463,6 +463,17 @@ async fn the_server_tells_the_agent_that_calls_share_one_screen() {
 }
 
 #[tokio::test]
+async fn the_server_says_launch_takes_a_name_so_devices_and_apps_are_not_a_first_step() {
+    let rig = rig(vec![tree(&["One"])]).await;
+    let info = rig.client.peer_info().unwrap();
+    let text = info.instructions.clone().unwrap_or_default();
+    assert!(
+        text.contains("`launch` takes an app name") && text.contains("`devices`"),
+        "{text}"
+    );
+}
+
+#[tokio::test]
 async fn what_the_lean_list_leaves_out_is_still_named_where_an_agent_looks() {
     let rig = rig(vec![tree(&["One"])]).await;
     let tools = rig.client.list_all_tools().await.unwrap();
