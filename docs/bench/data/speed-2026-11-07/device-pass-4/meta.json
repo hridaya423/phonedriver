@@ -1,0 +1,30 @@
+{
+ "load": {},
+ "date": "2026-11-07 21:26:50",
+ "phone_use_version": "phone-use 0.1.0",
+ "adb_version": [
+  "Android Debug Bridge version 1.0.41",
+  "Version 37.0.1-15733141"
+ ],
+ "serial": "emulator-5554",
+ "model": "sdk_gphone64_x86_64",
+ "api": "37",
+ "fingerprint": "google/sdk_gphone64_x86_64/emu64xa:17/CE2A.260420.051.A3/16571990:userdebug/dev-keys",
+ "wm_size": "Physical size: 1080x2424",
+ "wm_density": "Physical density: 420",
+ "devices": [
+  "emulator-5554\tdevice",
+  "emulator-5556\tdevice",
+  "emulator-5558\tdevice",
+  ""
+ ],
+ "runs": 50,
+ "warmup": 20,
+ "blocks": 5,
+ "clock_offset_s": {
+  "before": 0.04426097869873047,
+  "after": 0.043193817138671875,
+  "rtt_before_ms": 14.16778564453125,
+  "rtt_after_ms": 14.818668365478516
+ }
+}

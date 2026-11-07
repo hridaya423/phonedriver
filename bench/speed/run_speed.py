@@ -298,7 +298,7 @@ def main():
     a = ap.parse_args()
     os.makedirs(a.out, exist_ok=True)
     only = [s for s in a.only.split(";") if s]
-    want = lambda name: not only or any(o in name for o in only)
+    want = lambda name: not only or any((o[1:] == name) if o.startswith("=") else (o in name) for o in only)
 
     os.environ.update(DO_NOT_TRACK="1", PHONE_HARNESS_TELEMETRY="0", PHONE_HARNESS_NO_UPDATE_CHECK="1", PHONE_HARNESS_PLATFORM="android", ANDROID_SERIAL=a.serial)
     os.environ.pop("ADB_SERVER_SOCKET", None)
