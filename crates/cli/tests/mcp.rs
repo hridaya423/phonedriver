@@ -468,7 +468,9 @@ async fn the_server_says_launch_takes_a_name_so_devices_and_apps_are_not_a_first
     let info = rig.client.peer_info().unwrap();
     let text = info.instructions.clone().unwrap_or_default();
     assert!(
-        text.contains("`launch` takes an app name") && text.contains("`devices`"),
+        text.contains("`launch` takes an app name")
+            && text.contains("`devices`")
+            && text.contains("one `batch`"),
         "{text}"
     );
 }
