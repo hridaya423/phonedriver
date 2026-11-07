@@ -179,12 +179,83 @@ async fn typing_into_a_web_field_right_after_the_page_loads_lands_every_time() {
     }
 }
 
+async fn fresh_web_form(rig: &Rig) {
+    rig.adb
+        .shell(&rig.serial, "am force-stop dev.phoneuse.testbed")
+        .await
+        .unwrap();
+    rig.ok(&["snapshot", "--no-settle"]);
+    testbed::open_tab(&rig.adb, &rig.serial, "web").await;
+    testbed::clear_log(&rig.adb, &rig.serial).await;
+    rig.ok(&["--timeout", "20000", "wait", "Web form"]);
+    rig.ok(&["--timeout", "20000", "wait", "Send"]);
+}
+
+#[tokio::test]
+#[ignore = "needs PHONE_USE_TEST_DEVICE"]
+async fn a_web_field_that_already_holds_text_is_replaced() {
+    let rig = Rig::new().await;
+    fresh_web_form(&rig).await;
+    for text in ["Ada Lovelace", "Grace Hopper"] {
+        let r = rig.json(&["type", text, "--into", "Name"]);
+        assert_eq!(r["verified"], true, "{r}");
+    }
+    let log = testbed::wait_for_log(&rig.adb, &rig.serial, 3000, |l| {
+        l.iter()
+            .any(|e| e["field"] == "name" && e["value"] == "Grace Hopper")
+    })
+    .await;
+    let last = log.iter().rev().find(|e| e["field"] == "name").unwrap();
+    assert_eq!(last["value"], "Grace Hopper", "{log:?}");
+    let r = rig.json(&["clear", "Name"]);
+    assert_eq!(r["verified"], true, "{r}");
+}
+
+#[tokio::test]
+#[ignore = "needs PHONE_USE_TEST_DEVICE"]
+async fn a_web_checkbox_shows_on_or_off_and_a_tap_shows_the_change() {
+    let rig = Rig::new().await;
+    fresh_web_form(&rig).await;
+    let shown = rig.ok(&["snapshot"]);
+    assert!(shown.contains("checkbox \"Agree\" off"), "{shown}");
+    let on = rig.ok(&["tap", "Agree"]);
+    assert!(
+        on.contains("checkbox \"Agree\" off → \"Agree\" on") || on.contains("off → on"),
+        "{on}"
+    );
+    assert!(!on.contains("no element changed"), "{on}");
+    let off = rig.ok(&["tap", "Agree"]);
+    assert!(off.contains("on → off"), "{off}");
+}
+
+#[tokio::test]
+#[ignore = "needs PHONE_USE_TEST_DEVICE"]
+async fn typing_into_a_web_field_that_the_page_swaps_for_another_lands_in_the_new_one() {
+    let rig = Rig::new().await;
+    fresh_web_form(&rig).await;
+    let r = rig.json(&["type", "Grace Hopper", "--into", "Search"]);
+    assert_eq!(r["verified"], true, "{r}");
+    assert!(
+        r["summary"].as_str().unwrap().contains("typed 12 chars"),
+        "{r}"
+    );
+    let log = testbed::wait_for_log(&rig.adb, &rig.serial, 3000, |l| {
+        l.iter()
+            .any(|e| e["field"] == "search2" && e["value"] == "Grace Hopper")
+    })
+    .await;
+    assert!(
+        log.iter()
+            .any(|e| e["field"] == "search2" && e["value"] == "Grace Hopper"),
+        "{log:?}"
+    );
+}
+
 #[tokio::test]
 #[ignore = "needs PHONE_USE_TEST_DEVICE"]
 async fn web_form_inputs_are_text_fields_and_take_text_taps_and_a_checkbox() {
     let rig = Rig::new().await;
-    rig.tab("web").await;
-    rig.ok(&["--timeout", "8000", "wait", "Send"]);
+    fresh_web_form(&rig).await;
     let els = elements(&rig);
     let name = find(&els, "text_field", "Name");
     assert_eq!(name["role"], "text_field");

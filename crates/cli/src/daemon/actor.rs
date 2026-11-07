@@ -30,6 +30,7 @@ use tokio::time::Instant;
 
 use super::DeviceSource;
 use super::guard;
+use super::checkbox;
 use super::session::{Resolved, Session};
 use super::shell;
 use super::verify::{Expect, Verdict, Verify};
@@ -50,7 +51,11 @@ const WAIT_DEBOUNCE: Duration = Duration::from_millis(100);
 const TYPED_QUIET: Duration = Duration::from_millis(150);
 /// A tree read that starts this long after the last significant frame can already show where the screen ended up.
 const READ_LAG: Duration = Duration::from_millis(120);
+const TOGGLE_WAIT: Duration = Duration::from_secs(3);
+const MAX_CHECKBOXES: usize = 16;
 const TREE_STEP: Duration = Duration::from_millis(100);
+const FOCUS_FOLLOW_WAIT: Duration = Duration::from_secs(5);
+const FOCUS_KEYBOARD_WAIT: Duration = Duration::from_millis(1200);
 const TREE_STABLE_WAIT: Duration = Duration::from_secs(1);
 const LOADING_WAIT: Duration = Duration::from_secs(4);
 const CONTENT_WAIT: Duration = Duration::from_secs(2);
@@ -882,6 +887,7 @@ impl Actor {
                 Err(_) => {}
             }
         }
+        self.read_checkboxes(&mut rendered).await?;
         let filters = Filters {
             interactive: p.interactive,
             within: p.within,
@@ -941,7 +947,63 @@ impl Actor {
         if s.ocr {
             self.merge_pixels(s, &mut rendered).await?;
         }
+        self.read_checkboxes(&mut rendered).await?;
         Ok(rendered)
+    }
+
+    /// A web checkbox repaints after the screen has looked settled (up to 3 s on a page that has just loaded in the
+    /// emulator), so a read right away still shows the old state and the reply says nothing changed.
+    async fn await_toggle(&mut self, s: &mut Session, r: Ref, was: bool) -> Result<(), Error> {
+        let started = Instant::now();
+        while started.elapsed() < TOGGLE_WAIT {
+            tokio::time::sleep(TREE_STEP).await;
+            let now = self.fresh(s).await?;
+            let state = now.index_of(r).map(|i| now.elements[i].state);
+            if state.is_none_or(|st| st.contains(ElementState::CHECKED) != was) {
+                break;
+            }
+        }
+        Ok(())
+    }
+
+    /// A web checkbox says neither checkable nor checked in the tree, so its state is read from the screenshot.
+    async fn read_checkboxes(&self, rendered: &mut Rendered) -> Result<(), Error> {
+        let boxes: Vec<usize> = rendered
+            .elements
+            .iter()
+            .enumerate()
+            .filter(|(_, e)| {
+                e.role == Role::Checkbox
+                    && !e.state.contains(ElementState::CHECKABLE)
+                    && e.bounds.w > 0.0
+                    && e.bounds.h > 0.0
+                    && rendered.in_web_view(e.r#ref)
+            })
+            .map(|(i, _)| i)
+            .take(MAX_CHECKBOXES)
+            .collect();
+        let device = self.device()?;
+        if boxes.is_empty()
+            || !device
+                .info()
+                .capabilities
+                .contains(Capabilities::SCREENSHOT)
+        {
+            return Ok(());
+        }
+        let image = device.screenshot(Quality(100)).await?;
+        let rects: Vec<Rect> = boxes.iter().map(|&i| rendered.elements[i].bounds).collect();
+        let ticked = tokio::task::spawn_blocking(move || checkbox::ticked(&image.bytes, &rects))
+            .await
+            .map_err(|e| Error::Transport {
+                detail: format!("checkbox task failed: {e}"),
+            })??;
+        for (&i, on) in boxes.iter().zip(ticked) {
+            let state = &mut rendered.elements[i].state;
+            state.insert(ElementState::CHECKABLE);
+            state.set(ElementState::CHECKED, on);
+        }
+        Ok(())
     }
 
     /// Adds the text a screenshot shows and the tree does not. A box keeps the ref of the same text in the last
@@ -1274,6 +1336,13 @@ impl Actor {
                     None => format!("{verb} at {},{}", at.x.round(), at.y.round()),
                 };
                 let summary = approved_summary(summary, approved);
+                if let Some(e) = found.as_ref().filter(|e| {
+                    e.role == Role::Checkbox
+                        && s.last.as_ref().is_some_and(|l| l.in_web_view(e.r#ref))
+                }) {
+                    self.await_toggle(s, e.r#ref, e.state.contains(ElementState::CHECKED))
+                        .await?;
+                }
                 self.finish(s, p.settle, cfg, started, summary, None, None, None)
                     .await
             }
@@ -1603,13 +1672,14 @@ impl Actor {
                 };
                 let secure = secret || field.as_ref().is_some_and(is_secure);
                 let replace = into.is_some() && !append;
-                let held = field
+                let mut held = field
                     .as_ref()
                     .and_then(|f| f.value.clone())
                     .filter(|v| !v.is_empty());
-                let wipe = replace && held.is_some() && mode != TypeMode::Set;
+                let mut wipe = replace && held.is_some() && mode != TypeMode::Set;
                 let can_set = device.info().capabilities.contains(Capabilities::TEXT_SET);
                 let started = self.begin_action();
+                let mut field = field;
                 if let Some(at) = tap_at {
                     let at = match (&field, wipe && !can_set) {
                         (Some(f), true) => Point {
@@ -1619,6 +1689,14 @@ impl Actor {
                         _ => at,
                     };
                     device.gesture(gesture::tap(at, 1, None)).await?;
+                    let in_page = field
+                        .as_ref()
+                        .is_some_and(|f| s.last.as_ref().is_some_and(|l| l.in_web_view(f.r#ref)));
+                    if in_page && let Some(f) = self.follow_focus(s, field.as_ref()).await? {
+                        held = f.value.clone().filter(|v| !v.is_empty());
+                        wipe = replace && held.is_some() && mode != TypeMode::Set;
+                        field = Some(f);
+                    }
                 }
                 if let Some(held) = held.filter(|_| wipe) {
                     let emptied = if can_set {
@@ -1691,6 +1769,44 @@ impl Actor {
                     mask,
                 )
                 .await
+            }
+        }
+    }
+
+    /// A page can answer a tap on its search box by building another field and focusing that one, a few hundred ms
+    /// to a few seconds later (Wikipedia, where the old field is gone and the keyboard comes up with the new one).
+    /// Text pasted before that goes to the old field. Reads the screen until the same field has been focused twice
+    /// in a row with the keyboard up, and returns it when it is not `field`.
+    async fn follow_focus(
+        &mut self,
+        s: &mut Session,
+        field: Option<&Element>,
+    ) -> Result<Option<Element>, Error> {
+        let started = Instant::now();
+        let mut at = field.map(|f| f.r#ref);
+        let mut moved = None;
+        let mut steady = 0;
+        loop {
+            tokio::time::sleep(TREE_STEP).await;
+            let now = self.fresh(s).await?;
+            let focused = now
+                .elements
+                .iter()
+                .find(|e| e.state.contains(ElementState::FOCUSED) && e.role.is_text_entry())
+                .filter(|e| now.in_web_view(e.r#ref));
+            match focused {
+                Some(e) if Some(e.r#ref) == at => steady += 1,
+                Some(e) => {
+                    at = Some(e.r#ref);
+                    moved = Some(e.clone());
+                    steady = 1;
+                }
+                None => steady = 0,
+            }
+            let waited = started.elapsed();
+            let keyboard = now.header.keyboard.is_some() || waited >= FOCUS_KEYBOARD_WAIT;
+            if (steady >= 2 && keyboard) || waited >= FOCUS_FOLLOW_WAIT {
+                return Ok(moved);
             }
         }
     }
@@ -1926,7 +2042,13 @@ impl Actor {
                 }
             }
         }
-        let verdict = verify.as_ref().map(|v| v.check(&rendered));
+        self.read_checkboxes(&mut rendered).await?;
+        let verdict = verify.as_ref().map(|v| {
+            v.check(
+                &rendered,
+                v.submitted && moved_beyond(s, &rendered, v.field),
+            )
+        });
         let verified = verdict.as_ref().and_then(Verdict::verified);
         let unverified = match verdict {
             Some(Verdict::Failed(u)) => Some(u),
@@ -2239,7 +2361,8 @@ impl Actor {
             });
         }
         let tree = self.device()?.tree().await?;
-        let rendered = self.build(s, &tree, Some(settle_line(st)));
+        let mut rendered = self.build(s, &tree, Some(settle_line(st)));
+        self.read_checkboxes(&mut rendered).await?;
         let text = rendered.text(&Filters::default()).unwrap_or_default();
         let ms = match st {
             State::Done { elapsed, .. } => elapsed.as_millis() as u32,
@@ -2285,6 +2408,27 @@ fn only_lost_lines(s: &Session, now: &Rendered) -> bool {
         Some(DiffOrFull::Diff(changes))
             if !changes.is_empty() && changes.iter().all(|c| matches!(c, Change::Removed(_)))
     )
+}
+
+/// The screen changed somewhere other than `field` and the keyboard.
+fn moved_beyond(s: &Session, now: &Rendered, field: Option<Ref>) -> bool {
+    let Some(prev) = s.last.as_ref() else {
+        return false;
+    };
+    let DiffOrFull::Diff(changes) = diff(prev, now) else {
+        return true;
+    };
+    changes.iter().any(|c| {
+        let r = match c {
+            Change::Added(r) | Change::Removed(r) => *r,
+            Change::Changed { r#ref, .. } => *r#ref,
+        };
+        let element = now
+            .index_of(r)
+            .map(|i| &now.elements[i])
+            .or_else(|| prev.index_of(r).map(|i| &prev.elements[i]));
+        Some(r) != field && element.is_none_or(|e| e.role != Role::Keyboard)
+    })
 }
 
 fn numbered_distance(
