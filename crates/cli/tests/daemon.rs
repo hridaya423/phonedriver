@@ -333,6 +333,35 @@ async fn a_lease_expires_after_ten_minutes_without_calls() {
 }
 
 #[tokio::test(start_paused = true)]
+async fn a_settled_tap_reads_the_tree_while_the_screen_is_quiet_not_after_it() {
+    let (source, fake) = FakeSource::with(vec![
+        tree(&["One", "Two", "Three"]),
+        tree(&["One", "Two", "Three!"]),
+    ]);
+    let (d, _home) = daemon(source);
+    ok(&d, "default", "snapshot", json!({})).await;
+    tokio::spawn(async move {
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        fake.push_frame(big_frame(1));
+    });
+    let t = tokio::time::Instant::now();
+    let r = ok(&d, "default", "act", tap_point(10.0, 10.0)).await;
+    let took = t.elapsed();
+    assert_eq!(r["observation"]["kind"], "diff", "{r}");
+    assert!(
+        r["observation"]["text"]
+            .as_str()
+            .unwrap()
+            .contains("Three!"),
+        "{r}"
+    );
+    assert!(
+        took <= Duration::from_millis(380),
+        "the reply came {took:?} after the tap; the quiet period alone is 350 ms"
+    );
+}
+
+#[tokio::test(start_paused = true)]
 async fn a_settled_tap_leaves_its_phases_in_the_trace() {
     let (source, fake) = FakeSource::with(vec![
         tree(&["One", "Two", "Three"]),
