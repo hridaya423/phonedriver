@@ -1,0 +1,1022 @@
+# phonedriver: full documentation
+
+> phonedriver is an open-source MCP server and CLI that lets AI agents like Claude Code see and control Android and iOS phones. It shows a screen as numbered text, and every tap, type or swipe returns only the lines that changed.
+
+Source: https://phonedriver.dev/. Canonical pages are linked per section.
+
+---
+
+URL: https://phonedriver.dev/
+
+# phonedriver
+
+phonedriver is an open-source MCP server and CLI that lets AI agents like Claude Code see and control Android and iOS phones. It shows a screen as numbered text, and every tap, type or swipe returns only the lines that changed.
+
+## How do I let an AI agent control my phone?
+
+Install phonedriver, add it to your agent as an MCP server (claude mcp add phonedriver -- phonedriver mcp for Claude Code), connect an Android phone with USB debugging, start an emulator, or boot the iOS Simulator, and ask the agent in plain language, for example "Open Settings and turn on dark mode." The agent gets a text view of the screen and tools to tap, type and swipe. See the setup guides.
+
+## How do I let Claude control my Android phone?
+
+Add phonedriver to Claude Code as an MCP server with claude mcp add phonedriver -- phonedriver mcp, then connect a phone with USB debugging on or start an emulator. Nothing is installed on the phone. The device suite passes on emulators (API 26 and 37); a phone uses the same path and is not tested on hardware. See the Claude Code guide.
+
+## What is phonedriver?
+
+phonedriver is a free, open-source CLI and MCP server that gives an AI agent a text view of an Android or iOS screen and the means to tap, type and swipe. Every action waits for the screen to settle and returns only the lines that changed, so the agent does not poll or sleep. It is licensed AGPL-3.0.
+
+## Which AI agents and MCP clients work with it?
+
+Any client that starts a stdio MCP server can use it, including Claude Code and Cursor. Claude Code is the one we test against, with claude -p and Claude Sonnet 5.5 in our benchmarks. We have not run a Cursor session ourselves. The server has fourteen tools, and the CLI prints the same text as the MCP tools.
+
+## Does it work on a real iPhone and a real Android phone?
+
+Yes for iPhone and iPad through the CLI and MCP, tested on an iPhone 14 Plus (iOS 26.1) and an iPad Pro (iOS 27.0); it needs a Mac with Xcode and a signing team. A real Android phone uses the same path as the emulator, over USB or Wi-Fi debugging, but we have not tested it on hardware yet. Android emulators (API 26 and 37) and the iOS Simulator are tested.
+
+## What is the fastest way for an AI agent to control a phone?
+
+On an Android 17 emulator, phonedriver reads a 1,000-row list in 24.0 ms where adb takes 2,352.4 ms (98 times faster at p50, 95% CI 92.2 to 106.0), takes a screenshot in 11.6 ms against 476.3 ms (41 times) and types 100 characters in 251.1 ms against 4,840.9 ms (19 times). A bare tap is closer: 1.1 to 1.7 times faster host to reply. Emulator only; no physical phone has been measured. See the benchmarks.
+
+## How is phonedriver different from mobile-mcp and phone-harness?
+
+mobile-mcp is an MCP server that reads the accessibility tree and also supports cloud devices, with anonymous telemetry on by default. phone-harness is a Python CLI that drives Android through adb and iPhones through Mac mirroring and OCR. phonedriver keeps a resident agent on the Android device, waits for the screen to settle after every action and returns a diff, asks before taps that spend money, and sends no telemetry. See the comparisons.
+
+## Can the agent spend my money or delete things?
+
+Not without asking you. Before a tap on a button such as Place order, Pay, Send $20.00 or Delete account, phonedriver stops and asks the human through the MCP client, showing the app, the button and the amounts on screen. This stops an agent that follows its rules or is steered by screen text; it does not stop one set on bypassing it, and it matches English labels only. See the approval guard.
+
+## Does phonedriver send telemetry?
+
+No. It talks to the device, the local daemon socket and the local adb server, and to Apple only when mounting an iOS developer disk image. A test runs the CLI, daemon and MCP server under a macOS sandbox that kills any process opening a non-local connection. Text passed with --secret never reaches logs, traces or replies. This website sets no cookies and runs no scripts.
+
+## Does it install anything on my phone?
+
+On Android, no app and no accessibility service. The daemon pushes a small jar over adb and starts it with app_process as the shell user, the way scrcpy does. On iOS, a small XCTest runner is built on your Mac with Xcode the first time it is needed.
+
+## How many tokens does it use?
+
+Its 14 MCP tools cost about 5,600 tokens on the first turn of a one-word claude -p, against about 5,200 for phone-harness. On three Android tasks, Claude Sonnet 5.5 used 218,357 tokens in total with phonedriver and 330,375 with phone-harness (medians of 2 to 3 runs, 34% fewer), all passing. Small samples: see the token benchmark.
+
+## What does it cost, and what is the license?
+
+It is free. The license is AGPL-3.0-only: if you distribute phonedriver, or run a modified version as a network service, you must publish your source under the same license. The Android agent contains files copied from scrcpy under Apache-2.0.
+
+## What does it not do well yet?
+
+A bare tap misses its 15 ms budget. An iOS tap takes 357 ms on the Simulator and 454 to 534 ms on devices. WebViews and custom views can have an empty accessibility tree, where it falls back to OCR. The real-phone jobs benchmark has no agent results yet. Android hardware is untested.
+
+---
+
+URL: https://phonedriver.dev/docs/install/
+
+# How to install phonedriver
+
+phonedriver is one binary: the CLI, the daemon and the MCP server. The Android agent is packed inside it, so there is nothing else to download.
+
+> Nothing is published yet. The commands under "One-line install" work once the first release is out. Until then, use "Build from source".
+
+## One-line install
+
+```sh
+# macOS and Linux
+curl --proto '=https' --tlsv1.2 -LsSf https://github.com/hridaya423/phonedriver/releases/latest/download/phonedriver-installer.sh | sh
+
+# Homebrew (macOS and Linux)
+brew install hridaya423/tap/phonedriver
+```
+
+```powershell
+# Windows
+powershell -ExecutionPolicy Bypass -c "irm https://github.com/hridaya423/phonedriver/releases/latest/download/phonedriver-installer.ps1 | iex"
+```
+
+The shell and PowerShell installers put `phonedriver` in `$CARGO_HOME/bin` (`~/.cargo/bin`) and add it to your `PATH`. The iOS Simulator runner needs no download: its sources are inside the binary, and the first command that needs it builds it on your Mac with Xcode and XcodeGen.
+
+## Build from source
+
+Use Rust 1.99 or later.
+
+```sh
+cargo build --release
+```
+
+The build packs the Android agent, so it needs the Android SDK with build-tools **37.0.0** and platform **android-37.0** (`ANDROID_HOME`, falling back to `ANDROID_SDK_ROOT`), `d8` and JDK 17. Override the versions with `ANDROID_BUILD_TOOLS` and `ANDROID_PLATFORM`. If anything is missing, the build says exactly what and how to get it. To skip that step, set `PHONEDRIVER_AGENT_JAR` to a built `phonedriver-agent.jar` (`bash android-agent/build.sh` makes one).
+
+For iOS only, with no Android toolchain:
+
+```sh
+cargo build --release -p phonedriver --no-default-features
+```
+
+That binary has no Android support, and `phonedriver doctor` skips the Android checks. The binary is `target/release/phonedriver`.
+
+## Check it works
+
+```console
+$ phonedriver version
+phonedriver 0.1.0
+```
+
+`phonedriver doctor` checks adb, each Android device, the agent, UiAutomation, the video stream, Xcode, the simulators and the permissions of the daemon socket. Each line says `ok`, `warn` or `fail`, and a fix follows every line that is not `ok`.
+
+```console
+$ phonedriver doctor
+ok    adb server       0029 at 127.0.0.1:5037
+warn  android devices  none connected
+      fix: Connect a phone with USB debugging on, or start an emulator; `adb devices` lists what adb sees.
+ok    xcode            Xcode 27.0, Build version 27A266a
+ok    daemon socket    /Users/you/.phonedriver/run/daemon.sock mode 600 in a directory of mode 700
+```
+
+## Next
+
+Connect it to an agent: [Claude Code](/docs/claude-code/) or [Cursor and other MCP clients](/docs/cursor-and-mcp-clients/). Then pick a device: an [Android emulator](/docs/android-emulator/), a [real Android phone](/docs/android-phone/), the [iOS Simulator](/docs/ios-simulator/) or an [iPhone](/docs/iphone/).
+
+## Environment variables
+
+| Name | Default | Meaning |
+|---|---|---|
+| `PHONEDRIVER_HOME` | `~/.phonedriver` | Where the daemon keeps its socket, `daemon.log`, `traces/`, `tmp/` and the iOS `runner/` builds. Set it to run a separate daemon. |
+| `PHONEDRIVER_SOCKET` | under `PHONEDRIVER_HOME` | The daemon's socket or named pipe. Point it at an `ssh -L` forward to use another machine's devices. |
+| `PHONEDRIVER_DEVICE` | none | The device to use when `--device` is not given. Also read by `phonedriver mcp`. |
+| `PHONEDRIVER_SESSION` | `default` | The session name, as `--session`. |
+| `PHONEDRIVER_TEAM` | none | Apple developer team ID that signs the iOS runner on a physical device. |
+| `PHONEDRIVER_GUARD` | on | `off` stops the [approval guard](/docs/approval-guard/). |
+| `PHONEDRIVER_SECRET` | none | The text for `type --secret`, instead of stdin. |
+| `PHONEDRIVER_TRACE_FULL`, `PHONEDRIVER_TRACE_SCREENS` | off | Keep observation text, or screenshots, in traces. |
+| `ADB_SERVER_SOCKET` | `tcp:127.0.0.1:5037` | The adb server to use, for example a tunnel to another machine. |
+
+---
+
+URL: https://phonedriver.dev/docs/claude-code/
+
+# How to use phonedriver with Claude Code
+
+Claude Code is the client phonedriver is tested against: the benchmarks on this site run `claude -p` with Claude Sonnet 5.5.
+
+## Add the server
+
+[Install phonedriver](/docs/install/) first. Then, from any directory:
+
+```sh
+claude mcp add phonedriver -- phonedriver mcp
+claude mcp list    # expect: phonedriver ... Connected
+```
+
+If the binary is not on your `PATH`, use its full path after the `--`.
+
+For the first run, boot one simulator or connect one device, so no device setting is needed. With more than one device, set the one to use in the server's environment:
+
+```sh
+claude mcp add --env PHONEDRIVER_DEVICE=android:emulator-5554 phonedriver -- phonedriver mcp
+```
+
+`phonedriver devices` lists the ids. `PHONEDRIVER_DEVICE` is optional when one device is connected.
+
+## Ask it
+
+Boot a device, then ask Claude Code in plain language:
+
+> Open Settings and turn on dark mode.
+
+Claude Code calls the tools, for example `launch`, `swipe` and `tap`. Each reply is plain text. The tap that turns the switch on returns this on the iOS Simulator:
+
+```screen
+ok tapped @e41 "Dark Appearance" at 337,198 · settled in 607ms
+- @e65 @e66 @e67
+~ @e41 switch "Dark Appearance" off → on
++ @e68 button "L4S"
+```
+
+`+`, `-` and `~` mark lines that appeared, left and changed. The agent does not poll or sleep: every action waits for the screen to settle.
+
+## What the agent gets
+
+Fourteen tools: `devices`, `apps`, `snapshot`, `screenshot`, `tap`, `type`, `swipe`, `scroll`, `press`, `launch`, `wait`, `batch`, `clipboard` and `shell`. Each prints the same text as the CLI verb of the same name. `phonedriver skill` prints `SKILL.md`, the instructions an agent reads before it uses the tools; the MCP server carries a short version too.
+
+## When Claude Code asks you something
+
+A tap on a button that spends money or cannot be undone (`Place order`, `Pay`, `Delete account`) is held until you answer. Claude Code shows the question with the app, the button and the amounts on screen. See [the approval guard](/docs/approval-guard/). In headless `claude -p` nobody can answer, so the tap is declined.
+
+## Secrets
+
+Text typed with `secret: true` over MCP never reaches logs, traces or replies.
+
+---
+
+URL: https://phonedriver.dev/docs/cursor-and-mcp-clients/
+
+# How to use phonedriver with Cursor and other MCP clients
+
+Any client that starts a stdio MCP server can use phonedriver. We test with Claude Code. We have not run a Cursor session ourselves, so the Cursor steps below use the standard stdio entry and Cursor's documented configuration file, not something we watched work.
+
+## The entry
+
+```json
+{
+  "mcpServers": {
+    "phonedriver": {
+      "command": "phonedriver",
+      "args": ["mcp"],
+      "env": { "PHONEDRIVER_DEVICE": "android:emulator-5554" }
+    }
+  }
+}
+```
+
+If `phonedriver` is not on the `PATH` the client sees, put the full path in `command`. `PHONEDRIVER_DEVICE` is optional when one device is connected.
+
+## Cursor
+
+Put the entry in `~/.cursor/mcp.json` for every project, or in `.cursor/mcp.json` inside one project. Open Cursor's MCP settings and check that `phonedriver` shows its tools.
+
+## Other clients
+
+Use the client's own place for stdio servers, with the same `command` and `args`. If the client cannot start a local process, run `phonedriver` where the client can reach it and forward the daemon's socket (see [Android emulator](/docs/android-emulator/#use-a-device-on-another-machine)).
+
+## Tools
+
+The server has fourteen tools: `devices`, `apps`, `snapshot`, `screenshot`, `tap`, `type`, `swipe`, `scroll`, `press`, `launch`, `wait`, `batch`, `clipboard` and `shell`. `apps` also installs, stops, clears and uninstalls. Each prints the same text as the CLI verb of the same name, so anything you read in these docs about the command line holds for the tools.
+
+In Claude Code's wrapper the fourteen tools cost about 51 tokens each whatever their text. The first turn of a one-word `claude -p` costs 5,606 tokens with phonedriver attached ([token benchmark](/benchmarks/#tokens)).
+
+## Approval prompts need elicitation
+
+The [approval guard](/docs/approval-guard/) asks you through MCP elicitation. A client that does not support elicitation cannot show the question, and the tool then replies that the tap needs the human's approval and taps nothing. Check that your client supports elicitation before you give an agent a phone with a shopping app on it.
+
+---
+
+URL: https://phonedriver.dev/docs/android-emulator/
+
+# How to control an Android emulator with phonedriver
+
+Android emulators on API 26 and API 37 are the best-tested target: the 21-scenario device suite passes on both. phonedriver needs only adb and nothing installed in the emulator.
+
+## Start an emulator
+
+Create an AVD in Android Studio's Device Manager, or with the command-line tools, then start it:
+
+```sh
+emulator -avd Pixel_API_37
+```
+
+The benchmarks on this site ran headless, with software rendering:
+
+```sh
+emulator -avd Pixel_API_37 -no-window -no-audio -no-snapshot -gpu swangle_indirect
+```
+
+## Check phonedriver sees it
+
+```sh
+phonedriver devices
+phonedriver doctor
+```
+
+The emulator appears as `android:emulator-5554`. `doctor` checks adb, the agent, UiAutomation and the video stream, and says how to fix whatever is not `ok`.
+
+## Drive it
+
+```sh
+phonedriver snapshot
+phonedriver tap "Dark theme"
+phonedriver wait settled
+```
+
+`snapshot` lists the screen as text, for example `@e3 button "Google" "Services & preferences"`. A tap returns the lines that changed instead of the whole screen:
+
+```screen
+ok tapped @e10 "Dark theme" · settled in 410ms
+~ @e10 switch "Dark theme" off → on
+```
+
+The first command starts the daemon, finds the agent jar on the device (pushing it if needed) and starts the agent. Fresh daemon to first screen read took 1,620.5 ms at p50 on the benchmark emulator. After that each call costs milliseconds.
+
+## Use a device on another machine
+
+The daemon listens on a Unix socket and nowhere else. To drive an emulator or phone plugged into another machine, forward that socket over `ssh` and point the CLI at the local end:
+
+```sh
+ssh -N -L /tmp/phonedriver-remote.sock:/Users/you/.phonedriver/run/daemon.sock remote-host &
+export PHONEDRIVER_SOCKET=/tmp/phonedriver-remote.sock
+phonedriver snapshot
+```
+
+On the other machine, run any `phonedriver` command once, or `phonedriver daemon`, so that the socket exists. Both machines need the same version. `phonedriver screenshot` then prints a path on the machine that has the device; `phonedriver screenshot -o shot.png` writes the file on yours. The MCP `screenshot` tool returns the image itself.
+
+Alternatively, forward only adb: `ssh -N -L 5038:127.0.0.1:5037 remote-host` and `ADB_SERVER_SOCKET=tcp:127.0.0.1:5038`. Each device round trip then pays the tunnel's latency.
+
+---
+
+URL: https://phonedriver.dev/docs/android-phone/
+
+# How to control a real Android phone with phonedriver
+
+A real Android phone or tablet uses the same code path as the emulator. We have tested it on emulators only. No physical Android phone is in our benchmarks, and the iOS devices we did test are covered on [the iPhone page](/docs/iphone/). Treat real Android hardware as likely to work and not yet proven.
+
+## Over USB
+
+1. On the phone, turn on Developer options, then USB debugging.
+2. Plug the phone in and accept the "Allow USB debugging" prompt.
+3. Check phonedriver sees it:
+
+```sh
+phonedriver devices
+phonedriver doctor
+```
+
+The phone appears as `android:<serial>`. Nothing is installed on it: the daemon pushes a small agent over adb and starts it as the shell user. No accessibility service has to be switched on.
+
+## Over Wi-Fi
+
+An Android 11 or later phone on the same network needs no cable. On the phone, turn on Developer options, then Wireless debugging, and choose Pair device with pairing code. Then:
+
+```sh
+adb pair 192.168.1.20:37099
+adb connect 192.168.1.20:41233
+phonedriver devices
+```
+
+The first address and the six-digit code are on the pairing screen. The second address is on the Wireless debugging screen, and its port changes each time wireless debugging is switched on. The phone then appears as `android:192.168.1.20:41233`. If it shows `offline`, `phonedriver doctor` says what to check. We tested this pairing flow between an emulator and a host over TCP, not on a real network.
+
+## What stays with you
+
+Unlocking the phone, a USB debugging prompt and a biometric prompt are yours. When one blocks the agent, the error says what to do on the device and the command line exits with code 3. The agent tells you and continues when you say it is done.
+
+## Safety on a real phone
+
+A physical Android device refuses wipes and removing apps phonedriver did not install, unless the command passes `--force`. The [approval guard](/docs/approval-guard/) is on by default, which matters more on a phone with real accounts than on an emulator. Do not hand an agent a phone with a payment app signed in until you have read what the guard does not catch.
+
+---
+
+URL: https://phonedriver.dev/docs/ios-simulator/
+
+# How to control the iOS Simulator with phonedriver
+
+The iOS Simulator is a tested target: the 12-scenario suite passes on iOS 26.5, three runs in a row. One scenario, `settings-dark-appearance`, failed twice in six full runs and we have not found the cause.
+
+## What you need
+
+A Mac with Xcode (we use Xcode 27) and XcodeGen (`brew install xcodegen`). There is no Android toolchain involved: the iOS-only build (`--no-default-features`) skips it.
+
+## Boot a Simulator
+
+Boot one in Simulator.app, or:
+
+```sh
+xcrun simctl list devices available
+xcrun simctl boot <udid>
+```
+
+Then:
+
+```sh
+phonedriver devices
+phonedriver snapshot
+```
+
+The first command that needs the runner builds a small XCTest runner on your Mac. The sources are inside the phonedriver binary, so nothing is downloaded. The command says what it is doing if it takes more than a second. The build log is at `~/.phonedriver/runner/<hash>/build.log` and the runner's output at `~/.phonedriver/runner/<udid>.log`.
+
+## Use the shell
+
+`phonedriver shell "simctl ui appearance dark"` runs through `simctl spawn`, and fills in the device for `simctl` subcommands. See [the shell](/docs/shell/).
+
+## Speed
+
+A tap on the iOS 26.5 Simulator takes 357 ms, against 80 ms for the Simulator's own tool, because XCTest takes about 240 ms to confirm the event (decision D15). Screenshots and the settled diff are within budget. If speed on iOS matters, read [the benchmarks](/benchmarks/) before you decide.
+
+## If it does not work
+
+Run `phonedriver doctor`. It checks Xcode, XcodeGen and the booted simulators. With a booted Simulator and an iPhone that has no signing team, the Simulator is the default device. More in [troubleshooting](/docs/troubleshooting/).
+
+---
+
+URL: https://phonedriver.dev/docs/iphone/
+
+# How to control a real iPhone or iPad with phonedriver
+
+A physical iOS device needs the runner signed with your Apple developer team. A free Apple ID works, and the signing expires every 7 days. phonedriver needs a Mac with Xcode.
+
+We tested an iPhone 14 Plus (iOS 26.1) and an iPad Pro (iOS 27.0) through the CLI and MCP. Screenshot, snapshot and the settled tap diff are within budget. A tap misses its 80 ms budget, at 454 to 534 ms at p50. The 12-scenario suite was not run on devices.
+
+## Set it up
+
+Plug the device in and unlock it, then:
+
+```sh
+phonedriver ios setup                    # pairing, Developer Mode, developer disk image
+export PHONEDRIVER_TEAM=<your team ID>   # Xcode > Settings > Accounts, or: security find-identity -v -p codesigning
+phonedriver --device ios:<udid> snapshot
+```
+
+Without a team, the command stops with exit code 3 and says so. The daemon reads `PHONEDRIVER_TEAM` when it starts, so run `phonedriver daemon stop` after setting it.
+
+Mounting the developer disk image is the one thing phonedriver does that talks to Apple. Nothing else leaves your machine.
+
+## What differs from Android
+
+- There is no shell on a physical iPhone.
+- Settle is detected by polling screenshots, not a video stream, so each action costs a little more.
+- iOS 27 devices have an experimental CoreDevice tier, off by default: `PHONEDRIVER_IOS_TIER=coredevice`. It is not the supported path.
+
+## What stays with you
+
+Unlocking, trusting the computer and Developer Mode prompts are yours. The error says what to do on the device and the command line exits with code 3.
+
+## Safety
+
+The [approval guard](/docs/approval-guard/) is on by default. Read its limits before you give an agent a phone with accounts on it.
+
+---
+
+URL: https://phonedriver.dev/docs/approval-guard/
+
+# How to keep an AI agent from spending your money on a phone
+
+An agent that can drive any app can place an order. phonedriver's approval guard classifies the element the agent is about to tap and, for a button that spends money or cannot be undone, asks the human instead of tapping. It is on by default. The reasoning is in [Letting Claude order dinner without letting it spend your money](/blog/letting-claude-order-dinner-without-letting-it-spend-your-money/).
+
+## What is guarded
+
+The guard reads the tapped element's label. It matches whole-label phrases such as `Pay`, `Pay now`, `Buy now`, `Place order`, `Confirm payment`, `Send money`, `Transfer`, `Start subscription` and `Delete account`, and short labels that start with a money verb and hold an amount, such as `Place order · $34.10`, `Send $20.00 to Sam` or `Subscribe · $9.99/month`.
+
+It covers `tap` by ref, by text or by point, `type --submit` when a guarded button sits in the field's own form, and every step of a `batch`.
+
+Never guarded: tabs, menu items, text fields and switches; labels with `#` (an order number); `Add to cart`, `Buy again`, `Pay later`, a bare `Checkout`, a bare `Subscribe` and `Order status`. A chat `Send` is not guarded on purpose: it is the most common tap in the apps agents use, and a prompt on every reply would teach you to click Allow without reading.
+
+## What you see
+
+Over MCP, a client that supports elicitation shows one form that names the app and the button and lists up to eight lines of visible text with an amount or a word like total, deliver, address, item or quantity. The answers are:
+
+- Allow: the tap runs in the same tool call, and the reply says `approved by the human`.
+- Allow for this session: the same, and later guarded taps in this session also run. The flag lives in the daemon and is never written to disk.
+- Decline or cancel: nothing is tapped. A decline replies `The human declined`.
+
+Clients on protocol 2026-07-28 (Claude Code 2.1.319 speaks it) get the question as an `input_required` result and call the tool again with your answer. Older protocols get `elicitation/create` over the open connection. The agent never sees your answer as something it can supply itself.
+
+If your client cannot ask, the tool replies `Needs the human's approval; nothing was tapped` with the screen facts. Headless `claude -p` has nobody to ask and answers cancel, so the tap does not run.
+
+## Full autonomy
+
+Switch the guard off only when you have decided the agent may spend money or delete things:
+
+- Set `PHONEDRIVER_GUARD=off` in the environment of `phonedriver mcp` or the CLI.
+- On the CLI, add `--autonomous` to a single command. Exit code 5 means a tap was held for approval.
+
+`PHONEDRIVER_GUARD` belongs in the MCP server's environment, which the agent does not write.
+
+## What it does not catch
+
+- English labels only, from a fixed list. A button labelled `Bestellen`, or an icon with no label, is not guarded. A missing prompt is not evidence a tap is safe.
+- A tap on a container that merges the label of a guarded child is guarded only when the merged label matches.
+- `shell` is out of scope: `input tap` through the shell is not seen.
+- An agent can pass `autonomous: true` over MCP, or add `--autonomous` on the CLI, when you never granted it. The guard stops a model that follows the rules or is steered by screen text. It does not stop a model set on bypassing it.
+- Point taps in a row reuse the screen the last check read, for up to one second. A change smaller than a significant repaint that adds a guarded button inside that second is missed.
+- The form has no screenshot: MCP elicitation has no image field.
+
+---
+
+URL: https://phonedriver.dev/docs/shell/
+
+# How to run device commands with the phonedriver shell
+
+`phonedriver shell` runs one command on the device and prints the exit code, the output (cut at 40 lines; `--grep` and `--head` narrow it) and what changed on screen. For a setting or an intent it is one call, with no screens to tap through.
+
+```sh
+phonedriver shell "cmd uimode night yes"
+phonedriver shell "settings put system screen_brightness 20"
+phonedriver shell "am start -a android.intent.action.VIEW -d https://example.com"
+phonedriver shell "dumpsys window | grep mCurrentFocus"
+```
+
+## Android
+
+The command runs in the agent already on the device, over the open control stream, not in a new `adb shell`. After a command that changes state, phonedriver settles and returns the screen diff, as it does for any action.
+
+## iOS Simulator
+
+The command runs through `simctl spawn`. For `simctl` subcommands the device is filled in for you:
+
+```sh
+phonedriver shell "simctl ui appearance dark"
+phonedriver shell "simctl openurl https://example.com"
+```
+
+## Physical devices
+
+A physical iPhone has no shell. A physical Android device refuses wipes and removing apps phonedriver did not install, unless you pass `--force`. Pass it only when the person who owns the phone asked for exactly that.
+
+## Limits
+
+The [approval guard](/docs/approval-guard/) does not see a button pressed by shell input, so `input tap` through the shell skips it. Destructive device commands are guarded separately on physical devices. Design: decision D21 in [the repository](https://github.com/hridaya423/phonedriver/blob/main/docs/decisions.md), and measurements in `docs/bench/shell.md`.
+
+---
+
+URL: https://phonedriver.dev/docs/troubleshooting/
+
+# How to troubleshoot phonedriver
+
+## Start with doctor
+
+```sh
+phonedriver doctor
+```
+
+It checks the toolchain, devices and the socket, and says how to fix each problem. Each line says `ok`, `warn` or `fail`, and a fix follows every line that is not `ok`.
+
+## Where the evidence is
+
+- `$PHONEDRIVER_HOME/daemon.log` (default `~/.phonedriver/daemon.log`) holds the daemon's own messages and startup errors.
+- `$PHONEDRIVER_HOME/traces/<id>.jsonl` has one line per request: method, parameters, the reply's summary, `ms` and settle time. Typed text is recorded only as a length. Start the daemon with `PHONEDRIVER_TRACE_FULL=1` to keep observation text, and `PHONEDRIVER_TRACE_SCREENS=1` to keep screenshots. A running daemon keeps its options, so run `phonedriver daemon stop` first.
+- iOS: `$PHONEDRIVER_HOME/runner/<udid>.log` is the runner's output, and `runner/<hash>/build.log` is its first build.
+- `phonedriver daemon stop` stops the daemon and the iOS runners it started. The next command starts a new one.
+
+## Exit codes
+
+| Code | Meaning |
+|---|---|
+| 0 | Done |
+| 1 | The command failed |
+| 2 | The command line is wrong |
+| 3 | A person must act on the device: unlock, trust, allow |
+| 4 | No matching device, or it was disconnected |
+| 5 | A tap that spends money or cannot be undone needs the human's approval. Add `--autonomous` only when the user has granted full autonomy |
+
+## Common problems
+
+**No device.** Run `phonedriver doctor` and `adb devices`. With more than one device, pass `--device` or set `PHONEDRIVER_DEVICE` with an id from `phonedriver devices`.
+
+**`another UiAutomation client`, or `uiautomator dump` is killed.** Android allows one UiAutomation connection at a time, and phonedriver's agent holds it. Another tool that holds it, such as mobile-mcp's on-device server, blocks the other. Stop the other tool, or stop phonedriver's daemon with `phonedriver daemon stop`. Plain `adb shell uiautomator dump` fails while phonedriver is attached for the same reason.
+
+**The socket path is too long.** On macOS the socket path must stay under about 100 bytes. Shorten `PHONEDRIVER_HOME`.
+
+**A forward to another machine is down.** The error names `PHONEDRIVER_SOCKET`. Restart the `ssh -L` forward and check both machines run the same version.
+
+**`NOT verified` after `type`.** The reply says what the field shows and why: a length limit, filtered characters, or focus elsewhere. On a web page the site may swap its search field after the tap, and the text lands in the old one. Act on the hint in the reply.
+
+**Empty or sparse screen text.** WebViews and custom views can have an empty accessibility tree. phonedriver falls back to OCR (`text "Web form" (ocr)`) and a screenshot read. A web checkbox in a WebView has no checked state in the tree, so its state comes from the screenshot.
+
+**An iOS tap is slow.** That is XCTest, about 240 ms of confirmation, not a hang. See [the iOS Simulator page](/docs/ios-simulator/).
+
+**A tap was held.** Exit code 5, or a reply that says it needs the human's approval. See [the approval guard](/docs/approval-guard/).
+
+## Report a problem
+
+Open an issue at [the repository](https://github.com/hridaya423/phonedriver/issues) with the output of `phonedriver doctor` and the relevant trace lines. Text passed with `--secret` is never in them.
+
+---
+
+URL: https://phonedriver.dev/benchmarks/
+
+# phonedriver benchmarks
+
+Speed, p50 and p95 in ms, Android 17 emulator, 50 runs after 20 warm-ups, tools interleaved on one host.
+
+| Operation | phonedriver p50 | p95 | adb p50 | p95 | phone-harness p50 | p95 | adb / phonedriver (95% CI) |
+|---|---|---|---|---|---|---|---|
+| Tap, back to back | 175.6 | 229.7 | 199.5 | 272.3 | 232.5 | 684.1 | 1.1x (1.1 to 1.3) |
+| Tap, 1.5 s apart | 61.6 | 78.7 | 106.6 | 134.4 | 319.7 | 359.5 | 1.7x (1.6 to 1.9) |
+| Screenshot | 11.6 | 22.5 | 476.3 | 613.9 | 570.5 | 809.6 | 41x (39.1 to 43.5) |
+| UI tree, Settings | 89.3 | 189.0 | 2,433.5 | 2,517.6 | 2,700.0 | 2,816.7 | 27x (25.6 to 27.8) |
+| UI tree, 1,000-row list | 24.0 | 36.6 | 2,352.4 | 2,446.9 | 2,653.7 | 2,803.8 | 98x (92.2 to 106.0) |
+| Type 100 characters | 251.1 | 395.0 | 4,840.9 | 5,631.2 | 5,523.3 | 6,409.6 | 19x (17.1 to 22.4) |
+| Tap, then what changed | 586.9 | 704.8 | 2,725.8 | 2,853.9 | n/a | n/a | 4.6x (4.5 to 4.7) |
+
+Tokens (Claude Sonnet 5.5, medians of 2 to 3 runs): sum over three tasks 218,357 for phonedriver and 330,375 for phone-harness (34% fewer). mobile-mcp failed every run for an environment reason and is not compared.
+
+Real phone jobs: nine jobs checked from device state; agent runs are not finished and results are pending.
+
+---
+
+URL: https://phonedriver.dev/compare/adb/
+
+# phonedriver vs adb for AI agents on a phone
+
+## The short answer
+
+adb is how most agents already touch an Android phone, one shell command at a time. On the same emulator, with both tools run on the emulator's own host and interleaved, phonedriver read a 1,000-row list in 24.0 ms where `uiautomator dump` took 2,352.4 ms at p50. That is 98 times faster (95% CI on the ratio 92.2 to 106.0). The bare tap is close: 1.1 times faster when taps come back to back and 1.7 times when they are 1.5 s apart.
+
+phonedriver is not a replacement for adb. It uses the adb server as its transport, and adb stays the better tool for installs, logs, port forwards and anything you script yourself.
+
+## Measured
+
+p50 of 50 runs after 20 warm-ups, Android 17 emulator (API 37, headless, software rendering). Mean host CPU load was 13% to 39% per operation from other work on the machine. Source: [speed-2026-11-07](https://github.com/hridaya423/phonedriver/blob/main/docs/bench/speed-2026-11-07.md), raw samples on the [benchmarks page](/benchmarks/#data).
+
+| Operation | phonedriver | adb | adb / phonedriver (95% CI) |
+|---|---|---|---|
+| UI tree, 1,000-row list | 24.0 ms | 2,352.4 ms | 98x (92.2 to 106.0) |
+| UI tree, Settings | 89.3 ms | 2,433.5 ms | 27x (25.6 to 27.8) |
+| Screenshot | 11.6 ms | 476.3 ms | 41x (39.1 to 43.5) |
+| Type 100 characters | 251.1 ms | 4,840.9 ms | 19x (17.1 to 22.4) |
+| Tap, then what changed | 586.9 ms | 2,725.8 ms | 4.6x (4.5 to 4.7) |
+| Tap, 1.5 s apart | 61.6 ms | 106.6 ms | 1.7x (1.6 to 1.9) |
+| Tap, back to back | 175.6 ms | 199.5 ms | 1.1x (1.1 to 1.3) |
+
+On the device itself, from the host sending a tap to the testbed's touch listener logging it, phonedriver takes 27.5 ms and adb 71.2 ms (2.6 times; the clock offset is good to about 8 ms).
+
+## What the numbers do not show
+
+- The outputs differ. adb returns raw XML and a tap that returns before the app reacts. phonedriver returns a pruned, numbered text tree and waits for the app. For "tap, then what changed" the adb row is a tap, a `uiautomator dump` and a diff written by the caller.
+- `adb shell input text` raises on non-ASCII text. phonedriver typed 100 mixed-script characters (ASCII, accents, CJK, Arabic, emoji) in 225.0 ms.
+- `uiautomator dump` waits for the UI to go idle and fails on screens that keep animating. We saw it fail with "could not get idle state" on the Contacts list screen. Plain `uiautomator dump` also fails while phonedriver's agent is attached, because Android allows one UiAutomation connection at a time.
+- We did not split adb's 2.35 s between process start and the idle wait, so we do not claim which part is which.
+- The run is on an emulator. No physical Android phone is in it.
+
+## Tokens
+
+An agent given only adb finished three Android tasks in a token run as follows: it set an alarm in 2 calls and 18,607 tokens using the `SET_ALARM` intent, which the task allows, found Grace Hopper's birth date in 9 calls and 72,554 tokens, and failed the web form, a WebView with no accessibility nodes, because it could use nothing but adb. When the job has an intent, adb is hard to beat. When the screen is the only way in, it is not ([token benchmark](/benchmarks/#tokens)).
+
+## Where adb is better
+
+- Installing and removing apps, port forwarding, `logcat`, `dumpsys`, file transfer.
+- Scripts that always do the same thing: no model, no tokens, no daemon.
+- Every Android developer already has it. phonedriver needs adb too.
+
+## Use which
+
+Use adb when you know the command. Use phonedriver when an agent has to look at a screen, act, and decide from what changed. phonedriver's [shell](/docs/shell/) runs adb-style commands in the on-device agent when an agent should run a setting or an intent without leaving the session.
+
+---
+
+URL: https://phonedriver.dev/compare/mobile-mcp/
+
+# phonedriver vs mobile-mcp
+
+## The short answer
+
+mobile-mcp and phonedriver are both MCP servers that give an agent a phone. mobile-mcp has wider reach: iOS and Android, simulators, real devices, and cloud devices through Mobile Next Cloud, under Apache-2.0. phonedriver makes different bets: a resident agent on Android, a settled diff after every action, an approval prompt before a tap that spends money, no telemetry, and AGPL-3.0.
+
+**We have no like-for-like speed figure for mobile-mcp.** In our token benchmark it failed every run for an environment reason in our setup, so we do not compare tokens either. Everything below is from its README and from our reading of its source, and the rows say which.
+
+## Side by side
+
+| | phonedriver | mobile-mcp |
+|---|---|---|
+| Platforms | Android, iOS | Android, iOS, cloud devices |
+| Real devices | iPhone and iPad tested; Android hardware not yet tested | Yes for both; iOS over USB, Android with adb and USB debugging (its README) |
+| How it reads the screen | Pruned text tree with `@eN` refs, settled; OCR when the tree is empty | Native accessibility tree, screenshots and coordinates when needed (its README) |
+| Waits after an action | Yes: settle, then the diff | Its README does not say. We read no waits after actions in `src/server.ts` on 2026-11-06 (through a summarizing fetch tool: re-open the file before quoting) |
+| Approval before spending money | Yes, through MCP elicitation | Not documented |
+| Telemetry | None | Anonymous usage telemetry through PostHog and Scarf, on by default. Opt out with `MOBILEMCP_DISABLE_TELEMETRY=1` (its README) |
+| Install | `brew install hridaya423/tap/phonedriver` (after the first release) | `npx @mobilenext/mobile-mcp@latest install`, which configures detected clients (its README) |
+| License | AGPL-3.0-only | Apache-2.0 |
+| Adoption | New, unpublished | About 10.4k GitHub stars on 2026-11-06 |
+
+## What mobile-mcp has that phonedriver does not
+
+From our 2026-11-06 reading of its documentation and source, to be re-checked before quoting: a batch tool for many commands in one call, location override, screen recording, device logs and crash lists, and cloud devices. phonedriver has a `batch` verb too, and no location override, recording or logs.
+
+Its license is also easier to live with if you plan to embed it in a closed product. AGPL-3.0 asks you to publish your source if you distribute phonedriver or run a modified version as a network service. Running the unmodified tool as a tool asks nothing of you, but check that reading with your own counsel.
+
+## What phonedriver does differently
+
+- **A settled diff.** Every action waits for the screen to stop changing and returns the lines that changed, so the agent does not re-list the screen after each tap.
+- **A resident agent.** On Android, a small agent is pushed over adb and started as the shell user. UI reads cost 24.0 to 89.3 ms at p50 on our benchmark emulator.
+- **The approval guard.** See [the guard](/docs/approval-guard/) and [its limits](/blog/letting-claude-order-dinner-without-letting-it-spend-your-money/).
+- **No telemetry**, checked by a test that runs the CLI, the daemon and the MCP server under a sandbox that kills any non-local connection.
+
+## What we found when we ran it
+
+In our token run, mobile-mcp 1.0.16 took screenshots and launched apps but failed taps and UI listing with "device server did not start within 5s", and, against a remote adb server, an `adb forward` bind error. It also left an on-device server (`com.mobilenext.mobilecli.DeviceServer`) holding the accessibility bridge, which made other tools fail with `another UiAutomation client` until we killed it between runs. That is a fault of our setup on a tunnelled emulator, not a measured capability. A run on a local emulator or phone is still to do, and we will publish it on the [benchmarks page](/benchmarks/) when it exists.
+
+## Use which
+
+Choose mobile-mcp if you need cloud devices, a permissive license or its wider tool set. Choose phonedriver if you want the settled diff, the approval prompt, no telemetry and the speed on Android shown on the [benchmarks page](/benchmarks/). They can sit side by side on different devices. Do not run both against the same Android device at once: each holds the one UiAutomation connection.
+
+---
+
+URL: https://phonedriver.dev/compare/phone-harness/
+
+# phonedriver vs phone-harness
+
+## The short answer
+
+phone-harness is a Python CLI: the agent pipes a Python script on stdin, and helpers drive an Android phone over adb or an iPhone through the Mac's iPhone Mirroring window. phonedriver is an MCP server and CLI with typed tools. On the same Android 17 emulator, interleaved, phonedriver was faster on every operation measured, by 1.3 times (a tap sent back to back) to 111 times (the 1,000-row list read). On three agent tasks it used 34% fewer tokens in total, with one task where phone-harness was ahead.
+
+## Measured
+
+p50 of 50 runs after 20 warm-ups, Android 17 emulator, both tools on the emulator's own host. phone-harness 0.3.3, helpers called in process, which spares it a Python start per call and favours it. Source: [speed-2026-11-07](https://github.com/hridaya423/phonedriver/blob/main/docs/bench/speed-2026-11-07.md).
+
+| Operation | phonedriver | phone-harness | phone-harness / phonedriver (95% CI) |
+|---|---|---|---|
+| UI tree, 1,000-row list | 24.0 ms | 2,653.7 ms | 111x (104.1 to 119.5) |
+| Screenshot | 11.6 ms | 570.5 ms | 49x (47.5 to 51.4) |
+| UI tree, Settings | 89.3 ms | 2,700.0 ms | 30x (28.5 to 30.8) |
+| Type 100 characters | 251.1 ms | 5,523.3 ms | 22x (19.4 to 25.2) |
+| Tap, 1.5 s apart | 61.6 ms | 319.7 ms | 5.2x (4.7 to 5.6) |
+| Tap, back to back | 175.6 ms | 232.5 ms | 1.3x (1.2 to 1.5) |
+| Tap, then what changed | 586.9 ms | not supported | |
+
+phone-harness cannot type Unicode, and has no equivalent of a settled diff. Fresh process to first screen read: phonedriver 1,620.5 ms, phone-harness 2,999.4 ms.
+
+## Tokens
+
+Claude Sonnet 5.5 through `claude -p`, each tool the only one available, three tasks checked from device state ([benchmarks](/benchmarks/#tokens)). Medians of 2 to 3 runs:
+
+| Task | phonedriver | phone-harness |
+|---|---|---|
+| Alarm in Clock | 110,419 | 220,723 |
+| Wikipedia birth date in Chrome | 57,753 | 53,403 |
+| Web form | 50,185 | 56,249 |
+| Sum | 218,357 | 330,375 |
+
+All runs passed. These are small samples. phone-harness is ahead on the Wikipedia task, and phonedriver's fixed per-turn cost is higher: the first turn of a one-word `claude -p` is 5,606 tokens against 5,214.
+
+## How they differ
+
+| | phonedriver | phone-harness |
+|---|---|---|
+| Interface | MCP server and CLI, typed tools | CLI that runs a Python script the agent writes |
+| Android | Resident agent, UiAutomation tree, H.264 stream, input injected through InputManager | One `adb` call per operation; `uiautomator dump` and `screencap` |
+| iPhone | Own XCTest runner, needs Xcode and a signing team | iPhone Mirroring window and Apple Vision OCR (its README) |
+| Waiting | Settle detection, returns the diff | Fixed sleeps and a hash-compare stable check (source at commit `4bebff1`) |
+| Telemetry | None | The 0.3.3 source ships the script, its output and helper calls to PostHog by default, opt out with `DO_NOT_TRACK=1`. Its README does not mention it |
+| License | AGPL-3.0 | MIT |
+
+The telemetry row is from reading `src/phone_harness/telemetry.py` at commit `4bebff1` on 2026-11-05 ([teardown](https://github.com/hridaya423/phonedriver/blob/main/docs/research/competitor-teardown.md)). We ran phone-harness with telemetry off in every benchmark. The project may have changed since.
+
+## Where phone-harness is better
+
+- An MIT license and `pip` or `uv` install.
+- A script can do many steps in one run, so an agent that writes good Python can spend few turns.
+- It drives an iPhone without a signing team or an Xcode runner, by mirroring. That setup has limits its README lists: unlocking the phone pauses mirroring, OCR sees text but not icons, and there is no multi-touch.
+
+## Use which
+
+If the agent is a coding agent that writes scripts and you want an MIT tool, phone-harness is a fair choice. If the agent calls tools, you want it fast, you want to know what changed after each action and you want an approval prompt before it spends money, use phonedriver.
+
+---
+
+URL: https://phonedriver.dev/blog/how-phonedriver-reads-a-screen-98x-faster-than-adb/
+
+# How phonedriver reads a phone's screen 98x faster than adb
+
+On an Android 17 emulator, phonedriver reads a 1,000-row list in 24.0 ms. `adb shell uiautomator dump` takes 2,352.4 ms for the same screen. At p50 of 50 runs that is 98 times faster, with a 95% confidence interval on the ratio of 92.2 to 106.0.
+
+The number needs two warnings before anything else. It is the largest ratio of the seven rows we measured, which is why it is the headline; the median ratio across the seven rows is 19. And it compares two different outputs: adb returns raw XML, phonedriver returns a pruned, numbered text tree. This post explains where the time goes, what we built to avoid paying it, which fixes we measured and which did not help, and how the comparison was run so you can repeat it.
+
+## What adb does on every read
+
+An agent that drives a phone with adb pays the same costs on every look. `adb shell input tap` starts an `adb` client process on the host and an `app_process` JVM on the phone for each tap. `uiautomator dump` waits for the UI to go idle before it reads the tree, and it refuses a screen that keeps animating. We saw it fail with "could not get idle state" on the Contacts list. `screencap -p` PNG-encodes the full-resolution frame on the phone for every screenshot. `input text` handles only ASCII.
+
+We read the phone-harness source at commit `4bebff1` to confirm this for the tool that wraps adb this way (`android.py` lines 380, 430, 493 and 677 to 711 in that commit), and it matches what we see from adb itself. We did not split adb's 2.35 s between the process start and the idle wait, so we do not say how much each costs. The speed comes from not doing either per call, and the rest of this post is how.
+
+## A resident agent instead of a command per call
+
+Decision D2 in our design record: push a dex jar to the phone and run it with `app_process` as the shell user, the way scrcpy does. The agent stays up. It injects input through `InputManager`, reads the UI tree through a UiAutomation connection it holds open, mirrors the display into a MediaCodec encoder, and keeps one socket open to the host. A daemon on the host keeps the other end of that socket, so a CLI call or an MCP tool call is a message on an open connection.
+
+Nothing is installed on the phone, and no accessibility service has to be switched on. We rejected an installed AccessibilityService APK because the user has to enable it in Settings, it stays on the phone as an app, and it cannot inject input without extra permission. We rejected an instrumentation APK (the uiautomator2 and Appium route) because it needs installation, test-APK signing and still pays instrumentation overhead.
+
+On the phone, the agent answers a tree request in 11 ms at p50 for the Settings main screen, warm, from probes we added temporarily (`docs/audits/latency-profile-2026-11-07.md`). About 50 ms of an earlier 60 ms snapshot was `getChild` binder round trips for 155 nodes, one round trip per 2 to 4 nodes. Host-side pruning and rendering were 8 to 15 ms. In the benchmark, with every tool run on the emulator's own host, the Settings read is 89.3 ms and the 1,000-row list is 24.0 ms.
+
+## A video stream for screenshots
+
+D10: keep an H.264 stream running while a device is in use. The encoder runs on the phone, and the host decodes it with `openh264`. A screenshot is the latest decoded frame, not a new capture. That is why a screenshot takes 11.6 ms against 476.3 ms for `adb exec-out screencap`.
+
+The stream is not free. It costs one encoder on the phone and one software decoder on the host, which we measured at up to about one CPU core at 1080p30. Decoding a 1080-wide frame took 3.6 to 4.6 ms at p50 and 7.3 to 9.6 ms at p95 on the Mac. The first decoded frame after opening the stream took 219 ms (API 26) and 433 ms (API 37) at p50, which missed our 200 ms target; the software encoder takes 140 to 230 ms to start, and that cost is paid once per device lease.
+
+One assumption was wrong. We first wrote that the stream sends frames at a steady rate on a static screen. On the API 37 emulator through an ssh tunnel it sent bursts of about 10 frames per second and then nothing for up to 5 s, and "no frame for 1 s" made 18 of 40 screenshots of an idle screen fail. Screenshots now serve the last frame unless the video socket has ended. Settle is unaffected, because it needs frames only when the screen changes.
+
+## Settle: knowing the screen has stopped
+
+The stream does a second job. After every action, phonedriver waits until the screen stops changing in a way that matters, then returns what changed. The agent never sleeps or polls. Settle takes two kinds of input:
+
+- A window event from accessibility (`TYPE_WINDOW_STATE_CHANGED`, `TYPE_WINDOWS_CHANGED`): a new activity, dialog, popup or keyboard.
+- A decoded frame, compared with the previous one by a luma thumbnail with one sample per 4 by 4 points. A sample counts as changed above 12 luma levels, and the changed area is the changed samples times 16.
+
+Accessibility content-change events are deliberately not an input. Apps emit them for invisible changes and for tickers: a clock label that updates every 100 ms would never settle. Pixels are the ground truth for "the screen moved".
+
+The detector is a state machine with two phases. First it waits up to 500 ms (3 s after `launch` or `open`) for a first change: a window event, or a frame that changes more than 128 pt². Only then does it wait for quiet: no window event and no frame above 4,096 pt² for 250 ms.
+
+The two thresholds come from a spike, 20 runs per case on API 26 and 37. A blinking caret changes at most 96 pt², an indeterminate spinner at most 480 pt², a Material switch toggle at most 432 pt², and a screen transition 13,000 to 254,000 pt². One threshold of 4,096 pt² would never see a toggle and would report that a tap that worked changed nothing. 128 pt² is just above the caret, so a toggle counts as a first change, and 4,096 pt² for quiet ignores the spinner and the caret.
+
+The known limit is written down next to the code. A video stream that delivers frames in bursts, such as the software encoder on the emulators during sustained full-screen motion, can show gaps over 250 ms in the middle of an animation, and the screen is then reported settled early. Phones with hardware encoders have not been measured. At the timeout (5 s for actions) the detector returns what it has with `settled: false` and the regions still changing. Looping video and carousels never settle, and the agent still needs to see the screen.
+
+## What comes back
+
+The reply is the diff, not the screen. Each line has a ref that the daemon keeps pointing at the same element while it is on screen:
+
+```screen
+ok tapped @e10 "Dark theme" · settled in 410ms
+~ @e10 switch "Dark theme" off → on
+```
+
+`+`, `-` and `~` mark lines that appeared, left and changed. Refs are located again at tap time, so a list that shifted by a row still gets the right tap. This is also where the token savings in [our token benchmark](/benchmarks/#tokens) come from: the agent reads a few lines after each action, not a screen.
+
+## The fixes we measured
+
+We profiled before we tuned. `docs/audits/latency-profile-2026-11-07.md` records each phase of a settled tap on the emulator through an ssh tunnel, where every device round trip costs about 100 ms. Before any change, a tap with a settled diff took 999 ms at p50: 131 ms to prepare the screen state, 130 ms for input, 318 ms of settle, 166 ms for the first tree read and 254 ms in a stabilize step that sleeps 100 ms, reads and compares twice. Host work (render) was 0.2 ms. Real work was input plus two tree reads. The rest was waiting, including 17 of 36 taps that never saw a frame above 128 pt² and sat out the whole 500 ms first-change window.
+
+Three changes followed, after a fourth that added per-phase timings to the traces. While the screen is quiet but the quiet window is not over, the daemon now reads the tree starting 120 ms after the last significant frame, and if two reads agree it needs no stabilize step. A tap whose frame never shows is caught by a tree read 100 ms in that differs from what the agent last saw. Stabilize skips its 100 ms sleep when the tree it starts from was read at least 100 ms ago.
+
+The measured gain was small. Interleaved, same host, 12 alternations of 12 runs: 918 ms at p50 before, 843 ms after. A second set of 90 samples each gave 860 against 825. That is 40 to 75 ms, inside the noise of a bare tap between two identical builds (108 against 288 ms at p50). We kept the changes, because they remove round trips and sleeps that cost more on a local connection. We also wrote down what did not help: reading earlier than 120 ms after the last frame was not tried, and with a 100 ms round trip only one probe read fits in the quiet window, so stabilize still ran in about half of the settled taps.
+
+Other fixes were bigger because they removed a mistake rather than tuned a path:
+
+- Cold start, fresh daemon to first snapshot, dropped from 6,750 ms to 3,950 ms at p50 on a busy host through the tunnel, by checking for the jar, killing a stale agent and starting a new one in a single shell, opening the control and video streams at once, and not asking each device for its properties. Round trips before the agent boots went from 6 plus the number of devices to 3. In the final benchmark, on the host itself, cold start is 1,620.5 ms.
+- A cold app swallowed the first tap, we thought. We were wrong. The tap landed; Clock opened its time picker 0.6 to 1.1 s later, after the 500 ms first-change window, so the reply said `no change after 507ms` and the agent tapped again, onto the dialog. Actions in the 30 s after `launch` now wait up to 2 s for their first change. The reply said `no change` in 3 of 8 runs before and in 0 of 8 after.
+- Point taps in a row. A guard check reads the screen before a tap, and a read right after a tap queues behind the button's ripple on the app's UI thread: 94 ms at p50 back to back against 33 ms at rest. Reusing the screen the last check read for up to a second brought the tap reply from 126 ms to 20 ms on the API 26 emulator. The limit is that a change smaller than a significant repaint that adds a guarded button in that second is missed ([the approval guard post](/blog/letting-claude-order-dinner-without-letting-it-spend-your-money/) says what that means).
+
+## How we measured the 98x
+
+The first benchmark, M1, quoted 153 times against phone-harness for the same list read: 15.5 ms against 2,370 ms. A later run on a busy machine used a different baseline and a different load. Neither held the tools to one machine state. We ran it again.
+
+`bench/speed/run_speed.py` runs every tool in one process on one host, `win-ts` (Windows 11, Intel Core i9-13900K, 64 GB), against `emulator-5554`, an API 37 emulator at 1080x2424 and 420 dpi, headless with software rendering, with the default local adb server and no tunnel. Mean host CPU load was 13% to 39% per operation from other work on the machine. We recorded load before and after every operation.
+
+- Taps, screenshots and typing alternate tool by tool, sample by sample, with the start order rotating.
+- The tree reads cannot run at once, because phonedriver's agent holds the one UiAutomation connection that `uiautomator dump` needs. For those operations the tools take turns in five round-robin blocks of 10 samples, and phonedriver's daemon and agent are stopped while the others run.
+- 20 warm-up runs per tool and operation, discarded. 50 samples each.
+- p50 and p95 per tool. The interval on each p50 ratio is a bootstrap 95% CI, resampling each tool's samples alone 10,000 times with seed 7.
+- A row's headline is its p50 ratio, unless the interval's lower bound is below 90% of it, in which case the bound is the headline. The list read's bound (92.2) is above 88.3, so 98x stands.
+- The tap on the device is also timed from the other side: the Gestures tab logs each `ACTION_DOWN` to logcat, and latency is the logged time minus the host's send time with the emulator's clock offset measured (0.8122 s before, 0.8126 s after; good to about 8 ms). That row does not use any reply from phonedriver.
+
+phone-harness ran in process, which spares it a Python start per call and favours it. The raw samples, the machine description and the script that regenerates every table are linked from [the benchmarks page](/benchmarks/#data), and `bench/speed/reproduce.sh` repeats the run.
+
+## What the numbers do not show
+
+- **The bare tap.** This is the weak row. Host to reply it is 175.6 ms when taps come back to back (1.1 times faster than adb) and 61.6 ms when they are 1.5 s apart (1.7 times). On the device, from send to the app's touch listener, phonedriver takes 27.5 ms against adb's 71.2 ms. Our tap misses its 15 ms budget, and typing 100 characters misses its 150 ms budget at 251.1 ms.
+- **Different outputs.** adb's tap returns before the app reacts. phonedriver's waits. For "tap, then what changed" the adb row is a tap, a dump and a diff in the caller: 2,725.8 ms against 586.9 ms, 4.6 times.
+- **Emulator only.** No physical Android phone is in this run, and no iOS device. On the iOS 26.5 Simulator a tap takes 357 ms against 80 ms for the Simulator's own tool, because XCTest takes about 240 ms to confirm an event. On an iPhone 14 Plus and an iPad Pro it takes 534 and 454 ms.
+- **Absolute times move with load.** Typing 100 characters ran in two passes at different host load, and gave 20.4 times (32% load) and 19.3 times (20%). phone-harness's 100-character typing took 2,104.5 ms in M1 and 5,523.3 ms here. Absolute numbers are for this host.
+- **Model time dominates a task.** An agent task in our earlier evaluation took about 18 s and 6 tool calls. Faster tools shorten the part that is not the model. Fewer calls and fewer tokens matter more, and the settled diff is for that.
+
+Method, machine state, both passes and every row are in [`docs/bench/speed-2026-11-07.md`](https://github.com/hridaya423/phonedriver/blob/main/docs/bench/speed-2026-11-07.md). If you find a flaw in the setup, [open an issue](https://github.com/hridaya423/phonedriver/issues) with the run that shows it.
+
+---
+
+URL: https://phonedriver.dev/blog/phonedriver-vs-mobile-mcp-vs-phone-harness-vs-adb-real-phone-jobs/
+
+# "phonedriver vs mobile-mcp vs phone-harness vs adb: benchmarked on real phone jobs"
+
+> **Status: the checks are built and proven, the agent runs are not finished.** Every number below that is a measurement comes from a finished run. Cells marked [RESULTS] are empty on purpose, and this post is updated in place when they fill. Nothing here is a projection.
+
+Speed benchmarks tell you how fast a tool reads a screen. They do not tell you whether an agent finishes a job with it. For that you need jobs, a model, and a check that does not trust the model's word. This post is the comparison we are running, with its method written down before the results exist so that the results cannot shape it.
+
+## What is being compared
+
+Four ways for Claude Sonnet 5.5 to reach a phone:
+
+- **phonedriver**, as an MCP server.
+- **mobile-mcp** 1.0.16, as an MCP server.
+- **phone-harness** 0.3.3, as a CLI that runs Python scripts.
+- **Raw adb**, as a shell tool limited to `adb`.
+
+The jobs are the same for every harness, and so is the prompt, which is stored in `bench/agent-eval/tasks.yaml`. Each run starts from a reset device, runs `claude -p` from an empty directory with strict MCP configuration, no slash commands, no settings sources, no session persistence and a 40-turn cap, and then a script checks the device. Runs use the Claude subscription, never an API key. The device is the 2560x1600 Pixel Tablet emulator, reached through an ssh tunnel.
+
+## The nine jobs
+
+Seven jobs are UI-only: the result cannot be produced by adb, `am`, `cmd`, `settings`, `content` or a browser, and the reason is written per job. Two are mixed: any route is allowed, and each needs a device-side read and a UI step, so a tool that holds both in one session should need fewer calls. The full table, with why adb cannot do each, is on [the benchmarks page](/benchmarks/#jobs), and the reasoning behind the rule is in [Benchmarking AI agents on jobs only a phone can do](/blog/benchmarking-ai-agents-on-jobs-only-a-phone-can-do/).
+
+Raw adb is not a competitor on the seven UI-only jobs by construction. Those jobs were chosen because adb cannot do them, so its row there is expected to be empty, and we will not count that as a win. It competes on the two mixed jobs, where any route is allowed.
+
+## How a run is scored
+
+A run passes if the check passes. A check reads device state, never the agent's claim: the contacts provider, Messages' database, Clock's and Chrome's private preferences as root, `appops`, MediaStore, or the testbed app's event log. The two bug-report jobs also match the written report against a list of planted bugs with regular expressions, no model as judge, and require the event log to show that the bug paths were exercised. A job that forbids a shell fails the run if the tool log shows shell use.
+
+Each check was proven by hand before any agent ran: a pass state, and a fail state for every way it can fail. That found real problems in our checks. A report splitter cut sentences at the decimal point in `$36.00`, so a correct report failed. A "London is in the world clock list" test would pass on a fresh Clock, because the home time zone on the host is `Europe/London`. A Messages check looked for a pin column that does not exist. All three were fixed before a model touched them.
+
+For every run we record whether it passed, tool calls, total tokens (input, output, cache creation and cache read, the definition from our earlier agent evaluation) and wall time. Per job and harness we report the median of the runs and the pass count, and we show every run.
+
+## Results
+
+Pass counts and median total tokens, per job and harness. The two mixed jobs have an adb column.
+
+| Job | phonedriver | mobile-mcp | phone-harness | adb |
+|---|---|---|---|---|
+| qa-signup | [RESULTS] | [RESULTS] | [RESULTS] | not applicable |
+| qa-shop | [RESULTS] | [RESULTS] | [RESULTS] | not applicable |
+| relay-code | [RESULTS] | [RESULTS] | [RESULTS] | not applicable |
+| chrome-prefs | [RESULTS] | [RESULTS] | [RESULTS] | not applicable |
+| clock-settings | [RESULTS] | [RESULTS] | [RESULTS] | not applicable |
+| messages-pin-archive | [RESULTS] | [RESULTS] | [RESULTS] | not applicable |
+| photos-crop | [RESULTS] | [RESULTS] | [RESULTS] | not applicable |
+| wakelock-restrict (mixed) | [RESULTS] | [RESULTS] | [RESULTS] | [RESULTS] |
+| log-code (mixed) | [RESULTS] | [RESULTS] | [RESULTS] | [RESULTS] |
+| Jobs passed, of 9 | [RESULTS] | [RESULTS] | [RESULTS] | [RESULTS] |
+
+Wall time, tool calls and the written reason for each failure: [RESULTS].
+
+## Known biases, stated now
+
+- **We are the author of one contestant.** phonedriver runs first, on its own, and a failure caused by a bug in phonedriver gets fixed before the next round. We have already fixed some: a dismissed approval prompt is not an answer, a field that refuses `set_text` is wiped with backspaces and then with select-all and paste, a formatted phone number now verifies, and the tool description now says that tools go one at a time. The other harnesses get no such rounds from us. When their failures look like setup problems rather than product limits, we will say which, and we will rerun them on a better setup before we publish a loss that is ours.
+- **mobile-mcp has not yet had a fair run.** In our earlier token benchmark it failed every run for an environment reason on a tunnelled emulator, so that table is not a comparison. The jobs run needs a local emulator or phone for it.
+- **Small samples.** Two passes per cell give a median of two. That is a description of what happened, not a rate.
+- **One model, one device.** Claude Sonnet 5.5 on a tablet emulator. No physical phone.
+- **Chrome and Messages change.** The jobs depend on app versions in the emulator image. The image is recorded with the results.
+
+## What would change our mind
+
+A job where adb finishes a core job we claimed it cannot would remove that job. A check that passes a wrong result would void every run of that job. A run where the agent reached the right state by a route we did not expect, for example by editing a database, would be reported and the check tightened. Raw run logs go in the repository next to the results so that you can read what the agent did.
+
+Method and the other posts: [the jobs method](/blog/benchmarking-ai-agents-on-jobs-only-a-phone-can-do/), [how speed was measured](/blog/how-phonedriver-reads-a-screen-98x-faster-than-adb/), and [the token benchmark](/benchmarks/#tokens), which is already finished.
+
+---
+
+URL: https://phonedriver.dev/blog/letting-claude-order-dinner-without-letting-it-spend-your-money/
+
+# Letting Claude order dinner without letting it spend your money
+
+Give an agent a phone and it can do whatever you can do on the screen. That includes tapping Place order. The baseline safety story is a paragraph in the instructions file that says to get the user's word before spending money. It works until the model skips the rule, or a line of text on the screen tells it to. A rule the model can skip is advice. This post is about the control we put in the tool, the thing the model cannot answer for itself, and about where that control stops.
+
+## The design
+
+Before a tap runs, the daemon classifies the element about to be tapped from its label (or its shown value when it has none). If the label means money moves or something cannot be undone, the tap is held and the human is asked. The agent does not get to answer.
+
+The classifier is a fixed list, on purpose. It matches whole-label phrases such as `Pay`, `Pay now`, `Buy now`, `Place order`, `Confirm payment`, `Send money`, `Transfer`, `Start subscription` and `Delete account`. It also matches a label of at most nine words that starts with a money verb and holds an amount: `Place order · $34.10`, `Send $20.00 to Sam`, `Subscribe · $9.99/month`. Roles that only navigate or edit are never guarded: tabs, menu items, text fields, switches. The guard covers `tap` by ref, by text and by point, `type --submit` when a guarded button sits in the field's own form, and every step of a `batch`, where a guarded step ends the batch.
+
+We rejected a model call to classify labels, for three reasons: it costs tokens on every tap, it sends screen text somewhere (we have a no-telemetry rule), and a model can be talked out of its answer. A fixed list can be wrong, but it cannot be persuaded.
+
+## Who asks, and how
+
+The daemon never asks anyone. It fails the tap with a `needs_approval` error that carries the label, the app and up to eight lines of visible text that hold an amount or a word like total, deliver, address, item or quantity. The CLI exits with code 5 on it. The MCP server turns it into a question for the human.
+
+A client that supports elicitation is sent one form: the message names the app and the button and lists those screen lines. The answer is Allow, Allow for this session, or Decline. Allow runs the tap in the same tool call, and the reply says `approved by the human`. Allow for this session sets a flag on the daemon's session that ends with the daemon and is never written to disk. Decline returns a normal reply, not an error, and nothing is tapped.
+
+Newer clients forbid a server from sending a request in the middle of a call. Protocol 2026-07-28, which Claude Code 2.1.319 speaks, instead has the tool return an `input_required` result with the question, and the client calls the tool again with the answer. Older protocols get `elicitation/create` over the open connection and the call waits. Either way, the agent spends no calls on it: a refusal that the agent must retry would make every purchase two calls and invite `approve: true` by reflex.
+
+After Allow, the target is resolved again, because the screen can change while you decide. A ref the screen no longer has fails as stale instead of tapping something else.
+
+## What it does not guard, on purpose
+
+A chat `Send` is not guarded. It is the most common tap in the apps agents are asked to use, a prompt on every reply would teach you to click Allow without reading, and the instructions already say that a message needs the user's word. `Send $20.00` and `Send money` are guarded. Also not guarded: `Pay later`, `Pay bills`, `Payments history`, `Buy again`, `Add to cart`, a bare `Checkout`, a bare `Subscribe` (YouTube's is free and the most common) and `Order status`.
+
+Every one of those is a judgment call. We wrote the reasoning next to the list, and the test table for the labels is in `crates/cli/src/daemon/guard.rs`. If real use shows labels missed often enough, or false prompts often enough, the list changes.
+
+## The limits, stated plainly
+
+This is the part to read before you hand an agent a phone with a payment app signed in.
+
+- **English labels, fixed list.** A button labelled `Bestellen`, or an icon with no label, is not guarded. A prompt that does not appear is not evidence that a tap is safe.
+- **A model set on bypassing it can.** Over MCP an agent can pass `autonomous: true`, and on the CLI it can add `--autonomous` or set `PHONEDRIVER_GUARD=off`, when you never granted it. The guard stops a model that follows its rules or is steered by text on the screen. `PHONEDRIVER_GUARD` belongs in the MCP server's environment, which the agent does not write, but the CLI has no human at that terminal to ask.
+- **A merged container.** Names are matched on the element tapped. A tap on a container that merges the label of a guarded child is guarded only when the merged label matches.
+- **The shell.** `input tap` through `shell` is out of scope. A button pressed by shell input is not seen.
+- **A one-second window.** Point taps in a row reuse the screen the last guard check read, for up to a second while no window change or significant repaint arrives. We did this because a read right after a tap queues behind the button's ripple on the app's UI thread: 94 ms at p50 back to back against 33 ms at rest, and a tap reply of 126 ms against 20 ms with the reuse on the API 26 emulator. The cost is that a change smaller than a significant repaint that adds a guarded button inside that second is missed.
+- **No image in the question.** MCP elicitation has no image field in any version we checked, so there is no screenshot in the prompt. The prompt shows the screen's visible text to the human on their own machine, and the agent, in the no-elicitation reply, gets the same lines, which it could already read.
+- **Nobody home.** Headless `claude -p` has nobody to ask and answers cancel, so the tap does not run there.
+
+## One change that came from running it
+
+An earlier version treated a cancelled form as a refusal. In the jobs benchmark, a prompt that said "you may place the order" ran under `claude -p`, which answers every prompt with cancel because nobody is there. The job ended at a dead stop with no way forward. A cancel is now no answer, not a refusal: only Decline says `The human declined`. A cancel replies `Needs the human's approval; nothing was tapped`, includes the screen facts, and tells the agent the way on: ask in chat, and call again with `autonomous: true` only if the user's own instructions already approve the tap. The guard still taps nothing without an approval. A screen that tries to inject an approval still cannot give one, because `autonomous` stays the agent's call under the written rules.
+
+## Why it lives in the tool
+
+An agent that can tap Pay should not be the thing that decides whether it may. The instructions file still says the right thing, and a careful model follows it. The guard is the part that holds when the model does not, so the question reaches the person where they are, with the facts from the screen, instead of arriving as a chat message the model writes. It is a seat belt, not a lock. We would rather say so than let the first sentence of this post stand alone.
+
+Setup, switches and exit codes are in [the approval guard guide](/docs/approval-guard/). The full decision record, D27, is in [the repository](https://github.com/hridaya423/phonedriver/blob/main/docs/decisions.md).
+
+---
+
+URL: https://phonedriver.dev/blog/benchmarking-ai-agents-on-jobs-only-a-phone-can-do/
+
+# Benchmarking AI agents on jobs only a phone can do
+
+A phone benchmark has an obvious way to go wrong. If the tasks can be done without a phone, the tool that is best at not using the phone wins. "Set an alarm" can be done with one intent. "Turn on dark mode" is `cmd uimode night yes`. "What year was Grace Hopper born" is a web search. Run those through a phone harness and you are measuring how fast the model finds the shortcut.
+
+Our first agent evaluation had tasks of exactly that kind, and it showed the problem. In our token run, raw adb finished the alarm task in 2 calls and 18,607 tokens with the `SET_ALARM` intent. That is a fine result for adb and tells you nothing about screens. So we threw those tasks out and wrote a benchmark around jobs where the screen is the only way in.
+
+## The rule: the job must need the phone
+
+A job goes in the core set only if the result cannot be produced by adb, `am`, `cmd`, `settings`, `content` or a browser. The reason is written per job, in the open, so that anyone can argue with it.
+
+- Chrome keeps the default search engine and "Always use secure connections" in a private `Preferences` file. No intent, `cmd` or `settings` key reaches them, and the web cannot change a native browser's settings.
+- World clocks and snooze live in Clock's private preferences. The alarm intents set alarms and timers only.
+- Pinning and archiving a Messages thread are Messages' own flags. Seeding the threads is a host-side emulator command. Setting the flags has no command.
+- Cropping a photo needs the Photos editor. A shell has no image editor.
+- A pickup code shown in a testbed app is random per run and exists in a text view and the app's private storage. Reading the private storage is a shell move, and the job fails the run if the tool log shows shell use.
+- Two bug-report jobs hide bugs that only show under use: a welcome line that drops the last character of an email, a Create button that ignores the tap after a rejected submit, a stale total after a quantity decrease, a discount that takes a flat 10.00. No command exercises a form's validation path.
+
+We keep two mixed jobs on purpose. In those, any route is allowed. One needs a device-side read and a UI step: find the app holding a wakelock (a shell reads `dumpsys power`) and restrict its battery usage in Settings. The other: find a pickup code in the device log and put it in a contact. They reward a tool that holds both abilities in one session, and they are the only place raw adb competes.
+
+## What we dropped, and why
+
+The dropped list is part of the method. A contact add is `content insert`. A calendar event is a provider insert. Dark mode and screen timeout are `cmd uimode` and `settings put`. An alarm or timer is an AlarmClock intent. Sending an SMS is a `SENDTO` intent plus a tap. A live fact from Chrome, and a web shopping cart, are things a browser does. An Uber Eats style order needs sign-in. A Maps transit time gives the same answer on the web, so it was not added.
+
+The same logic excludes web searches. A job whose answer is on a web page measures the agent's ability to find the page, and every harness with a browser tool, or none, will tie there.
+
+## Checks that do not trust the agent
+
+The check for a job reads the device, not the transcript. Sources: the contacts provider, Messages' `bugle_db` as root, Clock's and Chrome's private preferences as root, `cmd appops`, MediaStore, and the testbed app's event log, which the app writes as JSON lines when a screen is used.
+
+- A contact check compares phone digits by suffix, because the editor may add a `+1`.
+- A crop check wants the original still 1200 wide and a new image, added after a baseline, that is square and at most 800 px, within 1 px.
+- The restriction check takes `RUN_ANY_IN_BACKGROUND` state against a baseline and passes only if the testbed alone is newly restricted.
+- The bug-report checks match the written report against a list of planted bugs with regular expressions. No model grades. They also require the event log to show an invalid submit, then an ignored tap, then a success, so a report invented from the screen's text does not pass.
+
+Cleanup removes every contact, SMS, picture, setting and app-op a job created, so runs do not leak into each other.
+
+## Prove the check before the agent
+
+This is the part we would repeat on any benchmark. Before a model ran, every check was driven by hand with `adb input` against the emulator: a pass state and a fail state for every distinct way it reports a failure. Every check found something:
+
+- The report splitter cut sentences at the decimal point in `$36.00`, so a correct qa-shop report failed. It now splits at a full stop followed by a space or newline.
+- The clock check passed on a freshly reset Clock because the host's home time zone is `Europe/London`. It now reads only the world-clock list.
+- The Messages check looked for a pin column in `conversations`. Pins live in a separate table, so it would never have passed. It now joins the two tables.
+- A missing Chrome `Preferences` file crashed the checker with a traceback. It now fails with a message.
+- The Chrome in the emulator image keeps the secure-connections switch in `https_first_balanced_mode_enabled`, not the older `https_only_mode_enabled`. Either true passes.
+
+A check that is wrong in one direction gives some tool a free pass, and in the other direction fails the tool that did the work. We would not have noticed either from the agent runs alone.
+
+## What the jobs do not cover
+
+Nine jobs on one tablet emulator, Android only. Chrome, Messages, Photos and Contacts are what the emulator image ships, so results depend on that image, and it is recorded with them. There is no iOS job, no physical phone and no sign-in flow. `uiautomator dump` fails on the Contacts list ("could not get idle state"), which will cost a harness that depends on it, and that is a property of the tool and not of the job. We write such things next to the results and do not remove them.
+
+Results are in [the comparison post](/blog/phonedriver-vs-mobile-mcp-vs-phone-harness-vs-adb-real-phone-jobs/) when they exist, and the job table with its checks is on [the benchmarks page](/benchmarks/#jobs). The jobs, seeds and checks are in `bench/agent-eval/` in [the repository](https://github.com/hridaya423/phonedriver), so you can add a job we missed or prove one of ours wrong.
+
