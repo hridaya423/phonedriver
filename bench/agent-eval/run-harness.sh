@@ -28,11 +28,15 @@ J
     cat >"$out/$id.mcp.json" <<J
 {"mcpServers":{"mobile-mcp":{"command":"npx","args":["-y","@mobilenext/mobile-mcp@$MOBILE_MCP_VERSION"],"env":{"ANDROID_SERIAL":"$serial","ADB_SERVER_SOCKET":"$ADB_SERVER_SOCKET"}}}}
 J
-    args+=(--mcp-config "$out/$id.mcp.json" --allowedTools "mcp__mobile-mcp__*" --tools "");;
+    tools=""; allowed="mcp__mobile-mcp__*"
+    if [ "${ALLOW_ADB:-}" = 1 ]; then tools=Bash; allowed="$allowed Bash(adb:*)"; sys="$sys You may also run adb through Bash (adb -s $serial ...), for example adb shell, logcat -d and dumpsys."; fi
+    args+=(--mcp-config "$out/$id.mcp.json" --tools "$tools" --allowedTools $allowed);;
   phone-harness)
     sys="$sys You control it through the phone-harness command in Bash: pipe a Python script to it, e.g. phone-harness <<'PY' then print(screen_info()) then PY. Helpers include screen(), tap_text(), type_text(), open_app()."
     export PATH="$PH_BIN_DIR:$PATH" ANDROID_SERIAL=$serial DO_NOT_TRACK=1 PHONE_HARNESS_TELEMETRY=0 PHONE_HARNESS_NO_UPDATE_CHECK=1 PHONE_HARNESS_PLATFORM=android
-    args+=(--tools Bash --allowedTools "Bash(phone-harness:*)");;
+    allowed="Bash(phone-harness:*)"
+    if [ "${ALLOW_ADB:-}" = 1 ]; then allowed="$allowed Bash(adb:*)"; sys="$sys You may also run adb through Bash (adb -s $serial ...), for example adb shell, logcat -d and dumpsys."; fi
+    args+=(--tools Bash --allowedTools $allowed);;
   adb)
     sys="$sys You control it with adb through Bash (adb -s $serial ...). adb shell uiautomator dump /dev/stdout, input tap|swipe|text|keyevent, am start and screencap -p exist."
     args+=(--tools Bash --allowedTools "Bash(adb:*)");;

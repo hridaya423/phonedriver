@@ -1,15 +1,52 @@
 #!/usr/bin/env python3
 """Usage: summarize.py <label=run-dir>... > jobs.json
 
+A run killed by the 10-minute watchdog has no result event; its tokens are then summed from the assistant messages
+(`tokens_estimated`).
+
 Reads each run dir's results.jsonl (one line per run, written by run-harness.sh) and prints per-run rows and, per
 harness and task, the median tokens, tool calls and wall time over the labelled passes plus the number of passes that
 met their independent check. `--md` prints the markdown tables instead.
 """
 
 import json
+import os
 import statistics
 import sys
 from collections import defaultdict
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import jobs
+
+
+def estimated_tokens(path):
+    seen, total = set(), 0
+    for line in open(path):
+        try:
+            v = json.loads(line)
+        except ValueError:
+            continue
+        if v.get("type") != "assistant":
+            continue
+        m = v["message"]
+        if m.get("id") in seen:
+            continue
+        seen.add(m.get("id"))
+        u = m.get("usage", {})
+        total += sum(u.get(k, 0) for k in ("input_tokens", "output_tokens", "cache_creation_input_tokens", "cache_read_input_tokens"))
+    return total
+
+
+def rescored(path, d):
+    """The bug-report jobs under the current rubric (sections as well as sentences); the log checks stand as run."""
+    base = f"{path}/{d['harness']}-{d['task']}"
+    try:
+        report = open(f"{base}.answer.txt").read()
+        log_failures = [l for l in open(f"{base}.check.txt").read().splitlines() if l.startswith("log:")]
+    except OSError:
+        return d["success"]
+    ok = all(jobs.found_bugs(report, jobs.BUGS[d["task"]]).values()) and jobs.has_steps(report)
+    return ok and not log_failures
 
 
 def load(args):
@@ -18,13 +55,18 @@ def load(args):
         label, path = arg.split("=", 1)
         for line in open(f"{path}/results.jsonl"):
             d = json.loads(line)
+            estimated = d["total_tokens"] == 0
+            if estimated:
+                d["total_tokens"] = estimated_tokens(f"{path}/{d['harness']}-{d['task']}.jsonl")
             runs.append(
                 {
                     "pass": label,
                     "harness": d["harness"],
                     "task": d["task"],
-                    "success": d["success"],
+                    "success": rescored(path, d) if d["task"] in jobs.BUGS else d["success"],
+                    "success_as_run": d["success"],
                     "total_tokens": d["total_tokens"],
+                    "tokens_estimated": estimated,
                     "output_tokens": d["output_tokens"],
                     "tool_calls": d["tool_calls"],
                     "wall_s": d["wall_s"],
