@@ -14,11 +14,12 @@ HARNESSES = (
     ("phone-use before", "d4"),
     ("phone-use round 1 (median of 3)", "d1"),
     ("phone-use round 2 (median of 2)", "d1"),
+    ("phone-use round 3 (median of 3)", "d1"),
     ("mobile-mcp", "d2"),
     ("phone-harness (median of 3)", "d5"),
     ("adb", "d3"),
 )
-LEGEND = (("phone-use before", "d4"), ("phone-use rounds 1, 2", "d1"), ("mobile-mcp", "d2"), ("phone-harness", "d5"), ("adb", "d3"))
+LEGEND = (("phone-use before", "d4"), ("phone-use rounds 1, 2, 3", "d1"), ("mobile-mcp", "d2"), ("phone-harness", "d5"), ("adb", "d3"))
 
 
 def mono(s, x, cy, size, fill, tr=0.0, anchor="start", caps=False):
@@ -86,7 +87,7 @@ def chart(tn, rows):
                 label += "  failed"
             t, _ = mono(label, x1 + 10, by + 10, 15, c["t1"] if r["success"] else c["fail"])
             b += t
-    return svg(W, H, b, "Tokens per task for phone-control harnesses, claude-sonnet-5-5, medians of three runs (phone-use round 2: two runs); before, mobile-mcp and adb one run", c["page"])
+    return svg(W, H, b, "Tokens per task for phone-control harnesses, claude-sonnet-5-5, medians of three runs (phone-use round 2: two runs; round 3 alarm-gym: two runs); before, mobile-mcp and adb one run", c["page"])
 
 
 def shot(svgp, pngp, w, h):
