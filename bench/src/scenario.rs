@@ -155,6 +155,7 @@ enum Step {
     },
     RestoreSwitch(String),
     Dismiss(Vec<String>),
+    Script(String),
     Expect(Expect),
     /// Steps that only exist on newer Android: `{at_least: 29, then: [...], otherwise: [...]}`.
     IfApi {
@@ -176,6 +177,7 @@ struct Expect {
     no_log: Option<Value>,
     shell: Option<ShellCheck>,
     answer: Option<String>,
+    script: Option<String>,
     timeout_ms: Option<u64>,
 }
 
@@ -197,6 +199,14 @@ struct Ctx {
     home: PathBuf,
     originals: HashMap<String, bool>,
     answer: String,
+    files: JobFiles,
+}
+
+#[derive(Default)]
+struct JobFiles {
+    dir: PathBuf,
+    answer: Option<String>,
+    transcript: Option<String>,
 }
 
 impl Ctx {
@@ -219,6 +229,33 @@ impl Ctx {
                 String::from_utf8_lossy(&out.stderr).trim()
             ))
         }
+    }
+
+    fn script(&self, cmd: &str) -> Result<(), String> {
+        let Platform::Android { serial, .. } = &self.platform else {
+            return Err("script steps run on Android only".into());
+        };
+        let mut c = Command::new("sh");
+        c.args(["-c", cmd])
+            .current_dir(&self.files.dir)
+            .env("SERIAL", serial)
+            .env("PHONE_USE_BIN", &self.bin)
+            .env("PHONE_USE_DEVICE", &self.device);
+        if let Some(a) = &self.files.answer {
+            c.env("ANSWER_FILE", a);
+        }
+        if let Some(t) = &self.files.transcript {
+            c.env("TRANSCRIPT_FILE", t);
+        }
+        let out = c.output().map_err(|e| format!("cannot run `{cmd}`: {e}"))?;
+        if out.status.success() {
+            return Ok(());
+        }
+        Err(format!(
+            "`{cmd}` failed: {}{}",
+            String::from_utf8_lossy(&out.stdout).trim(),
+            String::from_utf8_lossy(&out.stderr).trim()
+        ))
     }
 
     async fn shell(&self, cmd: &str) -> Result<String, String> {
@@ -449,6 +486,7 @@ impl Ctx {
                 }
                 Ok(())
             }
+            Step::Script(cmd) => self.script(cmd),
             Step::Expect(e) => self.expect(e).await,
             Step::IfApi { .. } => Err("IfApi must be flattened before running".into()),
         }
@@ -536,6 +574,9 @@ impl Ctx {
             && !self.answer.contains(a.as_str())
         {
             return Err(format!("the agent's answer has no {a:?}: {}", self.answer));
+        }
+        if let Some(cmd) = &e.script {
+            self.script(cmd)?;
         }
         if let Some(check) = &e.shell {
             let out = self.shell(&check.cmd).await?;
@@ -736,6 +777,14 @@ pub async fn eval_main(args: &[String]) -> i32 {
                     .first()
                     .and_then(|f| std::fs::read_to_string(f).ok())
                     .unwrap_or_default(),
+                files: JobFiles {
+                    dir: Path::new(file)
+                        .parent()
+                        .map(Path::to_path_buf)
+                        .unwrap_or_default(),
+                    answer: tail.first().cloned(),
+                    transcript: tail.get(1).cloned(),
+                },
             };
             let steps = match phase {
                 "reset" => &task.reset,
@@ -843,6 +892,7 @@ pub async fn main(args: &[String]) -> i32 {
         home,
         originals: HashMap::new(),
         answer: String::new(),
+        files: JobFiles::default(),
     };
     let _ = ctx.cli(&["release"]);
     let api: u32 = match ctx.platform {
@@ -966,6 +1016,62 @@ cleanup:
                 .iter()
                 .all(|t| !t.check.is_empty() && !t.reset.is_empty())
         );
+    }
+
+    fn script_ctx(dir: &Path) -> Ctx {
+        Ctx {
+            bin: PathBuf::from("phone-use"),
+            device: "android:emulator-5558".into(),
+            platform: Platform::Android {
+                adb: Adb::from_env(),
+                serial: "emulator-5558".into(),
+            },
+            home: std::env::temp_dir(),
+            originals: HashMap::new(),
+            answer: String::new(),
+            files: JobFiles {
+                dir: dir.to_path_buf(),
+                answer: Some("a.txt".into()),
+                transcript: Some("t.jsonl".into()),
+            },
+        }
+    }
+
+    #[test]
+    fn a_script_step_gets_the_device_and_the_run_files_and_its_failure_text_comes_back() {
+        let ctx = script_ctx(&std::env::temp_dir());
+        ctx.script(
+            r#"test "$SERIAL $ANSWER_FILE $TRANSCRIPT_FILE" = "emulator-5558 a.txt t.jsonl""#,
+        )
+        .unwrap();
+        let err = ctx.script("echo no cart total >&2; exit 1").unwrap_err();
+        assert!(err.contains("no cart total"), "{err}");
+    }
+
+    #[test]
+    fn a_script_expect_and_step_parse() {
+        let y = "name: x\nsteps:\n  - script: \"seed.sh\"\n  - expect: {script: \"check.sh\"}\n";
+        let s: Scenario = serde_yaml::from_str(y).unwrap();
+        assert!(matches!(&s.steps[0], Step::Script(c) if c == "seed.sh"));
+        assert!(
+            matches!(&s.steps[1], Step::Expect(Expect { script: Some(c), .. }) if c == "check.sh")
+        );
+    }
+
+    #[test]
+    fn the_jobs_sets_have_seven_ui_only_and_two_mixed_tasks_with_a_check_script_each() {
+        let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("agent-eval");
+        let tasks = load_tasks(&dir.join("tasks.yaml")).unwrap();
+        assert_eq!(tasks.iter().filter(|t| t.set == "jobs").count(), 7);
+        assert_eq!(tasks.iter().filter(|t| t.set == "jobs-mixed").count(), 2);
+        assert!(dir.join("jobs/jobs.py").exists());
+        for t in tasks.iter().filter(|t| t.set.starts_with("jobs")) {
+            assert!(
+                t.check
+                    .iter()
+                    .any(|s| matches!(s, Step::Expect(Expect { script: Some(c), .. }) if c.ends_with(&t.name)))
+            );
+        }
     }
 
     #[test]

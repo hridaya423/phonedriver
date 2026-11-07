@@ -6,7 +6,7 @@ harness=$1; task=$2; out=$3
 serial=${SERIAL:-emulator-5558}
 here=$(cd "$(dirname "$0")" && pwd)
 tasks=$here/tasks.yaml
-mkdir -p "$out"
+mkdir -p "$out"; out=$(cd "$out" && pwd)
 bench() { "$PHONE_USE_BENCH" eval "$@"; }
 dev=android:$serial
 adb -s $serial shell "pkill -f mobilecli" >/dev/null 2>&1; sleep 10
@@ -49,7 +49,7 @@ kill "$wd" 2>/dev/null
 wall=$(( $(date +%s) - start ))
 for p in $(lsof -t "$home/run/daemon.sock" 2>/dev/null); do kill "$p" 2>/dev/null; done
 "$PHONE_USE_BENCH" stats "$out/$id.jsonl" | python3 -c 'import json,sys; print(json.load(sys.stdin)["answer"] or "")' >"$out/$id.answer.txt"
-if bench check "$tasks" "$task" "$PHONE_USE_BIN" "$dev" "$out/$id.answer.txt" >"$out/$id.check.txt" 2>&1; then ok=true; else ok=false; fi
+if bench check "$tasks" "$task" "$PHONE_USE_BIN" "$dev" "$out/$id.answer.txt" "$out/$id.jsonl" >"$out/$id.check.txt" 2>&1; then ok=true; else ok=false; fi
 bench cleanup "$tasks" "$task" "$PHONE_USE_BIN" "$dev" >/dev/null 2>&1
 stats=$("$PHONE_USE_BENCH" stats "$out/$id.jsonl")
 python3 -c 'import json,sys; d=json.loads(sys.argv[1]); d.update(harness=sys.argv[2], task=sys.argv[3], success=sys.argv[4]=="true", wall_s=int(sys.argv[5])); d.pop("answer",None); print(json.dumps(d))' "$stats" "$harness" "$task" "$ok" "$wall" | tee -a "$out/results.jsonl"
