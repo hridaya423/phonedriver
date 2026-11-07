@@ -47,6 +47,8 @@ const WAIT_DEBOUNCE: Duration = Duration::from_millis(100);
 /// Typed text is already in the field when the call returns (the paste waits for it), so unlike after a tap there is
 /// no effect still to come: the first-change wait and the quiet period after it are short.
 const TYPED_QUIET: Duration = Duration::from_millis(150);
+/// A tree read that starts this long after the last significant frame can already show where the screen ended up.
+const READ_LAG: Duration = Duration::from_millis(120);
 const TREE_STEP: Duration = Duration::from_millis(100);
 const TREE_STABLE_WAIT: Duration = Duration::from_secs(1);
 const LOADING_WAIT: Duration = Duration::from_secs(4);
@@ -124,6 +126,43 @@ impl Live {
     fn screen(&self) -> Size {
         self.device.current_screen().unwrap_or(self.screen)
     }
+}
+
+struct Read {
+    at: Duration,
+    tree: RawTree,
+}
+
+type Inflight = (
+    Duration,
+    std::pin::Pin<Box<dyn std::future::Future<Output = Result<RawTree, Error>> + Send>>,
+);
+
+/// A tree read during the settle: the newest one that started after the last significant frame, and whether the one
+/// before it (also after that frame) agrees with it.
+struct Probe {
+    tree: RawTree,
+    stable: bool,
+}
+
+fn probe_of(mut reads: Vec<Read>, last: Duration) -> Option<Probe> {
+    reads.retain(|r| r.at >= last + READ_LAG);
+    let newest = reads.pop()?;
+    let stable = reads.last().is_some_and(|r| r.tree == newest.tree);
+    Some(Probe {
+        tree: newest.tree,
+        stable,
+    })
+}
+
+async fn finished(inflight: &mut Option<Inflight>) -> (Duration, Result<RawTree, Error>) {
+    let Some((at, read)) = inflight.as_mut() else {
+        return pending().await;
+    };
+    let at = *at;
+    let result = read.as_mut().await;
+    *inflight = None;
+    (at, result)
 }
 
 enum Signal {
@@ -744,28 +783,67 @@ impl Actor {
     }
 
     async fn settle(&mut self, cfg: Config, started: Duration) -> State {
+        self.settle_probing(cfg, started, false).await.0
+    }
+
+    /// With `probe`, reads the tree while the screen is quiet but the quiet period is not over, so a reply that needs
+    /// the tree after the settle finds it already read. Two equal reads that both started after the last significant
+    /// frame are what `stabilize` would have gathered after the settle.
+    async fn settle_probing(
+        &mut self,
+        cfg: Config,
+        started: Duration,
+        probe: bool,
+    ) -> (State, Option<Probe>) {
         let mut det = Detector::new(cfg, started);
         if let Some((t, input)) = self.recent
             && (cfg.expect_change.is_none() || t >= started)
         {
             det.feed(input, t);
         }
+        let device = if probe { self.device().ok() } else { None };
+        let mut reads: Vec<Read> = Vec::new();
+        let mut inflight: Option<Inflight> = None;
         loop {
             let st = det.poll(self.now());
             if matches!(st, State::Done { .. }) {
-                if let Some(t) = det.last_significant() {
-                    self.phases.push((
-                        "last_change_at",
-                        t.saturating_sub(started).as_micros() as u32,
-                    ));
+                let last = det.last_significant();
+                if let (Some((at, read)), Some(last)) = (inflight.take(), last)
+                    && at >= last + READ_LAG
+                    && let Ok(tree) = read.await
+                {
+                    reads.push(Read { at, tree });
                 }
-                return st;
+                let settled = matches!(
+                    st,
+                    State::Done {
+                        settled: true,
+                        changed: true,
+                        ..
+                    }
+                );
+                let probed = last.filter(|_| settled).and_then(|l| probe_of(reads, l));
+                return (st, probed);
+            }
+            if let (Some(device), Some(last), None) = (&device, det.last_significant(), &inflight) {
+                let now = self.now();
+                let due = last + READ_LAG;
+                let fresh = reads.iter().filter(|r| r.at >= due).count();
+                if now >= due && fresh < 2 {
+                    let device = device.clone();
+                    inflight = Some((now, Box::pin(async move { device.tree().await })));
+                }
             }
             tokio::select! {
                 sig = next_signal(&mut self.live) => {
                     let at = self.now();
                     if let Some(input) = self.absorb(sig, at) {
                         det.feed(input, at);
+                    }
+                }
+                (at, read) = finished(&mut inflight) => {
+                    if let Ok(tree) = read {
+                        reads.push(Read { at, tree });
                     }
                 }
                 () = tokio::time::sleep(TICK) => {}
@@ -1328,7 +1406,15 @@ impl Actor {
                         elapsed: Duration::ZERO,
                     };
                     return self
-                        .report(s, st, "keyboard already hidden".into(), None, None, None)
+                        .report(
+                            s,
+                            st,
+                            None,
+                            "keyboard already hidden".into(),
+                            None,
+                            None,
+                            None,
+                        )
                         .await;
                 }
                 let started = self.begin_action();
@@ -1615,7 +1701,7 @@ impl Actor {
                             elapsed: Duration::ZERO,
                         },
                     };
-                    return self.report(s, st, summary, None, None, None).await;
+                    return self.report(s, st, None, summary, None, None, None).await;
                 }
                 Ok(_) | Err(Error::NotFound { .. } | Error::StaleRef { .. }) => {}
                 Err(e) => return Err(e),
@@ -1700,9 +1786,9 @@ impl Actor {
             .contains(Capabilities::FRAMES);
         let started = if polled { self.now() } else { started };
         let t = Instant::now();
-        let st = self.settle(cfg, started).await;
+        let (st, probe) = self.settle_probing(cfg, started, true).await;
         self.lap("settle", t);
-        self.report(s, st, summary, via, verify, mask).await
+        self.report(s, st, probe, summary, via, verify, mask).await
     }
 
     /// The accessibility tree can lag the pixels: a dialog or an expanding card appears a moment after the screen went
@@ -1728,19 +1814,29 @@ impl Actor {
     }
 
     /// Reads the screen after a settle and answers with what changed since the agent last saw it.
+    #[allow(clippy::too_many_arguments)]
     async fn report(
         &mut self,
         s: &mut Session,
         st: State,
+        probe: Option<Probe>,
         summary: String,
         via: Option<&'static str>,
         verify: Option<Verify>,
         mask: Option<String>,
     ) -> Result<ActionResult, Error> {
         let t = Instant::now();
-        let mut tree = self.device()?.tree().await?;
+        let (mut tree, agreed) = match probe {
+            Some(p) => (p.tree, p.stable),
+            None => (self.device()?.tree().await?, false),
+        };
         self.lap("tree", t);
-        if matches!(st, State::Done { changed: true, .. }) || verify.is_some() || tree.loading() {
+        let agreed = agreed && !tree.loading() && !tree.web_view_pending();
+        if !agreed
+            && (matches!(st, State::Done { changed: true, .. })
+                || verify.is_some()
+                || tree.loading())
+        {
             let t = Instant::now();
             tree = self.stabilize(tree).await?;
             self.lap("stabilize", t);

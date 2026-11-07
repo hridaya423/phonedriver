@@ -131,6 +131,11 @@ impl Rig {
         F: AsyncFnMut(&mut Rig),
         B: AsyncFnMut(&mut Rig),
     {
+        if let Ok(only) = std::env::var("PHONE_USE_BENCH_ONLY")
+            && !only.split(',').any(|o| name.contains(o))
+        {
+            return;
+        }
         let mut ms = Vec::with_capacity(self.runs);
         for i in 0..self.warmup + self.runs {
             let start = Instant::now();
