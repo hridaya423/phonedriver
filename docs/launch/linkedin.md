@@ -41,7 +41,7 @@ Facts per line: opening and demo (README demo caption, `progress.md`), 2,352.4 m
 
 ```
 Code: github.com/hridaya423/phonedriver
-Install: claude mcp add phonedriver -- phonedriver mcp
+Install: claude mcp add phonedriver -- npx -y phonedriver mcp
 Method for the 98x, with p95 and raw data: github.com/hridaya423/phonedriver/blob/main/docs/bench/speed-2026-11-07.md
 Site: phonedriver.dev
 ```
@@ -69,7 +69,7 @@ Fewer than 400 characters; put the link in the caption here, or in the first com
 | 5 | **It asks before it pays.** A tap on Place order or Pay stops and asks you: Allow, Allow for this session, Decline. The model cannot answer. | The elicitation form [DEMO: screenshot from the new recording]. | D27 |
 | 6 | **34% fewer tokens than phone-harness.** Three agent tasks, same model: 218,357 against 330,375. It lost one task. | Three-row chart, rebuilt. | `tokens.md` Round 3 |
 | 7 | **What it does not do yet.** No Android phone measured. iOS needs a Mac with Xcode. The guard reads English labels only. | Plain text list. | README, D27 |
-| 8 | **Open source, AGPL-3.0, no telemetry.** Android and iOS. CLI and MCP. `claude mcp add phonedriver -- phonedriver mcp` and phonedriver.dev | Wordmark, repo, one command. | README |
+| 8 | **Open source, AGPL-3.0, no telemetry.** Android and iOS. CLI and MCP. `claude mcp add phonedriver -- npx -y phonedriver mcp` and phonedriver.dev | Wordmark, repo, one command. | README |
 
 Slide 7 is the one that earns trust. Do not move it to the end behind a call to action; the order above puts it before the ask.
 

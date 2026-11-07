@@ -7,7 +7,7 @@ Every description reuses the canonical sentence from `github-metadata.md`, trimm
 ## Three findings that change the plan
 
 1. **Smithery is DEAD.** Its API, CLI, accounts and proxy stopped on 2026-10-31 (banner on smithery.ai). Do not spend time on it. No `smithery.yaml`.
-2. **The official MCP Registry does not take a plain GitHub-release binary.** It lists metadata for a package that already exists elsewhere. Supported types: `npm`, `pypi`, `nuget`, `cargo`, `oci`, `mcpb` (docs: `modelcontextprotocol/registry`, `package-types.mdx`). For a Rust binary that means **`mcpb` (a bundle on GitHub Releases) or `cargo` (crates.io)**. This is a launch blocker for "registry entries live before HN" and needs one decision: see section 1.
+2. **The official MCP Registry does not take a plain GitHub-release binary.** It lists metadata for a package that already exists elsewhere. Supported types: `npm`, `pypi`, `nuget`, `cargo`, `oci`, `mcpb` (docs: `modelcontextprotocol/registry`, `package-types.mdx`). Resolved by D29: an npm launcher package (`packaging/npm/`) that downloads the release binary; see section 1.
 3. **Claude's own directory no longer takes local `.mcpb` servers**; a local stdio server goes in as a plugin, with a paid Claude plan and a review (https://claude.com/docs/connectors/building/submission). Not a launch-week item.
 
 ## Order, with the day (see `plan.md`)
@@ -32,17 +32,9 @@ URL: https://registry.modelcontextprotocol.io. Method: the `mcp-publisher` CLI o
 
 Namespace: **`io.github.hridaya423/phonedriver`**, authenticated by GitHub login. It works on day one and needs no DNS. The alternative, `dev.phonedriver/...`, needs a TXT record on `phonedriver.dev` (`v=MCPv1; k=ed25519; p=<base64 key>`, Ed25519 needs OpenSSL 3, macOS LibreSSL fails) or a file at `https://phonedriver.dev/.well-known/mcp-registry-auth`. Do it later if you want the domain namespace.
 
-**Decision needed (blocker):** pick the package route.
+**Decided (D29, 2026-11-07): the `npm` route, with a launcher.** The package `phonedriver` (`packaging/npm/`) downloads the cargo-dist binary from GitHub Releases on first run and checks its SHA-256, so `server.json` points at npm. The MCPB manifest has no CPU-architecture field (one bundle cannot serve both macOS CPUs), and `cargo` needs the Android SDK, so neither was used. Research and sources: `docs/release/registry.md`. The exact order of commands is in `docs/release/launch-commands.md`.
 
-| Route | What it needs | Problem |
-|---|---|---|
-| `mcpb` | A `.mcpb` bundle on a GitHub Release (URL must contain "mcp"), `fileSha256` in `server.json`, a `manifest.json` with `server.type: "binary"`. | One bundle must carry or select a binary per OS and CPU. Whether `manifest.json` can do that for five targets is [UNVERIFIED]: read `modelcontextprotocol/mcpb` `MANIFEST.md` before building. |
-| `cargo` | The crate published on crates.io, with the visible line `mcp-name: io.github.hridaya423/phonedriver` in its README (crates.io strips HTML comments). | The README says the build needs the Android SDK, `d8` and JDK 17 unless `PHONE_USE_AGENT_JAR` is set, so `cargo install phonedriver` fails for almost everyone unless the crate ships the built jar. [UNVERIFIED: check what `cargo package` would include.] |
-| `npm` wrapper | A thin npm package that downloads or bundles the binary, with `mcpName` in `package.json`. | Extra package to maintain. It does give `npx -y phonedriver mcp`, which is the install line MCP users know. |
-
-Recommendation: **the `mcpb` bundle if the manifest supports per-platform binaries; otherwise an npm wrapper** (a thin package, one binary package per OS as optional dependencies, the pattern esbuild uses). Do not publish a crate that does not build. [USER or AGENT: engineering task, 1 to 2 days.]
-
-`server.json` for the `mcpb` route (schema 2025-12-11 from the registry docs; `description` is limited to 100 characters):
+`server.json` (in the repo root; validated against the 2025-12-11 schema and by `mcp-publisher validate`; the description is 64 characters, the limit is 100):
 
 ```json
 {
@@ -55,16 +47,19 @@ Recommendation: **the `mcpb` bundle if the manifest supports per-platform binari
   "version": "0.1.0",
   "packages": [
     {
-      "registryType": "mcpb",
-      "identifier": "https://github.com/hridaya423/phonedriver/releases/download/v0.1.0/phonedriver.mcpb",
-      "fileSha256": "<sha256 of the bundle>",
-      "transport": { "type": "stdio" }
+      "registryType": "npm",
+      "registryBaseUrl": "https://registry.npmjs.org",
+      "identifier": "phonedriver",
+      "version": "0.1.0",
+      "runtimeHint": "npx",
+      "transport": { "type": "stdio" },
+      "packageArguments": [{ "type": "positional", "value": "mcp" }]
     }
   ]
 }
 ```
 
-(The description is 64 characters.) For the `cargo` route replace the package with `{"registryType":"cargo","identifier":"phonedriver","version":"0.1.0","transport":{"type":"stdio"}}`. Whether `packageArguments` must say that the server is the `mcp` subcommand is [UNVERIFIED]: run `mcp-publisher validate` and read the error. Verify after publishing: `curl 'https://registry.modelcontextprotocol.io/v0.1/servers?search=phonedriver'`.
+`package.json` carries `"mcpName": "io.github.hridaya423/phonedriver"`. Verify after publishing: `curl 'https://registry.modelcontextprotocol.io/v0.1/servers?search=phonedriver'`.
 
 Downstream: PulseMCP picks registry entries up automatically, and Zed points MCP users at the registry.
 
@@ -212,13 +207,13 @@ Other lists: `jqueryscript/awesome-claude-code` (live, method UNVERIFIED), `rohi
 - **Own Homebrew tap**: `dist-workspace.toml` already sets `tap = "hridaya423/homebrew-tap"` and the `homebrew` installer. The README line is `brew install hridaya423/tap/phonedriver` after the rename. Per Homebrew docs a non-official tap may need explicit trust (`brew trust --tap hridaya423/tap`) [secondary reading of the docs; test on a clean Mac and write what you see in the README].
 - **homebrew-core**: not eligible. A self-submission needs 225 stars, 90 forks or 90 watchers, and the repo should be 30 days old (https://docs.brew.sh/Package-Acceptance-Policy). Revisit after launch.
 - **crates.io**: only if the crate builds without the Android SDK (see section 1).
-- **npm wrapper**: see section 1. `phone-use` is taken on npm; `phonedriver` returned 404 on npm, crates.io and PyPI on 2026-11-07, so the name is free today. Reserve it by publishing the real package, not a placeholder (a placeholder is squatting and reads badly).
+- **npm launcher**: built in `packaging/npm/` (section 1, D29); you run `npm publish`. `phone-use` is taken on npm; `phonedriver` returned 404 on npm, crates.io and PyPI on 2026-11-07, so the name is free today. Reserve it by publishing the real package, not a placeholder (a placeholder is squatting and reads badly).
 
 ## 13. Files to add to the repo
 
 | File or asset | Needed by |
 |---|---|
-| `server.json` | official registry |
+| `server.json` (done) and `packaging/npm/` (done) | official registry |
 | A visible line `mcp-name: io.github.hridaya423/phonedriver` in the README (needed for `cargo`; harmless otherwise) | official registry |
 | The published package (`.mcpb`, npm or crate) | official registry |
 | `glama.json` | Glama claim |

@@ -51,7 +51,7 @@ Alt text: "Claude Code's terminal beside an Android emulator. Claude orders butt
 ```
 It's called phonedriver: an open-source MCP server and CLI that lets AI agents like Claude Code see and control Android and iOS phones.
 
-claude mcp add phonedriver -- phonedriver mcp
+claude mcp add phonedriver -- npx -y phonedriver mcp
 
 Code: github.com/hridaya423/phonedriver
 Site: phonedriver.dev

@@ -8,7 +8,18 @@ phonedriver is one binary: the CLI, the daemon and the MCP server. The Android a
 
 > Nothing is published yet. The commands under "One-line install" work once the first release is out. Until then, use "Build from source".
 
-## One-line install
+## Fastest: npx
+
+The `phonedriver` npm package is a small launcher. On first run it downloads the binary for your platform from GitHub Releases, checks its SHA-256 against the `.sha256` file published beside it, caches it (`~/Library/Caches/phonedriver/npm` on macOS, `~/.cache/phonedriver/npm` on Linux, `%LOCALAPPDATA%\phonedriver\npm` on Windows) and runs it. Later runs use the cache and make no network request. The launcher contacts GitHub only to download the binary and sends no telemetry. It needs Node 18 or later.
+
+```sh
+npx -y phonedriver --version
+claude mcp add phonedriver -- npx -y phonedriver mcp
+```
+
+## Permanent install
+
+These put `phonedriver` on your `PATH`.
 
 ```sh
 # macOS and Linux

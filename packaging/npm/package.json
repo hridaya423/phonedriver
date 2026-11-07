@@ -1,0 +1,40 @@
+{
+  "name": "phonedriver",
+  "version": "0.1.0",
+  "description": "Let AI agents see and control Android and iOS phones. Launcher for the phonedriver binary: downloads it from GitHub Releases on first run.",
+  "mcpName": "io.github.hridaya423/phonedriver",
+  "license": "AGPL-3.0-only",
+  "homepage": "https://phonedriver.dev",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/hridaya423/phonedriver.git",
+    "directory": "packaging/npm"
+  },
+  "bugs": "https://github.com/hridaya423/phonedriver/issues",
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "android",
+    "ios",
+    "adb",
+    "ai-agents",
+    "phone",
+    "automation"
+  ],
+  "bin": {
+    "phonedriver": "bin/phonedriver.js"
+  },
+  "files": [
+    "bin",
+    "lib",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "test": "node --test test/*.test.js",
+    "prepack": "node -e \"require('fs').copyFileSync('../../LICENSE','LICENSE')\""
+  }
+}

@@ -315,3 +315,14 @@ Secrets. The trace keeps the command text (an agent's command is what it did), b
 **Left as written.** `progress.md` entries and plan or launch text dated before the rename, which discuss `phone-use` as the old name or as another project's name; raw benchmark data file contents. Data files under `docs/bench/data/` were renamed (`*-phonedriver-*.csv`), their contents were not changed.
 
 **Reopen if.** A trademark or registry claim on `phonedriver` appears before the first release.
+
+## D29. The one-step install is an npm launcher; there is no MCPB bundle
+
+**Choice.** `npx -y phonedriver mcp` (and `claude mcp add phonedriver -- npx -y phonedriver mcp`). The npm package `phonedriver` (`packaging/npm/`) is a launcher with no dependencies and no postinstall: on first run it downloads the cargo-dist archive for the platform from GitHub Releases, checks the SHA-256 in the `.sha256` file beside it, caches it and runs it. The official MCP Registry entry (`server.json`) points at the npm package. The shell, PowerShell and Homebrew installers stay as the permanent installs.
+
+**Why.** The registry takes no plain binary. npm gives the shortest command, needs nothing installed first beyond Node, and fits the registry's `npm` type. D9 holds: the launcher contacts GitHub only to fetch the binary we release, once per version and platform.
+
+**Rejected.** An `.mcpb` bundle: the MCPB manifest has no CPU-architecture field, so one bundle cannot serve both macOS CPUs, and a fat bundle ships every binary to everyone. `cargo` registry type: the crate needs the Android SDK to build. Per-platform npm packages as optional dependencies (the esbuild pattern): five more packages to publish per release for a 3 MB binary. A postinstall download: it runs at install time, fails in `--ignore-scripts` setups and surprises users. Pinning archive hashes inside the npm package: an extra publish-time step; the checksum from the same release is what the shell installer trusts too.
+
+**Reopen if.** Claude Desktop users need double-click install (then a `node`-type `.mcpb` around the same launcher), or the launcher's `tar` dependency fails for real users (then `unix-archive = ".tar.gz"`).
+

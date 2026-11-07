@@ -7,7 +7,7 @@ phonedriver is a free, open-source (AGPL-3.0) CLI and MCP server. It runs on mac
 ## Start here
 
 - [Install](https://phonedriver.dev/docs/install/): one-line install and build from source
-- [Claude Code setup](https://phonedriver.dev/docs/claude-code/): `claude mcp add phonedriver -- phonedriver mcp`
+- [Claude Code setup](https://phonedriver.dev/docs/claude-code/): `claude mcp add phonedriver -- npx -y phonedriver mcp`
 - [Cursor and other MCP clients](https://phonedriver.dev/docs/cursor-and-mcp-clients/): the stdio server entry
 
 ## Docs

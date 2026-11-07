@@ -76,7 +76,7 @@ What it does:
 
 Speed, Android 17 emulator, p50 of 50 runs: reading a 1,000-row screen takes 24 ms against 2,352 ms for adb.
 
-Install: claude mcp add phonedriver -- phonedriver mcp
+Install: claude mcp add phonedriver -- npx -y phonedriver mcp
 Code: github.com/hridaya423/phonedriver
 
 Limits: I measured no physical Android phone, iOS needs a Mac with Xcode, and the guard only matches English labels. Which app should I try it on?
@@ -98,7 +98,7 @@ Rule 5 sends a simple project share to the weekly thread. A short comment is the
 
 ```
 I built phonedriver, an open-source MCP server and CLI that lets Claude Code drive an Android or iOS phone. I am the author, and coding agents wrote part of it. The screen is numbered text and every tap returns only the lines that changed. Before it taps Pay or Place order it asks you in the Claude Code prompt, and the model cannot answer for you. Clip, sped up 10x: [DEMO]. Limit: the guard only reads English labels.
-claude mcp add phonedriver -- phonedriver mcp
+claude mcp add phonedriver -- npx -y phonedriver mcp
 github.com/hridaya423/phonedriver
 ```
 

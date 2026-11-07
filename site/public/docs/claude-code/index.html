@@ -231,12 +231,12 @@ body{font-size:17px}
 <p class="lede">Add phonedriver to Claude Code as an MCP server with one command, point it at a device and ask it to operate a phone in plain language.</p>
 <p>Claude Code is the client phonedriver is tested against: the benchmarks on this site run <code>claude -p</code> with Claude Sonnet 5.5.</p>
 <h2 id="add-the-server">Add the server</h2>
-<p><a href="/docs/install/">Install phonedriver</a> first. Then, from any directory:</p>
-<pre tabindex="0" class="lang-sh"><code>claude mcp add phonedriver -- phonedriver mcp
+<p>From any directory, with Node 18 or later and nothing installed first:</p>
+<pre tabindex="0" class="lang-sh"><code>claude mcp add phonedriver -- npx -y phonedriver mcp
 claude mcp list    # expect: phonedriver ... Connected</code></pre>
-<p>If the binary is not on your <code>PATH</code>, use its full path after the <code>--</code>.</p>
+<p>The first start downloads the binary once (see <a href="/docs/install/">Install</a>). If you <a href="/docs/install/#permanent-install">installed phonedriver</a> instead, use <code>claude mcp add phonedriver -- phonedriver mcp</code>, or the full path to the binary after the <code>--</code>.</p>
 <p>For the first run, boot one simulator or connect one device, so no device setting is needed. With more than one device, set the one to use in the server's environment:</p>
-<pre tabindex="0" class="lang-sh"><code>claude mcp add --env PHONEDRIVER_DEVICE=android:emulator-5554 phonedriver -- phonedriver mcp</code></pre>
+<pre tabindex="0" class="lang-sh"><code>claude mcp add --env PHONEDRIVER_DEVICE=android:emulator-5554 phonedriver -- npx -y phonedriver mcp</code></pre>
 <p><code>phonedriver devices</code> lists the ids. <code>PHONEDRIVER_DEVICE</code> is optional when one device is connected.</p>
 <h2 id="ask-it">Ask it</h2>
 <p>Boot a device, then ask Claude Code in plain language:</p>

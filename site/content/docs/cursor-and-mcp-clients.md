@@ -12,15 +12,15 @@ Any client that starts a stdio MCP server can use phonedriver. We test with Clau
 {
   "mcpServers": {
     "phonedriver": {
-      "command": "phonedriver",
-      "args": ["mcp"],
+      "command": "npx",
+      "args": ["-y", "phonedriver", "mcp"],
       "env": { "PHONEDRIVER_DEVICE": "android:emulator-5554" }
     }
   }
 }
 ```
 
-If `phonedriver` is not on the `PATH` the client sees, put the full path in `command`. `PHONEDRIVER_DEVICE` is optional when one device is connected.
+The first start downloads the binary once. On Windows, some clients cannot start `npx` directly: use `"command": "cmd"` and `"args": ["/c", "npx", "-y", "phonedriver", "mcp"]`. If you installed phonedriver yourself, use `"command": "phonedriver"` with `"args": ["mcp"]`, or the full path. `PHONEDRIVER_DEVICE` is optional when one device is connected.
 
 ## Cursor
 

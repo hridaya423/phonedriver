@@ -231,7 +231,12 @@ body{font-size:17px}
 <p class="lede">Install the phonedriver binary with one command on macOS, Linux or Windows, or build it from source, then check it with phonedriver doctor.</p>
 <p>phonedriver is one binary: the CLI, the daemon and the MCP server. The Android agent is packed inside it, so there is nothing else to download.</p>
 <blockquote><p>Nothing is published yet. The commands under "One-line install" work once the first release is out. Until then, use "Build from source".</p></blockquote>
-<h2 id="one-line-install">One-line install</h2>
+<h2 id="fastest-npx">Fastest: npx</h2>
+<p>The <code>phonedriver</code> npm package is a small launcher. On first run it downloads the binary for your platform from GitHub Releases, checks its SHA-256 against the <code>.sha256</code> file published beside it, caches it (<code>~/Library/Caches/phonedriver/npm</code> on macOS, <code>~/.cache/phonedriver/npm</code> on Linux, <code>%LOCALAPPDATA%\phonedriver\npm</code> on Windows) and runs it. Later runs use the cache and make no network request. The launcher contacts GitHub only to download the binary and sends no telemetry. It needs Node 18 or later.</p>
+<pre tabindex="0" class="lang-sh"><code>npx -y phonedriver --version
+claude mcp add phonedriver -- npx -y phonedriver mcp</code></pre>
+<h2 id="permanent-install">Permanent install</h2>
+<p>These put <code>phonedriver</code> on your <code>PATH</code>.</p>
 <pre tabindex="0" class="lang-sh"><code># macOS and Linux
 curl --proto '=https' --tlsv1.2 -LsSf https://github.com/hridaya423/phonedriver/releases/latest/download/phonedriver-installer.sh | sh
 

@@ -8,19 +8,19 @@ Claude Code is the client phonedriver is tested against: the benchmarks on this 
 
 ## Add the server
 
-[Install phonedriver](/docs/install/) first. Then, from any directory:
+From any directory, with Node 18 or later and nothing installed first:
 
 ```sh
-claude mcp add phonedriver -- phonedriver mcp
+claude mcp add phonedriver -- npx -y phonedriver mcp
 claude mcp list    # expect: phonedriver ... Connected
 ```
 
-If the binary is not on your `PATH`, use its full path after the `--`.
+The first start downloads the binary once (see [Install](/docs/install/)). If you [installed phonedriver](/docs/install/#permanent-install) instead, use `claude mcp add phonedriver -- phonedriver mcp`, or the full path to the binary after the `--`.
 
 For the first run, boot one simulator or connect one device, so no device setting is needed. With more than one device, set the one to use in the server's environment:
 
 ```sh
-claude mcp add --env PHONEDRIVER_DEVICE=android:emulator-5554 phonedriver -- phonedriver mcp
+claude mcp add --env PHONEDRIVER_DEVICE=android:emulator-5554 phonedriver -- npx -y phonedriver mcp
 ```
 
 `phonedriver devices` lists the ids. `PHONEDRIVER_DEVICE` is optional when one device is connected.
