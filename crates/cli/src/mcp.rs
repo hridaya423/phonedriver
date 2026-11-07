@@ -6,8 +6,14 @@ use std::process::ExitCode;
 use std::sync::Arc;
 
 use rmcp::handler::server::wrapper::Parameters;
-use rmcp::model::{CallToolResult, ContentBlock};
+use rmcp::model::{
+    CallToolRequestParams, CallToolResponse, CallToolResult, ContentBlock, ElicitRequest,
+    ElicitRequestParams, ElicitationSchema, EnumSchemaBuilder, InputRequest, InputRequiredResult,
+    ProtocolVersion,
+};
 use rmcp::schemars::{self, JsonSchema};
+use rmcp::service::{ElicitationMode, RequestContext};
+use rmcp::{Peer, RoleServer};
 use rmcp::{ServerHandler, ServiceExt, tool, tool_handler, tool_router};
 use serde::Deserialize;
 use serde_json::json;
@@ -15,7 +21,7 @@ use tokio::sync::Mutex;
 
 use crate::client::{Client, Failure};
 use crate::commands::{Globals, Verb, execute_with, run_batch};
-use crate::wire::ScreenshotResult;
+use crate::wire::{Approval, ScreenshotResult};
 
 #[derive(Clone)]
 pub struct Mcp {
@@ -89,7 +95,7 @@ struct SnapshotArgs {
     find: Option<String>,
 }
 
-#[derive(Deserialize, JsonSchema)]
+#[derive(Clone, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 struct TapArgs {
     device: Option<String>,
@@ -100,6 +106,7 @@ struct TapArgs {
     /// Tap this many times; 2 is a double tap.
     count: Option<u32>,
     long: Option<u32>,
+    autonomous: Option<bool>,
 }
 
 #[derive(Deserialize, JsonSchema)]
@@ -116,6 +123,7 @@ struct TypeArgs {
     /// With `into`, add to the field's text instead of replacing it.
     append: Option<bool>,
     secret: Option<bool>,
+    autonomous: Option<bool>,
 }
 
 #[derive(Deserialize, JsonSchema)]
@@ -179,6 +187,26 @@ impl TapArgs {
             role: self.role,
             count: self.count,
             long: self.long,
+            autonomous: false,
+        }
+    }
+}
+
+impl TypeArgs {
+    fn type_verb(&self) -> Verb {
+        let secret = self.secret.unwrap_or(false);
+        Verb::Type {
+            text: if secret {
+                None
+            } else {
+                Some(self.text.clone())
+            },
+            into: self.into.clone(),
+            mode: self.mode.clone(),
+            submit: self.submit.unwrap_or(false),
+            append: self.append.unwrap_or(false),
+            secret,
+            autonomous: false,
         }
     }
 }
@@ -290,6 +318,7 @@ fn step_verb(step: serde_json::Value) -> Result<Verb, String> {
                 submit: a.submit.unwrap_or(false),
                 append: a.append.unwrap_or(false),
                 secret: false,
+                autonomous: false,
             })
         }
         other => Err(format!(
@@ -341,6 +370,7 @@ impl Mcp {
             timeout: None,
             expect_change: None,
             share: false,
+            approval: None,
         }
     }
 
@@ -351,6 +381,135 @@ impl Mcp {
         secret: Option<String>,
     ) -> CallToolResult {
         self.run_with(Self::globals(device), verb, secret).await
+    }
+
+    /// A tap that spends money or cannot be undone needs the human's word (decision D27), asked through the client's
+    /// elicitation and never through the agent. With a connected client (`Channel::Peer`) the call waits here for
+    /// the answer; with protocol 2026-07-28 (`Channel::Mrtr`) the call returns the question and the client calls
+    /// again with the answer. A client that cannot ask gets the question as the tool result, and nothing is tapped.
+    async fn guarded(
+        &self,
+        channel: Channel<'_>,
+        device: Option<String>,
+        verb: impl Fn() -> Verb,
+        secret: Option<String>,
+        autonomous: bool,
+    ) -> Outcome {
+        let mut globals = Self::globals(device);
+        if autonomous {
+            globals.approval = Some(Approval::Autonomous);
+        }
+        if let Channel::Mrtr {
+            answer: Some(reply),
+            ..
+        } = &channel
+        {
+            match decision(reply) {
+                Decision::Declined => return Outcome::Done(declined()),
+                Decision::Once => globals.approval = Some(Approval::Once),
+                Decision::Session => globals.approval = Some(Approval::Session),
+            }
+        }
+        let first = self
+            .with_client(async |client| {
+                execute_with(client, verb(), secret.clone(), &globals).await
+            })
+            .await;
+        let Some((label, app, details)) = first.as_ref().err().and_then(approval_needed) else {
+            return Outcome::Done(Self::reply(first));
+        };
+        let asked = commitment(&label, app.as_deref(), &details);
+        let prompt = format!("Your agent wants to do this on your phone:\n{asked}\nAllow it?");
+        let reply = match channel {
+            Channel::Mrtr {
+                can_ask: true,
+                answer: None,
+            } => match question(&prompt) {
+                Ok(q) => return Outcome::Ask(q),
+                Err(why) => return Outcome::Done(cannot_ask(&asked, &why)),
+            },
+            Channel::Peer(peer)
+                if peer
+                    .supported_elicitation_modes()
+                    .contains(&ElicitationMode::Form) =>
+            {
+                match Self::ask(peer, &prompt).await {
+                    Ok(r) => r,
+                    Err(why) => return Outcome::Done(cannot_ask(&asked, &why)),
+                }
+            }
+            _ => return Outcome::Done(cannot_ask(&asked, "this client cannot ask the human")),
+        };
+        match decision(&reply) {
+            Decision::Declined => Outcome::Done(declined_for(&asked)),
+            chosen => {
+                globals.approval = Some(match chosen {
+                    Decision::Session => Approval::Session,
+                    _ => Approval::Once,
+                });
+                let second = self
+                    .with_client(async |client| {
+                        execute_with(client, verb(), secret, &globals).await
+                    })
+                    .await;
+                Outcome::Done(Self::reply(second))
+            }
+        }
+    }
+
+    async fn ask(peer: &Peer<RoleServer>, prompt: &str) -> Result<serde_json::Value, String> {
+        let reply = peer
+            .create_elicitation(ElicitRequestParams::FormElicitationParams {
+                meta: None,
+                message: prompt.to_string(),
+                requested_schema: schema()?,
+            })
+            .await
+            .map_err(|e| format!("the client could not ask: {e}"))?;
+        serde_json::to_value(reply).map_err(|e| e.to_string())
+    }
+
+    /// The tap and type tools for a client on protocol 2026-07-28, which may not receive requests from a server.
+    async fn call_guarded(
+        &self,
+        request: CallToolRequestParams,
+        context: &RequestContext<RoleServer>,
+    ) -> Result<CallToolResponse, rmcp::ErrorData> {
+        let args = serde_json::Value::Object(request.arguments.clone().unwrap_or_default());
+        let can_ask = context
+            .client_capabilities()
+            .and_then(|c| c.elicitation)
+            .is_some_and(|e| e.form.is_some() || e.url.is_none());
+        let answer = request
+            .input_responses
+            .as_ref()
+            .and_then(|r| r.get(APPROVAL_KEY));
+        let channel = Channel::Mrtr { can_ask, answer };
+        let invalid = |e: serde_json::Error| rmcp::ErrorData::invalid_params(e.to_string(), None);
+        let outcome = if request.name == "tap" {
+            let a: TapArgs = serde_json::from_value(args).map_err(invalid)?;
+            let (device, autonomous) = (a.device.clone(), a.autonomous.unwrap_or(false));
+            self.guarded(channel, device, || a.clone().verb(), None, autonomous)
+                .await
+        } else {
+            let a: TypeArgs = serde_json::from_value(args).map_err(invalid)?;
+            let secret = a.secret.unwrap_or(false);
+            let (device, autonomous) = (a.device.clone(), a.autonomous.unwrap_or(false));
+            let text = secret.then(|| a.text.clone());
+            self.guarded(channel, device, || a.type_verb(), text, autonomous)
+                .await
+        };
+        Ok(match outcome {
+            Outcome::Done(r) => r.into(),
+            Outcome::Ask(q) => q.into(),
+        })
+    }
+
+    fn reply(result: Result<String, Failure>) -> CallToolResult {
+        match result {
+            Ok(text) => text_result(success_text(text)),
+            Err(f) => failure(&f),
+        }
     }
 
     async fn run_with(
@@ -367,6 +526,123 @@ impl Mcp {
             Err(f) => failure(&f),
         }
     }
+}
+
+const NEEDS_APPROVAL: i32 = -32019;
+
+/// The guard's refusal, when `f` is one: the button, the app and the screen text around it.
+fn approval_needed(f: &Failure) -> Option<(String, Option<String>, Vec<String>)> {
+    let Failure::Rpc(e) = f else { return None };
+    if e.code != NEEDS_APPROVAL {
+        return None;
+    }
+    let text = |v: &serde_json::Value| v.as_str().map(str::to_string);
+    let details = e.data["details"]
+        .as_array()
+        .map(|a| a.iter().filter_map(text).collect())
+        .unwrap_or_default();
+    Some((text(&e.data["label"])?, text(&e.data["app"]), details))
+}
+
+fn commitment(label: &str, app: Option<&str>, details: &[String]) -> String {
+    let mut text = match app {
+        Some(app) => format!("Tap \"{label}\" in {app}."),
+        None => format!("Tap \"{label}\"."),
+    };
+    for d in details {
+        text.push_str("\n  ");
+        text.push_str(d);
+    }
+    text
+}
+
+const APPROVAL_KEY: &str = "approve";
+const ALLOW: &str = "allow";
+const ALLOW_SESSION: &str = "session";
+
+enum Decision {
+    Once,
+    Session,
+    Declined,
+}
+
+enum Channel<'a> {
+    Peer(&'a Peer<RoleServer>),
+    Mrtr {
+        can_ask: bool,
+        answer: Option<&'a serde_json::Value>,
+    },
+}
+
+enum Outcome {
+    Done(CallToolResult),
+    Ask(InputRequiredResult),
+}
+
+impl Outcome {
+    /// For a client that is asked over its open connection, where the question never comes back as a result.
+    fn complete(self) -> CallToolResult {
+        match self {
+            Outcome::Done(r) => r,
+            Outcome::Ask(_) => bad("the client must be asked over its connection"),
+        }
+    }
+}
+
+fn schema() -> Result<ElicitationSchema, String> {
+    let choice = EnumSchemaBuilder::new(vec![ALLOW.into(), ALLOW_SESSION.into()])
+        .enum_titles(vec!["Allow".into(), "Allow for this session".into()])
+        .and_then(|b| b.with_default(ALLOW))
+        .map(|b| b.title("Your answer").build())
+        .map_err(|e| e.to_string())?;
+    ElicitationSchema::builder()
+        .required_enum_schema("choice", choice)
+        .build()
+        .map_err(|e| e.to_string())
+}
+
+fn question(prompt: &str) -> Result<InputRequiredResult, String> {
+    let ask = ElicitRequest::new(ElicitRequestParams::FormElicitationParams {
+        meta: None,
+        message: prompt.to_string(),
+        requested_schema: schema()?,
+    });
+    Ok(InputRequiredResult::from_input_requests(
+        [(APPROVAL_KEY.to_string(), InputRequest::Elicitation(ask))].into(),
+    ))
+}
+
+/// What the human answered: an accept with a choice, or anything else, which is a no.
+fn decision(reply: &serde_json::Value) -> Decision {
+    if reply["action"] != "accept" {
+        return Decision::Declined;
+    }
+    match reply["content"]["choice"].as_str() {
+        Some(ALLOW_SESSION) => Decision::Session,
+        _ => Decision::Once,
+    }
+}
+
+fn declined() -> CallToolResult {
+    text_result(
+        "The human declined; nothing was tapped. Stop, or ask the user what to do instead.".into(),
+    )
+}
+
+fn declined_for(asked: &str) -> CallToolResult {
+    text_result(format!(
+        "The human declined; nothing was tapped.\n{asked}\nStop, or ask the user what to do instead."
+    ))
+}
+
+fn cannot_ask(asked: &str, why: &str) -> CallToolResult {
+    text_result(format!(
+        "Needs the human's approval; nothing was tapped ({why}).\n{asked}\nAsk the user in chat. If they say yes, call this tool again with `autonomous: true`."
+    ))
+}
+
+fn text_result(text: String) -> CallToolResult {
+    CallToolResult::success(vec![ContentBlock::text(text)])
 }
 
 fn failure(f: &Failure) -> CallToolResult {
@@ -562,16 +838,34 @@ impl Mcp {
     #[tool(
         description = "Tap by @ref, text or x,y point (from a screenshot). `long` holds the press that many ms (context menus)."
     )]
-    async fn tap(&self, Parameters(a): Parameters<TapArgs>) -> CallToolResult {
+    async fn tap(
+        &self,
+        peer: Peer<RoleServer>,
+        Parameters(a): Parameters<TapArgs>,
+    ) -> CallToolResult {
         let device = a.device.clone();
-        self.run(device, a.verb(), None).await
+        let autonomous = a.autonomous.unwrap_or(false);
+        let outcome = self
+            .guarded(
+                Channel::Peer(&peer),
+                device,
+                || a.clone().verb(),
+                None,
+                autonomous,
+            )
+            .await;
+        outcome.complete()
     }
 
     #[tool(
         name = "type",
         description = "Put text in a field (replaces its content) and report what it shows; empty text clears. `secret` for a password or code the user gave."
     )]
-    async fn r#type(&self, Parameters(a): Parameters<TypeArgs>) -> CallToolResult {
+    async fn r#type(
+        &self,
+        peer: Peer<RoleServer>,
+        Parameters(a): Parameters<TypeArgs>,
+    ) -> CallToolResult {
         let secret = a.secret.unwrap_or(false);
         if a.text.is_empty() && !secret {
             return match a.into {
@@ -579,15 +873,19 @@ impl Mcp {
                 None => bad("to clear a field pass `into`: the field to empty"),
             };
         }
-        let verb = Verb::Type {
-            text: if secret { None } else { Some(a.text.clone()) },
-            into: a.into,
-            mode: a.mode,
-            submit: a.submit.unwrap_or(false),
-            append: a.append.unwrap_or(false),
-            secret,
-        };
-        self.run(a.device, verb, secret.then_some(a.text)).await
+        let autonomous = a.autonomous.unwrap_or(false);
+        let device = a.device.clone();
+        let text = secret.then(|| a.text.clone());
+        let outcome = self
+            .guarded(
+                Channel::Peer(&peer),
+                device,
+                || a.type_verb(),
+                text,
+                autonomous,
+            )
+            .await;
+        outcome.complete()
     }
 
     #[tool(
@@ -668,6 +966,21 @@ impl Mcp {
     instructions = "Operate an Android or iOS device. System settings: `shell`. App UI: `snapshot` once, then act on its @refs; each action returns what changed. Send calls one at a time on the shared screen. If an error needs the user to act on the device, say so and go on when they are done. Passwords, payments, sending and deleting need the user's word for this task."
 )]
 impl ServerHandler for Mcp {
+    async fn call_tool(
+        &self,
+        request: CallToolRequestParams,
+        context: RequestContext<rmcp::RoleServer>,
+    ) -> Result<CallToolResponse, rmcp::ErrorData> {
+        let mrtr = context
+            .protocol_version()
+            .is_some_and(|v| v >= ProtocolVersion::V_2026_07_28);
+        if mrtr && (request.name == "tap" || request.name == "type") {
+            return self.call_guarded(request, &context).await;
+        }
+        let call = rmcp::handler::server::tool::ToolCallContext::new(self, request, context);
+        Self::tool_router().call(call).await
+    }
+
     async fn list_tools(
         &self,
         _request: Option<rmcp::model::PaginatedRequestParams>,

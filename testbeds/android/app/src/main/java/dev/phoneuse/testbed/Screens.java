@@ -428,6 +428,28 @@ final class Screens {
         return t;
     }
 
+    static View checkout(Activity a) {
+        LinearLayout root = column(a);
+        for (String line : new String[] {"2 x Pad thai", "Deliver to 12 Elm St", "Total $12.00"}) {
+            TextView t = new TextView(a);
+            t.setText(line);
+            t.setTextSize(TypedValue.COMPLEX_UNIT_SP, 18);
+            root.addView(t);
+        }
+        Button back = new Button(a);
+        back.setText("Back to menu");
+        back.setAllCaps(false);
+        back.setOnClickListener(v -> Events.emit(Events.put(Events.event("click"), "id", "back")));
+        root.addView(back);
+        Button order = new Button(a);
+        order.setText("Place order \u00b7 $12.00");
+        order.setAllCaps(false);
+        order.setOnClickListener(
+                v -> Events.emit(Events.put(Events.event("order"), "total", "12.00")));
+        root.addView(order);
+        return root;
+    }
+
     static View dialogs(Activity a) {
         LinearLayout root = column(a);
         Button open = new Button(a);
