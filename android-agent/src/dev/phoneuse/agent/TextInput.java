@@ -11,7 +11,7 @@ import com.genymobile.scrcpy.wrappers.ClipboardManager;
 import com.genymobile.scrcpy.wrappers.ServiceManager;
 
 final class TextInput {
-    private static final long RESTORE_WAIT_MS = 200;
+    private static final long RESTORE_WAIT_MS = 1000;
     private static final long POLL_MS = 10;
     private static final long FOCUS_WAIT_MS = 1500;
 
@@ -82,8 +82,10 @@ final class TextInput {
         try {
             Input.key(KeyEvent.KEYCODE_PASTE, "press");
             // spike A4: WebView and some Compose fields read the clipboard after the key returns,
-            // so restoring at once pastes the old clip. Wait for the field to change, at most 200 ms (the 500 ms
-            // first used was the whole wait whenever the field text is not exposed or does not change).
+            // so restoring at once pastes the old clip. Wait for the field to change. A WebView field that was
+            // just loaded on the emulator read the clipboard more than 200 ms late in 4 of 10 pastes and took the
+            // restored clip, so the limit is 1000 ms; the field text of a WebView is not exposed in time to end
+            // the wait early.
             long deadline = SystemClock.uptimeMillis() + RESTORE_WAIT_MS;
             while (SystemClock.uptimeMillis() < deadline && textOf(Accessibility.focusedInput()).equals(before)) {
                 SystemClock.sleep(POLL_MS);

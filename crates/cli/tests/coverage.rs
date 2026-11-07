@@ -153,6 +153,34 @@ async fn a_compose_lazy_list_scrolls_to_item_300_and_the_tap_lands_on_it() {
 
 #[tokio::test]
 #[ignore = "needs PHONE_USE_TEST_DEVICE"]
+async fn typing_into_a_web_field_right_after_the_page_loads_lands_every_time() {
+    let rig = Rig::new().await;
+    for round in 0..8 {
+        rig.adb
+            .shell(&rig.serial, "am force-stop dev.phoneuse.testbed")
+            .await
+            .unwrap();
+        rig.ok(&["snapshot", "--no-settle"]);
+        testbed::open_tab(&rig.adb, &rig.serial, "web").await;
+        testbed::clear_log(&rig.adb, &rig.serial).await;
+        rig.ok(&["--timeout", "8000", "wait", "Send"]);
+        let r = rig.json(&["type", "Ada Lovelace", "--into", "Name"]);
+        assert_eq!(r["verified"], true, "round {round}: {r}");
+        let log = testbed::wait_for_log(&rig.adb, &rig.serial, 3000, |l| {
+            l.iter()
+                .any(|e| e["field"] == "name" && e["value"] == "Ada Lovelace")
+        })
+        .await;
+        assert!(
+            log.iter()
+                .any(|e| e["ev"] == "web" && e["field"] == "name" && e["value"] == "Ada Lovelace"),
+            "round {round}: {log:?}"
+        );
+    }
+}
+
+#[tokio::test]
+#[ignore = "needs PHONE_USE_TEST_DEVICE"]
 async fn web_form_inputs_are_text_fields_and_take_text_taps_and_a_checkbox() {
     let rig = Rig::new().await;
     rig.tab("web").await;
