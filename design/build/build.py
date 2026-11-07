@@ -314,56 +314,35 @@ def hero_alt(rows, picked):
 def hero(tn, W=1280, H=None, social=False):
     c = THEMES[tn]
     d, rows, picked = hero_rows()
-    mx = 56 if not social else 56
-    title_sz, sub_sz = (80, 26) if not social else (64, 22)
-    lab_sz, ph_sz, big_sz = (40, 24, 68) if not social else (30, 22, 50)
-    bar_h, lane_h = (34, 66) if not social else (22, 44)
-    top = 150 if not social else 108
-    rh = 184 if not social else 122
-    onbar = c["t1"] if tn == "light" else c["page"]
-    b = ""
-    ty = 100 if not social else 70
-    t, w = text("Up to ", mx, ty, INTER, title_sz, c["t1"], -0.04)
-    t2, w2 = text(headline(rows) + "x", mx + w, ty, INTER, title_sz, c["t1"], -0.04)
-    t3, _ = text(" faster than adb", mx + w + w2, ty, INTER, title_sz, c["t1"], -0.04)
-    b += t + rect(mx + w - 4, ty + 10, w2 + 8, 8, c["accent"]) + t2 + t3
-    t, _ = mono("Android emulator · p50 of 50 runs · bars to scale", mx, ty + (44 if not social else 36), sub_sz, c["t2"], 0.0)
-    b += t
+    k = 0.8 if social else 1.0
+    mx = round(64 * k)
     bw = W - 2 * mx
-    y = top + 28
-    for i, (r, lab, sub) in enumerate(picked):
-        b += rule(mx, y, bw, c["line"])
-        ly = y + (34 if not social else 22)
-        t, lw = text(lab, mx, ly + 12, INTER, lab_sz, c["t1"], -0.03)
-        b += t
-        if sub and not social:
-            t, _ = mono(sub, mx + lw + 20, ly + 6, 20, c["t3"], 0.0)
-            b += t
-        phs = f'phone-harness: {ratio(r["vs_ph"])}x slower' if r["vs_ph"] else "phone-harness: not supported"
-        t, _ = mono(phs, W - mx, ly + 6, ph_sz, c["t2"], 0.0, anchor="end")
-        b += t
-        ay = y + (58 if not social else 46)
-        b += rect(mx, ay, bw, bar_h, c["d3"])
-        t, _ = mono(f'adb  {r["adb"]:,.0f} ms', mx + 14, ay + bar_h / 2, 26 if not social else 18, onbar)
-        b += t
-        py = ay + bar_h + 8
-        cy = py + lane_h / 2
-        pw = max(bw * r["phone_use"] / r["adb"], 2)
-        b += rect(mx, cy - bar_h / 2, pw, bar_h, c["accent"])
-        if pw > 8:
-            b += frame(mx, cy - bar_h / 2, pw, bar_h, c["edge"])
-        rx = mx + pw + 24
-        t, w = text(ratio(r["vs_adb"]) + "x", rx, cy + big_sz * 0.36, INTER, big_sz, c["t1"], -0.04)
-        b += rect(rx - 3, cy + big_sz * 0.36 + 6, w + 6, 5, c["accent"]) + t
-        t, w3 = text(" faster", rx + w, cy + big_sz * 0.36, INTER, big_sz * 0.5, c["t2"], -0.02)
-        b += t
-        t, _ = mono(f'phonedriver  {r["phone_use"]:,.0f} ms', rx + w + w3 + 24, cy + 6, 26 if not social else 20, c["t2"], 0.0)
-        b += t
-        y += rh
-    b += rule(mx, y, bw, c["line"])
-    t, _ = mono("Method, p95, raw data: docs/bench/speed-2026-11-07.md", mx, y + (38 if not social else 28), 22 if not social else 18, c["t3"], 0.0)
+    b = ""
+    y = round(118 * k)
+    t, _ = text(f"Up to {headline(rows)}\u00d7 faster than adb", mx, y, INTER, 84 * k, c["t1"], -0.045)
     b += t
-    H = H or round(y + 64)
+    t, _ = text("How long an AI agent waits on an Android phone", mx, y + 52 * k, INTER, 30 * k, c["t2"], -0.02)
+    b += t
+    y += round(130 * k)
+    track = round(10 * k)
+    for r, lab, _ in picked:
+        t, _ = text(lab, mx, y, INTER, 38 * k, c["t1"], -0.03)
+        b += t
+        t, _ = text(ratio(r["vs_adb"]) + "\u00d7", W - mx, y + 2 * k, INTER, 56 * k, c["t1"], -0.045, anchor="end")
+        b += t
+        by = y + round(26 * k)
+        pw = max(bw * r["phone_use"] / r["adb"], 4)
+        b += rect(mx, by, bw, track, c["faint"] if tn == "light" else c["line"])
+        b += rect(mx, by, pw, track, c["accent"])
+        ly = by + track + round(24 * k)
+        t, _ = mono(f'phonedriver {r["phone_use"]:,.0f} ms', mx, ly, 26 * k, c["t1"])
+        b += t
+        t, _ = mono(f'adb {r["adb"]:,.0f} ms', W - mx, ly, 26 * k, c["t3"], anchor="end")
+        b += t
+        y = ly + round(84 * k)
+    t, _ = mono("p50 of 50 runs \u00b7 Android 17 emulator \u00b7 method and raw data: docs/bench/speed-2026-11-07.md", mx, y - 22 * k, 20 * k, c["t3"])
+    b += t
+    H = H or round(y + 8 * k)
     return svg(W, H, b, hero_alt(rows, picked), c["page"]), W, H
 
 
