@@ -286,9 +286,21 @@ pub struct FindParams {
     pub role: Option<Role>,
 }
 
+/// What the human decided about a guarded tap (decision D27). `Once` and `Session` come from the MCP server after it
+/// asked the human; `Autonomous` is the agent's or the environment's word that the human granted full autonomy.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Approval {
+    Once,
+    Session,
+    Autonomous,
+}
+
 #[derive(Debug, Deserialize)]
 pub struct ActParams {
     pub action: Action,
+    #[serde(default)]
+    pub approval: Option<Approval>,
     #[serde(default = "yes")]
     pub settle: bool,
     pub timeout_ms: Option<u64>,
@@ -381,6 +393,9 @@ impl Step {
 #[derive(Debug, Deserialize)]
 pub struct BatchParams {
     pub steps: Vec<serde_json::Value>,
+    /// Only `Autonomous` counts in a batch: a human approves one tap at a time.
+    #[serde(default)]
+    pub approval: Option<Approval>,
     pub timeout_ms: Option<u64>,
     pub expect_change_ms: Option<u64>,
 }

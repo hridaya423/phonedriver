@@ -159,6 +159,7 @@ Without a team, the command stops with exit code 3 and says so. With a booted Si
 | `PHONE_USE_SESSION` | `default` | The session name, as `--session`. |
 | `PHONE_USE_TEAM` | none | Apple developer team ID that signs the iOS runner on a physical device. |
 | `PHONE_USE_IOS_TIER` | `runner` | `coredevice` selects the CoreDevice tier on iOS 27 devices. Experimental. |
+| `PHONE_USE_GUARD` | on | `off` stops phone-use asking the human before a tap that spends money or cannot be undone (`Place order`, `Pay`, `Delete account`). Set it for `phone-use mcp` or the CLI only when you grant the agent full autonomy. |
 | `PHONE_USE_SECRET` | none | The text for `type --secret`, instead of stdin. |
 | `PHONE_USE_TRACE_FULL` | off | `1` keeps observation text and text targets in traces (the daemon reads it at start). |
 | `PHONE_USE_TRACE_SCREENS` | off | `1` copies every screenshot next to its trace file. |
@@ -178,7 +179,7 @@ When something does not work:
 - iOS: `$PHONE_USE_HOME/runner/<udid>.log` is the runner's output, and `runner/<hash>/build.log` is its first build.
 - `phone-use daemon stop` stops the daemon and the iOS runners it started. The next command starts a new one.
 
-Exit codes: `0` done, `1` the command failed, `2` the command line is wrong, `3` a person must act on the device (unlock, trust, allow), `4` no matching device or it was disconnected. On a terminal, a first command that takes more than a second says what it is doing (building the runner, starting the agent).
+Exit codes: `0` done, `1` the command failed, `2` the command line is wrong, `3` a person must act on the device (unlock, trust, allow), `4` no matching device or it was disconnected, `5` a tap that spends money or cannot be undone needs the human's approval (add `--autonomous` only when the user has granted full autonomy). On a terminal, a first command that takes more than a second says what it is doing (building the runner, starting the agent).
 
 ## Supported devices
 

@@ -28,7 +28,7 @@ Progress: a client that sends `"progress": true` in `hello` may receive notifica
 | `snapshot` | `device?, diff?, interactive?, within?, pixels?, max_lines?, no_settle?, elements?, capture?, timeout_ms?` | `Observation` |
 | `screenshot` | `device?, native?, quality?, format?, inline?, marks?` | `{path, width, height, scale, data_b64?, marks?}` (`path` is on the daemon's machine; with `inline: true` the PNG bytes also come back base64-encoded in `data_b64`, for a client that does not share the daemon's file system) |
 | `find` | `device?, text, role?` | `[ElementLine]` (rendered lines such as `@e12 cell "Row 1"`; the elements whose label or hint contains `text`, in any case; `role` is a snake_case role name) |
-| `act` | `device?, action: Action, settle?: bool, timeout_ms?, expect_change_ms?` | `ActionResult` |
+| `act` | `device?, action: Action, approval?: "once"\|"session"\|"autonomous", settle?: bool, timeout_ms?, expect_change_ms?` | `ActionResult` |
 | `wait` | `device?, condition: WaitCondition, timeout_ms?, expect_change_ms?` | `ActionResult` |
 | `batch` | `device?, steps: Step[], timeout_ms?, expect_change_ms?` | `BatchResult` |
 | `apps` | `device?` | `[App]` (launchable apps: `{id, name, system}`) |
@@ -125,6 +125,7 @@ JSON-RPC `error` with `code` from the table, `message`, and `data: {code_name, h
 | -32015 | transport |
 | -32017 | no_app (`data.similar` lists installed apps that share a word with the name) |
 | -32018 | unknown_key (`press` got a key it does not know; `data.valid` lists the keys) |
+| -32019 | needs_approval (a tap or `type --submit` that spends money or cannot be undone, without an `approval`; `data.label`, `data.app`, `data.details`; decision D27) |
 | -32016 | not_reached (`data.end` is `ended`, `stuck` or `limit`; `data.scrolls`, `data.last`) |
 
 ## 2. Daemon ↔ Android agent

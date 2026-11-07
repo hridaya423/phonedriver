@@ -15,6 +15,8 @@ pub struct Session {
     pub last: Option<Rendered>,
     /// The last snapshot merged text from pixels, so target resolution does too.
     pub ocr: bool,
+    /// The human allowed guarded taps for the rest of this session; it ends with the daemon.
+    pub guard_allowed: bool,
 }
 
 pub struct Resolved {
