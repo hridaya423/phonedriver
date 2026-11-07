@@ -20,8 +20,8 @@ use crate::daemon::{Config, Daemon, socket};
 use phone_use_core::error::span;
 
 use crate::wire::{
-    ActionResult, BatchResult, DeviceEntry, Kind, Observation, ScreenshotResult, ShellResult,
-    VERSION,
+    ActionResult, Approval, BatchResult, DeviceEntry, Kind, Observation, ScreenshotResult,
+    ShellResult, VERSION,
 };
 
 const USAGE: &str = "usage: phone-use <command>\n\nrun `phone-use --help` for the options and exit codes\n\ncommands:\n  devices\n  snapshot\n  screenshot\n  find\n  launch\n  open\n  apps\n  swipe\n  drag\n  pinch\n  scroll\n  gesture\n  tap\n  type\n  clear\n  clipboard\n  shell\n  press\n  wait\n  batch\n  release\n  daemon\n  doctor\n  ios\n  mcp\n  skill\n  version";
@@ -38,6 +38,7 @@ Exit codes:
   2  the command line is wrong
   3  a person must act on the device (unlock, trust, allow); the message says what
   4  no device matches, or it was disconnected
+  5  the tap spends money or cannot be undone and the human has not approved it; ask them, then add --autonomous
 
 When something goes wrong, see Debugging in the README: traces, daemon.log and the runner log.
 Settings by environment variable are in the README's table (PHONE_USE_HOME, PHONE_USE_TEAM, ...).";
@@ -194,6 +195,9 @@ pub(crate) enum Verb {
         /// Hold the press for this many milliseconds.
         #[arg(long)]
         long: Option<u32>,
+        /// Tap a button that spends money or cannot be undone without asking the human. Only when the user has granted full autonomy.
+        #[arg(long)]
+        autonomous: bool,
     },
     /// Play fingers with timed paths, in points: `{"fingers": [[{"x": 100, "y": 300, "t_ms": 0}, {"x": 50, "y": 300, "t_ms": 300}]]}`.
     Gesture {
@@ -300,6 +304,9 @@ pub(crate) enum Verb {
         /// Read the text from stdin or PHONE_USE_SECRET and keep it out of logs and traces.
         #[arg(long)]
         secret: bool,
+        /// With `--submit`, send a form that spends money or cannot be undone without asking the human. Only when the user has granted full autonomy.
+        #[arg(long)]
+        autonomous: bool,
     },
     /// Empty a text field: `@ref`, `x,y` or the field's text.
     Clear {
@@ -461,6 +468,7 @@ pub fn run(cli: Cli) -> ExitCode {
                 timeout: cli.timeout,
                 expect_change: cli.expect_change,
                 share: cli.share,
+                approval: None,
             };
             match rt.block_on(execute(verb, secret, &cli.session, &globals)) {
                 Ok(out) => {
@@ -486,6 +494,34 @@ pub(crate) struct Globals {
     pub timeout: Option<u64>,
     pub expect_change: Option<u64>,
     pub share: bool,
+    pub approval: Option<Approval>,
+}
+
+/// The guard's answer that does not come from asking: `--autonomous`, or `PHONE_USE_GUARD=off` for the whole process.
+fn guard_override(verb: &Verb, given: Option<Approval>, env: Option<&str>) -> Option<Approval> {
+    let flag = matches!(
+        verb,
+        Verb::Tap {
+            autonomous: true,
+            ..
+        } | Verb::Type {
+            autonomous: true,
+            ..
+        }
+    );
+    if flag || guard_off(env) {
+        Some(Approval::Autonomous)
+    } else {
+        given
+    }
+}
+
+fn guard_off(env: Option<&str>) -> bool {
+    env.is_some_and(|v| v.eq_ignore_ascii_case("off"))
+}
+
+fn guard_env() -> Option<String> {
+    std::env::var("PHONE_USE_GUARD").ok()
 }
 
 /// The text of a `type --secret`, read before any connection is made so a usage error types nothing.
@@ -566,8 +602,12 @@ pub(crate) async fn execute_with(
         }
         params
     };
+    let approval = guard_override(&verb, g.approval, guard_env().as_deref());
     let act = |action: Value| {
         let mut p = json!({"action": action, "settle": !g.no_settle});
+        if let Some(a) = approval {
+            p["approval"] = json!(a);
+        }
         if let Some(t) = g.timeout {
             p["timeout_ms"] = json!(t);
         }
@@ -819,6 +859,7 @@ pub(crate) fn step_json(verb: &Verb, secret: Option<&str>) -> Result<Value, Fail
             role,
             count,
             long,
+            ..
         } => {
             let mut t = parse_target(target);
             if let Some(role) = role {
@@ -900,6 +941,7 @@ pub(crate) fn step_json(verb: &Verb, secret: Option<&str>) -> Result<Value, Fail
             submit,
             append,
             secret: is_secret,
+            ..
         } => {
             let text = secret.or(text.as_deref()).unwrap_or_default();
             let mut a = json!({"kind": "type", "text": text, "secret": is_secret, "submit": submit, "append": append});
@@ -981,6 +1023,9 @@ pub(crate) async fn run_batch(
 ) -> Result<String, Failure> {
     let sent = steps.len();
     let mut p = json!({"steps": steps});
+    if guard_off(guard_env().as_deref()) || g.approval == Some(Approval::Autonomous) {
+        p["approval"] = json!(Approval::Autonomous);
+    }
     if let Some(d) = &g.device {
         p["device"] = json!(d);
     }
@@ -1287,6 +1332,39 @@ fn run_daemon(trace: TraceOptions) -> ExitCode {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn tap(autonomous: bool) -> Verb {
+        Verb::Tap {
+            target: "Pay".into(),
+            role: None,
+            count: None,
+            long: None,
+            autonomous,
+        }
+    }
+
+    #[test]
+    fn the_guard_is_off_only_by_the_flag_or_the_environment() {
+        assert_eq!(guard_override(&tap(false), None, None), None);
+        assert_eq!(guard_override(&tap(false), None, Some("on")), None);
+        assert_eq!(guard_override(&tap(false), None, Some("")), None);
+        assert_eq!(
+            guard_override(&tap(true), None, None),
+            Some(Approval::Autonomous)
+        );
+        assert_eq!(
+            guard_override(&tap(false), None, Some("off")),
+            Some(Approval::Autonomous)
+        );
+        assert_eq!(
+            guard_override(&tap(false), None, Some("OFF")),
+            Some(Approval::Autonomous)
+        );
+        assert_eq!(
+            guard_override(&tap(false), Some(Approval::Once), None),
+            Some(Approval::Once)
+        );
+    }
 
     fn action(changed: bool, kind: &str, text: &str) -> Value {
         json!({
