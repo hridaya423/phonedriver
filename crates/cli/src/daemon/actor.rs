@@ -29,8 +29,8 @@ use tokio::sync::{broadcast, mpsc, oneshot, watch};
 use tokio::time::Instant;
 
 use super::DeviceSource;
-use super::guard;
 use super::checkbox;
+use super::guard;
 use super::session::{Resolved, Session};
 use super::shell;
 use super::verify::{Expect, Verdict, Verify};
