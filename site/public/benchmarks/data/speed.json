@@ -1,0 +1,136 @@
+{
+ "title": "phone-use against adb and phone-harness",
+ "subtitle": "Android 17 emulator (API 37), p50 of 50 runs",
+ "source": "docs/bench/speed-2026-11-07.md",
+ "ops": [
+  {
+   "id": "tap",
+   "label": "Tap, back to back",
+   "phone_use": 175.6,
+   "phone_use_p95": 229.7,
+   "phone_harness": 232.5,
+   "phone_harness_p95": 684.1,
+   "adb": 199.5,
+   "adb_p95": 272.3,
+   "adb_ratio_ci": [
+    1.06,
+    1.27
+   ],
+   "headline_adb": 1.14,
+   "phone_harness_ratio_ci": [
+    1.16,
+    1.46
+   ]
+  },
+  {
+   "id": "tap_paced",
+   "label": "Tap, 1.5 s apart",
+   "phone_use": 61.6,
+   "phone_use_p95": 78.7,
+   "phone_harness": 319.7,
+   "phone_harness_p95": 359.5,
+   "adb": 106.6,
+   "adb_p95": 134.4,
+   "adb_ratio_ci": [
+    1.58,
+    1.9
+   ],
+   "headline_adb": 1.73,
+   "phone_harness_ratio_ci": [
+    4.68,
+    5.56
+   ]
+  },
+  {
+   "id": "screenshot",
+   "label": "Screenshot",
+   "phone_use": 11.6,
+   "phone_use_p95": 22.5,
+   "phone_harness": 570.5,
+   "phone_harness_p95": 809.6,
+   "adb": 476.3,
+   "adb_p95": 613.9,
+   "adb_ratio_ci": [
+    39.14,
+    43.55
+   ],
+   "headline_adb": 41.04,
+   "phone_harness_ratio_ci": [
+    47.51,
+    51.43
+   ]
+  },
+  {
+   "id": "tree_settings",
+   "label": "UI tree, Settings",
+   "phone_use": 89.3,
+   "phone_use_p95": 189.0,
+   "phone_harness": 2700.0,
+   "phone_harness_p95": 2816.7,
+   "adb": 2433.5,
+   "adb_p95": 2517.6,
+   "adb_ratio_ci": [
+    25.61,
+    27.8
+   ],
+   "headline_adb": 27.25,
+   "phone_harness_ratio_ci": [
+    28.5,
+    30.82
+   ]
+  },
+  {
+   "id": "tree_list",
+   "label": "UI tree, 1,000-row list",
+   "phone_use": 24.0,
+   "phone_use_p95": 36.6,
+   "phone_harness": 2653.7,
+   "phone_harness_p95": 2803.8,
+   "adb": 2352.4,
+   "adb_p95": 2446.9,
+   "adb_ratio_ci": [
+    92.2,
+    105.99
+   ],
+   "headline_adb": 98.11,
+   "phone_harness_ratio_ci": [
+    104.06,
+    119.51
+   ]
+  },
+  {
+   "id": "type100",
+   "label": "Type 100 characters",
+   "phone_use": 251.1,
+   "phone_use_p95": 395.0,
+   "phone_harness": 5523.3,
+   "phone_harness_p95": 6409.6,
+   "adb": 4840.9,
+   "adb_p95": 5631.2,
+   "adb_ratio_ci": [
+    17.06,
+    22.41
+   ],
+   "headline_adb": 17.06,
+   "phone_harness_ratio_ci": [
+    19.41,
+    25.17
+   ]
+  },
+  {
+   "id": "tap_diff",
+   "label": "Tap, then what changed",
+   "phone_use": 586.9,
+   "phone_use_p95": 704.8,
+   "phone_harness": null,
+   "phone_harness_p95": null,
+   "adb": 2725.8,
+   "adb_p95": 2853.9,
+   "adb_ratio_ci": [
+    4.46,
+    4.72
+   ],
+   "headline_adb": 4.64
+  }
+ ]
+}

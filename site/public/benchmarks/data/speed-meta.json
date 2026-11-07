@@ -1,0 +1,129 @@
+{
+ "load": {
+  "before tap": [
+   15.9,
+   21.3,
+   10.1,
+   13.0,
+   11.0
+  ],
+  "after tap": [
+   24.7,
+   16.8,
+   13.3,
+   12.3,
+   12.5
+  ],
+  "before screenshot": [
+   16.6,
+   10.0,
+   13.2,
+   15.1,
+   17.4
+  ],
+  "after screenshot": [
+   17.4,
+   13.2,
+   10.1,
+   12.0,
+   11.4
+  ],
+  "before tap, then what changed": [
+   37.6,
+   33.5,
+   28.1,
+   30.1,
+   28.8
+  ],
+  "after tap, then what changed": [
+   15.7,
+   11.0,
+   4.3,
+   11.3,
+   11.8
+  ],
+  "before tree, Settings": [
+   25.3,
+   15.2,
+   12.3,
+   17.4,
+   12.5
+  ],
+  "after tree, Settings": [
+   23.4,
+   15.5,
+   19.3,
+   22.2,
+   16.3
+  ],
+  "before tree, list": [
+   24.6,
+   28.7,
+   34.3,
+   44.6,
+   26.3
+  ],
+  "after tree, list": [
+   10.8,
+   19.6,
+   11.0,
+   37.7,
+   25.4
+  ],
+  "before type 100 characters": [
+   17.0,
+   17.6,
+   26.1,
+   20.4,
+   21.5
+  ],
+  "after type 100 characters": [
+   41.9,
+   44.1,
+   45.1,
+   44.1,
+   47.2
+  ],
+  "before cold start": [
+   45.2,
+   39.2,
+   40.6,
+   38.8,
+   41.2
+  ],
+  "after cold start": [
+   40.0,
+   37.3,
+   35.9,
+   34.4,
+   34.5
+  ]
+ },
+ "date": "2026-11-07 15:21:11",
+ "phone_use_version": "phone-use 0.1.0",
+ "adb_version": [
+  "Android Debug Bridge version 1.0.41",
+  "Version 37.0.1-15733141"
+ ],
+ "serial": "emulator-5554",
+ "model": "sdk_gphone64_x86_64",
+ "api": "37",
+ "fingerprint": "google/sdk_gphone64_x86_64/emu64xa:17/CE2A.260420.051.A3/16571990:userdebug/dev-keys",
+ "wm_size": "Physical size: 1080x2424",
+ "wm_density": "Physical density: 420",
+ "devices": [
+  "emulator-5554\tdevice",
+  "emulator-5556\tdevice",
+  "emulator-5558\tdevice",
+  ""
+ ],
+ "runs": 50,
+ "warmup": 20,
+ "blocks": 5,
+ "clock_offset_s": {
+  "before": 0.8122420310974121,
+  "after": 0.8126270771026611,
+  "rtt_before_ms": 15.318870544433594,
+  "rtt_after_ms": 15.49673080444336
+ }
+}
