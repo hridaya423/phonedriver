@@ -1427,6 +1427,49 @@ async fn launch_by_name_in_any_case_or_by_package_foregrounds_the_app_and_return
     }
 }
 
+#[tokio::test(start_paused = true)]
+async fn the_first_taps_after_a_launch_wait_for_a_cold_app_that_reacts_after_900_ms() {
+    let (source, fake) = installed();
+    let (d, _home) = daemon(source);
+    ok(&d, "default", "snapshot", json!({})).await;
+    ok(
+        &d,
+        "default",
+        "act",
+        act_with(json!({"kind": "launch", "app": "Calculator"})),
+    )
+    .await;
+    let late = fake.clone();
+    tokio::spawn(async move {
+        tokio::time::sleep(Duration::from_millis(900)).await;
+        late.push_frame(big_frame(1));
+    });
+    let r = ok(&d, "default", "act", tap_point(10.0, 10.0)).await;
+    assert_eq!(r["changed"], true, "{r}");
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_tap_long_after_a_launch_still_reports_no_change_after_500_ms() {
+    let (source, fake) = installed();
+    let (d, _home) = daemon(source);
+    ok(&d, "default", "snapshot", json!({})).await;
+    ok(
+        &d,
+        "default",
+        "act",
+        act_with(json!({"kind": "launch", "app": "Calculator"})),
+    )
+    .await;
+    tokio::time::sleep(Duration::from_secs(60)).await;
+    let late = fake.clone();
+    tokio::spawn(async move {
+        tokio::time::sleep(Duration::from_millis(900)).await;
+        late.push_frame(big_frame(1));
+    });
+    let r = ok(&d, "default", "act", tap_point(10.0, 10.0)).await;
+    assert_eq!(r["changed"], false, "{r}");
+}
+
 fn tree_of(package: &str, labels: &[&str]) -> RawTree {
     let mut nodes = vec![
         r#"{"p":-1,"w":1,"cls":"android.widget.FrameLayout","b":[0,0,360,800],"f":"vVe"}"#

@@ -53,6 +53,10 @@ const LOADING_WAIT: Duration = Duration::from_secs(4);
 const CONTENT_WAIT: Duration = Duration::from_secs(2);
 const WEB_VIEW_WAIT: Duration = Duration::from_secs(10);
 const LEAVE_WAIT: Duration = Duration::from_millis(2500);
+/// Observed on the API 37 tablet emulator: the first "Add alarm" tap after a cold Clock launch opened its time picker
+/// after more than 500 ms, so the reply said "no change" while the dialog was on its way, and the agent tapped again.
+const COLD_APP_WINDOW: Duration = Duration::from_secs(30);
+const COLD_CHANGE_WAIT: Duration = Duration::from_millis(2000);
 const MASK: &str = "•••";
 
 pub enum Call {
@@ -92,6 +96,7 @@ pub fn spawn(id: String, source: Arc<dyn DeviceSource>, home: PathBuf) -> mpsc::
         base: Instant::now(),
         recent: None,
         unobserved: None,
+        cold_until: None,
         awake: None,
         names: Arc::default(),
     };
@@ -142,6 +147,8 @@ struct Actor {
     recent: Option<(Duration, Input)>,
     /// When an action was last delivered without waiting for its effects.
     unobserved: Option<Duration>,
+    /// Until when the app a launch started may still be too busy to react within the usual first-change window.
+    cold_until: Option<Duration>,
     /// When `prepare` last found the screen on and unlocked; cleared by any window or display event.
     awake: Option<Duration>,
     names: Arc<Mutex<HashMap<String, String>>>,
@@ -207,6 +214,7 @@ impl Actor {
         self.lease = None;
         self.live = None;
         self.unobserved = None;
+        self.cold_until = None;
         self.awake = None;
     }
 
@@ -1028,6 +1036,8 @@ impl Actor {
         }
         if let Some(t) = p.expect_change_ms {
             cfg.expect_change = Some(Duration::from_millis(t));
+        } else if self.cold_until.is_some_and(|t| self.now() < t) {
+            cfg.expect_change = Some(COLD_CHANGE_WAIT);
         }
         let device = self.device()?;
         match p.action {
@@ -1222,6 +1232,7 @@ impl Actor {
                 let started = self.begin_action();
                 device.launch(&found.id).await?;
                 self.until_app_content(leaving.as_ref()).await?;
+                self.cold_until = Some(self.now() + COLD_APP_WINDOW);
                 s.last = None;
                 let summary = if grant.is_empty() {
                     format!("launched {}", found.name)
@@ -1245,6 +1256,7 @@ impl Actor {
                 let started = self.begin_action();
                 device.open_url(&Url(url.clone())).await?;
                 self.until_app_content(leaving.as_ref()).await?;
+                self.cold_until = Some(self.now() + COLD_APP_WINDOW);
                 let summary = format!("opened {url}");
                 self.finish(s, p.settle, cfg, started, summary, None, None, None)
                     .await
