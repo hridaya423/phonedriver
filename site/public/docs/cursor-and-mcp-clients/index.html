@@ -234,13 +234,13 @@ body{font-size:17px}
 <pre tabindex="0" class="lang-json"><code>{
   "mcpServers": {
     "phonedriver": {
-      "command": "phonedriver",
-      "args": ["mcp"],
+      "command": "npx",
+      "args": ["-y", "phonedriver", "mcp"],
       "env": { "PHONEDRIVER_DEVICE": "android:emulator-5554" }
     }
   }
 }</code></pre>
-<p>If <code>phonedriver</code> is not on the <code>PATH</code> the client sees, put the full path in <code>command</code>. <code>PHONEDRIVER_DEVICE</code> is optional when one device is connected.</p>
+<p>The first start downloads the binary once. On Windows, some clients cannot start <code>npx</code> directly: use <code>"command": "cmd"</code> and <code>"args": ["/c", "npx", "-y", "phonedriver", "mcp"]</code>. If you installed phonedriver yourself, use <code>"command": "phonedriver"</code> with <code>"args": ["mcp"]</code>, or the full path. <code>PHONEDRIVER_DEVICE</code> is optional when one device is connected.</p>
 <h2 id="cursor">Cursor</h2>
 <p>Put the entry in <code>~/.cursor/mcp.json</code> for every project, or in <code>.cursor/mcp.json</code> inside one project. Open Cursor's MCP settings and check that <code>phonedriver</code> shows its tools.</p>
 <h2 id="other-clients">Other clients</h2>

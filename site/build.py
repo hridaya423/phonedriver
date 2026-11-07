@@ -478,8 +478,7 @@ def install_box():
     note = "" if RELEASED else '<p class="small note">Pre-release. The installer URLs go live with the first release. Until then, <a href="/docs/install/#build-from-source">build from source</a>.</p>'
     return f"""<div class="installs">
 <div class="ibox"><p class="lab">Claude Code</p>
-<pre tabindex="0"><code><span class="cmd">brew install hridaya423/tap/phonedriver</span>
-<span class="cmd">claude mcp add phonedriver -- phonedriver mcp</span></code></pre></div>
+<pre tabindex="0"><code><span class="cmd">claude mcp add phonedriver -- npx -y phonedriver mcp</span></code></pre></div>
 <div class="ibox"><p class="lab">Cursor and other MCP clients</p>
 <pre tabindex="0"><code>{esc(D.MCP_JSON)}</code></pre></div>
 {note}</div>"""
@@ -601,7 +600,7 @@ def build_extras(posts):
     # llms.txt
     L = ["# phonedriver", "", "> " + D.DEFINITION, "", D.LLMS_NOTE, "", "## Start here", ""]
     L += ["- [Install](%s/docs/install/): one-line install and build from source" % SITE_URL,
-          "- [Claude Code setup](%s/docs/claude-code/): `claude mcp add phonedriver -- phonedriver mcp`" % SITE_URL,
+          "- [Claude Code setup](%s/docs/claude-code/): `claude mcp add phonedriver -- npx -y phonedriver mcp`" % SITE_URL,
           "- [Cursor and other MCP clients](%s/docs/cursor-and-mcp-clients/): the stdio server entry" % SITE_URL, "", "## Docs", ""]
     for s in DOCS:
         m = read_md(HERE / "content" / "docs" / (s + ".md"))[0]

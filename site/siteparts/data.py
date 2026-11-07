@@ -12,8 +12,8 @@ LLMS_NOTE = "phonedriver is a free, open-source (AGPL-3.0) CLI and MCP server. I
 MCP_JSON = """{
   "mcpServers": {
     "phonedriver": {
-      "command": "phonedriver",
-      "args": ["mcp"],
+      "command": "npx",
+      "args": ["-y", "phonedriver", "mcp"],
       "env": { "PHONEDRIVER_DEVICE": "android:emulator-5554" }
     }
   }
@@ -33,9 +33,9 @@ if _svg.exists():
 
 FAQ = [
     ("How do I let an AI agent control my phone?",
-     "Install phonedriver, add it to your agent as an MCP server (`claude mcp add phonedriver -- phonedriver mcp` for Claude Code), connect an Android phone with USB debugging, start an emulator, or boot the iOS Simulator, and ask the agent in plain language, for example \"Open Settings and turn on dark mode.\" The agent gets a text view of the screen and tools to tap, type and swipe. See the [setup guides](/docs/)."),
+     "Install phonedriver, add it to your agent as an MCP server (`claude mcp add phonedriver -- npx -y phonedriver mcp` for Claude Code), connect an Android phone with USB debugging, start an emulator, or boot the iOS Simulator, and ask the agent in plain language, for example \"Open Settings and turn on dark mode.\" The agent gets a text view of the screen and tools to tap, type and swipe. See the [setup guides](/docs/)."),
     ("How do I let Claude control my Android phone?",
-     "Add phonedriver to Claude Code as an MCP server with `claude mcp add phonedriver -- phonedriver mcp`, then connect a phone with USB debugging on or start an emulator. Nothing is installed on the phone. The device suite passes on emulators (API 26 and 37); a phone uses the same path and is not tested on hardware. See [the Claude Code guide](/docs/claude-code/)."),
+     "Add phonedriver to Claude Code as an MCP server with `claude mcp add phonedriver -- npx -y phonedriver mcp`, then connect a phone with USB debugging on or start an emulator. Nothing is installed on the phone. The device suite passes on emulators (API 26 and 37); a phone uses the same path and is not tested on hardware. See [the Claude Code guide](/docs/claude-code/)."),
     ("What is phonedriver?",
      "phonedriver is a free, open-source CLI and MCP server that gives an AI agent a text view of an Android or iOS screen and the means to tap, type and swipe. Every action waits for the screen to settle and returns only the lines that changed, so the agent does not poll or sleep. It is licensed AGPL-3.0."),
     ("Which AI agents and MCP clients work with it?",

@@ -1,0 +1,20 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.hridaya423/phonedriver",
+  "title": "phonedriver",
+  "description": "Let AI agents see and control Android and iOS phones over stdio.",
+  "repository": { "url": "https://github.com/hridaya423/phonedriver", "source": "github" },
+  "websiteUrl": "https://phonedriver.dev",
+  "version": "0.1.0",
+  "packages": [
+    {
+      "registryType": "npm",
+      "registryBaseUrl": "https://registry.npmjs.org",
+      "identifier": "phonedriver",
+      "version": "0.1.0",
+      "runtimeHint": "npx",
+      "transport": { "type": "stdio" },
+      "packageArguments": [{ "type": "positional", "value": "mcp" }]
+    }
+  ]
+}

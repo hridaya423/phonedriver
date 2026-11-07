@@ -26,12 +26,14 @@ phonedriver is an open-source MCP server and CLI that lets AI agents like Claude
 
 ## Try it
 
-1. Install phonedriver first (see [Install](#install)), then add it to Claude Code as an MCP server. Use the binary's full path.
+1. Add phonedriver to Claude Code as an MCP server. One command, nothing to install first (it needs Node 18 or later; the [Install](#install) section has the other ways).
 
    ```sh
-   claude mcp add phonedriver -- "$(pwd)/target/release/phonedriver" mcp
+   claude mcp add phonedriver -- npx -y phonedriver mcp
    claude mcp list    # expect: phonedriver ... Connected
    ```
+
+   The first start downloads the binary once and caches it. If you built from source, use its full path instead: `claude mcp add phonedriver -- "$(pwd)/target/release/phonedriver" mcp`.
 
    For the first run, boot one simulator or connect one device, so no `--device` or `PHONEDRIVER_DEVICE` is needed. `phonedriver skill` prints the instructions an agent reads; the MCP server also carries a short version.
 
@@ -52,7 +54,16 @@ phonedriver is an open-source MCP server and CLI that lets AI agents like Claude
 
 ## Install
 
-After the first release (nothing is published yet, so these do not work today), one line installs the prebuilt binary. Each artifact has the Android agent inside.
+After the first release (nothing is published yet, so these do not work today), one line gets you the prebuilt binary. Each artifact has the Android agent inside.
+
+The shortest route is `npx`. The `phonedriver` npm package is a small launcher: on first run it downloads the binary for your platform from GitHub Releases, checks its SHA-256, caches it and runs it. It contacts GitHub only for that download and sends no telemetry.
+
+```sh
+npx -y phonedriver --version                              # try it
+claude mcp add phonedriver -- npx -y phonedriver mcp      # Claude Code
+```
+
+The installers below put a permanent `phonedriver` on your `PATH` instead.
 
 ```sh
 # macOS and Linux
@@ -198,7 +209,7 @@ Any client that starts a stdio server can use this entry.
 ```json
 {
   "mcpServers": {
-    "phonedriver": { "command": "/path/to/phonedriver", "args": ["mcp"], "env": { "PHONEDRIVER_DEVICE": "android:emulator-5554" } }
+    "phonedriver": { "command": "npx", "args": ["-y", "phonedriver", "mcp"], "env": { "PHONEDRIVER_DEVICE": "android:emulator-5554" } }
   }
 }
 ```

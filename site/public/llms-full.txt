@@ -14,11 +14,11 @@ phonedriver is an open-source MCP server and CLI that lets AI agents like Claude
 
 ## How do I let an AI agent control my phone?
 
-Install phonedriver, add it to your agent as an MCP server (claude mcp add phonedriver -- phonedriver mcp for Claude Code), connect an Android phone with USB debugging, start an emulator, or boot the iOS Simulator, and ask the agent in plain language, for example "Open Settings and turn on dark mode." The agent gets a text view of the screen and tools to tap, type and swipe. See the setup guides.
+Install phonedriver, add it to your agent as an MCP server (claude mcp add phonedriver -- npx -y phonedriver mcp for Claude Code), connect an Android phone with USB debugging, start an emulator, or boot the iOS Simulator, and ask the agent in plain language, for example "Open Settings and turn on dark mode." The agent gets a text view of the screen and tools to tap, type and swipe. See the setup guides.
 
 ## How do I let Claude control my Android phone?
 
-Add phonedriver to Claude Code as an MCP server with claude mcp add phonedriver -- phonedriver mcp, then connect a phone with USB debugging on or start an emulator. Nothing is installed on the phone. The device suite passes on emulators (API 26 and 37); a phone uses the same path and is not tested on hardware. See the Claude Code guide.
+Add phonedriver to Claude Code as an MCP server with claude mcp add phonedriver -- npx -y phonedriver mcp, then connect a phone with USB debugging on or start an emulator. Nothing is installed on the phone. The device suite passes on emulators (API 26 and 37); a phone uses the same path and is not tested on hardware. See the Claude Code guide.
 
 ## What is phonedriver?
 
@@ -74,7 +74,18 @@ phonedriver is one binary: the CLI, the daemon and the MCP server. The Android a
 
 > Nothing is published yet. The commands under "One-line install" work once the first release is out. Until then, use "Build from source".
 
-## One-line install
+## Fastest: npx
+
+The `phonedriver` npm package is a small launcher. On first run it downloads the binary for your platform from GitHub Releases, checks its SHA-256 against the `.sha256` file published beside it, caches it (`~/Library/Caches/phonedriver/npm` on macOS, `~/.cache/phonedriver/npm` on Linux, `%LOCALAPPDATA%\phonedriver\npm` on Windows) and runs it. Later runs use the cache and make no network request. The launcher contacts GitHub only to download the binary and sends no telemetry. It needs Node 18 or later.
+
+```sh
+npx -y phonedriver --version
+claude mcp add phonedriver -- npx -y phonedriver mcp
+```
+
+## Permanent install
+
+These put `phonedriver` on your `PATH`.
 
 ```sh
 # macOS and Linux
@@ -155,19 +166,19 @@ Claude Code is the client phonedriver is tested against: the benchmarks on this 
 
 ## Add the server
 
-[Install phonedriver](/docs/install/) first. Then, from any directory:
+From any directory, with Node 18 or later and nothing installed first:
 
 ```sh
-claude mcp add phonedriver -- phonedriver mcp
+claude mcp add phonedriver -- npx -y phonedriver mcp
 claude mcp list    # expect: phonedriver ... Connected
 ```
 
-If the binary is not on your `PATH`, use its full path after the `--`.
+The first start downloads the binary once (see [Install](/docs/install/)). If you [installed phonedriver](/docs/install/#permanent-install) instead, use `claude mcp add phonedriver -- phonedriver mcp`, or the full path to the binary after the `--`.
 
 For the first run, boot one simulator or connect one device, so no device setting is needed. With more than one device, set the one to use in the server's environment:
 
 ```sh
-claude mcp add --env PHONEDRIVER_DEVICE=android:emulator-5554 phonedriver -- phonedriver mcp
+claude mcp add --env PHONEDRIVER_DEVICE=android:emulator-5554 phonedriver -- npx -y phonedriver mcp
 ```
 
 `phonedriver devices` lists the ids. `PHONEDRIVER_DEVICE` is optional when one device is connected.
@@ -215,15 +226,15 @@ Any client that starts a stdio MCP server can use phonedriver. We test with Clau
 {
   "mcpServers": {
     "phonedriver": {
-      "command": "phonedriver",
-      "args": ["mcp"],
+      "command": "npx",
+      "args": ["-y", "phonedriver", "mcp"],
       "env": { "PHONEDRIVER_DEVICE": "android:emulator-5554" }
     }
   }
 }
 ```
 
-If `phonedriver` is not on the `PATH` the client sees, put the full path in `command`. `PHONEDRIVER_DEVICE` is optional when one device is connected.
+The first start downloads the binary once. On Windows, some clients cannot start `npx` directly: use `"command": "cmd"` and `"args": ["/c", "npx", "-y", "phonedriver", "mcp"]`. If you installed phonedriver yourself, use `"command": "phonedriver"` with `"args": ["mcp"]`, or the full path. `PHONEDRIVER_DEVICE` is optional when one device is connected.
 
 ## Cursor
 

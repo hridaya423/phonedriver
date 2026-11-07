@@ -17,3 +17,5 @@
 /ios-runner/PhonedriverRunner.xcodeproj
 __pycache__
 /android-agent/private
+/packaging/npm/LICENSE
+*.tgz
