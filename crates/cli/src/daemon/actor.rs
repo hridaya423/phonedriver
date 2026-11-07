@@ -115,6 +115,7 @@ pub fn spawn(id: String, source: Arc<dyn DeviceSource>, home: PathBuf) -> mpsc::
         awake: None,
         phases: Vec::new(),
         shown: Mutex::new(None),
+        guard_view: None,
         names: Arc::default(),
     };
     tokio::spawn(actor.run(rx));
@@ -190,6 +191,9 @@ enum Signal {
 /// reading the power state costs an agent round trip on every action, and on the bare tap it is most of what is
 /// not the app handling the event.
 const AWAKE_REUSE: Duration = Duration::from_secs(1);
+/// How long the screen read for a point tap's guard check may serve the next point tap, while no window change or
+/// large repaint has arrived since.
+const GUARD_VIEW_REUSE: Duration = Duration::from_secs(1);
 
 struct Actor {
     id: String,
@@ -207,6 +211,8 @@ struct Actor {
     cold_until: Option<Duration>,
     /// When `prepare` last found the screen on and unlocked; cleared by any window or display event.
     awake: Option<Duration>,
+    /// The screen the last point tap's guard check read, and when.
+    guard_view: Option<(Duration, Rendered)>,
     phases: Phases,
     /// The tree the agent was last shown, to tell whether an action changed anything before a frame says so.
     shown: Mutex<Option<RawTree>>,
@@ -285,6 +291,7 @@ impl Actor {
         self.unobserved = None;
         self.cold_until = None;
         self.awake = None;
+        self.guard_view = None;
     }
 
     /// The settle parameters for a call that only observes. Right after an action that was sent without settling, the
@@ -1234,12 +1241,24 @@ impl Actor {
         let button = match (found, target) {
             (Some(e), _) => Some(e.clone()),
             (None, Target::Point { .. }) => {
-                let now = self.fresh(s).await?;
+                let now = self.screen_for_guard(s).await?;
                 guard::hit(&now, at).cloned()
             }
             _ => None,
         };
         self.guard_button(s, approval, button).await
+    }
+
+    async fn screen_for_guard(&mut self, s: &mut Session) -> Result<Rendered, Error> {
+        if let Some((read, view)) = &self.guard_view
+            && self.now().saturating_sub(*read) < GUARD_VIEW_REUSE
+            && self.recent.is_none_or(|(t, _)| t <= *read)
+        {
+            return Ok(view.clone());
+        }
+        let view = self.fresh(s).await?;
+        self.guard_view = Some((self.now(), view.clone()));
+        Ok(view)
     }
 
     /// `type --submit` presses enter, which sends the form: guarded when the field's own form holds such a button.
@@ -1284,6 +1303,15 @@ impl Actor {
         let prepared = self.prepare(&p.action).await;
         self.lap("prepare", t);
         let (woke, unlocked) = prepared?;
+        if !matches!(
+            &p.action,
+            Action::Tap {
+                target: Target::Point { .. },
+                ..
+            }
+        ) {
+            self.guard_view = None;
+        }
         let acted = self.act_now(s, p).await;
         if acted.is_err() {
             self.awake = None;

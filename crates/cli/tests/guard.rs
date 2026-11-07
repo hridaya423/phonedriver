@@ -10,7 +10,7 @@ use fakes::{OneDevice, PNG, Pixels};
 use phone_use::client::{Client, Failure};
 use phone_use::daemon::{Config, Daemon, socket};
 use phone_use::mcp::Mcp;
-use phone_use_core::device::{Capabilities, Device, Gesture};
+use phone_use_core::device::{Capabilities, Device, DeviceEvent, Gesture};
 use phone_use_core::geometry::Scale;
 use phone_use_core::raw::RawTree;
 use phone_use_core::testing::{Call, FakeDevice};
@@ -447,3 +447,21 @@ on_both_protocols!(
 
 #[allow(dead_code)]
 const _: &[u8] = PNG;
+
+fn point(y: f64) -> Value {
+    json!({"kind": "tap", "target": {"point": {"x": 180.0, "y": y}}})
+}
+
+#[tokio::test]
+async fn point_taps_in_a_row_read_the_screen_once_until_a_window_changes() {
+    let rig = rig().await;
+    rig.act(point(700.0), None).await.unwrap();
+    rig.act(point(700.0), None).await.unwrap();
+    rig.act(point(720.0), None).await.unwrap();
+    assert_eq!(rig.fake.tree_reads(), 1);
+    rig.fake.emit(DeviceEvent::WindowChanged { package: None });
+    tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+    rig.act(point(700.0), None).await.unwrap();
+    assert_eq!(rig.fake.tree_reads(), 2);
+    refused(rig.act(point(420.0), None).await);
+}

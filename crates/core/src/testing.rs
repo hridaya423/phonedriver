@@ -38,6 +38,7 @@ pub struct FakeDevice {
     foreground: Mutex<Option<AppId>>,
     screen: Mutex<ScreenState>,
     screen_reads: std::sync::atomic::AtomicUsize,
+    tree_reads: std::sync::atomic::AtomicUsize,
     apps: Mutex<Vec<App>>,
     display: Mutex<Option<Size>>,
     events: broadcast::Sender<DeviceEvent>,
@@ -62,6 +63,7 @@ impl FakeDevice {
             clipboard: Mutex::new(None),
             foreground: Mutex::new(None),
             screen_reads: Default::default(),
+            tree_reads: Default::default(),
             screen: Mutex::new(ScreenState {
                 on: true,
                 locked: false,
@@ -112,6 +114,10 @@ impl FakeDevice {
         self.screen_reads.load(std::sync::atomic::Ordering::SeqCst)
     }
 
+    pub fn tree_reads(&self) -> usize {
+        self.tree_reads.load(std::sync::atomic::Ordering::SeqCst)
+    }
+
     pub fn calls(&self) -> Vec<Call> {
         lock(&self.calls).clone()
     }
@@ -145,6 +151,8 @@ impl Device for FakeDevice {
     }
 
     async fn tree(&self) -> Result<RawTree> {
+        self.tree_reads
+            .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
         let mut trees = lock(&self.trees);
         match trees.len() {
             0 => Err(Error::Transport {
