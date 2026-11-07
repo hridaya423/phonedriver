@@ -1,36 +1,36 @@
 # Reference
 
-Moved out of the README. Commands use the current binary name, `phone-use`.
+Moved out of the README. Commands use the current binary name, `phonedriver`.
 
 ## Environment variables
 
 | Name | Default | Meaning |
 |---|---|---|
-| `PHONE_USE_HOME` | `~/.phone-use` | Where the daemon keeps its socket (`run/`), `daemon.log`, `traces/`, `tmp/` and the iOS `runner/` builds. Set it to run a separate daemon. On macOS the socket path must stay under about 100 bytes. |
-| `PHONE_USE_SOCKET` | under `PHONE_USE_HOME` (else `$XDG_RUNTIME_DIR/phone-use`) | The daemon's socket or named pipe. Point it at an `ssh -L` forward to use a remote machine's devices. |
-| `PHONE_USE_DEVICE` | none | The device to use when `--device` is not given. Also read by `phone-use mcp`. |
-| `PHONE_USE_SESSION` | `default` | The session name, as `--session`. |
-| `PHONE_USE_TEAM` | none | Apple developer team ID that signs the iOS runner on a physical device. |
-| `PHONE_USE_IOS_TIER` | `runner` | `coredevice` selects the CoreDevice tier on iOS 27 devices. Experimental. |
-| `PHONE_USE_GUARD` | on | `off` stops phone-use asking the human before a tap that spends money or cannot be undone (`Place order`, `Pay`, `Delete account`). Set it for `phone-use mcp` or the CLI only when you grant the agent full autonomy. |
-| `PHONE_USE_SECRET` | none | The text for `type --secret`, instead of stdin. |
-| `PHONE_USE_TRACE_FULL` | off | `1` keeps observation text and text targets in traces (the daemon reads it at start). |
-| `PHONE_USE_TRACE_SCREENS` | off | `1` copies every screenshot next to its trace file. |
-| `PHONE_USE_AGENT_JAR` | built by `android-agent/build.sh` | Build time only: use this prebuilt Android agent jar. |
+| `PHONEDRIVER_HOME` | `~/.phonedriver` | Where the daemon keeps its socket (`run/`), `daemon.log`, `traces/`, `tmp/` and the iOS `runner/` builds. Set it to run a separate daemon. On macOS the socket path must stay under about 100 bytes. |
+| `PHONEDRIVER_SOCKET` | under `PHONEDRIVER_HOME` (else `$XDG_RUNTIME_DIR/phonedriver`) | The daemon's socket or named pipe. Point it at an `ssh -L` forward to use a remote machine's devices. |
+| `PHONEDRIVER_DEVICE` | none | The device to use when `--device` is not given. Also read by `phonedriver mcp`. |
+| `PHONEDRIVER_SESSION` | `default` | The session name, as `--session`. |
+| `PHONEDRIVER_TEAM` | none | Apple developer team ID that signs the iOS runner on a physical device. |
+| `PHONEDRIVER_IOS_TIER` | `runner` | `coredevice` selects the CoreDevice tier on iOS 27 devices. Experimental. |
+| `PHONEDRIVER_GUARD` | on | `off` stops phonedriver asking the human before a tap that spends money or cannot be undone (`Place order`, `Pay`, `Delete account`). Set it for `phonedriver mcp` or the CLI only when you grant the agent full autonomy. |
+| `PHONEDRIVER_SECRET` | none | The text for `type --secret`, instead of stdin. |
+| `PHONEDRIVER_TRACE_FULL` | off | `1` keeps observation text and text targets in traces (the daemon reads it at start). |
+| `PHONEDRIVER_TRACE_SCREENS` | off | `1` copies every screenshot next to its trace file. |
+| `PHONEDRIVER_AGENT_JAR` | built by `android-agent/build.sh` | Build time only: use this prebuilt Android agent jar. |
 | `ADB_SERVER_SOCKET` | `tcp:127.0.0.1:5037` | The adb server to use, for example a tunnel to another machine. |
-| `PHONE_USE_TEST_DEVICE`, `PHONE_USE_TEST_IOS_UDID`, `PHONE_USE_BENCH`, `PHONE_USE_BIN` | none | Tests and benchmarks only. |
+| `PHONEDRIVER_TEST_DEVICE`, `PHONEDRIVER_TEST_IOS_UDID`, `PHONEDRIVER_BENCH`, `PHONEDRIVER_BIN` | none | Tests and benchmarks only. |
 
-The runner's own `PHONE_USE_PORT`, `PHONE_USE_BUILD` and `PHONE_USE_UDID` are set by phone-use for the iOS runner and are not for you.
+The runner's own `PHONEDRIVER_PORT`, `PHONEDRIVER_BUILD` and `PHONEDRIVER_UDID` are set by phonedriver for the iOS runner and are not for you.
 
 ## Debugging
 
 When something does not work:
 
-- `phone-use doctor` checks the toolchain, devices and the socket, and says how to fix each problem.
-- `$PHONE_USE_HOME/daemon.log` (default `~/.phone-use/daemon.log`) holds the daemon's own messages and startup errors.
-- `$PHONE_USE_HOME/traces/<id>.jsonl` has one line per request: method, parameters, the reply's summary, `ms` and settle time. Typed text is recorded only as a length. Start the daemon with `PHONE_USE_TRACE_FULL=1` to keep observation text, and `PHONE_USE_TRACE_SCREENS=1` to keep screenshots. A running daemon keeps its options: `phone-use daemon stop` first.
-- iOS: `$PHONE_USE_HOME/runner/<udid>.log` is the runner's output, and `runner/<hash>/build.log` is its first build.
-- `phone-use daemon stop` stops the daemon and the iOS runners it started. The next command starts a new one.
+- `phonedriver doctor` checks the toolchain, devices and the socket, and says how to fix each problem.
+- `$PHONEDRIVER_HOME/daemon.log` (default `~/.phonedriver/daemon.log`) holds the daemon's own messages and startup errors.
+- `$PHONEDRIVER_HOME/traces/<id>.jsonl` has one line per request: method, parameters, the reply's summary, `ms` and settle time. Typed text is recorded only as a length. Start the daemon with `PHONEDRIVER_TRACE_FULL=1` to keep observation text, and `PHONEDRIVER_TRACE_SCREENS=1` to keep screenshots. A running daemon keeps its options: `phonedriver daemon stop` first.
+- iOS: `$PHONEDRIVER_HOME/runner/<udid>.log` is the runner's output, and `runner/<hash>/build.log` is its first build.
+- `phonedriver daemon stop` stops the daemon and the iOS runners it started. The next command starts a new one.
 
 Exit codes: `0` done, `1` the command failed, `2` the command line is wrong, `3` a person must act on the device (unlock, trust, allow), `4` no matching device or it was disconnected, `5` a tap that spends money or cannot be undone needs the human's approval (add `--autonomous` only when the user has granted full autonomy). On a terminal, a first command that takes more than a second says what it is doing (building the runner, starting the agent).
 
@@ -41,14 +41,14 @@ Exit codes: `0` done, `1` the command failed, `2` the command line is wrong, `3`
 The daemon listens on a Unix socket and nowhere else. To drive a simulator or phone that is plugged into another machine, forward that socket over `ssh` and point the CLI at the local end:
 
 ```sh
-ssh -N -L /tmp/phone-use-mini.sock:/Users/you/.phone-use/run/daemon.sock mini &
-export PHONE_USE_SOCKET=/tmp/phone-use-mini.sock
-phone-use snapshot
+ssh -N -L /tmp/phonedriver-mini.sock:/Users/you/.phonedriver/run/daemon.sock mini &
+export PHONEDRIVER_SOCKET=/tmp/phonedriver-mini.sock
+phonedriver snapshot
 ```
 
-On the other machine, run any `phone-use` command once, or `phone-use daemon`, so that the socket exists. Both machines need the same `phone-use` version. If the forward is down, the error names `PHONE_USE_SOCKET`.
+On the other machine, run any `phonedriver` command once, or `phonedriver daemon`, so that the socket exists. Both machines need the same `phonedriver` version. If the forward is down, the error names `PHONEDRIVER_SOCKET`.
 
-Two things differ from a local run. `phone-use screenshot` prints a path on the machine that has the device; `phone-use screenshot -o shot.png` writes the file on your machine instead. The MCP `screenshot` tool returns the image itself, so it works unchanged.
+Two things differ from a local run. `phonedriver screenshot` prints a path on the machine that has the device; `phonedriver screenshot -o shot.png` writes the file on your machine instead. The MCP `screenshot` tool returns the image itself, so it works unchanged.
 
 ### Android over Wi-Fi
 
@@ -57,14 +57,14 @@ An Android 11 or later phone on the same network needs no cable. On the phone, t
 ```sh
 adb pair 192.168.1.20:37099
 adb connect 192.168.1.20:41233
-phone-use devices
+phonedriver devices
 ```
 
-The first address and the six-digit code are on the pairing screen; the second address is on the Wireless debugging screen (the port changes each time wireless debugging is switched on). The phone then appears as `android:192.168.1.20:41233`. If it shows `offline`, `phone-use doctor` says what to check.
+The first address and the six-digit code are on the pairing screen; the second address is on the Wireless debugging screen (the port changes each time wireless debugging is switched on). The phone then appears as `android:192.168.1.20:41233`. If it shows `offline`, `phonedriver doctor` says what to check.
 
 ### Shell
 
-`phone-use shell "cmd uimode night yes"` runs a command on the device and prints the exit code, the output (cut at 40 lines; `--grep`, `--head`) and what changed on screen. On Android it runs in the agent already on the device, not in a new `adb shell`. On an iOS Simulator it runs through `simctl spawn`, and `shell "simctl ui appearance dark"` fills in the device for `simctl` subcommands. A physical iPhone has no shell. A physical device refuses wipes and removing apps phone-use did not install unless you pass `--force`. See `docs/bench/shell.md` and decision D21.
+`phonedriver shell "cmd uimode night yes"` runs a command on the device and prints the exit code, the output (cut at 40 lines; `--grep`, `--head`) and what changed on screen. On Android it runs in the agent already on the device, not in a new `adb shell`. On an iOS Simulator it runs through `simctl spawn`, and `shell "simctl ui appearance dark"` fills in the device for `simctl` subcommands. A physical iPhone has no shell. A physical device refuses wipes and removing apps phonedriver did not install unless you pass `--force`. See `docs/bench/shell.md` and decision D21.
 
 ## Development
 
@@ -74,7 +74,7 @@ BLAZE_TESTS=all blaze test
 cargo clippy --all-targets -- -D warnings
 ```
 
-Tests that need a device are ignored by default. Set `PHONE_USE_TEST_DEVICE` (for example `android:emulator-5554` or `sim:<udid>`) and pass `--ignored`. [`AGENTS.md`](AGENTS.md) holds the rules for working in this repository.
+Tests that need a device are ignored by default. Set `PHONEDRIVER_TEST_DEVICE` (for example `android:emulator-5554` or `sim:<udid>`) and pass `--ignored`. [`AGENTS.md`](AGENTS.md) holds the rules for working in this repository.
 
 <details>
 <summary>Brand</summary>

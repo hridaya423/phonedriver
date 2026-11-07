@@ -1,13 +1,13 @@
 # Token audit (2026-11-06, main at c2297a1)
 
-Question: why did phone-use spend 413,534 tokens on the three benchmark tasks against phone-harness's 337,059 (`docs/bench/tokens.md`), and what removes the difference? All numbers come from the raw stream-json logs of those six runs (one run each, `claude-sonnet-5-5`, tablet emulator), re-read turn by turn with `scratchpad/an/turns.py`, `gen.py` and `classify.py` (session scratch, not in the repo). Single samples: they show what happened, not rates.
+Question: why did phonedriver spend 413,534 tokens on the three benchmark tasks against phone-harness's 337,059 (`docs/bench/tokens.md`), and what removes the difference? All numbers come from the raw stream-json logs of those six runs (one run each, `claude-sonnet-5-5`, tablet emulator), re-read turn by turn with `scratchpad/an/turns.py`, `gen.py` and `classify.py` (session scratch, not in the repo). Single samples: they show what happened, not rates.
 
 ## Short answer
 
-1. **Tokens are turns times context, and the context is mostly fixed.** Every API turn re-reads the whole context. Tool results are tiny (the six runs return 3,000 to 11,000 tokens of results in total, per run). The fixed prefix, re-read on every turn, is 59% to 81% of each phone-use run (44% to 74% of phone-harness's).
-2. **phone-use's prefix is 2,900 tokens longer than phone-harness's** (7,740 against 4,840 on the first turn). Over phone-use's 36 turns that is 104,000 tokens, more than the whole 76,000 gap. It is the `tools/list` (13 tools then, 14 now) plus the server instructions.
-3. **15 of phone-use's 36 turns were wasted** (3 of 9 on `wiki-birthdate`, 4 of 9 on `testbed-web-form`, 8 of 18 on `alarm-gym`). In every case the call before it returned a reply that lacked what the agent needed (a dialog not yet in the tree, a page not yet loaded, the launcher instead of the app), and the agent paid one or two calls, often a screenshot, to see it. phone-harness wasted none by this definition, but spent 6 turns of `alarm-gym` and 3 of `testbed-web-form` on trial and error of its own.
-4. **Screenshots are expensive**: a 1280x800 screenshot adds 1,370 to 1,460 tokens to the context and every later turn re-reads it. phone-use took 4 in these runs, all to see what a reply had hidden; their re-reads cost about 43,000 tokens.
+1. **Tokens are turns times context, and the context is mostly fixed.** Every API turn re-reads the whole context. Tool results are tiny (the six runs return 3,000 to 11,000 tokens of results in total, per run). The fixed prefix, re-read on every turn, is 59% to 81% of each phonedriver run (44% to 74% of phone-harness's).
+2. **phonedriver's prefix is 2,900 tokens longer than phone-harness's** (7,740 against 4,840 on the first turn). Over phonedriver's 36 turns that is 104,000 tokens, more than the whole 76,000 gap. It is the `tools/list` (13 tools then, 14 now) plus the server instructions.
+3. **15 of phonedriver's 36 turns were wasted** (3 of 9 on `wiki-birthdate`, 4 of 9 on `testbed-web-form`, 8 of 18 on `alarm-gym`). In every case the call before it returned a reply that lacked what the agent needed (a dialog not yet in the tree, a page not yet loaded, the launcher instead of the app), and the agent paid one or two calls, often a screenshot, to see it. phone-harness wasted none by this definition, but spent 6 turns of `alarm-gym` and 3 of `testbed-web-form` on trial and error of its own.
+4. **Screenshots are expensive**: a 1280x800 screenshot adds 1,370 to 1,460 tokens to the context and every later turn re-reads it. phonedriver took 4 in these runs, all to see what a reply had hidden; their re-reads cost about 43,000 tokens.
 
 ## After the fixes (2026-11-07)
 
@@ -16,39 +16,39 @@ Done in this branch: fix 1 (tools plus instructions 4,204 to 2,768 tokens measur
 ## Method
 
 - Tokens per turn: a turn is one assistant message id; `usage` gives input, cache read, cache creation, output. Context at turn k is input + cache read + cache creation. The size of a tool result is the growth of the context from turn k to k+1, minus turn k's output (it includes the harness's few framing tokens). Totals reproduce the `result` event to within 1.5% (the `result` event also counts the final bookkeeping call).
-- The "calls" column of `docs/bench/tokens.md` is the `num_turns` of the result event (28, 9, 11 for phone-use); it counts each parallel tool call, while the tables below count API turns (18, 9, 9).
+- The "calls" column of `docs/bench/tokens.md` is the `num_turns` of the result event (28, 9, 11 for phonedriver); it counts each parallel tool call, while the tables below count API turns (18, 9, 9).
 - "Wasted" is my judgment from the reply the agent had in hand: the call would not have been needed if the previous reply had held the information the agent then went to fetch. The "why" column says what was missing.
-- Fixed overhead measured directly with three one-word `claude -p` runs under the benchmark's flags (`--tools ""`, `--strict-mcp-config`, `--setting-sources ""`, `--model claude-sonnet-5-5`): no tools at all 3,217 tokens (Claude Code's system prompt, the appended device sentence and a four-word prompt); with the `Bash` tool 5,139 (so `Bash` is 1,922); with `phone-use mcp` at c2297a1 plus the shell tool (14 tools, 10,987 characters of `tools/list`) 7,421, so **tools plus instructions are 4,204 tokens, about 2.6 characters per token** (JSON schemas tokenize densely).
+- Fixed overhead measured directly with three one-word `claude -p` runs under the benchmark's flags (`--tools ""`, `--strict-mcp-config`, `--setting-sources ""`, `--model claude-sonnet-5-5`): no tools at all 3,217 tokens (Claude Code's system prompt, the appended device sentence and a four-word prompt); with the `Bash` tool 5,139 (so `Bash` is 1,922); with `phonedriver mcp` at c2297a1 plus the shell tool (14 tools, 10,987 characters of `tools/list`) 7,421, so **tools plus instructions are 4,204 tokens, about 2.6 characters per token** (JSON schemas tokenize densely).
 
 ## Fixed overhead per turn
 
 | Harness | First-turn context | Of which tools and instructions |
 |---|---|---|
-| phone-use, benchmark build (13 tools) | 7,737 to 7,756 | about 3,900 (derived) |
-| phone-use, c2297a1 (14 tools, with `shell`) | 7,421 (one-word prompt) | 4,204 (measured) |
+| phonedriver, benchmark build (13 tools) | 7,737 to 7,756 | about 3,900 (derived) |
+| phonedriver, c2297a1 (14 tools, with `shell`) | 7,421 (one-word prompt) | 4,204 (measured) |
 | phone-harness | 4,835 to 4,851 | 1,922 (`Bash` tool) plus about 500 for its longer system hint |
 | nothing | 3,217 | 0 |
 
 Per-tool size at c2297a1 (compact JSON, characters): shell 1,295, swipe 1,146, type 1,009, snapshot 1,000, tap 924, scroll 837, batch 803, apps 754, launch 622, wait 640, press 555, screenshot 561, devices 489, clipboard 337. Boilerplate in them: `$schema` on every tool, `"format":"uint32","minimum":0`, every optional argument typed `["string","null"]`, a `device` property on every tool (14 times), arguments no agent has used (audit `ax-audit.md`: `snapshot diff/within/interactive/max_lines`, `tap count/long/role`, `swipe distance/fast`).
 
-## Where the extra tokens went (phone-use against phone-harness)
+## Where the extra tokens went (phonedriver against phone-harness)
 
-| | phone-use | phone-harness | Difference |
+| | phonedriver | phone-harness | Difference |
 |---|---|---|---|
 | Total tokens | 413,534 | 337,059 | +76,475 |
 | Turns | 36 | 34 | +2 |
 | Fixed prefix times turns | 279,000 | 164,600 | +114,400 |
 | Growth (results and outputs re-read) | 132,600 | 169,300 | -36,700 |
 
-So the gap is entirely the prefix. phone-use's replies are more compact (growth is 22% lower) and it takes about as many turns, but each turn costs 2,900 more.
+So the gap is entirely the prefix. phonedriver's replies are more compact (growth is 22% lower) and it takes about as many turns, but each turn costs 2,900 more.
 
 ### (a) Fixed overhead per call
 
-About 60% of every phone-use token (279,000 of 413,534). The only part we control is tools plus instructions: 3,900 to 4,200 tokens on every turn. Removing 2,000 of them saves about 72,000 tokens on these three tasks (36 turns), nearly the whole gap.
+About 60% of every phonedriver token (279,000 of 413,534). The only part we control is tools plus instructions: 3,900 to 4,200 tokens on every turn. Removing 2,000 of them saves about 72,000 tokens on these three tasks (36 turns), nearly the whole gap.
 
 ### (b) Result verbosity
 
-Small. All tool results of all three phone-use runs add up to 17,800 tokens, and they cost only what the later turns re-read: 132,600 tokens (growth) in total, a third of it four screenshots. Lines worth cutting, by tokens re-read:
+Small. All tool results of all three phonedriver runs add up to 17,800 tokens, and they cost only what the later turns re-read: 132,600 tokens (growth) in total, a third of it four screenshots. Lines worth cutting, by tokens re-read:
 
 - Screenshots (1,374, 1,405, 1,460 and one of 1,963 together with a tap): the largest single results, and all four were taken to see what a reply had hidden.
 - Chrome first-run and new-tab pages: 71 lines, 1,759 characters in one reply (`wiki-birthdate` call 5): Chrome's shortcut tiles and news cards. It is 859 tokens read by 4 later turns.
@@ -92,7 +92,7 @@ Its tools are free-form scripts, so it pays for its own mistakes: `alarm-gym` to
 `call` is the tool call (arguments trimmed; `device` removed); `result tokens` is the growth the call's result added to the context; `why` is my reading of what the agent was missing.
 
 
-### phone-use alarm-gym: 18 turns, 236,292 tokens, first-turn context 7,737
+### phonedriver alarm-gym: 18 turns, 236,292 tokens, first-turn context 7,737
 
 | # | in | cache read | cache create | out | call | result tokens | why |
 |---|---|---|---|---|---|---|---|
@@ -115,7 +115,7 @@ Its tools are free-form scripts, so it pays for its own mistakes: `alarm-gym` to
 | 17 | 2 | 17926 | 347 | 45 | tap {"target": "@e96"} | 534 |  |
 | 18 | 2 | 18273 | 579 | 89 | final answer | 0 |  |
 
-### phone-use wiki-birthdate: 9 turns, 85,696 tokens, first-turn context 7,756
+### phonedriver wiki-birthdate: 9 turns, 85,696 tokens, first-turn context 7,756
 
 | # | in | cache read | cache create | out | call | result tokens | why |
 |---|---|---|---|---|---|---|---|
@@ -129,7 +129,7 @@ Its tools are free-form scripts, so it pays for its own mistakes: `alarm-gym` to
 | 8 | 2 | 10739 | 203 | 54 | snapshot {"find": "1906", } | 87 | needed: read the date |
 | 9 | 2 | 10942 | 141 | 9 | final answer | 0 |  |
 
-### phone-use testbed-web-form: 9 turns, 89,356 tokens, first-turn context 7,742
+### phonedriver testbed-web-form: 9 turns, 89,356 tokens, first-turn context 7,742
 
 | # | in | cache read | cache create | out | call | result tokens | why |
 |---|---|---|---|---|---|---|---|

@@ -19,7 +19,7 @@ The spike code (`spikes/android-agent`: Java agent plus a test APK; `spikes/andr
 
 ## A0: Rust adb client over the tunnel
 
-**Built.** `adb.rs`: 4-hex length framing with `OKAY`/`FAIL`, `host:version`, `host:track-devices-l`, `host:transport:<serial>` then `shell,v2,raw:<cmd>` (packet ids 0 stdin, 1 stdout, 2 stderr, 3 exit, 4 close stdin), `sync:` `SEND`/`DATA`/`DONE`, `localabstract:<name>`. About 150 lines. The echo server for the `localabstract:` test is `dev.phoneuse.spike.Main echo <name>` (a `LocalServerSocket`).
+**Built.** `adb.rs`: 4-hex length framing with `OKAY`/`FAIL`, `host:version`, `host:track-devices-l`, `host:transport:<serial>` then `shell,v2,raw:<cmd>` (packet ids 0 stdin, 1 stdout, 2 stderr, 3 exit, 4 close stdin), `sync:` `SEND`/`DATA`/`DONE`, `localabstract:<name>`. About 150 lines. The echo server for the `localabstract:` test is `dev.phonedriver.spike.Main echo <name>` (a `LocalServerSocket`).
 
 **Commands.** `cargo build --release && ./target/release/android-host-spike a0 emulator-5554` (and `emulator-5556`).
 
@@ -37,7 +37,7 @@ The spike code (`spikes/android-agent`: Java agent plus a test APK; `spikes/andr
 
 ## A1: UiAutomation from app_process
 
-**Built.** `dev.phoneuse.spike.Main` (`tree`, `bench N mode`, `events secs arch|all`, `recycle`) and `Ui.java`: Looper thread, reflective UiAutomation construction trying every declared constructor, `connect(int)` by reflection, service info with `FLAG_RETRIEVE_INTERACTIVE_WINDOWS | FLAG_INCLUDE_NOT_IMPORTANT_VIEWS | FLAG_REPORT_VIEW_IDS`, `getWindows()` walk to RawNode JSON (protocol section 2 format). `build.sh` follows `build_without_gradle.sh` (`aidl`, `javac -bootclasspath android.jar -source 1.8`, `d8 --min-api 26`). Run: `adb push spike.jar /data/local/tmp/` then `CLASSPATH=/data/local/tmp/spike.jar app_process / dev.phoneuse.spike.Main tree`.
+**Built.** `dev.phonedriver.spike.Main` (`tree`, `bench N mode`, `events secs arch|all`, `recycle`) and `Ui.java`: Looper thread, reflective UiAutomation construction trying every declared constructor, `connect(int)` by reflection, service info with `FLAG_RETRIEVE_INTERACTIVE_WINDOWS | FLAG_INCLUDE_NOT_IMPORTANT_VIEWS | FLAG_REPORT_VIEW_IDS`, `getWindows()` walk to RawNode JSON (protocol section 2 format). `build.sh` follows `build_without_gradle.sh` (`aidl`, `javac -bootclasspath android.jar -source 1.8`, `d8 --min-api 26`). Run: `adb push spike.jar /data/local/tmp/` then `CLASSPATH=/data/local/tmp/spike.jar app_process / dev.phonedriver.spike.Main tree`.
 
 **Constructor.** API 26 declares `UiAutomation(Looper, IUiAutomationConnection)` (public). API 37 declares `(int displayId, Looper, conn)` (private), `(Context, conn)` (public) and `(Looper, conn)` (public). All three worked on API 37 (`UiAutomation: Created with deprecated constructor, assumes DEFAULT_DISPLAY` for the last in logcat); `(Looper, conn)` is the one common signature and is what production uses. Connect: 12 to 14 ms (API 26), 24 to 43 ms (API 37). On API 37 the first `getWindows()` right after connect was empty once (retry after 20 ms fixed it).
 
@@ -77,7 +77,7 @@ I read all three rendered snapshots. Label merging was right (`@e4 button "Netwo
 
 ## A2: Input injection
 
-**Built.** `Input.java` (`gesture` op: timed paths per pointer, DOWN / POINTER_DOWN / MOVE / POINTER_UP / UP with pointer index bits, last event `WAIT_FOR_FINISH`, scheduling on `SystemClock.uptimeMillis`) and a control server (`dev.phoneuse.agent.Main`, `C` stream, token, length-prefixed JSON). The test APK's `touch` mode counts every MotionEvent action and runs a `ScaleGestureDetector`; the host reads that counter back through the tree, which is the ground truth (not the agent's reply).
+**Built.** `Input.java` (`gesture` op: timed paths per pointer, DOWN / POINTER_DOWN / MOVE / POINTER_UP / UP with pointer index bits, last event `WAIT_FOR_FINISH`, scheduling on `SystemClock.uptimeMillis`) and a control server (`dev.phonedriver.agent.Main`, `C` stream, token, length-prefixed JSON). The test APK's `touch` mode counts every MotionEvent action and runs a `ScaleGestureDetector`; the host reads that counter back through the tree, which is the ground truth (not the agent's reply).
 
 **Commands.** `android-host-spike a2 <serial>` and `a2maps <serial> com.google.android.apps.maps <prefix>`.
 
@@ -177,16 +177,16 @@ So restoring right after injection does break WebView pastes, as architecture 6.
 | Check | API 37 | API 26 |
 |---|---|---|
 | (a) Close the shell stream, agent gone | gone after 1,054 ms (polling `ps` costs about 60 ms per round trip) | 1,137 ms |
-| (b) `pkill -f phone-use-agent` | no match; agent stays alive | same |
-| (b) `pkill -f dev.phoneuse.agent.Main` | kills the agent, but also the `sh -c` that ran it: the trailing `echo rc=$?` never printed | same |
-| (b) `pkill -f 'dev.phoneuse.agent.[M]ain'` | kills the agent, prints `rc=0` | same |
+| (b) `pkill -f phonedriver-agent` | no match; agent stays alive | same |
+| (b) `pkill -f dev.phonedriver.agent.Main` | kills the agent, but also the `sh -c` that ran it: the trailing `echo rc=$?` never printed | same |
+| (b) `pkill -f 'dev.phonedriver.agent.[M]ain'` | kills the agent, prints `rc=0` | same |
 | (c) Jar pushed 0444 | loads (`agent listening`) | loads |
 | (c) Jar pushed 0644 | also loads (the file is owned by shell); the API 34+ rule against writable dex files did not trip for the shell uid | loads |
 | (d) Connection with no token / wrong token | closed with no reply; agent log `control: bad token, dropping` | same |
 | (d) Right token | `hello` reply with `api`, `model`, `display` | same |
 | Extra: nothing connects | agent exits by itself after 10.17 s (exit code 3) | 10.12 s |
 
-The process list while running shows two entries (`sh -c CLASSPATH=... app_process / dev.phoneuse.agent.Main 0.1 <name>` and `app_process / dev.phoneuse.agent.Main ...`), so a `pgrep -f` count is 2, not 1.
+The process list while running shows two entries (`sh -c CLASSPATH=... app_process / dev.phonedriver.agent.Main 0.1 <name>` and `app_process / dev.phonedriver.agent.Main ...`), so a `pgrep -f` count is 2, not 1.
 
 **Decision.** Launch rules in 6.2 hold with three changes: the `pkill` pattern needs the bracket, the stream-close kill takes about 1 s (tests must wait 1.5 s, not 1 s), and 0444 is hygiene rather than a requirement.
 

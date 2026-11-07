@@ -1,6 +1,6 @@
-# phone-use: rules for agents working in this repo
+# phonedriver: rules for agents working in this repo
 
-phone-use lets AI agents see and operate Android and iOS devices. The design is in `docs/`. The work is in `docs/plans/`.
+phonedriver lets AI agents see and operate Android and iOS devices. The design is in `docs/`. The work is in `docs/plans/`.
 
 ## Start here
 

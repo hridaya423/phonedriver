@@ -1,6 +1,6 @@
 # Latency profile (2026-11-07)
 
-Method: traces now carry `phases` (ms) per request (`connect`, `prepare`, `resolve`, `input`, `settle`, `last_change_at`, `tree`, `stabilize`, `render`, `text`; commit d4789e9). Agent-side times came from temporary `Log.i` probes in `Control.answer` and `TextInput.paste` (not committed). Device: `emulator-5554` (Pixel_API_37) on win-ts, reached through `ssh -L 5038:127.0.0.1:5037`, host busy with other agents. Before/after builds were run interleaved with `bench/` (`PHONE_USE_BENCH_ONLY` filters ops). Samples are 30 to 90 per op.
+Method: traces now carry `phases` (ms) per request (`connect`, `prepare`, `resolve`, `input`, `settle`, `last_change_at`, `tree`, `stabilize`, `render`, `text`; commit d4789e9). Agent-side times came from temporary `Log.i` probes in `Control.answer` and `TextInput.paste` (not committed). Device: `emulator-5554` (Pixel_API_37) on win-ts, reached through `ssh -L 5038:127.0.0.1:5037`, host busy with other agents. Before/after builds were run interleaved with `bench/` (`PHONEDRIVER_BENCH_ONLY` filters ops). Samples are 30 to 90 per op.
 
 **The tunnel dominates what the host sees.** The agent answers a `tree` op in 11 ms (p50) and a `power` op in 7 ms, yet the daemon's `tree` and `prepare` phases read 100 to 170 ms. Every device round trip costs about 100 ms here, so the fixes below remove round trips and sleeps, which also helps on a local USB or localhost adb, where each is smaller.
 
@@ -50,7 +50,7 @@ Phases before (3 sample runs, jar already on the device), ms: spawn plus CLI 85,
 
 Changes: (a) the jar check, `pkill` and `app_process` start run in one shell (`[ -f jar ] || exit 99; pkill ...; exec app_process`), and the jar is pushed only when it exits 99; (b) control and video streams open concurrently; (c) resolving a named device skips the `getprop` per device, and the OS labels of unseen devices are fetched together.
 
-Interleaved wall time of `phone-use --device emulator-5554 snapshot` after `daemon stop` (host busy, 8 rounds): before p50 6,750 ms, after (a)+(b) 4,970, after (a)+(b)+(c) 3,950. Earlier quieter run (6 rounds): 3,700 against 2,000 (that run's binary failed the agent start, so it is not counted). Round trips before the agent boots: 6 + number of devices; after: 3.
+Interleaved wall time of `phonedriver --device emulator-5554 snapshot` after `daemon stop` (host busy, 8 rounds): before p50 6,750 ms, after (a)+(b) 4,970, after (a)+(b)+(c) 3,950. Earlier quieter run (6 rounds): 3,700 against 2,000 (that run's binary failed the agent start, so it is not counted). Round trips before the agent boots: 6 + number of devices; after: 3.
 
 Not changed: the 500 ms wait for the first video frame in `AndroidDevice::connect` (screenshots wait for it lazily, but the first settle counts quiet from connect), and the 250 ms quiet window of the first snapshot.
 

@@ -2,10 +2,10 @@
 
 Use these words in code, docs and replies. One meaning each.
 
-- **Agent**: the AI using phone-use. Not the on-device process.
-- **Device agent**: the Java process (`phone-use-agent.jar`) running on an Android device via `app_process`.
-- **Runner**: PhoneUseRunner, the XCTest bundle on an iOS device or simulator.
-- **Daemon**: the long-lived `phone-use daemon` process on the host.
+- **Agent**: the AI using phonedriver. Not the on-device process.
+- **Device agent**: the Java process (`phonedriver-agent.jar`) running on an Android device via `app_process`.
+- **Runner**: PhonedriverRunner, the XCTest bundle on an iOS device or simulator.
+- **Daemon**: the long-lived `phonedriver daemon` process on the host.
 - **Device**: one phone, tablet, emulator or simulator, addressed by a device id like `android:emulator-5554`.
 - **Tier**: how an iOS device is driven: CoreDevice, Runner, or Simulator.
 - **Lease**: a client's exclusive claim on a device.

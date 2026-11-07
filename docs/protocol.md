@@ -15,7 +15,7 @@ Transport: local socket (architecture section 5). One JSON object per line, UTF-
 
 Version mismatch: the daemon replies with error code `-32010 version_mismatch` and `data.daemon_version`. The CLI then calls `shutdown` and starts its own daemon.
 
-Progress: a client that sends `"progress": true` in `hello` may receive notifications (no `id`) while a request is running, `{"jsonrpc":"2.0","method":"progress","params":{"message":"starting the iOS runner on iPhone 17 (the first run builds it; logs are in /Users/you/.phone-use/runner)"}}`, one for each setup step that runs longer than a second (building the iOS runner, pushing the Android agent). A client that does not ask never receives one. The CLI asks only when its stderr is a terminal, and prints each message on stderr; `phone-use mcp` never asks.
+Progress: a client that sends `"progress": true` in `hello` may receive notifications (no `id`) while a request is running, `{"jsonrpc":"2.0","method":"progress","params":{"message":"starting the iOS runner on iPhone 17 (the first run builds it; logs are in /Users/you/.phonedriver/runner)"}}`, one for each setup step that runs longer than a second (building the iOS runner, pushing the Android agent). A client that does not ask never receives one. The CLI asks only when its stderr is a terminal, and prints each message on stderr; `phonedriver mcp` never asks.
 
 ### Methods
 
@@ -32,7 +32,7 @@ Progress: a client that sends `"progress": true` in `hello` may receive notifica
 | `wait` | `device?, condition: WaitCondition, timeout_ms?, expect_change_ms?` | `ActionResult` |
 | `batch` | `device?, steps: Step[], timeout_ms?, expect_change_ms?` | `BatchResult` |
 | `apps` | `device?` | `[App]` (launchable apps: `{id, name, system}`) |
-| `app` | `device?, action: "install"|"stop"|"clear"|"uninstall", app?, path?` | `{ok, summary}` (`path` is for install, on the daemon's machine; `app` is a name or id; refused with `unsupported` on a physical device for an app phone-use did not install) |
+| `app` | `device?, action: "install"|"stop"|"clear"|"uninstall", app?, path?` | `{ok, summary}` (`path` is for install, on the daemon's machine; `app` is a name or id; refused with `unsupported` on a physical device for an app phonedriver did not install) |
 | `shell` | `device?, command, settle? (default true), timeout_ms?, expect_change_ms?, time_limit_s? (default 30), grep?, head? (default 40, 0 = all), force?, secret?` | `{exit, output, omitted, timed_out, ms, action?}`; `action` is an `act` result (`observation` is the diff) and is absent when the command only reads or `settle` is false; `unsupported` for a physical iPhone or iPad, and for a destructive command on a physical device without `force` (decision D21) |
 | `clipboard` | `device?, set?: string` | `{text?: string}` (`{}` after a set; `text` is null when the clipboard is empty) |
 | `health` | `device?` | `{id, model, os, frames_ms}` (what `doctor` needs: connects, reads the tree once, then waits up to 1 s for the next frame; `frames_ms` is null when none came or the device has no frame stream) |
@@ -48,7 +48,7 @@ type Target = {ref: string} | {point: {x: number, y: number}} | {text: string, r
 type Action =
   | {kind: "tap", target: Target, count?: number, long?: number}   // long: hold ms; count taps are 80 ms apart
   | {kind: "type", text: string, into?: Target, mode?: "paste"|"set"|"keys", secret?: boolean, submit?: boolean, append?: boolean}
-    // the CLI reads secret text from stdin or PHONE_USE_SECRET and sends it here over the user-only socket
+    // the CLI reads secret text from stdin or PHONEDRIVER_SECRET and sends it here over the user-only socket
   | {kind: "clear", target: Target}
   | {kind: "swipe", direction: Dir, from?: Target, distance?: number, fast?: boolean}
   | {kind: "drag", from: Target, to: Target}                       // press and hold, move, hold, lift
@@ -58,7 +58,7 @@ type Action =
   | {kind: "press", key: Key}
   | {kind: "launch", app: string, grant?: string[]}  // grant: runtime permissions to grant first (Android `pm grant`:
     // `notifications`, `camera`, `location` or a full name; Simulator `simctl privacy` services). On a physical device only
-    // for an app phone-use installed (`Unsupported`, -32011, otherwise); a physical iPhone and `notifications` on the
+    // for an app phonedriver installed (`Unsupported`, -32011, otherwise); a physical iPhone and `notifications` on the
     // Simulator are `Unsupported`.
 type WaitCondition = {appears: Target} | {gone: Target} | {settled: true}
 // appears and gone reply with a full Observation and `summary: "\"Row 640\" appeared after 3 tree reads"`; a text
@@ -208,15 +208,15 @@ Then frames:
 
 On display change the agent sends a new codec header preceded by a frame with `pts_us = u64::MAX` and length 0.
 
-## 3. Daemon ↔ PhoneUseRunner
+## 3. Daemon ↔ PhonedriverRunner
 
-One TCP stream to the runner's port: 27753 on a physical device (reached through the idevice provider), or on a simulator the port the daemon assigned through the `PHONE_USE_PORT` environment variable (the first free port from 27753 up to 27784, one per running simulator; simulators share the host's loopback). Same `u32` big-endian length + JSON framing as the Android control stream. On a simulator the runner listens on `127.0.0.1` only (Phase 6 revisits the bind address for devices). One connection at a time: a new connection closes the previous one. Requests run one at a time.
+One TCP stream to the runner's port: 27753 on a physical device (reached through the idevice provider), or on a simulator the port the daemon assigned through the `PHONEDRIVER_PORT` environment variable (the first free port from 27753 up to 27784, one per running simulator; simulators share the host's loopback). Same `u32` big-endian length + JSON framing as the Android control stream. On a simulator the runner listens on `127.0.0.1` only (Phase 6 revisits the bind address for devices). One connection at a time: a new connection closes the previous one. Requests run one at a time.
 
 Every request carries `id` and `op`. A reply echoes `id` and adds `ok: true` plus the op's fields, or `ok: false` and `error: {code, message}` with `code` one of `bad_request` (malformed frame, unknown op, missing or ill-typed field), `unsupported` (the op cannot work here), `failed` (XCTest refused or failed; `message` is XCTest's first line).
 
 | op | Request | Reply |
 |---|---|---|
-| `hello` | `version` | `{version, ios, model, screen:{w,h,scale}, udid?, build?}` (points; `model` is the machine id, for example `iPhone18,3`; on a simulator `udid` is the simulator's, from `SIMULATOR_UDID`; `build` echoes the `PHONE_USE_BUILD` the daemon launched it with, the hash of the runner sources) |
+| `hello` | `version` | `{version, ios, model, screen:{w,h,scale}, udid?, build?}` (points; `model` is the machine id, for example `iPhone18,3`; on a simulator `udid` is the simulator's, from `SIMULATOR_UDID`; `build` echoes the `PHONEDRIVER_BUILD` the daemon launched it with, the hash of the runner sources) |
 | `snapshot` | `max_depth` (default 30) | `{app:{bundle_id, pid}, nodes:[RawNode]}` with bounds in points |
 | `gesture` | `pointers:[{path:[{x,y,t_ms}]}]` (points, 1 to 5 pointers, `t_ms` non-decreasing) | `{}` after the last lift is delivered |
 | `screenshot` | `quality (0..100, default 80), format: "jpeg"|"png"|"luma"` (default `jpeg`), `scale?` (output pixels per point, above 0 and at most 4; 0 or absent means native pixels; required for `luma`) | `{data_b64, w, h}` (`w`, `h` in pixels); `luma` is one byte of gray per pixel, rows top to bottom, no header |
@@ -234,4 +234,4 @@ iOS `RawNode` uses the same keys as Android with `cls` set to the `XCUIElementTy
 
 ## 4. Fixture format
 
-Real trees captured for golden tests are stored as the device wire JSON (`tree` or `snapshot` reply) under `crates/core/tests/fixtures/<platform>/<name>.json`, with a sibling `.png` screenshot for humans. Capture with `phone-use snapshot --save-fixture <name>` (Phase 2 task 2.7; the files go to `crates/core/tests/fixtures/<platform>/` or `--fixture-dir`). The JSON is the device's own `tree` reply without `id` and `ok`, plus a top-level `density` key; core tests read the density from the file. Older `real_*` fixtures have no `density` key (2.625).
+Real trees captured for golden tests are stored as the device wire JSON (`tree` or `snapshot` reply) under `crates/core/tests/fixtures/<platform>/<name>.json`, with a sibling `.png` screenshot for humans. Capture with `phonedriver snapshot --save-fixture <name>` (Phase 2 task 2.7; the files go to `crates/core/tests/fixtures/<platform>/` or `--fixture-dir`). The JSON is the device's own `tree` reply without `id` and `ok`, plus a top-level `density` key; core tests read the density from the file. Older `real_*` fixtures have no `density` key (2.625).

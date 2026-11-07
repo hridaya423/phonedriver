@@ -1,12 +1,12 @@
 # Speed and impressiveness audit (2026-11-06)
 
-Numbers: `docs/bench/adb.md` (phone-use main `d6d9155` with the physical-iOS source removed in the win-pc copy, back to back with adb, busy machine), `docs/bench/m1.md`, `m4.md`, `m5.md`. Estimates are marked as estimates; nothing below was implemented.
+Numbers: `docs/bench/adb.md` (phonedriver main `d6d9155` with the physical-iOS source removed in the win-pc copy, back to back with adb, busy machine), `docs/bench/m1.md`, `m4.md`, `m5.md`. Estimates are marked as estimates; nothing below was implemented.
 
 ## 1. How fast, against adb and phone-harness
 
-Slower of two phone-use runs, p50, Android 17 emulator:
+Slower of two phonedriver runs, p50, Android 17 emulator:
 
-| op | phone-use | adb | phone-harness (M1, quieter) |
+| op | phonedriver | adb | phone-harness (M1, quieter) |
 |---|---|---|---|
 | tap | 144.1 | 223.7 | 110.7 |
 | screenshot | 45.3 | 692.4 | 390.1 |
@@ -15,7 +15,7 @@ Slower of two phone-use runs, p50, Android 17 emulator:
 | type 100 chars | 755.0 | 5204.4 | 2104.5 |
 | tap then what changed | 666.9 | 3111.7 | n/a |
 
-phone-use is 4.7x to 51x faster than adb on everything an agent does after a tap, and 1.6x on the bare tap. Against phone-harness the M1 run (quiet machine) gave 3x to 153x; phone-harness's own tap is not slower than phone-use's on a busy machine. iOS Simulator screenshot is 3.6x (CLI) to 4.9x (socket) faster than `simctl io screenshot`.
+phonedriver is 4.7x to 51x faster than adb on everything an agent does after a tap, and 1.6x on the bare tap. Against phone-harness the M1 run (quiet machine) gave 3x to 153x; phone-harness's own tap is not slower than phonedriver's on a busy machine. iOS Simulator screenshot is 3.6x (CLI) to 4.9x (socket) faster than `simctl io screenshot`.
 
 Can it be made faster? Yes, on three fronts, and one finding is a bug.
 
@@ -61,13 +61,13 @@ Proposals, with what each needs:
 
 | Idea | What it shows | Needs new measurement? |
 |---|---|---|
-| Token proxy per screen: bytes of `uiautomator` XML and of a raw screenshot against phone-use's snapshot text, same screens (the Taps dump is 16,380 bytes) | Context cost per observation, 5x to 20x smaller (estimate) | Yes, cheap, no model calls; report bytes and a stated chars-per-token approximation, not a tokenizer claim |
-| Scripted race: the same fixed step list (the M2 scenario YAML) run through adb (`input tap` + `uiautomator dump` per step) and through phone-use, side by side, recorded as a GIF | Tool wall time without any model; M2 already has phone-use wall times for 21 scenarios (4.6 to 30 s) | Yes for the adb half; no model calls needed |
-| Agent end-to-end time and tokens against other tools | M3 gives phone-use only: 15 of 15, median 6 calls, 42.8k tokens, 18 s, $0.36 for 15 runs | Yes, and it needs model runs against each tool; proposal only, not run |
+| Token proxy per screen: bytes of `uiautomator` XML and of a raw screenshot against phonedriver's snapshot text, same screens (the Taps dump is 16,380 bytes) | Context cost per observation, 5x to 20x smaller (estimate) | Yes, cheap, no model calls; report bytes and a stated chars-per-token approximation, not a tokenizer claim |
+| Scripted race: the same fixed step list (the M2 scenario YAML) run through adb (`input tap` + `uiautomator dump` per step) and through phonedriver, side by side, recorded as a GIF | Tool wall time without any model; M2 already has phonedriver wall times for 21 scenarios (4.6 to 30 s) | Yes for the adb half; no model calls needed |
+| Agent end-to-end time and tokens against other tools | M3 gives phonedriver only: 15 of 15, median 6 calls, 42.8k tokens, 18 s, $0.36 for 15 runs | Yes, and it needs model runs against each tool; proposal only, not run |
 | Tokens per task against a screenshot-loop agent | The big claim if true | Yes, model runs; proposal only |
 | AndroidWorld score | A number the field recognizes | Yes, model runs, a later project |
 | Physical phone numbers over USB | Removes the emulator and busy-machine caveat; the tap budget may be met on hardware | Yes, needs a phone |
-| `phone-use-bench compare` command and CSVs in the README ("run it yourself") | Reproducibility is itself impressive | S, no measurement |
+| `phonedriver-bench compare` command and CSVs in the README ("run it yourself") | Reproducibility is itself impressive | S, no measurement |
 | iOS: simctl screenshot 3.6x to 4.9x (measured), and tap after speedup 4 | A second platform in the chart | Partly measured |
 
 ## 5. Open items from this audit

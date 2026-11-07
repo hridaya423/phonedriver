@@ -14,6 +14,6 @@
 /testbeds/ios/build
 /testbeds/ios/Testbed.xcodeproj
 /testbeds/ios/Testbed/Info.plist
-/ios-runner/PhoneUseRunner.xcodeproj
+/ios-runner/PhonedriverRunner.xcodeproj
 __pycache__
 /android-agent/private

@@ -26,14 +26,14 @@ phonedriver is an open-source MCP server and CLI that lets AI agents like Claude
 
 ## Try it
 
-1. Install phone-use first (see [Install](#install)), then add it to Claude Code as an MCP server. Use the binary's full path.
+1. Install phonedriver first (see [Install](#install)), then add it to Claude Code as an MCP server. Use the binary's full path.
 
    ```sh
-   claude mcp add phone-use -- "$(pwd)/target/release/phone-use" mcp
-   claude mcp list    # expect: phone-use ... Connected
+   claude mcp add phonedriver -- "$(pwd)/target/release/phonedriver" mcp
+   claude mcp list    # expect: phonedriver ... Connected
    ```
 
-   For the first run, boot one simulator or connect one device, so no `--device` or `PHONE_USE_DEVICE` is needed. `phone-use skill` prints the instructions an agent reads; the MCP server also carries a short version.
+   For the first run, boot one simulator or connect one device, so no `--device` or `PHONEDRIVER_DEVICE` is needed. `phonedriver skill` prints the instructions an agent reads; the MCP server also carries a short version.
 
 2. Boot a simulator or connect a device, then ask the agent.
 
@@ -56,18 +56,18 @@ After the first release (nothing is published yet, so these do not work today), 
 
 ```sh
 # macOS and Linux
-curl --proto '=https' --tlsv1.2 -LsSf https://github.com/hridaya423/phone-use/releases/latest/download/phone-use-installer.sh | sh
+curl --proto '=https' --tlsv1.2 -LsSf https://github.com/hridaya423/phonedriver/releases/latest/download/phonedriver-installer.sh | sh
 
 # Homebrew (macOS and Linux)
-brew install hridaya423/tap/phone-use
+brew install hridaya423/tap/phonedriver
 ```
 
 ```powershell
 # Windows
-powershell -ExecutionPolicy Bypass -c "irm https://github.com/hridaya423/phone-use/releases/latest/download/phone-use-installer.ps1 | iex"
+powershell -ExecutionPolicy Bypass -c "irm https://github.com/hridaya423/phonedriver/releases/latest/download/phonedriver-installer.ps1 | iex"
 ```
 
-The shell and PowerShell installers put `phone-use` in `$CARGO_HOME/bin` (`~/.cargo/bin`) and add it to your `PATH`. The iOS Simulator runner needs no download: its sources are inside the binary, and the first command that needs it builds it on your Mac with Xcode and XcodeGen.
+The shell and PowerShell installers put `phonedriver` in `$CARGO_HOME/bin` (`~/.cargo/bin`) and add it to your `PATH`. The iOS Simulator runner needs no download: its sources are inside the binary, and the first command that needs it builds it on your Mac with Xcode and XcodeGen.
 
 To build from source instead, use Rust 1.99 or later.
 
@@ -75,25 +75,25 @@ To build from source instead, use Rust 1.99 or later.
 cargo build --release
 ```
 
-The build packs the Android agent, so it needs the Android SDK with build-tools **37.0.0** and platform **android-37.0** (`ANDROID_HOME`, falling back to `ANDROID_SDK_ROOT`, then `/opt/homebrew/share/android-commandlinetools`), `d8` and JDK 17. Override the versions with `ANDROID_BUILD_TOOLS` and `ANDROID_PLATFORM`. If anything is missing the build says exactly what and how to get it. To skip that step, set `PHONE_USE_AGENT_JAR` to a built `phone-use-agent.jar` (`bash android-agent/build.sh` makes one; none is published yet).
+The build packs the Android agent, so it needs the Android SDK with build-tools **37.0.0** and platform **android-37.0** (`ANDROID_HOME`, falling back to `ANDROID_SDK_ROOT`, then `/opt/homebrew/share/android-commandlinetools`), `d8` and JDK 17. Override the versions with `ANDROID_BUILD_TOOLS` and `ANDROID_PLATFORM`. If anything is missing the build says exactly what and how to get it. To skip that step, set `PHONEDRIVER_AGENT_JAR` to a built `phonedriver-agent.jar` (`bash android-agent/build.sh` makes one; none is published yet).
 
 **iOS only, no Android toolchain:**
 
 ```sh
-cargo build --release -p phone-use --no-default-features
+cargo build --release -p phonedriver --no-default-features
 ```
 
-That binary has no Android support (`phone-use doctor` skips the Android checks). Run the tests with the default features. The binary is `target/release/phone-use`.
+That binary has no Android support (`phonedriver doctor` skips the Android checks). Run the tests with the default features. The binary is `target/release/phonedriver`.
 
 ```console
-$ target/release/phone-use version
-phone-use 0.1.0
+$ target/release/phonedriver version
+phonedriver 0.1.0
 ```
 
-Run `phone-use doctor`. It checks adb, each Android device, the agent, UiAutomation, the video stream, Xcode, the simulators, and the permissions of the daemon socket. Each line says `ok`, `warn` or `fail`, and a fix follows every line that is not `ok`.
+Run `phonedriver doctor`. It checks adb, each Android device, the agent, UiAutomation, the video stream, Xcode, the simulators, and the permissions of the daemon socket. Each line says `ok`, `warn` or `fail`, and a fix follows every line that is not `ok`.
 
 ```console
-$ phone-use doctor
+$ phonedriver doctor
 ok    adb server       0029 at 127.0.0.1:5037
 warn  android devices  none connected
       fix: Connect a phone with USB debugging on, or start an emulator; `adb devices` lists what adb sees.
@@ -101,16 +101,16 @@ ok    xcode            Xcode 27.0, Build version 27A266a
 ok    xcodegen         /opt/homebrew/bin/xcodegen
 warn  simulators       none booted
       fix: Boot one in Simulator.app or with `xcrun simctl boot <udid>`; `xcrun simctl list devices available` lists them.
-ok    daemon socket    /Users/you/.phone-use/run/daemon.sock mode 600 in a directory of mode 700
+ok    daemon socket    /Users/you/.phonedriver/run/daemon.sock mode 600 in a directory of mode 700
 ```
 
-The CLI runs the same loop. `phone-use skill` prints [`SKILL.md`](SKILL.md), the instructions an agent reads before it uses the tools.
+The CLI runs the same loop. `phonedriver skill` prints [`SKILL.md`](SKILL.md), the instructions an agent reads before it uses the tools.
 
 ```sh
-phone-use devices
-phone-use snapshot
-phone-use tap "Dark theme"
-phone-use wait settled
+phonedriver devices
+phonedriver snapshot
+phonedriver tap "Dark theme"
+phonedriver wait settled
 ```
 
 ### iPhone or iPad
@@ -118,12 +118,12 @@ phone-use wait settled
 A physical iOS device needs the runner signed with your Apple developer team (a free Apple ID works and expires every 7 days). Plug the device in, unlock it, then:
 
 ```sh
-phone-use ios setup                  # pairing, Developer Mode, developer disk image
-export PHONE_USE_TEAM=<your team ID>   # Xcode > Settings > Accounts, or: security find-identity -v -p codesigning
-phone-use --device ios:<udid> snapshot
+phonedriver ios setup                  # pairing, Developer Mode, developer disk image
+export PHONEDRIVER_TEAM=<your team ID>   # Xcode > Settings > Accounts, or: security find-identity -v -p codesigning
+phonedriver --device ios:<udid> snapshot
 ```
 
-Without a team, the command stops with exit code 3 and says so. With a booted Simulator and an iPhone that has no team, the Simulator is the default device. The daemon reads `PHONE_USE_TEAM` when it starts, so run `phone-use daemon stop` after setting it.
+Without a team, the command stops with exit code 3 and says so. With a booted Simulator and an iPhone that has no team, the Simulator is the default device. The daemon reads `PHONEDRIVER_TEAM` when it starts, so run `phonedriver daemon stop` after setting it.
 
 ## Numbers
 
@@ -154,7 +154,7 @@ Full benchmark: [every op, p95, confidence intervals, raw data](docs/bench/speed
 | Android emulator, API 26 and 37 | Tested. The 21-scenario suite passes on both (M2, `docs/bench/m2.md`). | adb |
 | Android phone or tablet | Built on the same path. Not tested on hardware. | adb, USB debugging on |
 | iOS Simulator (iOS 26.5) | Tested. The 12-scenario suite passes (M4, `docs/bench/m4.md`). One flake in `settings-dark-appearance` is unexplained. | A Mac with Xcode 27 and XcodeGen |
-| iPhone or iPad (Runner tier) | Tested on an iPhone 14 Plus (iOS 26.1) and an iPad Pro (iOS 27.0) through the CLI and MCP (M5, `docs/bench/m5.md`). Screenshot, snapshot and the settled tap diff are within budget. A tap misses its 80 ms budget (454 to 534 ms at p50). The 12-scenario suite was not run on devices. | A Mac with Xcode and a signing team (`PHONE_USE_TEAM`) |
+| iPhone or iPad (Runner tier) | Tested on an iPhone 14 Plus (iOS 26.1) and an iPad Pro (iOS 27.0) through the CLI and MCP (M5, `docs/bench/m5.md`). Screenshot, snapshot and the settled tap diff are within budget. A tap misses its 80 ms budget (454 to 534 ms at p50). The 12-scenario suite was not run on devices. | A Mac with Xcode and a signing team (`PHONEDRIVER_TEAM`) |
 
 The iOS Simulator tier builds and runs a small XCTest runner. Android needs no install on the phone: the daemon pushes and starts its agent.
 
@@ -172,7 +172,7 @@ The CLI and the MCP server are thin clients. A daemon keeps the device connectio
 A snapshot lists the screen as text. This is the Android Settings app, cut to eight lines.
 
 ```console
-$ phone-use snapshot
+$ phonedriver snapshot
 device android:emulator-5554 · Pixel 9 · Android 17 · 360x800pt · portrait
 app com.android.settings (Settings) · keyboard hidden · settled in 212ms
 @e1 button "Search Settings"
@@ -186,7 +186,7 @@ app com.android.settings (Settings) · keyboard hidden · settled in 212ms
 A tap returns the lines that changed instead of the whole screen.
 
 ```console
-$ phone-use tap @e10
+$ phonedriver tap @e10
 ok tapped @e10 "Dark theme" · settled in 410ms
 ~ @e10 switch "Dark theme" off → on
 ```
@@ -198,14 +198,14 @@ Any client that starts a stdio server can use this entry.
 ```json
 {
   "mcpServers": {
-    "phone-use": { "command": "/path/to/phone-use", "args": ["mcp"], "env": { "PHONE_USE_DEVICE": "android:emulator-5554" } }
+    "phonedriver": { "command": "/path/to/phonedriver", "args": ["mcp"], "env": { "PHONEDRIVER_DEVICE": "android:emulator-5554" } }
   }
 }
 ```
 
-The server has fourteen tools: `devices`, `apps`, `snapshot`, `screenshot`, `tap`, `type`, `swipe`, `scroll`, `press`, `launch`, `wait`, `batch`, `clipboard`, `shell` (`apps` also installs, stops, clears and uninstalls). Each prints the same text as the CLI verb of the same name. `PHONE_USE_DEVICE` is optional when one device is connected.
+The server has fourteen tools: `devices`, `apps`, `snapshot`, `screenshot`, `tap`, `type`, `swipe`, `scroll`, `press`, `launch`, `wait`, `batch`, `clipboard`, `shell` (`apps` also installs, stops, clears and uninstalls). Each prints the same text as the CLI verb of the same name. `PHONEDRIVER_DEVICE` is optional when one device is connected.
 
-Typed secrets (`phone-use type --secret`, or `secret: true` over MCP) never reach logs, traces or replies. phone-use sends no telemetry. It talks to the device and nothing else: the local daemon socket, the local adb server (or the address in `ADB_SERVER_SOCKET`) and the device, plus Apple only when mounting an iOS developer disk image. `cargo test -p phone-use --test network` runs the CLI, the daemon and the MCP server under a macOS sandbox that kills a process the moment it opens a connection to a non-local address (it runs on the macOS CI job; Linux and Windows are not covered).
+Typed secrets (`phonedriver type --secret`, or `secret: true` over MCP) never reach logs, traces or replies. phonedriver sends no telemetry. It talks to the device and nothing else: the local daemon socket, the local adb server (or the address in `ADB_SERVER_SOCKET`) and the device, plus Apple only when mounting an iOS developer disk image. `cargo test -p phonedriver --test network` runs the CLI, the daemon and the MCP server under a macOS sandbox that kills a process the moment it opens a connection to a non-local address (it runs on the macOS CI job; Linux and Windows are not covered).
 
 ## FAQ
 
@@ -243,4 +243,4 @@ Yes. It is AGPL-3.0-only: if you run a modified version as a network service, yo
 
 ## License
 
-AGPL-3.0-only. See [`LICENSE`](LICENSE). If you distribute phone-use, or run a modified version as a network service, you must publish your source under the same license. The Android agent contains files copied from scrcpy under Apache-2.0; see [`NOTICE`](NOTICE).
+AGPL-3.0-only. See [`LICENSE`](LICENSE). If you distribute phonedriver, or run a modified version as a network service, you must publish your source under the same license. The Android agent contains files copied from scrcpy under Apache-2.0; see [`NOTICE`](NOTICE).
