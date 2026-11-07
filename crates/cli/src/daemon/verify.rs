@@ -144,7 +144,7 @@ impl Verify {
             let ok = matches!(&self.expect, Expect::Exactly(t) if t.is_empty());
             return (!ok).then(|| Unverified {
                 shows: format!("{name} shows no text"),
-                hint: "the field does not expose its text, so it cannot be confirmed; `phone-use screenshot` shows what it displays".into(),
+                hint: "the text may not have landed (type again, or `--mode keys`), or the field does not expose its text; `phone-use screenshot` shows what it displays".into(),
             });
         };
         let (got, wanted) = (value.chars().count(), want.chars().count());
@@ -158,7 +158,7 @@ impl Verify {
             Expect::Exactly(t) => value == t,
             Expect::Appended { text, .. } => value.ends_with(text.as_str()),
         };
-        if ok {
+        if ok || self.phone_formatted(value) {
             return None;
         }
         let shows = shown(&name, Some(value), false);
@@ -186,6 +186,23 @@ impl Verify {
             "the field holds other text than typed: it may reformat what it receives or have taken input from elsewhere".into()
         };
         Some(Unverified { shows, hint })
+    }
+}
+
+impl Verify {
+    /// A phone field rewrites `3710658` as `+1 371-065-8` while it is typed into: the digits typed are the last digits
+    /// shown, behind at most a three-digit country code.
+    fn phone_formatted(&self, value: &str) -> bool {
+        let typed = match &self.expect {
+            Expect::Exactly(t) => t.as_str(),
+            Expect::Appended { text, .. } => text.as_str(),
+        };
+        let phone_like = typed
+            .chars()
+            .all(|c| c.is_ascii_digit() || "+-(). ".contains(c));
+        let digits = |s: &str| s.chars().filter(char::is_ascii_digit).collect::<String>();
+        let (typed, shown) = (digits(typed), digits(value));
+        phone_like && typed.len() >= 4 && shown.ends_with(&typed) && shown.len() <= typed.len() + 3
     }
 }
 
@@ -346,6 +363,23 @@ mod tests {
             v.verdict(&completed, false, true),
             Verdict::Failed(_)
         ));
+    }
+
+    #[test]
+    fn a_phone_field_that_formats_the_digits_is_verified_and_a_wrong_digit_is_not() {
+        let v = verify(Expect::Exactly("3710658".into()));
+        let shows = |value: &str| FieldView {
+            found: true,
+            focused: true,
+            value: Some(value.into()),
+            focus_elsewhere: None,
+            target: Some(Ref(5)),
+        };
+        assert!(v.judge(&shows("+1 371-065-8"), false).is_none());
+        assert!(v.judge(&shows("+1 371-065-9"), false).is_some());
+        assert!(v.judge(&shows("+1 371"), false).is_some());
+        let word = verify(Expect::Exactly("hello".into()));
+        assert!(word.judge(&shows("h-e-l-l-o"), false).is_some());
     }
 
     #[test]

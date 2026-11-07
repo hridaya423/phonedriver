@@ -794,6 +794,31 @@ async fn type_into_a_field_with_text_replaces_it_and_append_keeps_it() {
 }
 
 #[tokio::test(start_paused = true)]
+async fn a_field_that_refuses_set_text_is_wiped_with_backspaces_and_still_typed_into() {
+    use phone_use_core::device::TextInput;
+    let (source, fake) = FakeSource::with(vec![
+        field_tree("+1", false),
+        field_tree("+1", false),
+        field_tree("+1 371-065-8", false),
+    ]);
+    fake.refuse_set_text();
+    let (d, _home) = daemon(source);
+    ok(&d, "default", "snapshot", json!({})).await;
+    let r = ok(&d, "default", "act", type_params("3710658", false)).await;
+    let calls = fake.calls();
+    assert_eq!(calls[1], Call::Text(TextInput::SetValue(String::new())));
+    assert_eq!(
+        calls[2],
+        Call::Text(TextInput::Keystrokes("\u{8}\u{8}".into()))
+    );
+    assert_eq!(
+        calls[3],
+        Call::Text(TextInput::Paste("3710658".into())),
+        "{r}"
+    );
+}
+
+#[tokio::test(start_paused = true)]
 async fn typed_text_settles_in_under_a_tap_s_first_change_wait() {
     let (source, _) = FakeSource::with(vec![
         field_tree("", false),

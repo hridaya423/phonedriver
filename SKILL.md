@@ -23,7 +23,7 @@ Run a setting, intent or key with `shell`: one call returns the exit code, the o
 
 Actions already wait for the screen; use `wait` when something loads later (`wait "Row 640"`, `wait gone:"Loading"`).
 
-Several steps in a row (tap a field, type, press enter) go in one `batch`: one call, one diff, and it names the step that failed. Send calls one at a time and read each reply before the next: they act on one shared screen.
+Several steps in a row (tap a field, type, press enter) go in one `batch`: one call, one diff, and it names the step that failed. Send calls one at a time and read each reply before the next: they act on one shared screen, and an action already returns the screen after it, so `snapshot` straight after one only repeats the reply.
 
 ## Targets
 

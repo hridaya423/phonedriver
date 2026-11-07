@@ -419,6 +419,18 @@ async fn argument_schemas_carry_no_boilerplate() {
 }
 
 #[tokio::test]
+async fn tap_says_its_reply_is_the_new_screen_and_that_tools_go_one_at_a_time() {
+    let rig = rig(vec![tree(&["One"])]).await;
+    let tools = rig.client.list_all_tools().await.unwrap();
+    let tap = tools.iter().find(|t| t.name == "tap").unwrap();
+    let d = tap.description.as_deref().unwrap_or_default();
+    assert!(
+        d.contains("one at a time") && d.contains("new screen"),
+        "{d}"
+    );
+}
+
+#[tokio::test]
 async fn the_tool_list_every_turn_re_reads_fits_a_budget_and_hides_what_agents_never_used() {
     let rig = rig(vec![tree(&["One"])]).await;
     let tools = rig.client.list_all_tools().await.unwrap();

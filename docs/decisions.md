@@ -286,6 +286,8 @@ Secrets. The trace keeps the command text (an agent's command is what it did), b
 
 **Rejected.** Chat `Send` guarded by default (above). A TTY prompt (agents run the CLI; there is no human at that terminal). `approve: true` as the main path (the agent would answer its own question). Blocking error plus retry as the default (replaced by the wait in the same call; the error is now only the daemon's internal signal and the CLI's answer). A guard on `shell` (`input tap` through the shell is out of scope: D21 already guards destructive device commands; a button pressed by shell input is not seen). A model call to classify labels (D9, cost, and a model could be talked out of it). A remembered approval on disk (it must not outlive the daemon).
 
+**Update 2026-11-07 (jobs benchmark).** An elicitation answered `cancel` is no answer, not a refusal: only `decline` says `The human declined`. `claude -p` answers every prompt with `cancel` because nobody is there, so a job whose prompt said "you may place the order" ended at a dead stop with no way forward. `cancel` now replies `Needs the human's approval; nothing was tapped (no answer ...)` with the screen facts and the way on: ask in chat, and call again with `autonomous: true` only if the user's own instructions already approve the tap. The guard still taps nothing without an approval; a prompt-injected screen can still not approve, since `autonomous` stays the agent's call under the SKILL.md rule.
+
 **Reopen if.** Real use shows labels missed often enough to extend the list, or false prompts often enough to narrow it (the table of labels is `crates/cli/src/daemon/guard.rs` tests), or Claude Code starts showing an image or rich preview in elicitation.
 
 

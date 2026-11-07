@@ -410,6 +410,7 @@ impl Mcp {
         {
             match decision(reply) {
                 Decision::Declined => return Outcome::Done(declined()),
+                Decision::Dismissed => return Outcome::Done(dismissed(None)),
                 Decision::Once => globals.approval = Some(Approval::Once),
                 Decision::Session => globals.approval = Some(Approval::Session),
             }
@@ -446,6 +447,7 @@ impl Mcp {
         };
         match decision(&reply) {
             Decision::Declined => Outcome::Done(declined_for(&asked)),
+            Decision::Dismissed => Outcome::Done(dismissed(Some(&asked))),
             chosen => {
                 globals.approval = Some(match chosen {
                     Decision::Session => Approval::Session,
@@ -568,6 +570,7 @@ enum Decision {
     Once,
     Session,
     Declined,
+    Dismissed,
 }
 
 enum Channel<'a> {
@@ -616,10 +619,12 @@ fn question(prompt: &str) -> Result<InputRequiredResult, String> {
     ))
 }
 
-/// What the human answered: an accept with a choice, or anything else, which is a no.
+/// What the human answered: an accept with a choice, a cancel (the prompt was dismissed, which is what a headless client sends), or a decline.
 fn decision(reply: &serde_json::Value) -> Decision {
-    if reply["action"] != "accept" {
-        return Decision::Declined;
+    match reply["action"].as_str() {
+        Some("accept") => {}
+        Some("cancel") => return Decision::Dismissed,
+        _ => return Decision::Declined,
     }
     match reply["content"]["choice"].as_str() {
         Some(ALLOW_SESSION) => Decision::Session,
@@ -636,6 +641,13 @@ fn declined() -> CallToolResult {
 fn declined_for(asked: &str) -> CallToolResult {
     text_result(format!(
         "The human declined; nothing was tapped.\n{asked}\nStop, or ask the user what to do instead."
+    ))
+}
+
+fn dismissed(asked: Option<&str>) -> CallToolResult {
+    text_result(format!(
+        "Needs the human's approval; nothing was tapped (no answer: the approval prompt was dismissed, as when nobody can answer it).\n{}Ask the user in chat. If the user's own instructions already approve this action, call this tool again with `autonomous: true`.",
+        asked.map(|a| format!("{a}\n")).unwrap_or_default()
     ))
 }
 
@@ -840,7 +852,7 @@ impl Mcp {
     }
 
     #[tool(
-        description = "Tap by @ref, text or x,y point (from a screenshot). `long` holds the press that many ms (context menus)."
+        description = "Tap by @ref, text or x,y point (from a screenshot). `long` holds the press that many ms (context menus). The reply is the new screen: read it, and call tools one at a time (they share one screen)."
     )]
     async fn tap(
         &self,
