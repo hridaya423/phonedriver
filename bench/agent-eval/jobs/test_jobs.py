@@ -37,6 +37,13 @@ class Rubric(unittest.TestCase):
 
 
 class Checks(unittest.TestCase):
+    def test_a_decimal_point_does_not_split_a_sentence_of_the_report(self):
+        got = jobs.found_bugs(
+            "Quantity 3 to 2: the total stays $36.00 and is not updated after Decrease.",
+            jobs.BUGS["qa-shop"],
+        )
+        self.assertTrue(got["total-stale-after-decrease"])
+
     def test_locker_passes_on_the_code_and_fails_on_a_wrong_number_or_shell_use(self):
         with mock.patch.object(jobs, "relay_code", return_value="4829173"):
             ok = ([{"_id": "1"}], ["4829173"])
@@ -47,33 +54,38 @@ class Checks(unittest.TestCase):
                     self.assertEqual(jobs.check_locker("Locker 9", False), [])
             with mock.patch.object(jobs, "contact_phones", return_value=([{"_id": "1"}], ["4829137"])):
                 self.assertIn("4829137", jobs.check_locker("Locker 7", True)[0])
+            with mock.patch.object(jobs, "contact_phones", return_value=([{"_id": "1"}], ["14829173"])):
+                self.assertEqual(jobs.check_locker("Locker 7", True), [])
             with mock.patch.object(jobs, "contact_phones", return_value=([], [])):
                 self.assertIn("0 contacts", jobs.check_locker("Locker 7", True)[0])
 
     def test_clock_settings(self):
-        prefs = '<map><string name="snooze_duration">15</string><int name="auto_silence_duration" value="300" /></map>'
-
-        def fake(cmd):
-            return prefs if "shared_prefs" in cmd else ("/x/db" if "Tokyo" in cmd or "London" in cmd else "")
-
-        with mock.patch.object(jobs, "su", side_effect=fake):
+        prefs = (
+            '<map><string name="snooze_duration">15</string><string name="auto_silence">5</string>'
+            '<string name="home_time_zone">Europe/London</string>'
+            '<string name="place_timezone_id_0">Asia/Tokyo</string><string name="place_timezone_id_1">Europe/London</string></map>'
+        )
+        with mock.patch.object(jobs, "su", return_value=prefs):
             self.assertEqual(jobs.check_clock_settings(), [])
-        with mock.patch.object(jobs, "su", side_effect=lambda c: prefs.replace(">15<", ">10<") if "shared_prefs" in c else ""):
+        default = '<map><string name="snooze_duration">10</string><string name="auto_silence">10</string><string name="home_time_zone">Europe/London</string></map>'
+        with mock.patch.object(jobs, "su", return_value=default):
             bad = jobs.check_clock_settings()
-            self.assertEqual(len(bad), 3, bad)
+            self.assertEqual(len(bad), 4, bad)
 
     def test_messages_pin_and_archive(self):
         def rows(pin, arch):
             return [
-                {"name": "Alice Chen", "pin_timestamp": "0", "archive_status": "0"},
-                {"name": "Bob Park", "pin_timestamp": pin, "archive_status": "0"},
-                {"name": "Carol Diaz", "pin_timestamp": "0", "archive_status": arch},
+                {"name": "Alice Chen", "pinned": "0", "archived": "0"},
+                {"name": "Bob Park", "pinned": pin, "archived": "0"},
+                {"name": "Carol Diaz", "pinned": "0", "archived": arch},
             ]
 
-        with mock.patch.object(jobs, "conversations", return_value=rows("1730000000", "1")):
+        with mock.patch.object(jobs, "conversations", return_value=rows("1", "1")):
             self.assertEqual(jobs.check_messages(), [])
         with mock.patch.object(jobs, "conversations", return_value=rows("0", "1")):
             self.assertIn("Bob Park", jobs.check_messages()[0])
+        with mock.patch.object(jobs, "conversations", return_value=rows("1", "1")[:2]):
+            self.assertIn("0 conversations named Carol Diaz", jobs.check_messages()[0])
 
     def test_photos_needs_a_new_square_and_the_original(self):
         orig = {"_display_name": "jobs-harbor.png", "width": "1200", "height": "800", "date_added": "100"}

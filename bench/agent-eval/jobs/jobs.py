@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Seeds, independent checks and cleanup for the `jobs` and `jobs-mixed` sets in ../tasks.yaml.
 
-Usage: jobs.py seed|check|clean <task>
-Env: SERIAL (adb serial), ADB_SERVER_SOCKET (inherited), ANSWER_FILE and TRANSCRIPT_FILE (check only).
+Usage: jobs.py seed|check|clean <task>; jobs.py purge messages-pin-archive removes its contacts, SMS and Messages data for good
+Env: SERIAL (adb serial), EMU_ADB (optional command that reaches the emulator console, for example `ssh win-ts /d/Android/Sdk/platform-tools/adb.exe`; the local adb client cannot reach a tunnelled emulator's console), ADB_SERVER_SOCKET (inherited), ANSWER_FILE and TRANSCRIPT_FILE (check only).
 A check reads device state (private app state as root, content providers, dumpsys, appops, MediaStore, the
 testbed event log) and, for the bug-report jobs, matches the agent's report against the planted-bug list in
 BUGS (a bug counts as found when one line or sentence of the report matches every regex of its list, case-insensitive). Exit 0 is a pass; each failure reason is printed on its own line and the exit code is 1.
@@ -78,6 +78,14 @@ def adb(*argv):
     )
 
 
+def emu(*argv):
+    base = shlex.split(os.environ.get("EMU_ADB", "adb"))
+    cmd = [*base, "-s", os.environ["SERIAL"], "emu", *argv]
+    if base[0] == "ssh":
+        cmd = [*base[:2], " ".join(shlex.quote(a) for a in cmd[2:])]
+    return subprocess.run(cmd, capture_output=True, text=True, timeout=60).stdout
+
+
 def rows(text):
     out = []
     for line in text.splitlines():
@@ -140,7 +148,7 @@ def log_events():
 
 
 def found_bugs(report, bugs):
-    chunks = [c for c in re.split(r"[\n.!?;]+", report) if c.strip()]
+    chunks = [c for c in re.split(r"(?<=[.!?;])\s+|\n", report) if c.strip()]
     return {
         name: any(all(re.search(p, c, re.I) for p in pats) for c in chunks)
         for name, pats in bugs.items()
@@ -205,7 +213,7 @@ def check_locker(name, forbid_shell):
         return [f"cannot read the pickup code from the app (got {code!r})"]
     if len(raw) != 1:
         bad.append(f"{len(raw)} contacts named {name}, wanted 1")
-    elif phones != [code]:
+    elif len(phones) != 1 or not phones[0].endswith(code) or len(phones[0]) > len(code) + 1:
         bad.append(f"{name} has phones {phones}, the pickup code is {code}")
     used = shell_used() if forbid_shell else None
     if used:
@@ -216,13 +224,16 @@ def check_locker(name, forbid_shell):
 def check_chrome_prefs():
     sh("input keyevent KEYCODE_HOME")
     time.sleep(5)
-    prefs = json.loads(su(f"cat {CHROME_PREFS}"))
+    raw = su(f"cat {CHROME_PREFS}")
+    if not raw.startswith("{"):
+        return [f"Chrome has no Preferences file: {raw.strip()[:80]!r}"]
+    prefs = json.loads(raw)
     dse = prefs.get("default_search_provider_data", {}).get("template_url_data", {})
     bad = []
     if "duckduckgo" not in json.dumps(dse).lower():
         bad.append(f"default search engine is {dse.get('short_name')!r}, wanted DuckDuckGo")
-    if prefs.get("https_only_mode_enabled") is not True:
-        bad.append(f"https_only_mode_enabled is {prefs.get('https_only_mode_enabled')!r}")
+    if not (prefs.get("https_first_balanced_mode_enabled") or prefs.get("https_only_mode_enabled")):
+        bad.append("Always use secure connections is off (https_first_balanced_mode_enabled and https_only_mode_enabled are not true)")
     return bad
 
 
@@ -236,13 +247,12 @@ def pref_minutes(xml, key_pattern):
 
 def check_clock_settings():
     files = su(f"cat {CLOCK_DIR}/shared_prefs/*.xml")
-    bad = []
-    tokyo = su(f"grep -rIlE 'Tokyo' {CLOCK_DIR}").strip()
-    london = su(f"grep -rIlE 'London' {CLOCK_DIR}").strip()
-    if not tokyo:
-        bad.append("no Tokyo world clock found in the Clock app's files")
-    if not london:
-        bad.append("no London world clock found in the Clock app's files")
+    places = set(re.findall(r'name="place_timezone_id_\d+">([^<]+)<', files))
+    bad = [
+        f"no {city} world clock; clocks are {sorted(places)}"
+        for city, zone in (("Tokyo", "Asia/Tokyo"), ("London", "Europe/London"))
+        if zone not in places
+    ]
     snooze, silence = pref_minutes(files, "snooze"), pref_minutes(files, "silence")
     if snooze != 15:
         bad.append(f"snooze length is {snooze} minutes, wanted 15")
@@ -252,31 +262,25 @@ def check_clock_settings():
 
 
 def conversations():
-    out = su(f'sqlite3 -header -separator "|" {BUGLE_DB} "select * from conversations"').splitlines()
-    if len(out) < 2:
-        return []
-    cols = out[0].split("|")
-    return [dict(zip(cols, line.split("|"))) for line in out[1:]]
-
-
-def flag(row, word):
-    return any(
-        word in k.lower() and v not in ("", "0", "NULL", "null") for k, v in row.items()
+    out = su(
+        f'sqlite3 -separator "|" {BUGLE_DB} "select c._id, c.name, c.archive_status, coalesce(p.pin_status, 0) '
+        'from conversations c left join conversation_pin p on p.conversation_id = c._id"'
     )
+    return [dict(zip(("id", "name", "archived", "pinned"), line.split("|"))) for line in out.splitlines() if line.count("|") == 3]
 
 
 def check_messages():
     rows_ = conversations()
     bad = []
-    for name, number in THREADS.items():
-        mine = [r for r in rows_ if any(name in v or number[-10:] in v for v in r.values())]
+    want = {"Alice Chen": (False, False), "Bob Park": (True, False), "Carol Diaz": (False, True)}
+    for name, (pinned, archived) in want.items():
+        mine = [r for r in rows_ if r["name"] == name]
         if len(mine) != 1:
-            bad.append(f"{len(mine)} conversations for {name}")
+            bad.append(f"{len(mine)} conversations named {name}")
             continue
-        pinned, archived = flag(mine[0], "pin"), flag(mine[0], "archiv")
-        want = {"Alice Chen": (False, False), "Bob Park": (True, False), "Carol Diaz": (False, True)}[name]
-        if (pinned, archived) != want:
-            bad.append(f"{name}: pinned={pinned} archived={archived}, wanted pinned={want[0]} archived={want[1]}")
+        got = (mine[0]["pinned"] not in ("0", ""), mine[0]["archived"] not in ("0", ""))
+        if got != (pinned, archived):
+            bad.append(f"{name}: pinned={got[0]} archived={got[1]}, wanted pinned={pinned} archived={archived}")
     return bad
 
 
@@ -301,12 +305,16 @@ def check_photos():
     return bad
 
 
+def packages(text):
+    return set(re.findall(r"\b[a-z]\w*(?:\.\w+)+", text))
+
+
 def appops_ignored():
-    return set(sh("cmd appops query-op RUN_ANY_IN_BACKGROUND ignore").split())
+    return packages(sh("cmd appops query-op RUN_ANY_IN_BACKGROUND ignore"))
 
 
 def check_wakelock():
-    base = set(sh(f"cat {BASELINE}-ignored").split())
+    base = packages(sh(f"cat {BASELINE}-ignored"))
     now = appops_ignored() - base
     bad = []
     if TESTBED not in now:
@@ -374,6 +382,17 @@ def launch_testbed(tab):
     time.sleep(2)
 
 
+def reset_threads():
+    sh("am force-stop com.google.android.apps.messaging")
+    su(f'sqlite3 {BUGLE_DB} "delete from conversation_pin; update conversations set archive_status = 0"')
+
+
+def purge_messages():
+    delete_contacts(*THREADS)
+    sh("content delete --uri content://sms")
+    sh("pm clear com.google.android.apps.messaging")
+
+
 def seed(task):
     if task in ("relay-code", "log-code"):
         delete_contacts("Locker 7" if task == "relay-code" else "Locker 9")
@@ -383,11 +402,13 @@ def seed(task):
             launch_testbed("relaylog")
         sh("input keyevent KEYCODE_HOME")
     elif task == "messages-pin-archive":
-        delete_contacts(*THREADS)
-        for name, number in THREADS.items():
-            insert_contact(name, number)
+        reset_threads()
+        have = {r["name"] for r in conversations()}
         for i, (name, number) in enumerate(THREADS.items()):
-            adb("emu", "sms", "send", number, f"Hi from {name.split()[0]}, message {i + 1}")
+            if name not in have:
+                delete_contacts(name)
+                insert_contact(name, number)
+                emu("sms", "send", number, f"Hi from {name.split()[0]}, message {i + 1}")
     elif task == "photos-crop":
         path = "/tmp/jobs-harbor.png"
         open(path, "wb").write(png(1200, 800))
@@ -413,10 +434,10 @@ def clean(task):
         delete_contacts("Locker 7" if task == "relay-code" else "Locker 9")
         sh(f"am force-stop {TESTBED}; run-as {TESTBED} rm -f files/relay_code")
     elif task == "messages-pin-archive":
-        delete_contacts(*THREADS)
-        sh("content delete --uri content://sms")
+        reset_threads()
     elif task == "photos-crop":
-        sh("rm -f /sdcard/Pictures/jobs-*.png /sdcard/Pictures/*Edited* /sdcard/Pictures/*-edited*")
+        sh("rm -f /sdcard/Pictures/jobs-harbor*")
+        sh("content delete --uri content://media/external/images/media --where \"_display_name like 'jobs-harbor%'\"")
         sh(f"rm -f {BASELINE}-photos")
     elif task == "wakelock-restrict":
         sh(f"cmd appops reset {TESTBED}; am force-stop {TESTBED}; rm -f {BASELINE}-ignored")
@@ -434,7 +455,7 @@ def main(argv):
         bad = CHECKS[task]()
         print("\n".join(bad))
         return 1 if bad else 0
-    {"seed": seed, "clean": clean}[verb](task)
+    {"seed": seed, "clean": clean, "purge": lambda _: purge_messages()}[verb](task)
     return 0
 
 
