@@ -237,6 +237,9 @@ pub(crate) enum Verb {
     Open {
         /// The link, such as `https://example.com` or `myapp://item/3`.
         url: String,
+        /// Open it in this app (name or id) instead of the default handler.
+        #[arg(long)]
+        app: Option<String>,
     },
     /// List the apps that can be launched, or `install <path>`, `stop`, `clear` (data) or `uninstall` one by name or id.
     /// On a physical device `clear` and `uninstall` only touch apps phone-use installed.
@@ -933,7 +936,7 @@ pub(crate) fn step_json(verb: &Verb, secret: Option<&str>) -> Result<Value, Fail
         Verb::Launch { app, grant } => {
             json!({"kind": "launch", "app": app, "grant": grant})
         }
-        Verb::Open { url } => json!({"kind": "open", "url": url}),
+        Verb::Open { url, app } => json!({"kind": "open", "url": url, "app": app}),
         Verb::Type {
             text,
             into,

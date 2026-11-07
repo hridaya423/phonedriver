@@ -128,6 +128,13 @@ impl Rendered {
         false
     }
 
+    pub fn in_web_view(&self, r: Ref) -> bool {
+        self.index_of(r).is_some_and(|i| {
+            self.ancestors(i)
+                .any(|a| self.elements[a].role == Role::WebView)
+        })
+    }
+
     /// A progress indicator is visible, or a web view has not shown its page yet (it has no children).
     /// The floating `Toolbar` that covers the center of element `i` without containing it, and which way to scroll to
     /// move the element out from under it: down for a bar on the lower half of the screen, up for one on the upper.
@@ -954,6 +961,28 @@ mod tests {
             r#",{"p":1,"cls":"XCUIElementTypeStaticText","text":"Example Domain","b":[0,100,400,140],"f":"vVe"}"#,
         );
         assert!(!page.loading());
+    }
+
+    #[test]
+    fn a_field_is_in_a_web_view_only_when_a_web_view_contains_it() {
+        let json = r#"{"app":{"bundle_id":"x","pid":1},"nodes":[
+            {"p":-1,"cls":"XCUIElementTypeOther","b":[0,0,400,800],"f":"vVe"},
+            {"p":0,"cls":"XCUIElementTypeSearchField","text":"Native","a":["tap"],"b":[0,10,400,50],"f":"vVe"},
+            {"p":0,"cls":"XCUIElementTypeWebView","text":"Page title","b":[0,100,400,700],"f":"vVe"},
+            {"p":2,"cls":"XCUIElementTypeSearchField","text":"Page","a":["tap"],"b":[0,110,400,150],"f":"vVe"}]}"#;
+        let tree = RawTree::from_ios_json(json).unwrap();
+        let nodes = prune(&tree);
+        let refs = RefTable::default().assign(&tree, &nodes);
+        let r = Rendered::build(nodes, &refs, header());
+        let fields: Vec<Ref> = r
+            .elements
+            .iter()
+            .filter(|e| e.role.is_text_entry())
+            .map(|e| e.r#ref)
+            .collect();
+        assert_eq!(fields.len(), 2);
+        assert!(!r.in_web_view(fields[0]));
+        assert!(r.in_web_view(fields[1]));
     }
 
     #[test]

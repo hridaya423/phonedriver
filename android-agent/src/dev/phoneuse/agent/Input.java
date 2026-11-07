@@ -36,6 +36,12 @@ final class Input {
         }
     }
 
+    static void selectAll() {
+        long now = SystemClock.uptimeMillis();
+        inject(new KeyEvent(now, now, KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_A, 0, KeyEvent.META_CTRL_ON), ASYNC);
+        inject(new KeyEvent(now, now, KeyEvent.ACTION_UP, KeyEvent.KEYCODE_A, 0, KeyEvent.META_CTRL_ON), FINISH);
+    }
+
     static void collapsePanels() {
         ServiceManager.getStatusBarManager().collapsePanels();
     }

@@ -1536,6 +1536,7 @@ dependencies = [
  "phone-use-core",
  "phone-use-ios",
  "phone-use-video",
+ "png",
  "proptest",
  "rmcp",
  "schemars",
