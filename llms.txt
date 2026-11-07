@@ -1,0 +1,30 @@
+# phonedriver
+
+> phonedriver is an open-source MCP server and CLI that lets AI agents like Claude Code see and control Android and iOS phones.
+
+phonedriver returns the screen as numbered text and, after each tap, type or swipe, only the lines that changed. It is one Rust binary under AGPL-3.0-only. It sends no telemetry. Speed figures are measured on an Android emulator; no physical Android phone has been measured.
+
+## Start here
+
+- [README](README.md): definition, speed and token numbers, install, FAQ
+- [Agent instructions (SKILL.md)](SKILL.md): the strategy an agent reads before it uses the tools
+- [Comparison](docs/compare.md): phonedriver, adb, phone-harness and mobile-mcp
+
+## Benchmarks
+
+- [Speed, 2026-11-07](docs/bench/speed-2026-11-07.md): method, p50 and p95, confidence intervals
+- [Speed data (JSON)](docs/bench/speed.json): p50 and p95 per operation and tool
+- [Tokens per task](docs/bench/tokens.md): four harnesses, three tasks
+- [Tokens data (JSON)](docs/bench/tokens.json): every run
+- [Raw speed samples](docs/bench/data/speed-2026-11-07/samples.csv)
+
+## Design
+
+- [Architecture](docs/architecture.md)
+- [Protocol](docs/protocol.md)
+- [Decisions](docs/decisions.md)
+
+## Optional
+
+- [Claims ledger](docs/launch/claims-ledger.md): the repository file behind each public claim
+- [Competitor research](docs/research/competitors.md)

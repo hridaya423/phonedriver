@@ -136,3 +136,28 @@ Figures below are from `docs/bench/speed-2026-11-07.md` (raw samples in `docs/be
 | Name check: `phone-use` is taken on npm and as the GitHub organization `phone-use`; `tapdiff`, `phonewright`, `diffphone` are free on crates.io, npm, PyPI and as GitHub accounts | plan | Not in the repo. Registry and GitHub API checks of 2026-11-06 (`research.md`). |
 
 New number slots in round 2: [TBD: paired quiet-machine re-run including tap]; [TBD: token rerun with the shell tool and mobile-mcp on a local emulator]; [TBD: re-recorded demo]; [TBD: local-model result]; [TBD: iOS hybrid tier]. The old [TBD: shell tool] slot is closed: it shipped.
+
+## README restructure, hero chart, FAQ, compare page (2026-11-07)
+
+The product is named phonedriver in this copy; the code still says phone-use until the rename pass.
+
+| Claim | Where used | Backing file |
+|---|---|---|
+| phonedriver is an open-source MCP server and CLI that lets AI agents like Claude Code see and control Android and iOS phones. (canonical sentence) | README top, `Cargo.toml`, `llms.txt`, `docs/README.md`, `docs/compare.md`, `docs/launch/github-metadata.md` | MCP: `phone-use mcp`, README "Use with other MCP clients". CLI: README "Try it". Claude Code: `claude mcp add` in README. Android and iOS: README "Supported devices". Open source: `LICENSE` (AGPL-3.0-only), `Cargo.toml` |
+| Up to 98x faster than adb | hero chart title, README, FAQ | `docs/bench/speed.json` (`headline_adb` of `tree_list`), `docs/bench/speed-2026-11-07.md` "Verdict" |
+| Read 1,000-row tree 24.0 vs 2,352.4 ms (98x); screenshot 11.6 vs 476.3 (41x); type 100 chars 251.1 vs 4,840.9 (19x); tap and see what changed 586.9 vs 2,725.8 (4.6x) | hero chart, README Numbers, compare.md | `docs/bench/speed.json`; `docs/bench/speed-2026-11-07.md` "Results" |
+| phone-harness is 111x, 49x and 22x slower on the first three rows; "tap, then what changed" not supported | hero chart, README Numbers, compare.md | `docs/bench/speed-2026-11-07.md` ratio table |
+| Hero bars are drawn to scale: adb full width, phonedriver at its p50 fraction of adb | hero chart | `design/build/build.py` `hero()`, reads `speed.json` |
+| p50 of 50 runs on an Android 17 emulator; no physical phone measured | hero subtitle, README, FAQ | `docs/bench/speed-2026-11-07.md` "Method", "What this does not show" |
+| mobile-mcp has no speed figure here | README Numbers, compare.md, FAQ | Not in `docs/bench/speed-2026-11-07.md`; `docs/research/competitors.md` "Nothing here was benchmarked" |
+| 218,357 tokens against 330,375, 34% fewer; all runs passed for both | README Numbers, compare.md, FAQ | `docs/bench/tokens.md` "Round 3" (sum of medians; 218,357 / 330,375 = 0.661) |
+| phonedriver used more on `wiki-birthdate`, 57,753 against 53,403 | FAQ, compare.md | `docs/bench/tokens.md` "Round 3" |
+| mobile-mcp passed 0 of 3, an environment failure; adb failed the web form | README Numbers, compare.md | `docs/bench/tokens.md` "Caveats" |
+| mobile-mcp: no wait or diff after actions; Android, iOS, cloud; Apache-2.0; batch, recording, logs | README Numbers, FAQ, compare.md | `docs/research/competitors.md` sections 1a, 1b, "Act and observe in one call". Verify: fetched through a summarizing tool on 2026-11-06 |
+| phone-harness: Python CLI, OCR and `uiautomator dump`, iPhone via Mac mirroring, MIT | README Numbers, compare.md | `docs/research/competitor-teardown.md`; `docs/research/competitors.md` 1a |
+| adb and phone-harness cannot type Unicode; phonedriver typed mixed-script text in 225.0 ms | compare.md | `docs/bench/speed-2026-11-07.md` "Results" |
+| Approval guard stops `Place order`, `Pay`, `Delete account`; exit code 5; fixed English labels | README Numbers, FAQ, compare.md | `docs/decisions.md` D27; README "Debugging" (now `docs/reference.md`) |
+| Shell on the device | README Numbers, compare.md | `docs/decisions.md` D21 |
+| iPhone 14 Plus and iPad Pro tested, tap 454 to 534 ms | FAQ, compare.md | README "Supported devices"; `docs/bench/m5.md` |
+| AGPL-3.0-only; network-service source clause; no telemetry | FAQ | `LICENSE`; README "License" and "Use with other MCP clients"; decision D9 |
+| GitHub description (106 characters) and 11 topics, each topic non-empty on GitHub | `docs/launch/github-metadata.md` | `gh search repos --topic <t> --limit 1`, 2026-11-07 |
