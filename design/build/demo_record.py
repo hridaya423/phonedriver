@@ -36,7 +36,7 @@ for k, v in {"OUT": str(OUT), "PROMPT": PROMPT, "WAIT": str(WAIT)}.items():
     tape = tape.replace("{{" + k + "}}", v)
 (OUT / "run.tape").write_text(tape)
 
-ssh(f"xcrun simctl terminate {UDID} com.apple.mobilesafari; rm -f ~/Library/Developer/CoreSimulator/Devices/{UDID}/data/Library/Safari/SafariTabs.db* ~/Library/Developer/CoreSimulator/Devices/{UDID}/data/Library/Safari/BrowserState.db*; xcrun simctl ui {UDID} appearance light; {HOST_BIN} press home; {HOST_BIN} release")
+ssh(f"xcrun simctl terminate {UDID} com.apple.mobilesafari; find ~/Library/Developer/CoreSimulator/Devices/{UDID}/data/Library/Safari \\( -name 'SafariTabs.db*' -o -name 'BrowserState.db*' -o -name 'CloudTabs.db*' \\) -delete; xcrun simctl ui {UDID} appearance light; {HOST_BIN} press home; {HOST_BIN} release")
 for row in ssh(f"{HOST_BIN} devices").stdout.splitlines()[1:]:
     dev, lease = row.split()[0], row.split()[-1]
     if lease != "-":
