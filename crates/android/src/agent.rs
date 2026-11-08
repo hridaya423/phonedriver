@@ -20,6 +20,7 @@ pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 const JAR: &[u8] = include_bytes!(env!("PHONEDRIVER_AGENT_JAR"));
 const JAR_MISSING: i32 = 99;
 const NO_HIDDEN_DISPLAY: i32 = 5;
+const SIGTERM: i32 = 143;
 const READY_TIMEOUT: Duration = Duration::from_secs(3);
 /// Creating the encoder and the virtual display at 2560x1600 took 5 to 8 s to `ready` on the API 37 tablet emulator.
 const HIDDEN_READY_TIMEOUT: Duration = Duration::from_secs(20);
@@ -202,6 +203,11 @@ fn not_ready(exit: Option<i32>, timed_out: bool, limit: Duration, lines: &[Strin
             "the agent did not print `ready` within {} s: {tail}",
             limit.as_secs()
         ));
+    }
+    if exit == Some(SIGTERM) && tail.is_empty() {
+        return transport(
+            "the agent was stopped before it was ready; starting an agent kills the running one, so another phonedriver daemon using this device does this",
+        );
     }
     transport(format!(
         "the agent exited with code {} before it was ready: {tail}",
@@ -394,6 +400,15 @@ mod tests {
         }))
         .unwrap();
         assert_eq!(plain.hidden_display, None);
+    }
+
+    #[test]
+    fn an_agent_stopped_before_it_was_ready_names_what_stops_agents() {
+        let e = not_ready(Some(143), false, READY_TIMEOUT, &[]).to_string();
+        assert!(e.contains("another phonedriver"), "{e}");
+        assert!(!e.trim_end().ends_with(':'), "{e}");
+        let other = not_ready(Some(1), false, READY_TIMEOUT, &["boom".into()]).to_string();
+        assert!(other.ends_with("before it was ready: boom"), "{other}");
     }
 
     #[test]
