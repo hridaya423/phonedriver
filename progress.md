@@ -642,3 +642,10 @@ Evidence:
 - Changed: doctor's probes (`health`, and the simulator runner `snapshot`) pass `share: true`, as `--share` does, so they read the device without taking its lease or failing on someone else's.
 - Test: `a_probe_shares_a_device_another_session_holds` (the probe parameters; the daemon side is the existing `a_second_session_gets_device_busy_until_release_or_share`). `cargo clippy -p phonedriver --tests` and `--no-default-features` clean.
 - Live (emulator-5556, API 26, lease held by `default` from a `press home`): before, the `fail agent` line above; after, `ok agent android:emulator-5556 answers hello ... 1.0 s with deploy`, `ok uiautomation`, `ok video`, and `devices` still shows the lease with `default (idle 7s)`.
+
+## AX/DX audit: lines that are only separators are not listed (2026-11-08)
+
+- Found: Chrome lists the punctuation between inline links as nodes. The first snapshot of en.wikipedia.org's main page (emulator-5558) had `@e18 text ","`, `@e26 text " · "`, `@e37 text " "`, `@e43 text ", "`, `@e25 text "."` and four `group "• "`: 9 of 95 lines, 155 of 3,563 characters (4.3%, about 39 tokens), none of which says anything.
+- Changed: `prune` drops a node that has no action, value or hint and whose label is only whitespace and `· • , . ; : | / - – —` (`is_separator`). A tappable `-`, a `★` and any label with a letter or digit stay.
+- Test first: `text_made_only_of_separators_is_dropped_and_words_around_it_stay`; red: `left: ["the ", " · ", ",", "• ", "★", "-", "7"]`. After: `cargo test -p phonedriver-core` 151 passed; `cargo test -p phonedriver --no-fail-fast` all ok but `a_frame_of_412_by_915_takes_under_120_ms_at_the_median` (timing under load average 55).
+- Not live-checked on the page above (emulator-5558 was in use by another session; emulator-5556's Chrome opens an app chooser).

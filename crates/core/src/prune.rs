@@ -213,8 +213,12 @@ pub fn prune(tree: &RawTree) -> Vec<Node> {
         let label = if state_word(&label) { None } else { label };
         let scrollable =
             node.actions.intersects(Actions::SCROLL) || node.flags.contains(NodeFlags::SCROLLABLE);
+        let separator = node.actions.is_empty()
+            && node.value.is_none()
+            && hint.is_none()
+            && label.as_deref().is_some_and(is_separator);
         let keep = !node.actions.is_empty()
-            || label.is_some()
+            || (label.is_some() && !separator)
             || node.value.is_some()
             || hint.is_some()
             || node.role.is_text_entry()
@@ -269,6 +273,18 @@ pub fn prune(tree: &RawTree) -> Vec<Node> {
 }
 
 /// A labeled control is one element to a screen reader: its icons and the texts its label already holds add nothing.
+/// A text node that is only the punctuation a page puts between inline elements (`,`, ` · `, `• `): it tells a model
+/// nothing and costs a line.
+fn is_separator(label: &str) -> bool {
+    label.chars().all(|c| {
+        c.is_whitespace()
+            || matches!(
+                c,
+                '·' | '•' | ',' | '.' | ';' | ':' | '|' | '/' | '-' | '–' | '—'
+            )
+    })
+}
+
 fn hide_repeats(
     tree: &RawTree,
     children: &[Vec<usize>],
@@ -388,6 +404,23 @@ mod tests {
         let roles: Vec<Role> = nodes.iter().map(|n| n.role).collect();
         assert_eq!(roles, [Role::WebView, Role::Checkbox]);
         assert_eq!(nodes[1].parent, Some(0));
+    }
+
+    #[test]
+    fn text_made_only_of_separators_is_dropped_and_words_around_it_stay() {
+        let json = r#"{"density":1.0,"windows":[],"nodes":[
+            {"p":-1,"w":1,"cls":"android.widget.FrameLayout","b":[0,0,400,800],"f":"vVe"},
+            {"p":0,"w":1,"cls":"android.widget.TextView","text":"the ","b":[0,10,40,30],"f":"vVe"},
+            {"p":0,"w":1,"cls":"android.widget.TextView","text":" · ","b":[40,10,50,30],"f":"vVe"},
+            {"p":0,"w":1,"cls":"android.widget.TextView","text":",","b":[50,10,60,30],"f":"vVe"},
+            {"p":0,"w":1,"cls":"android.view.View","text":"• ","b":[0,40,20,60],"f":"vVe"},
+            {"p":0,"w":1,"cls":"android.widget.TextView","text":"★","b":[0,70,20,90],"f":"vVe"},
+            {"p":0,"w":1,"cls":"android.widget.TextView","text":"-","b":[0,100,20,120],"f":"vVe","a":["tap"]},
+            {"p":0,"w":1,"cls":"android.widget.TextView","text":"7","b":[0,130,20,150],"f":"vVe"}
+        ]}"#;
+        let nodes = prune(&RawTree::from_android_json(json, Scale { density: 1.0 }).unwrap());
+        let labels: Vec<&str> = nodes.iter().filter_map(|n| n.label.as_deref()).collect();
+        assert_eq!(labels, ["the ", "★", "-", "7"]);
     }
 
     #[test]
