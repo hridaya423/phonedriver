@@ -535,6 +535,9 @@ impl Error {
             Error::Unsupported { op: Op::Display, .. } => {
                 "Leave out `--display hidden` (and unset `PHONEDRIVER_DISPLAY`) to work on the phone's own screen.".into()
             }
+            Error::Unsupported {
+                op: Op::OpenUrl, ..
+            } => "Use a link an installed app opens, such as `https:`, or `phonedriver launch` an app by name.".into(),
             Error::Unsupported { op: Op::Ocr, .. } => {
                 "Use `phonedriver screenshot` to look at the screen instead.".into()
             }
