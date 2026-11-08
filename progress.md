@@ -907,3 +907,11 @@ The fixes come from the first run on a physical Android phone, a Honor X8 (TFY-L
 - Test: `a_label_on_several_lines_is_one_line_and_a_field_keeps_its_newlines`. It failed first.
 - Live check on the Honor X8: the result card prints `@e6 button "Wikipedia · Wikimedia Foundation"`, and `tap "Wikipedia · Wikimedia Foundation"` resolves it.
 - `cargo test --workspace --no-fail-fast`: 673 passed, 0 failed.
+
+## 2026-11-08: a group named like its only control, and an inert copy lying on a control, are not listed
+
+- Seen in agent run t6: `group "Play trailer for 'Wikipedia'"` printed next to `button "Play trailer for 'Wikipedia'"`. The two are siblings with the same bounds, and only the button acts.
+- Changed: `fold_wrappers` in `crates/core/src/prune.rs` now also drops two kinds of node. The first is an inert, childless, labeled node that has the label and bounds of a node with actions. The second is an inert, labeled group whose only child has its label.
+- Tests: `an_inert_copy_of_a_control_in_the_same_place_is_not_listed` and `a_group_named_like_its_only_control_is_that_control` failed first. `the_clipboard_confirmation_our_own_paste_raises_is_not_part_of_the_screen` had counted a group and its same-label button as two lines. It now expects the one button.
+- Live check on the Honor X8: the Play search result lists `Play trailer for 'Wikipedia'` once.
+- `cargo test --workspace --no-fail-fast`: 673 passed, 0 failed.
