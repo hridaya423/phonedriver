@@ -7,7 +7,7 @@
   <a href="https://www.npmjs.com/package/phonedriver"><img alt="npm" src="https://img.shields.io/npm/v/phonedriver?style=flat-square&labelColor=161512&color=6b675e"></a>
 </p>
 
-phonedriver lets Claude Code, Codex, Cursor or any MCP client use an Android phone or an iPhone. The model opens apps, taps, types, scrolls and reads the screen. It reads the screen as text instead of screenshots: on an emulator, a 1,000-row screen comes back in 24 ms. After each tap it gets back only the lines that changed. And when it reaches a button labeled Pay or Place order, phonedriver stops and asks you.
+phonedriver lets Claude Code, Codex, Cursor or any MCP client use an Android phone or an iPhone. The model opens apps, taps, types, scrolls and reads the screen. It reads the screen as text instead of screenshots, and after each tap it gets back only the lines that changed. On the same nine phone jobs, that took 5x fewer tokens than mobile-mcp. And when it reaches a button labeled Pay or Place order, phonedriver stops and asks you.
 
 <p align="center">
   <img alt="Claude Code drives an Android phone through phonedriver. It finds the best-rated Indian restaurant near Times Square on Uber Eats, adds butter chicken and garlic naan to the cart and stops at checkout. Then, on a test checkout screen, it taps Place order and phonedriver asks the human first. The human declines and nothing is ordered." src=".github/assets/demo.gif" width="100%">
@@ -62,6 +62,14 @@ ok tapped @e24 "Dark theme" at 353,532 · settled in 2034ms
 
 `+` marks a line that appeared, `-` one that left, `~` one that changed. The model doesn't need to poll or guess how long a screen takes to load. It takes a screenshot only when it needs to see a picture.
 
+## Fewer tokens
+
+Tokens are what an agent's usage limit is spent on. I ran nine jobs that only a phone can do, twice each, with Claude Sonnet 5.5 and three MCP servers. The jobs included setting Chrome's search engine, cropping a photo, pinning and archiving Messages threads, finding the app that keeps the phone awake, and testing a sign-up flow for planted bugs. A script checked the phone's own data afterwards, not the model's report.
+
+<p align="center"><picture><source media="(prefers-color-scheme: dark)" srcset=".github/assets/jobs-dark.svg"><img alt="On nine real phone jobs, two runs each, with Claude Sonnet 5.5: phonedriver passed 18 of 18 with 978 thousand tokens in 7.8 minutes; mobile-mcp passed 18 of 18 with 4.9 million tokens in 15.2 minutes; phone-harness passed 14 of 18 with 1.3 million tokens in 32.4 minutes." src=".github/assets/jobs-light.svg" width="100%"></picture></p>
+
+This is my own test set, run on an Android emulator. Every run, the versions and the checks are published in [docs/bench/jobs.md](docs/bench/jobs.md). If you maintain one of these tools and think I set it up wrong, open an issue and I will rerun it.
+
 ## Speed
 
 <p align="center">
@@ -81,10 +89,6 @@ You choose Allow, Allow for this session, or Decline. If you want an agent to ru
 The check reads button labels in English, Spanish, Portuguese, French, German, Italian, Dutch, Japanese, Chinese (Simplified), Korean and Hindi. It does not catch a payment button that is only an icon, or one labeled in another language. By default it asks about payments and deleting an account. To be asked about more, set `PHONEDRIVER_ASK` to any of `send` (Send, Reply, Post, Share), `delete` (Delete, Remove, Clear all) and `install` (Install, Uninstall), for example `PHONEDRIVER_ASK=send,delete`. The prompt says which kind of tap it is.
 
 The model can't type plain text into a password field or a one-time code field. It gets an error that tells it to use `secret`, which keeps the text out of logs and traces.
-
-## Real jobs
-
-I tested phonedriver on nine jobs done in apps' own screens. They included setting Chrome's search engine, cropping a photo, pinning and archiving Messages threads, finding the app that keeps the phone awake, and testing a sign-up flow for planted bugs. Each job ran twice with Claude Sonnet 5.5. A script checked the phone's own data afterwards, not the model's report. All 18 runs passed. This is my own test set, published with every run: [the jobs and the checks](docs/bench/jobs.md).
 
 ## Works with
 
