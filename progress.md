@@ -696,3 +696,11 @@ Evidence:
   - `PHONEDRIVER_HOME=B phonedriver --device android:emulator-5556 snapshot` -> `error: device android:emulator-5556 is driven by another phonedriver daemon (pid 14737 on Hridyas-MacBook-Pro.local)` / `hint: Stop that daemon (`kill 14737` on Hridyas-MacBook-Pro.local) or use another device, then retry.` in 3.7 s; the agent process (pid 31254) was unchanged before and after, and A's next `snapshot` answered from it.
   - `PHONEDRIVER_HOME=A phonedriver daemon stop`, then B's `snapshot` -> screen in 1.6 s, owner file now `pid=14807`.
 - Not covered: two daemons that start in the same few milliseconds can both pass the check (D34 Limits); a daemon from before this change still kills ours.
+- Not covered: two daemons that start in the same few milliseconds can both pass the check (D33 Limits); a daemon from before this change still kills ours.
+
+## AX/DX audit: a not-settled launch still carries the screen lines (2026-11-08)
+
+- Found: `launch` on the first call after a daemon restart answered `not settled after 12421ms` and no element lines. A reply of that shape is a full observation whose tree had no elements: the header (`device`, `app ... · not settled after Nms`) is always printed, the lines come from the tree read after the settle, and `report` took that one read as it was (it re-read only when a diff lost lines).
+- Changed: `report` re-reads the tree for up to `CONTENT_WAIT` (2 s, every 100 ms) while the rendered screen has no elements, whatever the settle said.
+- Test first (`crates/cli/tests/daemon.rs`, fake device with four element-less trees, then the Calculator screen, frames every 50 ms so the settle times out): `a_launch_that_never_settles_still_answers_with_the_screen_lines_once_the_tree_has_them`. Red before: the reply was `{"settled":false,... "text":"device fake:1 ...\napp com.android.calculator2 (Calculator) · keyboard hidden · not settled after 5000ms"}` with no line; green after. `cargo test -p phonedriver --test daemon`: 113 passed.
+- Live: not reproduced. Three cold `launch Settings` on emulator-5556 after `daemon stop` and `am force-stop`: `settled in 2940ms`, `3058ms`, `3218ms`, each with its element lines. The 12.4 s case came with two daemons replacing each other's agent (finding 3), which the live runs no longer have; the element-less read is inferred from the shape of the reply, not observed.
