@@ -2,7 +2,7 @@
 
 use phonedriver_core::device::Capabilities;
 use phonedriver_core::element::{Element, Ref, Role};
-use phonedriver_core::error::Direction;
+use phonedriver_core::error::{Category, Direction};
 use phonedriver_core::geometry::Rect;
 use phonedriver_core::render::Header;
 use serde::{Deserialize, Serialize};
@@ -303,6 +303,9 @@ pub struct ActParams {
     pub action: Action,
     #[serde(default)]
     pub approval: Option<Approval>,
+    /// The opt-in categories of tap to ask the human about, besides payments and account deletion (decision D30).
+    #[serde(default)]
+    pub ask: Vec<Category>,
     #[serde(default = "yes")]
     pub settle: bool,
     pub timeout_ms: Option<u64>,
@@ -398,6 +401,8 @@ pub struct BatchParams {
     /// Only `Autonomous` counts in a batch: a human approves one tap at a time.
     #[serde(default)]
     pub approval: Option<Approval>,
+    #[serde(default)]
+    pub ask: Vec<Category>,
     pub timeout_ms: Option<u64>,
     pub expect_change_ms: Option<u64>,
 }

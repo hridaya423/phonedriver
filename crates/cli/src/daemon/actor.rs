@@ -13,7 +13,7 @@ use phonedriver_core::device::{
 };
 use phonedriver_core::diff::{Change, DiffOrFull, diff};
 use phonedriver_core::element::{Actions, Element, ElementState, Ref, Role, Source};
-use phonedriver_core::error::{Direction, Error, Op, ScrollEnd, UserAction};
+use phonedriver_core::error::{Category, Direction, Error, Op, ScrollEnd, UserAction};
 use phonedriver_core::geometry::{Point, Rect, Size};
 use phonedriver_core::gesture;
 use phonedriver_core::ocr::{merge, tree_is_hollow};
@@ -1245,6 +1245,7 @@ impl Actor {
         &mut self,
         s: &mut Session,
         approval: Option<Approval>,
+        ask: &[Category],
         target: &Target,
         found: Option<&Element>,
         at: Point,
@@ -1260,7 +1261,7 @@ impl Actor {
             }
             _ => None,
         };
-        self.guard_button(s, approval, button).await
+        self.guard_button(s, approval, ask, button).await
     }
 
     async fn screen_for_guard(&mut self, s: &mut Session) -> Result<Rendered, Error> {
@@ -1280,31 +1281,35 @@ impl Actor {
         &mut self,
         s: &mut Session,
         approval: Option<Approval>,
+        ask: &[Category],
         field: Option<&Element>,
     ) -> Result<Option<&'static str>, Error> {
         let button = field
             .zip(s.last.as_ref())
-            .and_then(|(f, now)| guard::submit_button(now, f))
+            .and_then(|(f, now)| guard::submit_button(now, f, ask))
             .cloned();
-        self.guard_button(s, approval, button).await
+        self.guard_button(s, approval, ask, button).await
     }
 
     async fn guard_button(
         &mut self,
         s: &mut Session,
         approval: Option<Approval>,
+        ask: &[Category],
         button: Option<Element>,
     ) -> Result<Option<&'static str>, Error> {
-        let Some(button) = button.filter(guard::guarded) else {
+        let Some((button, category)) = button.and_then(|b| guard::guarded(&b, ask).map(|c| (b, c)))
+        else {
             return Ok(None);
         };
-        match guard::stance(s, approval) {
+        match guard::stance(s, approval, category) {
             guard::Stance::Run(note) => Ok(note),
             guard::Stance::Ask => {
                 let now = self.fresh(s).await?;
                 let details = guard::context(&now, &button);
                 Err(Error::NeedsApproval {
                     label: button.label.or(button.value).unwrap_or_default(),
+                    category,
                     app: guard::app_name(&now),
                     details,
                 })
@@ -1387,7 +1392,7 @@ impl Actor {
                     });
                 }
                 let approved = self
-                    .guard_tap(s, p.approval, &target, found.as_ref(), at)
+                    .guard_tap(s, p.approval, &p.ask, &target, found.as_ref(), at)
                     .await?;
                 let started = self.begin_action();
                 let t = Instant::now();
@@ -1745,7 +1750,8 @@ impl Actor {
                     ),
                 };
                 let approved = if submit {
-                    self.guard_submit(s, p.approval, field.as_ref()).await?
+                    self.guard_submit(s, p.approval, &p.ask, field.as_ref())
+                        .await?
                 } else {
                     None
                 };
@@ -2210,6 +2216,7 @@ impl Actor {
                         ActParams {
                             action,
                             approval: p.approval.filter(|a| *a == Approval::Autonomous),
+                            ask: p.ask.clone(),
                             settle: true,
                             timeout_ms: p.timeout_ms,
                             expect_change_ms: p.expect_change_ms,

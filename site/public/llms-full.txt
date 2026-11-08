@@ -58,7 +58,7 @@ mobile-mcp is an MCP server that reads the accessibility tree and also supports 
 
 ## Can the agent spend my money or delete things?
 
-Not without asking you. Before a tap on a button such as Place order, Pay, Send $20.00 or Delete account, phonedriver stops and asks the human through the MCP client, showing the app, the button and the amounts on screen. This stops an agent that follows its rules or is steered by screen text; it does not stop one set on bypassing it, and it reads labels in eleven languages, not icons. See the approval guard.
+Not without asking you. Before a tap on a button such as Place order, Pay, Send $20.00 or Delete account, phonedriver stops and asks the human through the MCP client, showing the app, the button and the amounts on screen. Sending, deleting and installing are asked about too when you set PHONEDRIVER_ASK. This stops an agent that follows its rules or is steered by screen text; it does not stop one set on bypassing it, and it reads labels in eleven languages, not icons. See the approval guard.
 
 ## Does phonedriver send telemetry?
 
@@ -463,11 +463,23 @@ An agent that can drive any app can place an order. phonedriver's approval guard
 
 ## What is guarded
 
-The guard reads the tapped element's label. It matches whole-label phrases such as `Pay`, `Pagar`, `Jetzt kaufen`, `提交订单`, `Pay now`, `Buy now`, `Place order`, `Confirm payment`, `Send money`, `Transfer`, `Start subscription` and `Delete account`, and short labels that start with a money verb and hold an amount, such as `Place order · $34.10`, `Send $20.00 to Sam` or `Subscribe · $9.99/month`.
+The guard reads the tapped element's label, in English, Spanish, Portuguese, French, German, Italian, Dutch, Japanese, Chinese (Simplified), Korean and Hindi. It matches whole-label phrases such as `Pay`, `Pagar`, `Jetzt kaufen`, `提交订单`, `Pay now`, `Buy now`, `Place order`, `Confirm payment`, `Send money`, `Transfer`, `Start subscription` and `Delete account`, and short labels that start with a money verb and hold an amount, such as `Place order · $34.10`, `Send $20.00 to Sam` or `Subscribe · $9.99/month`.
 
 It covers `tap` by ref, by text or by point, `type --submit` when a guarded button sits in the field's own form, and every step of a `batch`.
 
-Never guarded: tabs, menu items, text fields and switches; labels with `#` (an order number); `Add to cart`, `Buy again`, `Pay later`, a bare `Checkout`, a bare `Subscribe` and `Order status`. A chat `Send` is not guarded on purpose: it is the most common tap in the apps agents use, and a prompt on every reply would teach you to click Allow without reading.
+Never guarded: tabs, menu items, text fields and switches; labels with `#` (an order number); `Add to cart`, `Buy again`, `Pay later`, a bare `Checkout`, a bare `Subscribe` and `Order status`. A chat `Send` is not guarded unless you ask for it (below): it is the most common tap in the apps agents use, and a prompt on every reply would teach you to click Allow without reading.
+
+## Asking about more
+
+Payments and deleting an account are always asked about. Three more kinds of tap are off until you turn them on with `PHONEDRIVER_ASK`, a comma list in the environment of `phonedriver mcp` or the CLI:
+
+| Name | Held taps |
+|---|---|
+| `send` | `Send`, `Send message`, `Reply`, `Reply all`, `Post`, `Publish`, `Share`, `Forward` |
+| `delete` | `Delete`, `Delete message`, `Remove`, `Erase`, `Clear all`, `Clear history`, `Discard changes` |
+| `install` | `Install`, `Uninstall` |
+
+For example, `PHONEDRIVER_ASK=send,delete`. The labels are read in the same eleven languages. The prompt names the kind of tap that triggered it (`Category: send`). A name that is not on the list stops the server or command at start with exit code 2, so a typo cannot leave a kind unguarded. `Allow for this session` covers the kind it was given for, not the others. `PHONEDRIVER_GUARD=off` and `autonomous: true` skip these questions too.
 
 ## What you see
 

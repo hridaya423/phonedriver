@@ -5,6 +5,7 @@ use std::path::PathBuf;
 use std::process::ExitCode;
 use std::sync::Arc;
 
+use phonedriver_core::error::Category;
 use rmcp::handler::server::wrapper::Parameters;
 use rmcp::model::{
     CallToolRequestParams, CallToolResponse, CallToolResult, ContentBlock, ElicitRequest,
@@ -20,7 +21,7 @@ use serde_json::json;
 use tokio::sync::Mutex;
 
 use crate::client::{Client, Failure};
-use crate::commands::{Globals, Verb, execute_with, run_batch};
+use crate::commands::{Globals, Verb, ask_env, execute_with, run_batch};
 use crate::wire::{Approval, ScreenshotResult};
 
 #[derive(Clone)]
@@ -28,6 +29,7 @@ pub struct Mcp {
     socket: Option<PathBuf>,
     session: String,
     client: Arc<Mutex<Option<Client>>>,
+    ask: Vec<Category>,
 }
 
 #[derive(Deserialize, JsonSchema)]
@@ -355,7 +357,14 @@ impl Mcp {
             socket,
             session,
             client: Arc::default(),
+            ask: Vec::new(),
         }
+    }
+
+    /// Also asks the human before the taps of these opt-in categories (decision D30).
+    pub fn asking(mut self, ask: Vec<Category>) -> Mcp {
+        self.ask = ask;
+        self
     }
 
     async fn connect(&self) -> Result<Client, Failure> {
@@ -383,7 +392,7 @@ impl Mcp {
         result
     }
 
-    fn globals(device: Option<String>) -> Globals {
+    fn globals(&self, device: Option<String>) -> Globals {
         Globals {
             device: device.or_else(|| std::env::var("PHONEDRIVER_DEVICE").ok()),
             json: false,
@@ -392,6 +401,7 @@ impl Mcp {
             expect_change: None,
             share: false,
             approval: None,
+            ask: self.ask.clone(),
         }
     }
 
@@ -401,7 +411,7 @@ impl Mcp {
         verb: Verb,
         secret: Option<String>,
     ) -> CallToolResult {
-        self.run_with(Self::globals(device), verb, secret).await
+        self.run_with(self.globals(device), verb, secret).await
     }
 
     /// A tap that spends money or cannot be undone needs the human's word (decision D27), asked through the client's
@@ -416,7 +426,7 @@ impl Mcp {
         secret: Option<String>,
         autonomous: bool,
     ) -> Outcome {
-        let mut globals = Self::globals(device);
+        let mut globals = self.globals(device);
         if autonomous {
             globals.approval = Some(Approval::Autonomous);
         }
@@ -437,10 +447,11 @@ impl Mcp {
                 execute_with(client, verb(), secret.clone(), &globals).await
             })
             .await;
-        let Some((label, app, details)) = first.as_ref().err().and_then(approval_needed) else {
+        let Some((label, app, category, details)) = first.as_ref().err().and_then(approval_needed)
+        else {
             return Outcome::Done(Self::reply(first));
         };
-        let asked = commitment(&label, app.as_deref(), &details);
+        let asked = commitment(&label, app.as_deref(), category, &details);
         let prompt = format!("Your agent wants to do this on your phone:\n{asked}\nAllow it?");
         let reply = match channel {
             Channel::Mrtr {
@@ -553,8 +564,8 @@ impl Mcp {
 
 const NEEDS_APPROVAL: i32 = -32019;
 
-/// The guard's refusal, when `f` is one: the button, the app and the screen text around it.
-fn approval_needed(f: &Failure) -> Option<(String, Option<String>, Vec<String>)> {
+/// The guard's refusal, when `f` is one: the button, the app, what kind of tap it is and the screen text around it.
+fn approval_needed(f: &Failure) -> Option<(String, Option<String>, Category, Vec<String>)> {
     let Failure::Rpc(e) = f else { return None };
     if e.code != NEEDS_APPROVAL {
         return None;
@@ -564,13 +575,20 @@ fn approval_needed(f: &Failure) -> Option<(String, Option<String>, Vec<String>)>
         .as_array()
         .map(|a| a.iter().filter_map(text).collect())
         .unwrap_or_default();
-    Some((text(&e.data["label"])?, text(&e.data["app"]), details))
+    let category = serde_json::from_value(e.data["category"].clone()).ok()?;
+    Some((
+        text(&e.data["label"])?,
+        text(&e.data["app"]),
+        category,
+        details,
+    ))
 }
 
-fn commitment(label: &str, app: Option<&str>, details: &[String]) -> String {
+fn commitment(label: &str, app: Option<&str>, category: Category, details: &[String]) -> String {
+    let kind = format!("Category: {} ({}).", category.name(), category.what());
     let mut text = match app {
-        Some(app) => format!("Tap \"{label}\" in {app}."),
-        None => format!("Tap \"{label}\"."),
+        Some(app) => format!("Tap \"{label}\" in {app}. {kind}"),
+        None => format!("Tap \"{label}\". {kind}"),
     };
     for d in details {
         text.push_str("\n  ");
@@ -784,7 +802,7 @@ impl Mcp {
             time_limit: None,
             secret,
         };
-        let mut globals = Self::globals(a.device);
+        let mut globals = self.globals(a.device);
         globals.no_settle = a.settle == Some(false);
         self.run_with(globals, verb, secret.then_some(a.command))
             .await
@@ -836,7 +854,7 @@ impl Mcp {
     )]
     async fn screenshot(&self, Parameters(a): Parameters<ScreenshotArgs>) -> CallToolResult {
         let marks = a.marks.unwrap_or(false);
-        let globals = Self::globals(a.device);
+        let globals = self.globals(a.device);
         let shot = self
             .with_client(async |client| {
                 let mut params = json!({"inline": true, "marks": marks});
@@ -972,7 +990,7 @@ impl Mcp {
         if steps.is_empty() {
             return bad("a batch needs at least one step");
         }
-        let mut globals = Self::globals(a.device);
+        let mut globals = self.globals(a.device);
         globals.timeout = a.timeout_ms;
         let result = self
             .with_client(async |client| run_batch(client, steps, &globals).await)
@@ -985,7 +1003,7 @@ impl Mcp {
 
     #[tool(description = "Wait for `settled`, a text or @ref to appear, or `gone:<text>`.")]
     async fn wait(&self, Parameters(a): Parameters<WaitArgs>) -> CallToolResult {
-        let mut globals = Self::globals(a.device);
+        let mut globals = self.globals(a.device);
         globals.timeout = a.timeout_ms;
         let verb = Verb::Wait {
             condition: a.condition,
@@ -1083,7 +1101,14 @@ pub fn run() -> ExitCode {
         return ExitCode::from(1);
     };
     rt.block_on(async {
-        let mcp = Mcp::new(None, format!("mcp-{}", std::process::id()));
+        let ask = match ask_env() {
+            Ok(a) => a,
+            Err(message) => {
+                eprintln!("error: {message}");
+                return ExitCode::from(2);
+            }
+        };
+        let mcp = Mcp::new(None, format!("mcp-{}", std::process::id())).asking(ask);
         let held = mcp.clone();
         let running = match mcp.serve(rmcp::transport::stdio()).await {
             Ok(r) => r,

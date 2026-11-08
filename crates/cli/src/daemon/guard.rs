@@ -3,12 +3,16 @@
 mod labels;
 
 use phonedriver_core::element::{Element, ElementState, Role};
+use phonedriver_core::error::Category;
 use phonedriver_core::geometry::Point;
 use phonedriver_core::render::Rendered;
 
 use crate::daemon::session::Session;
 use crate::wire::Approval;
-use labels::{AMOUNT_VERBS, CJK_HEADS, EXACT, ORDER_VERBS, PREFIX};
+use labels::{
+    ACCOUNT, ACCOUNT_CJK, AMOUNT_VERBS, DELETE, DELETE_CJK, EXACT, INSTALL, INSTALL_CJK,
+    ORDER_VERBS, PAYMENT_CJK, PREFIX, SEND, SEND_CJK,
+};
 
 /// What to do with a tap that the classifier guards.
 #[derive(Debug, PartialEq, Eq)]
@@ -17,18 +21,34 @@ pub enum Stance {
     Ask,
 }
 
-pub fn stance(s: &mut Session, approval: Option<Approval>) -> Stance {
+pub fn stance(s: &mut Session, approval: Option<Approval>, category: Category) -> Stance {
     match approval {
         Some(Approval::Autonomous) => Stance::Run(None),
         Some(Approval::Session) => {
-            s.guard_allowed = true;
+            if !s.guard_allowed.contains(&category) {
+                s.guard_allowed.push(category);
+            }
             Stance::Run(Some("approved by the human for this session"))
         }
         Some(Approval::Once) => Stance::Run(Some("approved by the human")),
-        None if s.guard_allowed => Stance::Run(Some("approved by the human for this session")),
+        None if s.guard_allowed.contains(&category) => {
+            Stance::Run(Some("approved by the human for this session"))
+        }
         None => Stance::Ask,
     }
 }
+
+/// Whether a tap of this category is held: payments and account deletion always, the rest when the human asked.
+pub fn asks(category: Category, ask: &[Category]) -> bool {
+    category.always() || ask.contains(&category)
+}
+
+const OTHER_CATEGORIES: [(Category, &[&str], &[&str]); 4] = [
+    (Category::Account, ACCOUNT, ACCOUNT_CJK),
+    (Category::Send, SEND, SEND_CJK),
+    (Category::Delete, DELETE, DELETE_CJK),
+    (Category::Install, INSTALL, INSTALL_CJK),
+];
 
 const CODES: &[&str] = &[
     "usd", "eur", "gbp", "cad", "aud", "inr", "jpy", "mxn", "chf", "cny", "brl", "krw",
@@ -122,31 +142,29 @@ fn role_can_commit(role: Role) -> bool {
 /// Japanese, Chinese and Korean write no spaces between words, so the label is read as one run: the characters up to
 /// the first space, digit or symbol must be a known phrase (`购买` yes, `购买记录` no), and what follows must be
 /// an amount or nothing.
-fn classify_cjk(label: &str) -> bool {
+fn classify_cjk(label: &str) -> Option<Category> {
     let run: String = label.split_whitespace().collect();
     if run.chars().count() > 40 || run.contains('#') {
-        return false;
+        return None;
     }
     let head: String = run.chars().take_while(|c| is_cjk(*c)).collect();
     let tail = &run[head.len()..];
-    CJK_HEADS.contains(&head.as_str())
-        && (tail.chars().all(|c| !c.is_alphanumeric())
-            || tail.chars().any(|c| c.is_numeric() || SYMBOLS.contains(&c)))
+    let plain = tail.chars().all(|c| !c.is_alphanumeric())
+        || tail.chars().any(|c| c.is_numeric() || SYMBOLS.contains(&c));
+    if !plain {
+        return None;
+    }
+    if PAYMENT_CJK.contains(&head.as_str()) {
+        return Some(Category::Payment);
+    }
+    OTHER_CATEGORIES
+        .iter()
+        .find(|(_, _, cjk)| cjk.contains(&head.as_str()))
+        .map(|(c, _, _)| *c)
 }
 
-pub fn classify(role: Role, label: &str) -> bool {
-    if !role_can_commit(role) {
-        return false;
-    }
-    if label.trim_start().starts_with(is_cjk) {
-        return classify_cjk(label);
-    }
-    let words = tokens(label);
-    if words.is_empty() || words.len() > MAX_WORDS || words.iter().any(|w| w.starts_with('#')) {
-        return false;
-    }
-    let phrase = words.join(" ");
-    if EXACT.contains(&phrase.as_str()) {
+fn is_payment(words: &[String], phrase: &str) -> bool {
+    if EXACT.contains(&phrase) {
         return true;
     }
     if PREFIX
@@ -155,16 +173,7 @@ pub fn classify(role: Role, label: &str) -> bool {
     {
         return true;
     }
-    let delete_account = ["delete account", "delete my account", "delete your account"];
-    if matches!(
-        words[0].as_str(),
-        "delete" | "permanently" | "yes" | "confirm"
-    ) && words.len() <= 6
-        && delete_account.iter().any(|d| phrase.contains(d))
-    {
-        return true;
-    }
-    if words.len() == 1 || !has_amount(&words) {
+    if words.len() == 1 || !has_amount(words) {
         return false;
     }
     let verb = words[0].as_str();
@@ -174,6 +183,36 @@ pub fn classify(role: Role, label: &str) -> bool {
             .is_some_and(|w| has_digit(w) || w.contains(SYMBOLS) || w == "now" || w == "for");
     }
     AMOUNT_VERBS.contains(&verb)
+}
+
+pub fn classify(role: Role, label: &str) -> Option<Category> {
+    if !role_can_commit(role) {
+        return None;
+    }
+    if label.trim_start().starts_with(is_cjk) {
+        return classify_cjk(label);
+    }
+    let words = tokens(label);
+    if words.is_empty() || words.len() > MAX_WORDS || words.iter().any(|w| w.starts_with('#')) {
+        return None;
+    }
+    let phrase = words.join(" ");
+    if is_payment(&words, &phrase) {
+        return Some(Category::Payment);
+    }
+    let delete_account = ["delete account", "delete my account", "delete your account"];
+    if matches!(
+        words[0].as_str(),
+        "delete" | "permanently" | "yes" | "confirm"
+    ) && words.len() <= 6
+        && delete_account.iter().any(|d| phrase.contains(d))
+    {
+        return Some(Category::Account);
+    }
+    OTHER_CATEGORIES
+        .iter()
+        .find(|(_, exact, _)| exact.contains(&phrase.as_str()))
+        .map(|(c, _, _)| *c)
 }
 
 fn text_of(e: &Element) -> Option<&str> {
@@ -203,22 +242,36 @@ pub fn hit(now: &Rendered, at: Point) -> Option<&Element> {
         })
 }
 
-pub fn guarded(e: &Element) -> bool {
-    e.state.contains(ElementState::ENABLED) && text_of(e).is_some_and(|t| classify(e.role, t))
+/// What tapping `e` would commit, when the human wants to be asked about it.
+pub fn guarded(e: &Element, ask: &[Category]) -> Option<Category> {
+    if !e.state.contains(ElementState::ENABLED) {
+        return None;
+    }
+    text_of(e)
+        .and_then(|t| classify(e.role, t))
+        .filter(|c| asks(*c, ask))
 }
 
 /// A guarded button in the field's own form: within three ancestors of the field, never past a list. A field with no
-/// ancestor left (the pruned tree keeps no plain containers) shares the screen's top level with the button.
-pub fn submit_button<'a>(now: &'a Rendered, field: &Element) -> Option<&'a Element> {
+/// ancestor left (the pruned tree keeps no plain containers) shares the screen's top level with the button. When
+/// the form holds several, the one that matters most (payments first) is returned.
+pub fn submit_button<'a>(
+    now: &'a Rendered,
+    field: &Element,
+    ask: &[Category],
+) -> Option<&'a Element> {
     let search = |starts: Vec<usize>| {
         let mut stack = starts;
+        let mut found: Option<(&Element, Category)> = None;
         while let Some(i) = stack.pop() {
-            if guarded(&now.elements[i]) {
-                return Some(&now.elements[i]);
+            if let Some(c) = guarded(&now.elements[i], ask)
+                && found.is_none_or(|(_, best)| c < best)
+            {
+                found = Some((&now.elements[i], c));
             }
             stack.extend(now.elements[i].children.iter().copied());
         }
-        None
+        found.map(|(e, _)| e)
     };
     let mut at = now.index_of(field.r#ref)?;
     for _ in 0..3 {
@@ -410,10 +463,17 @@ mod tests {
         (Role::Heading, "Place order"),
     ];
 
+    fn by_default(role: Role, label: &str) -> bool {
+        classify(role, label).is_some_and(|c| asks(c, &[]))
+    }
+
     #[test]
     fn irreversible_labels_are_told_from_look_alikes() {
-        let missed: Vec<_> = POSITIVE.iter().filter(|(r, l)| !classify(*r, l)).collect();
-        let false_alarms: Vec<_> = NEGATIVE.iter().filter(|(r, l)| classify(*r, l)).collect();
+        let missed: Vec<_> = POSITIVE
+            .iter()
+            .filter(|(r, l)| !by_default(*r, l))
+            .collect();
+        let false_alarms: Vec<_> = NEGATIVE.iter().filter(|(r, l)| by_default(*r, l)).collect();
         assert!(missed.is_empty(), "not guarded: {missed:?}");
         assert!(
             false_alarms.is_empty(),
@@ -776,12 +836,12 @@ mod tests {
         let mut wrong = Vec::new();
         for (lang, positive, negative) in LANGUAGES {
             for label in *positive {
-                if !classify(Role::Button, label) {
+                if !by_default(Role::Button, label) {
                     wrong.push(format!("{lang}: not guarded: {label}"));
                 }
             }
             for label in *negative {
-                if classify(Role::Button, label) {
+                if by_default(Role::Button, label) {
                     wrong.push(format!("{lang}: guarded by mistake: {label}"));
                 }
             }
@@ -793,36 +853,233 @@ mod tests {
     fn a_label_in_another_language_on_a_navigating_role_is_not_guarded() {
         for label in ["Pagar", "立即支付", "भुगतान करें", "Jetzt kaufen"] {
             for role in [Role::Tab, Role::MenuItem, Role::TextField, Role::Heading] {
-                assert!(!classify(role, label), "{role:?} {label}");
+                assert_eq!(classify(role, label), None, "{role:?} {label}");
+            }
+        }
+    }
+
+    const OPT_IN: &[(Category, &[&str], &[&str])] = &[
+        (
+            Category::Send,
+            &[
+                "Send",
+                "Send message",
+                "Send email",
+                "Send now",
+                "Reply",
+                "Reply all",
+                "Post",
+                "Post reply",
+                "Publish",
+                "Tweet",
+                "Share",
+                "Forward",
+                "Enviar",
+                "Responder",
+                "Publicar",
+                "Compartir",
+                "Envoyer",
+                "Répondre",
+                "Partager",
+                "Senden",
+                "Antworten",
+                "Teilen",
+                "Veröffentlichen",
+                "Invia",
+                "Rispondi",
+                "Condividi",
+                "Verzenden",
+                "Beantwoorden",
+                "Delen",
+                "送信",
+                "返信する",
+                "投稿",
+                "共有",
+                "发送",
+                "回复",
+                "发布",
+                "分享",
+                "보내기",
+                "답장",
+                "게시",
+                "공유",
+                "भेजें",
+                "जवाब दें",
+                "पोस्ट करें",
+                "साझा करें",
+            ],
+            &[
+                "Sent",
+                "Sent items",
+                "Replies",
+                "Posts",
+                "Shared with me",
+                "Post office",
+                "Share settings",
+                "Message",
+                "送信済み",
+                "已发送",
+                "共有設定",
+            ],
+        ),
+        (
+            Category::Delete,
+            &[
+                "Delete",
+                "Delete message",
+                "Delete all",
+                "Delete forever",
+                "Delete photo",
+                "Remove",
+                "Remove all",
+                "Erase",
+                "Erase all data",
+                "Clear all",
+                "Clear history",
+                "Discard changes",
+                "Eliminar",
+                "Borrar",
+                "Quitar",
+                "Supprimer",
+                "Effacer",
+                "Löschen",
+                "Entfernen",
+                "Elimina",
+                "Rimuovi",
+                "Verwijderen",
+                "Wissen",
+                "削除",
+                "削除する",
+                "消去",
+                "删除",
+                "清空",
+                "삭제",
+                "지우기",
+                "हटाएं",
+                "डिलीट करें",
+            ],
+            &[
+                "Deleted",
+                "Deleted items",
+                "Recently deleted",
+                "Removed",
+                "Clearance",
+                "已删除",
+                "削除履歴",
+            ],
+        ),
+        (
+            Category::Install,
+            &[
+                "Install",
+                "Uninstall",
+                "Install app",
+                "Instalar",
+                "Desinstalar",
+                "Installer",
+                "Désinstaller",
+                "Installieren",
+                "Deinstallieren",
+                "Installa",
+                "Disinstalla",
+                "Installeren",
+                "インストール",
+                "アンインストール",
+                "安装",
+                "卸载",
+                "설치",
+                "इंस्टॉल करें",
+                "अनइंस्टॉल करें",
+            ],
+            &[
+                "Installed",
+                "Installing",
+                "Installation guide",
+                "Install date",
+            ],
+        ),
+    ];
+
+    #[test]
+    fn opt_in_labels_are_sorted_into_their_category_and_told_from_look_alikes() {
+        let mut wrong = Vec::new();
+        for (category, positive, negative) in OPT_IN {
+            for label in *positive {
+                let got = classify(Role::Button, label);
+                if got != Some(*category) {
+                    wrong.push(format!("{label}: {got:?}, wanted {category:?}"));
+                }
+            }
+            for label in *negative {
+                let got = classify(Role::Button, label);
+                if got.is_some() {
+                    wrong.push(format!("{label}: {got:?}, wanted nothing"));
+                }
+            }
+        }
+        assert!(wrong.is_empty(), "{wrong:#?}");
+    }
+
+    #[test]
+    fn money_and_accounts_win_over_the_opt_in_words() {
+        let table = [
+            ("Send $20.00", Category::Payment),
+            ("Send money", Category::Payment),
+            ("Delete account", Category::Account),
+            ("Konto löschen", Category::Account),
+            ("アカウントを削除", Category::Account),
+            ("Place order · $34.10", Category::Payment),
+        ];
+        for (label, want) in table {
+            assert_eq!(classify(Role::Button, label), Some(want), "{label}");
+        }
+    }
+
+    #[test]
+    fn payments_and_account_deletion_are_always_asked_and_the_rest_only_on_request() {
+        for always in [Category::Payment, Category::Account] {
+            assert!(asks(always, &[]), "{always:?}");
+        }
+        for opt in [Category::Send, Category::Delete, Category::Install] {
+            assert!(!asks(opt, &[]), "{opt:?} on by default");
+            assert!(asks(opt, &[opt]), "{opt:?} not asked when turned on");
+            for other in [Category::Send, Category::Delete, Category::Install] {
+                assert_eq!(asks(opt, &[other]), opt == other, "{opt:?} with {other:?}");
             }
         }
     }
 
     #[test]
     fn a_guarded_tap_asks_unless_the_human_or_autonomy_said_otherwise() {
+        let pay = Category::Payment;
         let mut s = Session::default();
-        assert_eq!(stance(&mut s, None), Stance::Ask);
+        assert_eq!(stance(&mut s, None, pay), Stance::Ask);
         assert_eq!(
-            stance(&mut s, Some(Approval::Once)),
+            stance(&mut s, Some(Approval::Once), pay),
             Stance::Run(Some("approved by the human"))
         );
-        assert_eq!(stance(&mut s, None), Stance::Ask, "once is not sticky");
+        assert_eq!(stance(&mut s, None, pay), Stance::Ask, "once is not sticky");
         assert_eq!(
-            stance(&mut s, Some(Approval::Autonomous)),
+            stance(&mut s, Some(Approval::Autonomous), pay),
             Stance::Run(None)
         );
         assert_eq!(
-            stance(&mut s, None),
+            stance(&mut s, None, pay),
             Stance::Ask,
             "autonomy is not remembered"
         );
         assert!(matches!(
-            stance(&mut s, Some(Approval::Session)),
+            stance(&mut s, Some(Approval::Session), pay),
             Stance::Run(Some(_))
         ));
-        assert!(matches!(stance(&mut s, None), Stance::Run(Some(_))));
+        assert!(matches!(stance(&mut s, None, pay), Stance::Run(Some(_))));
+        assert_eq!(
+            stance(&mut s, None, Category::Send),
+            Stance::Ask,
+            "a session approval covers its own category only"
+        );
         assert!(
-            !Session::default().guard_allowed,
+            Session::default().guard_allowed.is_empty(),
             "a new session starts closed"
         );
     }
