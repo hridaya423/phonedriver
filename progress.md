@@ -915,3 +915,11 @@ The fixes come from the first run on a physical Android phone, a Honor X8 (TFY-L
 - Tests: `an_inert_copy_of_a_control_in_the_same_place_is_not_listed` and `a_group_named_like_its_only_control_is_that_control` failed first. `the_clipboard_confirmation_our_own_paste_raises_is_not_part_of_the_screen` had counted a group and its same-label button as two lines. It now expects the one button.
 - Live check on the Honor X8: the Play search result lists `Play trailer for 'Wikipedia'` once.
 - `cargo test --workspace --no-fail-fast`: 673 passed, 0 failed.
+
+## 2026-11-08: launch finds an app asked for with its maker in front
+
+- Seen in agent run t6: `launch "Google Play Store"` failed with `no app named "Google Play Store"`, because the app is named "Play Store". The agent needed a second call with the package name.
+- Changed: `named_inside` in `crates/cli/src/daemon/actor.rs` runs after the exact, any-case and substring steps of `find_app`. An installed name that ends the query in whole words wins, the longest first. A tie still fails with the list of similar apps. "Google Maps" does not open the Google app.
+- Test: `an_app_asked_for_with_its_maker_in_front_is_found` covers Google Play Store, Google Chrome, Store and Google Maps. It failed first. `launching_an_unknown_app_says_no_app_and_lists_apps_that_share_a_word` now asks for "testbed app", because "phonedriver testbed" opens Testbed under the new rule.
+- Live check on the Honor X8: `launch "Google Play Store"` replied `ok launched Play Store`.
+- `cargo test --workspace --no-fail-fast`: 673 passed, 0 failed. Clippy is clean.
