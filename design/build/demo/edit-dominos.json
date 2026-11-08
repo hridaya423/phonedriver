@@ -1,0 +1,4 @@
+{"scenes":[
+{"name":"d1","run":"/Users/hridyaagrawal/Honey/phonedriver-launch/demo-runs/s3c","start":0.4,"end":385.5,"speed":15,"freeze":2.0,"tail":0,"badge":"15x","captions":[[3.0,"Reads the screen as text",2.6],[153.0,"Picks the nearest store",2.6],[256.0,"Fills the basket",2.6],[323.0,"Guest checkout",2.6]]},
+{"name":"d2","run":"/Users/hridyaagrawal/Honey/phonedriver-launch/demo-runs/s3c","start":385.5,"end":398.6,"speed":1,"freeze":0,"tail":0,"badge":"REAL TIME","captions":[[388.0,"phonedriver asks you before it pays",5.2]]}],
+"card":3.4,"fade":0.4,"crf":22}
