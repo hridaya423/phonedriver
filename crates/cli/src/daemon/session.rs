@@ -235,6 +235,15 @@ fn not_found(now: &Rendered, text: &str) -> Error {
 
 /// Exact label first (core), then the same label in any case and spacing, then a label that holds the text as whole
 /// words and not much else (decision D33).
+/// Labels print inside quotes, so an agent that copies one often keeps them.
+fn unquoted(text: &str) -> Option<&str> {
+    let t = text.trim();
+    [('"', '"'), ('\'', '\''), ('\u{201c}', '\u{201d}')]
+        .iter()
+        .find_map(|&(a, b)| t.strip_prefix(a)?.strip_suffix(b))
+        .filter(|inner| !inner.trim().is_empty())
+}
+
 fn find_text(
     now: &Rendered,
     text: &str,
@@ -244,6 +253,9 @@ fn find_text(
     let exact = now.resolve_text(text, role);
     if exact != TextMatch::None {
         return exact;
+    }
+    if let Some(inner) = unquoted(text) {
+        return find_text(now, inner, role, extra_words);
     }
     let q = normalize(text);
     for whole in [true, false] {
@@ -384,6 +396,14 @@ mod tests {
         )
         .unwrap();
         assert!(line.contains("2006"), "{line}");
+    }
+
+    #[test]
+    fn a_target_copied_with_the_quotes_the_screen_prints_around_labels_still_matches() {
+        let line = picked(&["Display & brightness", "Battery"], "\"Display & brightness\"").unwrap();
+        assert!(line.ends_with("\"Display & brightness\""), "{line}");
+        assert!(picked(&["Battery"], "\u{201c}Battery\u{201d}").is_ok());
+        assert!(picked(&["\"Hi\" she said", "Hi"], "\"Hi\" she said").unwrap().contains("she said"));
     }
 
     #[test]

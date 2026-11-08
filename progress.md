@@ -883,3 +883,11 @@ The fixes come from the first run on a physical Android phone, a Honor X8 (TFY-L
 - Tests: `unlabeled_tappable_wrappers_around_a_search_box_are_the_search_box`, `a_labeled_card_around_one_unlabeled_button_is_that_button_and_says_it_is_selected` and `an_unlabeled_row_scrolled_almost_out_of_its_list_is_not_listed`. Each failed first; the sliver test failed again with its rule switched off.
 - Live check on the Honor X8, release build: Settings now starts `@e1 group "Settings"`, `@e2 textbox "Search query"`, `@e3 list`, `@e4 button "Wi-Fi" "<network name>"`. Display & brightness prints `@e61 button "Light"` and `@e62 button "Dark" selected`. That is 9 lines fewer across the two screens.
 - `cargo test --workspace`: 668 passed, 0 failed. Clippy is clean.
+
+## 2026-11-08: a text target copied with its quotes still matches
+
+- Seen while driving the Honor X8 from the CLI: `tap '"Display & brightness"'` failed with `no element matches ""Display & brightness""`. Every label prints inside quotes, so an agent that copies one often keeps them.
+- Changed: `find_text` in `crates/cli/src/daemon/session.rs`. If nothing matches the text as given, it tries again without one pair of surrounding `"…"`, `'…'` or `“…”` quotes. A label that really has the quotes still wins first.
+- Test: `a_target_copied_with_the_quotes_the_screen_prints_around_labels_still_matches`. It failed with the retry switched off.
+- Live check on the Honor X8, release build: `tap '"Display & brightness"'` replied `ok tapped @e10 "Display & brightness"`.
+- `cargo test --workspace`: 668 passed, 0 failed. Clippy is clean.
