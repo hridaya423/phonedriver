@@ -1,0 +1,4 @@
+{"ev":"tab","name":"taps"}
+{"ev":"tab","name":"text"}
+{"ev":"text","field":"plain","value":"typed on the hidden screen"}
+{"ev":"click","id":"send"}

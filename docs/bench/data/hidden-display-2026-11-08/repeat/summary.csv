@@ -1,0 +1,7 @@
+op,mode,n,p50_ms,p95_ms,mean_ms
+snapshot,main,40,67.0,148.2,82.7
+snapshot,hidden,40,70.4,151.8,84.0
+tap,main,40,224.8,463.2,247.7
+tap,hidden,40,228.0,396.6,236.6
+screenshot,main,40,9.6,11.6,9.8
+screenshot,hidden,40,9.8,10.6,10.0
