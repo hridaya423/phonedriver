@@ -331,6 +331,16 @@ fn device_state(d: &AdbDevice) -> Check {
     }
 }
 
+/// A probe must not fail because the user's own CLI or MCP session holds the device: it reads, it does not take the lease.
+#[cfg(feature = "android")]
+fn probe_params(id: &str) -> serde_json::Value {
+    json!({"device": id, "share": true})
+}
+
+fn probe_snapshot(id: &str) -> serde_json::Value {
+    json!({"device": id, "no_settle": true, "share": true})
+}
+
 #[cfg(feature = "android")]
 async fn agent_checks(id: &str) -> Vec<Check> {
     let mut client = match Client::connect("doctor".into()).await {
@@ -338,7 +348,7 @@ async fn agent_checks(id: &str) -> Vec<Check> {
         Err(e) => return vec![cannot_reach_daemon(format!("agent {id}"), &e)],
     };
     let started = Instant::now();
-    let mut params = json!({"device": id});
+    let mut params = probe_params(id);
     crate::commands::put_display(
         &mut params,
         crate::commands::display_mode(&std::env::var("PHONEDRIVER_DISPLAY").unwrap_or_default()),
@@ -471,9 +481,7 @@ async fn runner_answers(id: &str) -> Check {
         Ok(c) => c,
         Err(e) => return cannot_reach_daemon(name, &e),
     };
-    let reply = client
-        .call("snapshot", json!({"device": id, "no_settle": true}))
-        .await;
+    let reply = client.call("snapshot", probe_snapshot(id)).await;
     let _ = client.call("release", json!({"device": id})).await;
     match reply {
         Ok(r) => {
@@ -713,6 +721,13 @@ mod tests {
              warn  simulators    none booted\n      fix: Boot one.\n\
              fail  runner build  xcodebuild failed\n      fix: Open Xcode once.\n"
         );
+    }
+
+    #[test]
+    fn a_probe_shares_a_device_another_session_holds() {
+        #[cfg(feature = "android")]
+        assert_eq!(probe_params("android:a")["share"], json!(true));
+        assert_eq!(probe_snapshot("sim:a")["share"], json!(true));
     }
 
     #[test]
