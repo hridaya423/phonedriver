@@ -2829,6 +2829,29 @@ async fn press_hide_keyboard_hides_a_shown_keyboard_and_says_how() {
 }
 
 #[tokio::test(start_paused = true)]
+async fn hiding_the_keyboard_says_which_elements_are_no_longer_under_it() {
+    let hidden = {
+        let json = r#"{"windows":[
+            {"id":1,"type":"application","package":"com.example","bounds":[0,0,360,800]}],
+          "nodes":[
+            {"p":-1,"w":1,"cls":"android.widget.FrameLayout","b":[0,0,360,800],"f":"vVe"},
+            {"p":0,"w":1,"cls":"android.widget.EditText","desc":"Field","b":[0,100,360,160],"f":"vVeEF","a":["tap","set_text"]},
+            {"p":0,"w":1,"cls":"android.widget.Button","text":"Send","b":[0,600,360,660],"f":"vVe","a":["tap"]},
+            {"p":0,"w":1,"cls":"android.widget.Button","text":"Cancel","b":[0,300,360,360],"f":"vVe","a":["tap"]}]}"#;
+        RawTree::from_android_json(json, Scale { density: 1.0 }).unwrap()
+    };
+    let (source, _fake) = FakeSource::with(vec![keyboard_tree(), keyboard_tree(), hidden]);
+    let (d, _home) = daemon(source);
+    ok(&d, "default", "snapshot", json!({})).await;
+    let r = ok(&d, "default", "act", press_key("hide-keyboard")).await;
+    let text = r["observation"]["text"].as_str().unwrap();
+    assert!(
+        text.lines().any(|l| l == "~ @e3 under-keyboard → (none)"),
+        "{text}"
+    );
+}
+
+#[tokio::test(start_paused = true)]
 async fn press_hide_keyboard_with_no_keyboard_sends_nothing_because_back_would_leave_the_screen() {
     let (source, fake) = FakeSource::with(vec![ime_tree(false)]);
     let (d, _home) = daemon(source);

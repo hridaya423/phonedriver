@@ -12,6 +12,7 @@ pub enum Field {
     Value,
     Hint,
     State,
+    Covered,
 }
 
 /// One difference between two observations. `from` and `to` are already rendered and masked.
@@ -47,6 +48,14 @@ fn words(e: &Element) -> String {
     } else {
         w.join(" ")
     }
+}
+
+fn shown_hint(e: &Element) -> Option<String> {
+    e.hint.clone().filter(|h| e.label.as_deref() != Some(h))
+}
+
+fn covered(under: bool) -> String {
+    if under { "under-keyboard" } else { "(none)" }.into()
 }
 
 fn opt(s: Option<String>) -> String {
@@ -89,8 +98,13 @@ pub fn diff(prev: &Rendered, next: &Rendered) -> DiffOrFull {
         let fields = [
             (Field::Label, opt(old.label.clone()), opt(e.label.clone())),
             (Field::Value, value.0, value.1),
-            (Field::Hint, opt(old.hint.clone()), opt(e.hint.clone())),
+            (Field::Hint, opt(shown_hint(old)), opt(shown_hint(e))),
             (Field::State, words(old), words(e)),
+            (
+                Field::Covered,
+                covered(prev.under_keyboard(old)),
+                covered(next.under_keyboard(e)),
+            ),
         ];
         for (field, from, to) in fields {
             if from != to {
@@ -114,6 +128,7 @@ impl DiffOrFull {
         };
         let mut lines: Vec<String> = Vec::new();
         let mut removing = false;
+        let mut covering: Vec<(&str, &str, Vec<Ref>)> = Vec::new();
         for c in changes {
             match c {
                 Change::Removed(r) => {
@@ -138,6 +153,13 @@ impl DiffOrFull {
                     let Some(e) = next.index_of(*r#ref).map(|i| &next.elements[i]) else {
                         continue;
                     };
+                    if *field == Field::Covered {
+                        match covering.iter_mut().find(|(f, t, _)| f == from && t == to) {
+                            Some((_, _, refs)) => refs.push(*r#ref),
+                            None => covering.push((from, to, vec![*r#ref])),
+                        }
+                        continue;
+                    }
                     let head = format!("~ @{} {}", r#ref, e.role.name());
                     lines.push(match field {
                         Field::Value if is_secure(e) => {
@@ -153,6 +175,10 @@ impl DiffOrFull {
             }
             removing = false;
         }
+        for (from, to, refs) in covering {
+            let refs: Vec<String> = refs.iter().map(|r| format!("@{r}")).collect();
+            lines.push(format!("~ {} {from} → {to}", refs.join(" ")));
+        }
         lines.join("\n")
     }
 }
@@ -161,7 +187,7 @@ impl DiffOrFull {
 mod tests {
     use super::*;
     use crate::element::Ref;
-    use crate::geometry::Scale;
+    use crate::geometry::{Rect, Scale};
     use crate::prune::prune;
     use crate::raw::RawTree;
     use crate::refs::RefTable;
@@ -348,6 +374,55 @@ mod tests {
         assert_eq!(
             diff(&c, &e).text(&e),
             "~ @e2 textbox \"Name\" focused → (none)"
+        );
+    }
+
+    #[test]
+    fn a_hint_that_only_repeats_the_label_is_not_a_change_when_it_goes() {
+        let mut t = RefTable::default();
+        let button = |hint: &str| {
+            node(
+                1,
+                "b",
+                "android.widget.Button",
+                &format!(r#""text":"Go forward","hint":"{hint}","f":"vVe","a":["tap"]"#),
+            )
+        };
+        let a = screen(&mut t, &[button("Go forward")]);
+        let b = screen(&mut t, &[button("")]);
+        assert_eq!(diff(&a, &b), DiffOrFull::Diff(vec![]));
+        let c = screen(&mut t, &[button("Opens the next page")]);
+        assert_eq!(
+            diff(&b, &c).text(&c),
+            "~ @e1 button \"Go forward\" (none) → \"Opens the next page\""
+        );
+    }
+
+    fn with_keyboard(mut r: Rendered, shown: bool) -> Rendered {
+        r.header.keyboard = shown.then_some(Rect {
+            x: 0.0,
+            y: 500.0,
+            w: 400.0,
+            h: 1500.0,
+        });
+        r
+    }
+
+    #[test]
+    fn elements_that_stop_being_under_the_keyboard_are_one_line_and_so_are_those_that_start() {
+        let mut t = RefTable::default();
+        let labels = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L"];
+        let nodes = buttons(&labels);
+        let covered = with_keyboard(screen(&mut t, &nodes), true);
+        let clear = with_keyboard(screen(&mut t, &nodes), false);
+        let gone = diff(&covered, &clear);
+        assert_eq!(
+            gone.text(&clear),
+            "~ @e1 @e2 @e3 @e4 @e5 @e6 @e7 @e8 @e9 @e10 @e11 @e12 under-keyboard → (none)"
+        );
+        assert_eq!(
+            diff(&clear, &covered).text(&covered),
+            "~ @e1 @e2 @e3 @e4 @e5 @e6 @e7 @e8 @e9 @e10 @e11 @e12 (none) → under-keyboard"
         );
     }
 
