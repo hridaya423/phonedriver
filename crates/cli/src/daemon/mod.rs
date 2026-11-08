@@ -102,6 +102,7 @@ pub struct Daemon {
     home: PathBuf,
     actors: Mutex<HashMap<String, mpsc::Sender<Job>>>,
     traces: Traces,
+    told: Mutex<HashMap<String, String>>,
     connections: AtomicUsize,
     last_activity: Mutex<Instant>,
     stop: Notify,
@@ -124,6 +125,7 @@ impl Daemon {
             traces: Traces::new(config.home.join("traces"), trace),
             home: config.home,
             actors: Mutex::default(),
+            told: Mutex::default(),
             connections: AtomicUsize::new(0),
             last_activity: Mutex::new(Instant::now()),
             stop: Notify::new(),
@@ -184,6 +186,15 @@ impl Daemon {
                 Ok(json!({"pid": std::process::id()}))
             }
             "devices" => Ok(self.devices().await?),
+            "told" => {
+                let line = params["line"].as_str().unwrap_or_default().to_string();
+                let last = self
+                    .told
+                    .lock()
+                    .unwrap_or_else(|e| e.into_inner())
+                    .insert(session.to_string(), line.clone());
+                Ok(json!({"same": last.as_deref() == Some(line.as_str())}))
+            }
             "release" | "snapshot" | "screenshot" | "act" | "wait" | "batch" | "find" | "apps"
             | "app" | "clipboard" | "health" | "shell" => {
                 let common: Common = rpc::params(params)?;

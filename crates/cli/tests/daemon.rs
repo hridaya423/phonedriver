@@ -1466,6 +1466,25 @@ async fn scroll_until_stops_when_the_text_shows_and_reports_its_ref() {
     assert_eq!(fake.calls().len(), 2);
 }
 
+#[tokio::test]
+async fn told_says_whether_the_session_was_last_shown_the_same_device_line() {
+    let (source, _fake) = FakeSource::with(vec![list_tree(&["Row 0"])]);
+    let (d, _home) = daemon(source);
+    let said = |line: &'static str, session: &'static str| {
+        let d = &d;
+        async move {
+            ok(d, session, "told", json!({"line": line})).await["same"]
+                .as_bool()
+                .unwrap()
+        }
+    };
+    assert!(!said("device a · portrait", "one").await);
+    assert!(said("device a · portrait", "one").await);
+    assert!(!said("device a · landscape", "one").await);
+    assert!(!said("device a · portrait", "one").await);
+    assert!(!said("device a · portrait", "two").await);
+}
+
 #[tokio::test(start_paused = true)]
 async fn scroll_until_row_3_does_not_stop_at_row_364() {
     let (source, fake) = FakeSource::with(vec![

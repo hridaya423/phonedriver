@@ -50,11 +50,7 @@ struct Told(Arc<std::sync::Mutex<Option<String>>>);
 
 impl Told {
     fn trim(&self, text: String) -> String {
-        let Some(at) = text
-            .lines()
-            .take(3)
-            .position(|l| l.starts_with("device ") && l.matches(" · ").count() >= 3)
-        else {
+        let Some(at) = crate::wire::device_line_at(&text) else {
             return text;
         };
         let mut lines: Vec<&str> = text.lines().collect();

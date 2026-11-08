@@ -1,4 +1,8 @@
+#[path = "support/fakes.rs"]
+mod fakes;
+
 use std::path::PathBuf;
+use std::sync::Arc;
 
 use assert_cmd::Command;
 use phonedriver::client::Failure;
@@ -407,4 +411,67 @@ fn a_socket_that_nothing_serves_names_the_variable_in_the_error() {
         stderr.contains("PHONEDRIVER_SOCKET=/dev/null/phonedriver.sock") && stderr.contains("ssh"),
         "{stderr}"
     );
+}
+
+async fn fake_daemon(trees: Vec<phonedriver_core::raw::RawTree>) -> (tempfile::TempDir, PathBuf) {
+    let home = tempfile::tempdir().unwrap();
+    let daemon = phonedriver::daemon::Daemon::new(
+        Arc::new(fakes::OneDevice(fakes::pixel_device(trees))),
+        phonedriver::daemon::Config {
+            home: home.path().to_path_buf(),
+        },
+    );
+    let socket = home.path().join("run").join("d.sock");
+    let listener = phonedriver::daemon::socket::listen(&socket).await.unwrap();
+    tokio::spawn(daemon.serve_on(listener));
+    (home, socket)
+}
+
+async fn cli(home: &tempfile::TempDir, socket: &PathBuf, args: &[&str]) -> String {
+    let mut c = Command::cargo_bin("phonedriver").unwrap();
+    c.env("PHONEDRIVER_HOME", home.path())
+        .env("PHONEDRIVER_SOCKET", socket)
+        .env_remove("PHONEDRIVER_SESSION")
+        .env_remove("PHONEDRIVER_DEVICE")
+        .args(args);
+    let out = tokio::task::spawn_blocking(move || c.assert().success().get_output().stdout.clone())
+        .await
+        .unwrap();
+    String::from_utf8(out).unwrap()
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn the_cli_prints_the_device_line_once_per_session_and_again_when_it_changes() {
+    let (home, socket) = fake_daemon(vec![fakes::tree(&["One", "Two"])]).await;
+    let first = cli(&home, &socket, &["snapshot"]).await;
+    assert!(first.starts_with("device fake:1 · "), "{first}");
+    let second = cli(&home, &socket, &["snapshot"]).await;
+    assert!(!second.contains("device fake:1"), "{second}");
+    assert!(second.starts_with("app "), "{second}");
+    assert!(second.contains("@e1 button \"One\""), "{second}");
+    let other = cli(
+        &home,
+        &socket,
+        &["--session", "other", "--share", "snapshot"],
+    )
+    .await;
+    assert!(other.starts_with("device fake:1 · "), "{other}");
+    let tapped = cli(&home, &socket, &["tap", "One"]).await;
+    assert!(!tapped.contains("device fake:1"), "{tapped}");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn json_output_keeps_the_device_line_in_every_reply() {
+    let (home, socket) = fake_daemon(vec![fakes::tree(&["One", "Two"])]).await;
+    for _ in 0..2 {
+        let out = cli(&home, &socket, &["snapshot", "--json"]).await;
+        let shown: Value = serde_json::from_str(&out).unwrap();
+        assert!(
+            shown["text"]
+                .as_str()
+                .unwrap()
+                .starts_with("device fake:1 · "),
+            "{out}"
+        );
+    }
 }
