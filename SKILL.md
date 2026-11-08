@@ -28,7 +28,7 @@ Several steps in a row (tap a field, type, press enter) go in one `batch`: one c
 ## Targets
 
 - A ref (`@e4`) belongs to the last snapshot and stays with its element while it is on screen.
-- Text (`tap "Dark theme"`) when you know the label and hold no ref. When several elements match, the error lists them: choose by ref or add `role`.
+- Text (`tap "Save"`) when you know the label and hold no ref. When several elements match, the error lists them: choose by ref or add `role`. A settings row and its switch often share a label (`button "Dark theme"` holds `switch "Dark theme"`): tap the switch's ref to toggle it.
 - A point (`tap 206,488`) only from a screenshot, in the screenshot's units.
 - "is no longer on screen" means the screen changed: `snapshot`, then use the closest match the error names.
 
@@ -55,7 +55,7 @@ Unlocking the phone, a USB debugging prompt, a biometric prompt and a trust-this
 
 Each error has a hint that names the next step; follow it.
 
-- No device: run `phonedriver doctor` and report what it says. More than one device: pass `device` with an id from `devices`.
+- No device: `phonedriver doctor` says what is missing (adb, USB debugging, a dropped tunnel); with only the MCP tools, ask the user to run it. More than one device: pass `device` with an id from `devices`.
 - Another session holds the device: wait or use another device; the error says how long it has been idle.
 - Text not found: the error lists similar text; scroll or fix the spelling.
 - Not supported on this device: the error says why; use another approach.
@@ -71,4 +71,4 @@ Each error has a hint that names the next step; follow it.
 
 ## Verbs
 
-`devices`, `apps`, `snapshot`, `screenshot`, `tap`, `type`, `swipe`, `scroll`, `press`, `launch`, `wait`, `shell`, `batch`. The command line also has `find`, `clear`, `clipboard`, `open <url>`, `gesture` and `release`.
+`devices`, `apps`, `snapshot`, `screenshot`, `tap`, `type`, `swipe`, `scroll`, `press`, `launch`, `wait`, `shell`, `batch`, `clipboard`. The command line also has `find`, `clear`, `open <url>`, `gesture` and `release`.
