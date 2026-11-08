@@ -390,6 +390,12 @@ Secrets. The trace keeps the command text (an agent's command is what it did), b
 
 **Limits.** The four-word allowance is a judgement, not a measurement: a legitimate button with five extra words around the target needs its full text or a ref. `NotFound` still suggests substring neighbors, so the model sees what was skipped. A hint part (`label · hint`) is matched like a label.
 
+**Amended 2026-11-08: searches have no word cap.** `scroll --until` and `wait` (and `wait gone:`) now resolve through `Session::seek`. It runs the same steps, but step 3 has no limit on extra words, and several matches end the search at the first one on screen instead of failing `Ambiguous`.
+- Why: in agent run t5 on the Honor X8, `scroll --until "announced"` could never stop on Wikipedia's sentence "The Snapdragon system on chip (SoC) was announced in November 2006…", because it has far more than four other words. A search only stops the scrolling; it taps nothing, so the reason for the cap does not apply.
+- Word boundaries still hold: "Row 3" does not stop at "Row 364".
+- `tap` and `type --into` keep the cap.
+- Tests: `a_search_finds_a_word_inside_a_long_sentence`, `a_search_that_matches_twice_stops_at_the_first` and `a_search_keeps_word_boundaries`.
+
 **Rejected.** Share of characters (a long word "Save" in "Save and continue" falls below any share that also rejects the sentence); keeping any substring as a last resort (it is what stops "Row 3" at "Row 364").
 ## D34. One daemon owns a device's agent; a second daemon fails fast and names the first
 
