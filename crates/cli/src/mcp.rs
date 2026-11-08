@@ -898,6 +898,10 @@ fn for_mcp(hint: &str) -> String {
         ("`--timeout`", "`timeout_ms`"),
         ("`--max`", "`max`"),
         (
+            "`phonedriver doctor` says what is missing",
+            "ask the user to run phonedriver doctor to see what is missing",
+        ),
+        (
             "Run `phonedriver doctor` to check the connection.",
             "Ask the user to run `phonedriver doctor` to check the connection.",
         ),
@@ -1335,6 +1339,10 @@ mod tests {
             (
                 "Increase `--timeout`, or run `phonedriver snapshot` to check the screen.",
                 "Increase `timeout_ms`, or run `snapshot` to check the screen.",
+            ),
+            (
+                "Connect a device or start an emulator; `phonedriver doctor` says what is missing (adb, USB debugging, a dropped tunnel).",
+                "Connect a device or start an emulator; ask the user to run phonedriver doctor to see what is missing (adb, USB debugging, a dropped tunnel).",
             ),
             (
                 "nothing changed; `phonedriver wait settled` waits for the screen, `phonedriver snapshot` shows it",

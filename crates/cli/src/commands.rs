@@ -1246,6 +1246,10 @@ fn device_table(result: &Value) -> String {
     let Ok(devices) = serde_json::from_value::<Vec<DeviceEntry>>(result.clone()) else {
         return result.to_string();
     };
+    if devices.is_empty() {
+        return "no devices\nhint: Connect a device or start an emulator; `phonedriver doctor` says what is missing."
+            .into();
+    }
     let any_hidden = devices.iter().any(|d| d.hidden_display.is_some());
     let mut head = vec!["ID", "MODEL", "OS", "TIER", "LEASE"];
     if any_hidden {
@@ -1580,6 +1584,14 @@ mod tests {
         assert!(parse_step_line("devices").unwrap_err().contains("batch"));
         assert!(parse_step_line("").is_err());
         assert!(parse_step_line("tap").is_err());
+    }
+
+    #[test]
+    fn devices_with_nothing_connected_says_so_and_what_to_do() {
+        let shown = device_table(&json!([]));
+        assert!(shown.starts_with("no devices"), "{shown}");
+        assert!(shown.contains("hint: Connect a device"), "{shown}");
+        assert!(shown.contains("phonedriver doctor"), "{shown}");
     }
 
     #[test]

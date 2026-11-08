@@ -466,7 +466,7 @@ impl Error {
                 ids(connected)
             ),
             Error::NoDevice { .. } => {
-                "Connect a device or start an emulator, then run `phonedriver devices`.".into()
+                "Connect a device or start an emulator; `phonedriver doctor` says what is missing (adb, USB debugging, a dropped tunnel).".into()
             }
             Error::AmbiguousDevice { connected } => {
                 format!("Pass `--device <id>` with one of: {}.", ids(connected))
@@ -892,6 +892,11 @@ mod tests {
         };
         assert_eq!(none.to_string(), "no device \"sim:BAD\"; none is connected");
         assert!(none.hint().starts_with("Connect a device"));
+        assert!(
+            none.hint().contains("phonedriver doctor"),
+            "{}",
+            none.hint()
+        );
         assert_eq!(
             Error::NoDevice {
                 requested: None,

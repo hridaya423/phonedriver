@@ -203,7 +203,7 @@ async fn no_device_exits_4_with_the_message_then_the_hint() {
         "{stderr}"
     );
     assert!(
-        lines.next().unwrap().contains("phonedriver devices"),
+        lines.next().unwrap().contains("phonedriver doctor"),
         "{stderr}"
     );
     assert!(out.get_output().stdout.is_empty());
