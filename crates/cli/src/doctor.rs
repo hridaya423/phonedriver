@@ -73,8 +73,13 @@ pub fn render(checks: &[Check]) -> String {
     out
 }
 
-/// Runs every check and prints them. Fails when any check fails.
-pub fn run(home: &Path) -> bool {
+/// Whether the device named with `--device` (an id, or the part after its colon) is `id`. Nothing named means every device.
+fn wants(only: Option<&str>, id: &str) -> bool {
+    only.is_none_or(|o| o == id || id.split_once(':').is_some_and(|(_, rest)| rest == o))
+}
+
+/// Runs every check and prints them; with `only`, probes just that device. Fails when any check fails.
+pub fn run(home: &Path, only: Option<&str>) -> bool {
     let Ok(rt) = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
@@ -84,11 +89,11 @@ pub fn run(home: &Path) -> bool {
     };
     let checks = rt.block_on(async {
         #[cfg(feature = "android")]
-        let mut checks = android(&Adb::from_env()).await;
+        let mut checks = android(&Adb::from_env(), only).await;
         #[cfg(not(feature = "android"))]
         let mut checks = Vec::new();
-        checks.extend(ios(home).await);
-        checks.extend(physical(home).await);
+        checks.extend(ios(home, only).await);
+        checks.extend(physical(home, only).await);
         checks.extend(socket_permissions(&socket::socket_path()));
         checks
     });
@@ -99,7 +104,7 @@ pub fn run(home: &Path) -> bool {
 /// The Simulator tier: Xcode, xcodegen, booted simulators, the runner build, and each simulator's runner answering
 /// through the daemon. A runner serves one connection and a new one cancels the old, so probing its port directly
 /// would cut off a daemon that holds it; the daemon connects (which says `hello`) and takes one snapshot instead.
-pub async fn ios(home: &Path) -> Vec<Check> {
+pub async fn ios(home: &Path, only: Option<&str>) -> Vec<Check> {
     if !cfg!(target_os = "macos") {
         return Vec::new();
     }
@@ -138,7 +143,7 @@ pub async fn ios(home: &Path) -> Vec<Check> {
         return checks;
     }
     let sims = match phonedriver_ios::simulator::Simulator::list().await {
-        Ok(sims) if sims.is_empty() => {
+        Ok(sims) if sims.is_empty() && only.is_none() => {
             checks.push(Check::bad(
                 Status::Warn,
                 "simulators",
@@ -147,15 +152,18 @@ pub async fn ios(home: &Path) -> Vec<Check> {
             ));
             Vec::new()
         }
-        Ok(sims) => {
-            let names: Vec<String> = sims
-                .iter()
-                .map(|s| format!("{} ({})", s.name, s.os))
-                .collect();
-            checks.push(Check::ok(
-                "simulators",
-                format!("{} booted: {}", sims.len(), names.join(", ")),
-            ));
+        Ok(mut sims) => {
+            sims.retain(|s| wants(only, &format!("sim:{}", s.udid)));
+            if !sims.is_empty() || only.is_none() {
+                let names: Vec<String> = sims
+                    .iter()
+                    .map(|s| format!("{} ({})", s.name, s.os))
+                    .collect();
+                checks.push(Check::ok(
+                    "simulators",
+                    format!("{} booted: {}", sims.len(), names.join(", ")),
+                ));
+            }
             sims
         }
         Err(e) => {
@@ -201,7 +209,7 @@ pub async fn ios(home: &Path) -> Vec<Check> {
 /// The adb server at `Adb::from_env()`, then every device it lists. A device in the `device` state is probed through
 /// the daemon, which deploys the agent and holds UiAutomation, so the probe must not start a second agent.
 #[cfg(feature = "android")]
-pub async fn android(adb: &Adb) -> Vec<Check> {
+pub async fn android(adb: &Adb, only: Option<&str>) -> Vec<Check> {
     let configured = std::env::var("ADB_SERVER_SOCKET").ok();
     let version = adb.version().await;
     let mut checks = vec![adb_server(adb.addr(), configured.as_deref(), &version)];
@@ -228,7 +236,31 @@ pub async fn android(adb: &Adb) -> Vec<Check> {
             "Connect a phone with USB debugging on, pair an Android 11+ phone over Wi-Fi with `phonedriver pair`, or start an emulator; `adb devices` lists what adb sees.",
         ));
     }
-    for d in &devices {
+    if let Some(only) = only
+        && only.starts_with("android:")
+        && !devices
+            .iter()
+            .any(|d| wants(Some(only), &format!("android:{}", d.serial)))
+    {
+        let listed: Vec<&str> = devices.iter().map(|d| d.serial.as_str()).collect();
+        checks.push(Check::bad(
+            Status::Fail,
+            only,
+            format!(
+                "adb does not list it{}",
+                if listed.is_empty() {
+                    String::new()
+                } else {
+                    format!("; it lists {}", listed.join(", "))
+                }
+            ),
+            "Pass `--device` an id that `adb devices` lists, or leave `--device` out to check every device.",
+        ));
+    }
+    for d in devices
+        .iter()
+        .filter(|d| wants(only, &format!("android:{}", d.serial)))
+    {
         let state = device_state(d);
         let ready = state.status == Status::Ok;
         checks.push(state);
@@ -365,9 +397,11 @@ async fn agent_checks(id: &str) -> Vec<Check> {
             Status::Fail,
             format!("agent {id}"),
             e.message(),
-            e.hint().unwrap_or_else(|| {
-                "The daemon log is `daemon.log` in the phonedriver home.".into()
-            }),
+            e.hint()
+                .filter(|h| !h.contains("phonedriver doctor"))
+                .unwrap_or_else(|| {
+                    "The daemon log is `daemon.log` in the phonedriver home.".into()
+                }),
         )],
     }
 }
@@ -465,7 +499,7 @@ async fn runner_answers(id: &str) -> Check {
 
 /// Each wired iOS device: paired, Developer Mode, developer disk image, tier and services, and the runner with the
 /// expiry of the profile that signed the local build.
-pub async fn physical(home: &Path) -> Vec<Check> {
+pub async fn physical(home: &Path, only: Option<&str>) -> Vec<Check> {
     use phonedriver_core::error::{Error, UserAction};
     let wired = match phonedriver_ios::transport::wired().await {
         Ok(w) => w,
@@ -474,6 +508,9 @@ pub async fn physical(home: &Path) -> Vec<Check> {
     let mut checks = Vec::new();
     for device in wired {
         let name = format!("ios:{}", device.udid);
+        if !wants(only, &name) {
+            continue;
+        }
         let found = match phonedriver_ios::discovery::describe(&device).await {
             Ok(f) => f,
             Err(Error::NeedsUser {

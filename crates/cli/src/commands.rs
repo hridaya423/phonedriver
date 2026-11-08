@@ -420,7 +420,7 @@ pub(crate) enum Verb {
         #[arg(long, env = "PHONEDRIVER_TRACE_SCREENS", value_parser = BoolishValueParser::new())]
         trace_screens: bool,
     },
-    /// Check adb, Android devices and their agent, Xcode, booted simulators and their runners, wired iPhones, and the daemon socket; each line says ok, warn or fail, with a fix.
+    /// Check adb, Android devices and their agent, Xcode, booted simulators and their runners, wired iPhones, and the daemon socket; each line says ok, warn or fail, with a fix. With `--device`, only that device is probed.
     Doctor,
     /// Pair an Android 11+ phone over Wi-Fi with a QR code.
     ///
@@ -499,7 +499,7 @@ pub fn run(cli: Cli) -> ExitCode {
             }
         }
         Verb::Doctor => {
-            if crate::doctor::run(&socket::home()) {
+            if crate::doctor::run(&socket::home(), cli.device.as_deref()) {
                 ExitCode::SUCCESS
             } else {
                 ExitCode::from(1)
