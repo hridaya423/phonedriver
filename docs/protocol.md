@@ -125,8 +125,8 @@ JSON-RPC `error` with `code` from the table, `message`, and `data: {code_name, h
 | -32015 | transport |
 | -32017 | no_app (`data.similar` lists installed apps that share a word with the name) |
 | -32018 | unknown_key (`press` got a key it does not know; `data.valid` lists the keys) |
-| -32020 | secret_field (a `type` with plain text into a password field, or a text field whose label, hint or id names a one-time code, without `secret`; `data.ref`, `data.kind` `password` or `code`; decision D30) |
-| -32019 | needs_approval (a tap or `type --submit` that spends money, deletes an account, or is in a category named in `ask`, without an `approval`; `data.label`, `data.app`, `data.category` (`payment`, `account`, `send`, `delete`, `install`), `data.details`; decisions D27 and D30) |
+| -32020 | secret_field (a `type` with plain text into a password field, or a text field whose label, hint or id names a one-time code, without `secret`; `data.ref`, `data.kind` `password` or `code`; decision D31) |
+| -32019 | needs_approval (a tap or `type --submit` that spends money, deletes an account, or is in a category named in `ask`, without an `approval`; `data.label`, `data.app`, `data.category` (`payment`, `account`, `send`, `delete`, `install`), `data.details`; decisions D27 and D31) |
 | -32016 | not_reached (`data.end` is `ended`, `stuck` or `limit`; `data.scrolls`, `data.last`) |
 
 ## 2. Daemon ↔ Android agent

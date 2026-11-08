@@ -28,6 +28,7 @@ use crate::wire::{Approval, ScreenshotResult};
 pub struct Mcp {
     socket: Option<PathBuf>,
     session: String,
+    device: Option<String>,
     client: Arc<Mutex<Option<Client>>>,
     ask: Vec<Category>,
 }
@@ -356,15 +357,21 @@ impl Mcp {
         Mcp {
             socket,
             session,
+            device: None,
             client: Arc::default(),
             ask: Vec::new(),
         }
     }
 
-    /// Also asks the human before the taps of these opt-in categories (decision D30).
+    /// Also asks the human before the taps of these opt-in categories (decision D31).
     pub fn asking(mut self, ask: Vec<Category>) -> Mcp {
         self.ask = ask;
         self
+    }
+
+    /// The same server, with every tool call that names no device sent to `device`.
+    pub fn pinned(self, device: Option<String>) -> Mcp {
+        Mcp { device, ..self }
     }
 
     async fn connect(&self) -> Result<Client, Failure> {
@@ -394,7 +401,9 @@ impl Mcp {
 
     fn globals(&self, device: Option<String>) -> Globals {
         Globals {
-            device: device.or_else(|| std::env::var("PHONEDRIVER_DEVICE").ok()),
+            device: device
+                .or_else(|| self.device.clone())
+                .or_else(|| std::env::var("PHONEDRIVER_DEVICE").ok()),
             json: false,
             no_settle: false,
             timeout: None,
@@ -1099,7 +1108,7 @@ pub fn server_runtime() -> std::io::Result<tokio::runtime::Runtime> {
         .build()
 }
 
-pub fn run() -> ExitCode {
+pub fn run(device: Option<String>) -> ExitCode {
     let Ok(rt) = server_runtime() else {
         eprintln!("error: cannot start the async runtime");
         return ExitCode::from(1);
@@ -1112,7 +1121,9 @@ pub fn run() -> ExitCode {
                 return ExitCode::from(2);
             }
         };
-        let mcp = Mcp::new(None, format!("mcp-{}", std::process::id())).asking(ask);
+        let mcp = Mcp::new(None, format!("mcp-{}", std::process::id()))
+            .asking(ask)
+            .pinned(device);
         let held = mcp.clone();
         let running = match mcp.serve(rmcp::transport::stdio()).await {
             Ok(r) => r,
@@ -1130,6 +1141,21 @@ pub fn run() -> ExitCode {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_pinned_server_sends_calls_that_name_no_device_to_its_device() {
+        let mcp = Mcp::new(None, "s".into()).pinned(Some("android:emulator-5554".into()));
+        assert_eq!(
+            mcp.globals(None).device.as_deref(),
+            Some("android:emulator-5554")
+        );
+        assert_eq!(
+            mcp.globals(Some("android:emulator-5556".into()))
+                .device
+                .as_deref(),
+            Some("android:emulator-5556")
+        );
+    }
 
     #[test]
     fn autonomous_takes_true_as_a_boolean_or_a_string_and_nothing_else() {
