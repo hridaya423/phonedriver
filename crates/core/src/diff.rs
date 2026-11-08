@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use crate::element::{Element, ElementState, Ref, Role};
-use crate::render::{Rendered, quote, shown_value, state_words};
+use crate::render::{Rendered, quote, shown_hint, shown_value, state_words};
 
 /// Above this share of changed refs the agent is on a new screen and gets a full snapshot.
 const NEW_SCREEN_SHARE: f32 = 0.6;
@@ -53,10 +53,6 @@ fn words(e: &Element) -> String {
     } else {
         w.join(" ")
     }
-}
-
-fn shown_hint(e: &Element) -> Option<String> {
-    e.hint.clone().filter(|h| e.label.as_deref() != Some(h))
 }
 
 fn covered(under: bool) -> String {

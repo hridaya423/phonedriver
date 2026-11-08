@@ -271,8 +271,18 @@ fn ltrb(b: [f32; 4], scale: Scale) -> Rect {
     }
 }
 
+/// Bidi controls (U+200E, U+200F, U+202A to U+202E, U+2066 to U+2069) only steer how text is drawn; a weather widget
+/// wraps its digits in them.
 fn non_empty(s: Option<String>) -> Option<String> {
-    s.filter(|s| !s.is_empty())
+    let bidi = |c: char| matches!(c, '\u{200e}' | '\u{200f}' | '\u{202a}'..='\u{202e}' | '\u{2066}'..='\u{2069}');
+    s.map(|s| {
+        if s.contains(bidi) {
+            s.replace(bidi, "")
+        } else {
+            s
+        }
+    })
+    .filter(|s| !s.is_empty())
 }
 
 fn node(
@@ -553,6 +563,13 @@ mod tests {
             ),
             "{err:?}"
         );
+    }
+
+    #[test]
+    fn bidi_marks_are_not_part_of_a_label() {
+        let json = r#"{"windows":[],"nodes":[{"p":-1,"w":1,"cls":"android.widget.TextView","text":"\u202a6\u202cCelsius","desc":"\u200e\u2066","b":[0,0,1,1],"f":"vVe"}]}"#;
+        let t = RawTree::from_android_json(json, Scale { density: 1.0 }).unwrap();
+        assert_eq!(t.nodes[0].label.as_deref(), Some("6Celsius"));
     }
 
     #[test]

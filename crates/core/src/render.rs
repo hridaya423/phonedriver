@@ -270,6 +270,7 @@ impl Rendered {
             && let Some(c) = e.collection
         {
             let _ = match (c.rows, c.cols) {
+                (0, _) => Ok(()),
                 (rows, 0 | 1) => write!(s, " {}", plural(rows.into(), "row")),
                 (1, cols) => write!(s, " {}", plural(cols.into(), "column")),
                 (rows, cols) => write!(s, " {rows}x{cols} cells"),
@@ -353,10 +354,29 @@ pub fn shown_value(e: &Element) -> Option<String> {
 }
 
 fn second_text(e: &Element) -> Option<String> {
-    shown_value(e)
-        .or_else(|| e.hint.clone())
-        .filter(|t| e.label.as_deref() != Some(t.as_str()))
-        .map(|t| quote(&t))
+    match shown_value(e) {
+        Some(v) => Some(v).filter(|t| e.label.as_deref() != Some(t.as_str())),
+        None => shown_hint(e),
+    }
+    .map(|t| quote(&t))
+}
+
+fn words(s: &str) -> Vec<String> {
+    s.split(|c: char| !c.is_alphanumeric())
+        .filter(|w| !w.is_empty())
+        .map(str::to_lowercase)
+        .collect()
+}
+
+/// The hint unless the label already holds all its words in order (Google's suggestion rows repeat their text there).
+pub fn shown_hint(e: &Element) -> Option<String> {
+    let hint = e.hint.clone()?;
+    let Some(label) = &e.label else {
+        return Some(hint);
+    };
+    let (h, l) = (words(&hint), words(label));
+    let held = !h.is_empty() && l.windows(h.len()).any(|w| w == h.as_slice());
+    (!held && label != &hint).then_some(hint)
 }
 
 /// `1 time`, `2 times`.
@@ -1022,6 +1042,53 @@ mod tests {
         assert_eq!(fields.len(), 2);
         assert!(!r.in_web_view(fields[0]));
         assert!(r.in_web_view(fields[1]));
+    }
+
+    fn android_lines(nodes: &str) -> String {
+        let json = format!(
+            r#"{{"windows":[{{"id":1,"type":"application","bounds":[0,0,400,800]}}],"nodes":[{nodes}]}}"#
+        );
+        build_json(&json, 1.0).text(&Filters::default()).unwrap()
+    }
+
+    #[test]
+    fn a_hint_whose_words_the_label_already_holds_is_not_printed() {
+        let text = android_lines(
+            r#"{"p":-1,"w":1,"cls":"android.widget.Button","desc":"Recent search dark mode not working AI Mode.","hint":"dark mode not working · AI Mode","b":[0,0,400,60],"f":"vVe","a":["tap"]},
+            {"p":-1,"w":1,"cls":"android.widget.Button","desc":"Wi-Fi","hint":"HomeNet","b":[0,60,400,120],"f":"vVe","a":["tap"]}"#,
+        );
+        assert!(
+            text.contains("button \"Recent search dark mode not working AI Mode.\"\n"),
+            "{text}"
+        );
+        assert!(text.contains("button \"Wi-Fi\" \"HomeNet\""), "{text}");
+    }
+
+    #[test]
+    fn a_field_value_the_label_contains_is_still_printed() {
+        let text = android_lines(
+            r#"{"p":-1,"w":1,"cls":"android.widget.EditText","hint":"Search query","text":"query","b":[0,0,400,60],"f":"vVeF","a":["tap","set_text"]}"#,
+        );
+        assert!(text.contains("\"query\""), "{text}");
+    }
+
+    #[test]
+    fn a_list_without_a_row_count_does_not_say_zero_rows() {
+        let text = android_lines(
+            r#"{"p":-1,"w":1,"cls":"androidx.recyclerview.widget.RecyclerView","b":[0,0,400,800],"f":"vVeS","a":["scroll_down"],"coll":{"rows":0,"cols":0}},
+            {"p":0,"w":1,"cls":"android.widget.Button","text":"Wi-Fi","b":[0,0,400,60],"f":"vVe","a":["tap"]}"#,
+        );
+        assert!(!text.contains("0 rows"), "{text}");
+    }
+
+    #[test]
+    fn a_text_with_nothing_to_say_is_not_listed() {
+        let text = android_lines(
+            r#"{"p":-1,"w":1,"cls":"android.widget.Button","desc":"Weather","b":[0,0,400,200],"f":"vVe","a":["tap"]},
+            {"p":0,"w":1,"cls":"android.widget.TextView","text":"\u202a\u202c","b":[0,0,100,40],"f":"vVe"},
+            {"p":0,"w":1,"cls":"android.widget.TextView","b":[0,40,100,80],"f":"vVe"}"#,
+        );
+        assert!(!text.contains(" text"), "{text}");
     }
 
     #[test]
