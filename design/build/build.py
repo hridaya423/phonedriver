@@ -6,6 +6,7 @@ import subprocess
 import sys
 
 from sodium import *
+import quiet
 
 ROOT = HERE.parent.parent
 ASSETS = ROOT / ".github" / "assets"
@@ -340,7 +341,7 @@ def hero(tn, W=1280, H=None, social=False):
         t, _ = mono(f'adb {r["adb"]:,.0f} ms', W - mx, ly, 26 * k, c["t3"], anchor="end")
         b += t
         y = ly + round(84 * k)
-    t, _ = mono("p50 of 50 runs \u00b7 Android 17 emulator \u00b7 method and raw data: docs/bench/speed-2026-11-07.md", mx, y - 22 * k, 20 * k, c["t3"])
+    t, _ = mono("p50 of 50 runs \u00b7 Android 17 emulator \u00b7 method and raw data: docs/bench/speed.md", mx, y - 22 * k, 20 * k, c["t3"])
     b += t
     H = H or round(y + 8 * k)
     return svg(W, H, b, hero_alt(rows, picked), c["page"]), W, H
@@ -434,6 +435,7 @@ def main():
         write(ASSETS / f"speed-{tn}.svg", speed(tn))
         write(ASSETS / f"brand-{tn}.svg", sheet(tn))
         write(ASSETS / f"hero-{tn}.svg", hero(tn)[0])
+        write(ASSETS / f"jobs-{tn}.svg", quiet.jobs(tn))
     write(LOGO / "mark.svg", svg(16, 16, mark(16, LIGHT), "phonedriver"))
     write(LOGO / "mark-dark.svg", svg(16, 16, mark(16, DARK), "phonedriver"))
     write(LOGO / "mark-black.svg", svg(16, 16, mark(16, LIGHT, ink="#000000", solid=True), "phonedriver"))

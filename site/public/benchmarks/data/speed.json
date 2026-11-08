@@ -1,7 +1,7 @@
 {
  "title": "phonedriver against adb and phone-harness",
  "subtitle": "Android 17 emulator (API 37), p50 of 50 runs",
- "source": "docs/bench/speed-2026-11-07.md",
+ "source": "docs/bench/speed.md",
  "ops": [
   {
    "id": "tap",

@@ -33,4 +33,4 @@ A physical iPhone has no shell. A physical Android device refuses wipes and remo
 
 ## Limits
 
-The [approval guard](/docs/approval-guard/) does not see a button pressed by shell input, so `input tap` through the shell skips it. Destructive device commands are guarded separately on physical devices. Design: decision D21 in [the repository]({{REPO}}/blob/main/docs/decisions.md), and measurements in `docs/bench/shell.md`.
+The [approval guard](/docs/approval-guard/) does not see a button pressed by shell input, so `input tap` through the shell skips it. Destructive device commands are guarded separately on physical devices. Design: decision D21 in [the repository]({{REPO}}/blob/main/docs/decisions.md), and measurements in `docs/bench/history/shell.md`.

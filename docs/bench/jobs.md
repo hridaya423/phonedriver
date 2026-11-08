@@ -64,6 +64,8 @@ phonedriver is the final binary (`126db3e`), runs `p4` and `p5`. phone-harness 0
 
 ### Totals (sum of per-job medians)
 
+![Real phone jobs: passes, tokens and time](../../.github/assets/jobs-light.svg)
+
 | Harness | Passed | Tokens | Tool calls | Wall s |
 |---|---|---|---|---|
 | phonedriver | 18/18 | 977,780 | 123.5 | 466.5 |

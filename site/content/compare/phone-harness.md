@@ -10,7 +10,7 @@ phone-harness is a Python CLI: the agent pipes a Python script on stdin, and hel
 
 ## Measured
 
-p50 of 50 runs after 20 warm-ups, Android 17 emulator, both tools on the emulator's own host. phone-harness 0.3.3, helpers called in process, which spares it a Python start per call and favours it. Source: [speed-2026-11-07]({{REPO}}/blob/main/docs/bench/speed-2026-11-07.md).
+p50 of 50 runs after 20 warm-ups, Android 17 emulator, both tools on the emulator's own host. phone-harness 0.3.3, helpers called in process, which spares it a Python start per call and favours it. Source: [speed-2026-11-07]({{REPO}}/blob/main/docs/bench/speed.md).
 
 | Operation | phonedriver | phone-harness | phone-harness / phonedriver (95% CI) |
 |---|---|---|---|

@@ -53,7 +53,7 @@ Each decision records the choice, the alternatives it beat, and the evidence tha
 
 **Measured (2026-11-05, iPhone 17 simulator, iOS 26.5, 50 runs, `docs/spikes/ios.md`).** Runner snapshot p50 22.2 / 12.9 / 24.7 ms on the testbed List tab, Taps tab and Settings. WDA with `snapshotMaxDepth` 30 alone: 380.4 / 108.8 / 477.4 ms (runner 8x to 19x faster). WDA with every knob turned (depth 30, `excluded_attributes=visible,accessible,hittable`, idle waits off): 44.8 / 26.1 / 49.7 ms, so the runner is 2.02x / 2.02x / 2.01x faster at p50 and 2.03x / 1.96x / 1.99x at p95. The decision stands, but against fully tuned WDA the margin is about 1%; the runner reaches it only by requesting eight raw AX attributes instead of XCTest's key-path mapping. Re-measure after any Xcode update, and judge future runner changes against this bar.
 
-**Re-measured (2026-11-05, task 5.6, M4, `docs/bench/m4.md`).** Runner p50 21.5 to 21.9 ms (List) and 24.1 to 24.4 ms (Settings), 2.04x to 2.08x of 5.3's fully tuned WDA; on the Taps tab as 5.3 measured it (59 nodes) 12.6 to 12.7 ms in three series, 2.06x. WDA itself was not re-measured (its checkout went with spike I4 and the mini had 2 GB free). The Taps tab now has a toggle (62 nodes, 13.1 to 13.6 ms), so future comparisons need WDA re-measured on the new screen. The decision stands.
+**Re-measured (2026-11-05, task 5.6, M4, `docs/bench/history/m4.md`).** Runner p50 21.5 to 21.9 ms (List) and 24.1 to 24.4 ms (Settings), 2.04x to 2.08x of 5.3's fully tuned WDA; on the Taps tab as 5.3 measured it (59 nodes) 12.6 to 12.7 ms in three series, 2.06x. WDA itself was not re-measured (its checkout went with spike I4 and the mini had 2 GB free). The Taps tab now has a toggle (62 nodes, 13.1 to 13.6 ms), so future comparisons need WDA re-measured on the new screen. The decision stands.
 
 ## D5. Logical points as the only public coordinate space
 
@@ -224,7 +224,7 @@ Safety. On a physical device (anything but `emulator-*`, a Simulator or a fake) 
 
 Secrets. The trace keeps the command text (an agent's command is what it did), but `--secret` (CLI: command from stdin or `PHONEDRIVER_SECRET`; MCP: `secret: true`) records only `secret_len`, masks the command in the reply and in output, and the summary names no text. Output is traced by length only (`exit N, M output chars`).
 
-**Why.** In a token benchmark, an agent with raw `adb shell` did "turn on dark theme" in one call and 10.7k tokens (`cmd uimode night yes`) against about 63k through UI tools. Agents reach for a shell whenever they can, so ours has to cost less than adb: no process spawn and transport setup per call (numbers in `docs/bench/shell.md`), one call that also says what changed on screen, and output that cannot flood the context.
+**Why.** In a token benchmark, an agent with raw `adb shell` did "turn on dark theme" in one call and 10.7k tokens (`cmd uimode night yes`) against about 63k through UI tools. Agents reach for a shell whenever they can, so ours has to cost less than adb: no process spawn and transport setup per call (numbers in `docs/bench/history/shell.md`), one call that also says what changed on screen, and output that cannot flood the context.
 
 **Rejected.** A `sim` tool for `simctl` (one more tool in `tools/list` for what a prefix does); a regex `grep` (a dependency for what `a|b` words cover; `| grep -E` still works inside the command); exit code as the CLI's own exit status (it collides with phonedriver's codes; `--json` has `exit`); prompting before destructive commands (agents cannot answer; a refusal with `force` can be retried deliberately); settling after every command (a 250 ms tax on reads).
 
@@ -312,7 +312,7 @@ Secrets. The trace keeps the command text (an agent's command is what it did), b
 
 **Why.** `phone-use` is crowded. An npm package named `phone-use` is in the same category, `lumi-robotics/phone-use` and `sauravtom/phone-use` are projects of the same name, and `iPhone-use` has 4.9k stars, so a search for the name lands on someone else. `phonedriver` was free on crates.io, npm and GitHub on 2026-11-07, and `phonedriver.dev` is unregistered. It also says what the tool does: it drives a phone.
 
-**Rejected.** `tapdiff`, `phonewright` and `diffphone` (the free names listed in `docs/launch/plan.md`): `phonedriver` is descriptive and was free too. Keeping `phone-use` on purpose: the echo of "computer use" does not make up for a name that a search resolves to other projects.
+**Rejected.** `tapdiff`, `phonewright` and `diffphone` (free names at the time): `phonedriver` is descriptive and was free too. Keeping `phone-use` on purpose: the echo of "computer use" does not make up for a name that a search resolves to other projects.
 
 **Left as written.** `progress.md` entries and plan or launch text dated before the rename, which discuss `phone-use` as the old name or as another project's name; raw benchmark data file contents. Data files under `docs/bench/data/` were renamed (`*-phonedriver-*.csv`), their contents were not changed.
 

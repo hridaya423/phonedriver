@@ -12,7 +12,7 @@ phonedriver is not a replacement for adb. It uses the adb server as its transpor
 
 ## Measured
 
-p50 of 50 runs after 20 warm-ups, Android 17 emulator (API 37, headless, software rendering). Mean host CPU load was 13% to 39% per operation from other work on the machine. Source: [speed-2026-11-07]({{REPO}}/blob/main/docs/bench/speed-2026-11-07.md), raw samples on the [benchmarks page](/benchmarks/#data).
+p50 of 50 runs after 20 warm-ups, Android 17 emulator (API 37, headless, software rendering). Mean host CPU load was 13% to 39% per operation from other work on the machine. Source: [speed-2026-11-07]({{REPO}}/blob/main/docs/bench/speed.md), raw samples on the [benchmarks page](/benchmarks/#data).
 
 | Operation | phonedriver | adb | adb / phonedriver (95% CI) |
 |---|---|---|---|

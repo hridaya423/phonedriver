@@ -1,6 +1,6 @@
 # phonedriver against plain adb (2026-11-06)
 
-Same method as M1 (`docs/bench/m1.md`): win-pc, `emulator-5554` (Pixel_API_37, Android 17, 1080x2424, headless, `-gpu swangle_indirect`), the machine's own adb server, release build, 50 runs after 5 warm-ups, the M1 testbed screens (Taps, Settings main, List tab, Text tab). Raw samples are in `docs/bench/data/adb-*.csv`.
+Same method as M1 (`docs/bench/history/m1.md`): win-pc, `emulator-5554` (Pixel_API_37, Android 17, 1080x2424, headless, `-gpu swangle_indirect`), the machine's own adb server, release build, 50 runs after 5 warm-ups, the M1 testbed screens (Taps, Settings main, List tab, Text tab). Raw samples are in `docs/bench/data/adb-*.csv`.
 
 ## Which phonedriver
 

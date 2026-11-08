@@ -1,6 +1,6 @@
 # Speed and impressiveness audit (2026-11-06)
 
-Numbers: `docs/bench/adb.md` (phonedriver main `d6d9155` with the physical-iOS source removed in the win-pc copy, back to back with adb, busy machine), `docs/bench/m1.md`, `m4.md`, `m5.md`. Estimates are marked as estimates; nothing below was implemented.
+Numbers: `docs/bench/history/adb.md` (phonedriver main `d6d9155` with the physical-iOS source removed in the win-pc copy, back to back with adb, busy machine), `docs/bench/history/m1.md`, `m4.md`, `m5.md`. Estimates are marked as estimates; nothing below was implemented.
 
 ## 1. How fast, against adb and phone-harness
 
@@ -35,7 +35,7 @@ Traces (D16) hold only `ms` and `settle_ms` per request, no phase timing. In the
 
 | # | Change | Estimated gain | Effort | Evidence |
 |---|---|---|---|---|
-| 1 | Resolve the request's device through the one source whose prefix matches (`android:`, `sim:`, `ios:`), and cache the physical-iOS listing like `SimSource` does (2 s TTL). Today `Sources::list` queries every source on every request. | Windows: -2.05 s on every call (measured: `devices` 2079 ms against 26 to 33 ms with the source removed; tap 2075 ms against 131 to 144). Mac: tens of ms per call on Android, unmeasured | S | `docs/bench/adb.md`, `crates/cli/src/daemon/sources.rs`, `commands.rs` |
+| 1 | Resolve the request's device through the one source whose prefix matches (`android:`, `sim:`, `ios:`), and cache the physical-iOS listing like `SimSource` does (2 s TTL). Today `Sources::list` queries every source on every request. | Windows: -2.05 s on every call (measured: `devices` 2079 ms against 26 to 33 ms with the source removed; tap 2075 ms against 131 to 144). Mac: tens of ms per call on Android, unmeasured | S | `docs/bench/history/adb.md`, `crates/cli/src/daemon/sources.rs`, `commands.rs` |
 | 2 | Shorten the settle quiet window when a frame arrived after the action (positive proof of a live stream) and the screen then stopped: 250 ms to about 120 ms. | -100 to -130 ms on every settled action (about 20% of a 420 to 670 ms tap-to-diff). Risk: early settle on bursty encoders, so it needs the 21 M2 scenarios as the gate | M | `settle.rs`, architecture 4.6 known limit |
 | 3 | iOS tap: do not wait behind an in-flight settle poll (cancel it, or run it so a request preempts it). | -40 ms average, up to -80 ms, per iOS call | S to M | M4 "Waiting behind polls" |
 | 4 | iOS Simulator: inject touch through SimulatorKit HID (the route idb uses) instead of XCTest synthesis. | Tap 357 ms to about 100 to 130 ms (removes the 240 ms completion); settled diff 712 ms to about 480 ms. Estimate, unmeasured | L (private API, Xcode-fragile, Simulator only) | D15, M4 |
@@ -72,6 +72,6 @@ Proposals, with what each needs:
 
 ## 5. Open items from this audit
 
-- Re-run `docs/bench/adb.md` on a quiet win-pc with phone-harness in the same session; the tap regression question (130 to 144 ms against M1's 30 to 37 ms) is unresolved.
+- Re-run `docs/bench/history/adb.md` on a quiet win-pc with phone-harness in the same session; the tap regression question (130 to 144 ms against M1's 30 to 37 ms) is unresolved.
 - Speedup 1 is a real bug on Windows today: every request is 2 s slow with the default daemon. It was not fixed here (no crate edits).
 - win-pc's C: drive is full and its sshd was resetting connections; that is not caused by this work but it cost several runs.

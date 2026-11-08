@@ -20,11 +20,11 @@ phonedriver is an open-source MCP server and CLI that lets AI agents like Claude
 | Unicode typing | Yes (mixed-script text typed in 225.0 ms) | No (`input text` raises on non-ASCII) | No | Not checked |
 | License | AGPL-3.0-only | Part of the Android SDK | MIT | Apache-2.0 |
 
-Speed is p50 of 50 runs after 20 warm-ups on one Android 17 emulator (API 37), the three measured tools interleaved on the emulator's host. No physical Android phone and no iOS device is in this run. Method, p95 and confidence intervals: [`bench/speed-2026-11-07.md`](bench/speed-2026-11-07.md). Data: [`bench/speed.json`](bench/speed.json).
+Speed is p50 of 50 runs after 20 warm-ups on one Android 17 emulator (API 37), the three measured tools interleaved on the emulator's host. No physical Android phone and no iOS device is in this run. Method, p95 and confidence intervals: [`bench/speed.md`](bench/speed.md). Data: [`bench/speed.json`](bench/speed.json).
 
 ## Speed
 
-phonedriver is faster than adb and phone-harness on every operation measured. Against adb the ratio runs from 1.1x (taps sent back to back) to 98x (reading a 1,000-row list; 95% interval on the ratio 92.2 to 106.0). Against phone-harness it runs from 1.3x to 111x. The bare tap is the closest row: 175.6 ms for phonedriver and 199.5 ms for adb, host to reply. adb returns raw XML and a tap that returns before the app reacts. phonedriver returns a pruned tree and waits for the app, so the two outputs differ. See [`bench/speed-2026-11-07.md`](bench/speed-2026-11-07.md), "What this does not show".
+phonedriver is faster than adb and phone-harness on every operation measured. Against adb the ratio runs from 1.1x (taps sent back to back) to 98x (reading a 1,000-row list; 95% interval on the ratio 92.2 to 106.0). Against phone-harness it runs from 1.3x to 111x. The bare tap is the closest row: 175.6 ms for phonedriver and 199.5 ms for adb, host to reply. adb returns raw XML and a tap that returns before the app reacts. phonedriver returns a pruned tree and waits for the app, so the two outputs differ. See [`bench/speed.md`](bench/speed.md), "What this does not show".
 
 ## Tokens
 
@@ -43,6 +43,6 @@ It is not published yet; build it from source. Android phones are untested on ha
 
 ## Sources
 
-- phonedriver, adb, phone-harness: [`bench/speed-2026-11-07.md`](bench/speed-2026-11-07.md), [`bench/tokens.md`](bench/tokens.md).
+- phonedriver, adb, phone-harness: [`bench/speed.md`](bench/speed.md), [`bench/tokens.md`](bench/tokens.md).
 - mobile-mcp and phone-harness features: [`research/competitors.md`](research/competitors.md), [`research/competitor-teardown.md`](research/competitor-teardown.md).
 - Guard: `decisions.md` D27. Shell: D21.

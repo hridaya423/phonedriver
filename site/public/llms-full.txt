@@ -517,7 +517,7 @@ A physical iPhone has no shell. A physical Android device refuses wipes and remo
 
 ## Limits
 
-The [approval guard](/docs/approval-guard/) does not see a button pressed by shell input, so `input tap` through the shell skips it. Destructive device commands are guarded separately on physical devices. Design: decision D21 in [the repository](https://github.com/hridaya423/phonedriver/blob/main/docs/decisions.md), and measurements in `docs/bench/shell.md`.
+The [approval guard](/docs/approval-guard/) does not see a button pressed by shell input, so `input tap` through the shell skips it. Destructive device commands are guarded separately on physical devices. Design: decision D21 in [the repository](https://github.com/hridaya423/phonedriver/blob/main/docs/decisions.md), and measurements in `docs/bench/history/shell.md`.
 
 ---
 
@@ -609,7 +609,7 @@ phonedriver is not a replacement for adb. It uses the adb server as its transpor
 
 ## Measured
 
-p50 of 50 runs after 20 warm-ups, Android 17 emulator (API 37, headless, software rendering). Mean host CPU load was 13% to 39% per operation from other work on the machine. Source: [speed-2026-11-07](https://github.com/hridaya423/phonedriver/blob/main/docs/bench/speed-2026-11-07.md), raw samples on the [benchmarks page](/benchmarks/#data).
+p50 of 50 runs after 20 warm-ups, Android 17 emulator (API 37, headless, software rendering). Mean host CPU load was 13% to 39% per operation from other work on the machine. Source: [speed-2026-11-07](https://github.com/hridaya423/phonedriver/blob/main/docs/bench/speed.md), raw samples on the [benchmarks page](/benchmarks/#data).
 
 | Operation | phonedriver | adb | adb / phonedriver (95% CI) |
 |---|---|---|---|
@@ -704,7 +704,7 @@ phone-harness is a Python CLI: the agent pipes a Python script on stdin, and hel
 
 ## Measured
 
-p50 of 50 runs after 20 warm-ups, Android 17 emulator, both tools on the emulator's own host. phone-harness 0.3.3, helpers called in process, which spares it a Python start per call and favours it. Source: [speed-2026-11-07](https://github.com/hridaya423/phonedriver/blob/main/docs/bench/speed-2026-11-07.md).
+p50 of 50 runs after 20 warm-ups, Android 17 emulator, both tools on the emulator's own host. phone-harness 0.3.3, helpers called in process, which spares it a Python start per call and favours it. Source: [speed-2026-11-07](https://github.com/hridaya423/phonedriver/blob/main/docs/bench/speed.md).
 
 | Operation | phonedriver | phone-harness | phone-harness / phonedriver (95% CI) |
 |---|---|---|---|
@@ -849,7 +849,7 @@ phone-harness ran in process, which spares it a Python start per call and favour
 - **Absolute times move with load.** Typing 100 characters ran in two passes at different host load, and gave 20.4 times (32% load) and 19.3 times (20%). phone-harness's 100-character typing took 2,104.5 ms in M1 and 5,523.3 ms here. Absolute numbers are for this host.
 - **Model time dominates a task.** An agent task in our earlier evaluation took about 18 s and 6 tool calls. Faster tools shorten the part that is not the model. Fewer calls and fewer tokens matter more, and the settled diff is for that.
 
-Method, machine state, both passes and every row are in [`docs/bench/speed-2026-11-07.md`](https://github.com/hridaya423/phonedriver/blob/main/docs/bench/speed-2026-11-07.md). If you find a flaw in the setup, [open an issue](https://github.com/hridaya423/phonedriver/issues) with the run that shows it.
+Method, machine state, both passes and every row are in [`docs/bench/speed.md`](https://github.com/hridaya423/phonedriver/blob/main/docs/bench/speed.md). If you find a flaw in the setup, [open an issue](https://github.com/hridaya423/phonedriver/issues) with the run that shows it.
 
 ---
 
