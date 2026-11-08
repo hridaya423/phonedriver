@@ -287,6 +287,19 @@ fn non_empty(s: Option<String>) -> Option<String> {
     .filter(|s| !s.is_empty())
 }
 
+/// The Play Store names a result card with its fields on separate lines; a reply line holds them with ` · `, the
+/// separator hints already use. A field's text keeps its newlines: they are what `type` would have to reproduce.
+fn one_line(s: String) -> String {
+    if !s.contains(['\n', '\r']) {
+        return s;
+    }
+    s.split(['\n', '\r'])
+        .map(str::trim)
+        .filter(|l| !l.is_empty())
+        .collect::<Vec<_>>()
+        .join(" · ")
+}
+
 fn node(
     index: usize,
     n: WireNode,
@@ -359,6 +372,7 @@ fn node(
         Platform::Ios => (text.or(desc), state.or(range_text)),
     };
 
+    let label = label.map(one_line).filter(|s| !s.is_empty());
     Ok(RawNode {
         parent,
         window: n.w,
@@ -367,7 +381,7 @@ fn node(
         role,
         label,
         value,
-        hint: non_empty(n.hint),
+        hint: non_empty(n.hint).map(one_line).filter(|s| !s.is_empty()),
         bounds: ltrb(n.b, scale),
         flags,
         actions,
@@ -572,6 +586,20 @@ mod tests {
         let json = r#"{"windows":[],"nodes":[{"p":-1,"w":1,"cls":"android.widget.TextView","text":"\u202a6\u202cCelsius","desc":"\u200e\u2066","b":[0,0,1,1],"f":"vVe"}]}"#;
         let t = RawTree::from_android_json(json, Scale { density: 1.0 }).unwrap();
         assert_eq!(t.nodes[0].label.as_deref(), Some("6Celsius"));
+    }
+
+    #[test]
+    fn a_label_on_several_lines_is_one_line_and_a_field_keeps_its_newlines() {
+        let json = r#"{"windows":[],"nodes":[
+            {"p":-1,"w":1,"cls":"android.view.View","desc":"Wikipedia\nWikimedia Foundation\n\nStar rating: 4.0\n","b":[0,0,1,1],"f":"vVe"},
+            {"p":-1,"w":1,"cls":"android.widget.EditText","text":"Dear Sam,\nThanks","b":[0,0,1,1],"f":"vVeE"}
+        ]}"#;
+        let t = RawTree::from_android_json(json, Scale { density: 1.0 }).unwrap();
+        assert_eq!(
+            t.nodes[0].label.as_deref(),
+            Some("Wikipedia · Wikimedia Foundation · Star rating: 4.0")
+        );
+        assert_eq!(t.nodes[1].value.as_deref(), Some("Dear Sam,\nThanks"));
     }
 
     #[test]

@@ -899,3 +899,11 @@ The fixes come from the first run on a physical Android phone, a Honor X8 (TFY-L
 - Test: `a_tap_on_a_card_lands_on_the_card_not_on_a_control_inside_it` has the phone's layout: a title, Install, a scrolling ratings row, an inert answer text over the center, and a question box. It failed first at 200,250, the center.
 - Live check on the Honor X8, release build: `tap "Wikipedia · Wikimedia Foundation"` replied `at 180,132 · settled in 517ms · new screen` and showed the app page. Before the change it replied `at 180,392 · no change`.
 - `cargo test --workspace --no-fail-fast`: 673 passed, 0 failed. Clippy is clean.
+
+## 2026-11-08: a label on several lines prints on one line
+
+- Seen in agent run t6: Play Store cards name themselves with their fields on separate lines, so replies printed `button "Temu: Shop Like a Billionaire\nTemu\nParental guidance\nStar rating: 4.6\n"`.
+- Changed: `one_line` in `crates/core/src/raw.rs` joins the non-empty lines of a label or hint with ` · `, the separator hints already use. A text field's value keeps its newlines, because those are what `type` would have to reproduce.
+- Test: `a_label_on_several_lines_is_one_line_and_a_field_keeps_its_newlines`. It failed first.
+- Live check on the Honor X8: the result card prints `@e6 button "Wikipedia · Wikimedia Foundation"`, and `tap "Wikipedia · Wikimedia Foundation"` resolves it.
+- `cargo test --workspace --no-fail-fast`: 673 passed, 0 failed.
