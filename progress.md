@@ -731,3 +731,13 @@ Evidence:
   - The test `a_barrier_passes_only_once_every_packet_before_it_is_decoded_and_shown` now waits up to 60 s, not 5 s, for the barrier.
 - Why: the test decodes 59 frames (1.6 MB) in a debug build. At load average 16 the barrier came back after 2.43 to 3.61 s over five runs. Two of five earlier runs went past 5 s.
 - Evidence: `cargo test --workspace` gives 627 passed, 0 failed.
+
+## 2026-11-08: the a11y cache change is held back (branch t3/keep-a11y-cache-web-reads, b0f85d3)
+
+- The change: the agent keeps the accessibility cache between reads, and empties it only after an event or one of our own ops.
+- Measured gain, back-to-back reads only: Wikipedia went from 741.6 ms to 254.8 ms p50, and dominos from 302.1 ms to 193.2 ms. A read after an action, which is the usual agent loop, shows no change: Wikipedia 1391 ms before, 1404 ms after.
+- Why it is not merged:
+  - The committed build never ran the live suites (`e2e`, `actions`, `coverage`, `device_live`, `agent_live`, `tree_cache`), because win-ts stopped answering SSH.
+  - A change that raises no event would come back stale.
+  - A stale screen is worse than a slow one.
+- Next: run those suites, then decide. Before merging, renumber its decision to D35, because D33 and D34 are taken.
