@@ -98,4 +98,4 @@ phone-harness ran in process, which spares it a Python start per call and favour
 - **Absolute times move with load.** Typing 100 characters ran in two passes at different host load, and gave 20.4 times (32% load) and 19.3 times (20%). phone-harness's 100-character typing took 2,104.5 ms in M1 and 5,523.3 ms here. Absolute numbers are for this host.
 - **Model time dominates a task.** An agent task in our earlier evaluation took about 18 s and 6 tool calls. Faster tools shorten the part that is not the model. Fewer calls and fewer tokens matter more, and the settled diff is for that.
 
-Method, machine state, both passes and every row are in [`docs/bench/speed-2026-11-07.md`]({{REPO}}/blob/main/docs/bench/speed-2026-11-07.md). If you find a flaw in the setup, [open an issue]({{REPO}}/issues) with the run that shows it.
+Method, machine state, both passes and every row are in [`docs/bench/speed.md`]({{REPO}}/blob/main/docs/bench/speed.md). If you find a flaw in the setup, [open an issue]({{REPO}}/issues) with the run that shows it.

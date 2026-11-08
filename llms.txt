@@ -12,9 +12,10 @@ phonedriver returns the screen as numbered text and, after each tap, type or swi
 
 ## Benchmarks
 
-- [Speed, 2026-11-07](docs/bench/speed-2026-11-07.md): method, p50 and p95, confidence intervals
+- [Speed](docs/bench/speed.md): method, p50 and p95, confidence intervals
 - [Speed data (JSON)](docs/bench/speed.json): p50 and p95 per operation and tool
 - [Tokens per task](docs/bench/tokens.md): four harnesses, three tasks
+- [Real phone jobs](docs/bench/jobs.md): nine jobs, three harnesses, checked from device state
 - [Tokens data (JSON)](docs/bench/tokens.json): every run
 - [Raw speed samples](docs/bench/data/speed-2026-11-07/samples.csv)
 
@@ -26,5 +27,4 @@ phonedriver returns the screen as numbered text and, after each tap, type or swi
 
 ## Optional
 
-- [Claims ledger](docs/launch/claims-ledger.md): the repository file behind each public claim
 - [Competitor research](docs/research/competitors.md)

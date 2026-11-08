@@ -98,9 +98,9 @@ Decision needed. Write "macOS only first" or "all five targets in 0.1.0".
 
 Draw only from `docs/bench/*`. Do not state a number that has no file behind it.
 
-- M1 (`docs/bench/m1.md`, Android emulator API 37 on Windows): phonedriver is faster than phone-harness 0.3.3 on every operation phone-harness supports, by 3x to 150x at p50. Three of five budgets met. The tap budget (15 ms) and the type-100-characters budget (150 ms) are missed: tap p50 was 29.7 and 36.5 ms, and typing took 253 and 288 ms (see D14).
-- M2 (`docs/bench/m2.md`): the 20-scenario suite passed on API 26 three times in a row (60 of 60). The API 37 gate is open: two clean runs, then the emulator stopped answering at `testbed-web-form` on three cold boots.
-- M4 (`docs/bench/m4.md`, iOS 26.5 Simulator, not iOS 27): 12 of 12 scenarios, three runs in a row. Four of five budgets met. Tap p50 was 357 ms against an 80 ms budget (D15). The runner's snapshot is about 2x faster than fully tuned WebDriverAgent. One flake in `settings-dark-appearance` has no known cause.
+- M1 (`docs/bench/history/m1.md`, Android emulator API 37 on Windows): phonedriver is faster than phone-harness 0.3.3 on every operation phone-harness supports, by 3x to 150x at p50. Three of five budgets met. The tap budget (15 ms) and the type-100-characters budget (150 ms) are missed: tap p50 was 29.7 and 36.5 ms, and typing took 253 and 288 ms (see D14).
+- M2 (`docs/bench/history/m2.md`): the 20-scenario suite passed on API 26 three times in a row (60 of 60). The API 37 gate is open: two clean runs, then the emulator stopped answering at `testbed-web-form` on three cold boots.
+- M4 (`docs/bench/history/m4.md`, iOS 26.5 Simulator, not iOS 27): 12 of 12 scenarios, three runs in a row. Four of five budgets met. Tap p50 was 357 ms against an 80 ms budget (D15). The runner's snapshot is about 2x faster than fully tuned WebDriverAgent. One flake in `settings-dark-appearance` has no known cause.
 - Not measured and not claimed: any physical Android phone, any physical iPhone or iPad, the AndroidWorld success-rate comparison, Android tablets.
 - Known gaps: the list in architecture section 14.
 

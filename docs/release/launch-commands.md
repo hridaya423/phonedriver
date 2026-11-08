@@ -1,6 +1,6 @@
 # Launch-day commands, in order
 
-Everything here is yours to run; nothing has been run. Run them from the repo root unless a step says otherwise. Each step ends with a check. Do not go on if the check fails. Background: `registry.md` (why npm), `../release-checklist.md` (decisions and CI risks), `../launch/directories.md` (directory text).
+Everything here is yours to run; nothing has been run. Run them from the repo root unless a step says otherwise. Each step ends with a check. Do not go on if the check fails. Background: `registry.md` (why npm), `../release-checklist.md` (decisions and CI risks).
 
 Order matters: the launcher downloads from the GitHub Release, so the release must exist before `npm publish`; the registry checks the npm package, so `npm publish` must come before `mcp-publisher publish`.
 
@@ -95,7 +95,7 @@ git checkout site/public/assets/fonts          # the build rewrites the fonts; k
 
 ## 6. Directory submissions
 
-Texts and forms are in `../launch/directories.md`; the order and timing are in `../launch/plan.md`. Do them after step 4, in this order, and check each by searching the directory for `phonedriver` a day later.
+Submit to the directories after step 4, and check each by searching the directory for `phonedriver` a day later.
 
 1. Glama: claim at https://glama.ai (needs `glama.json`; see directories.md section 2).
 2. punkpeye/awesome-mcp-servers: open the pull request (needs the public repo).

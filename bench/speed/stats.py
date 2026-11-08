@@ -111,7 +111,7 @@ def main():
         out = {
             "title": "phonedriver against adb and phone-harness",
             "subtitle": f"Android 17 emulator (API {meta['api']}), p50 of {meta['runs']} runs",
-            "source": "docs/bench/speed-2026-11-07.md",
+            "source": "docs/bench/speed.md",
             "ops": ops,
         }
         json.dump(out, open(a.json, "w"), indent=1)

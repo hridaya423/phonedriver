@@ -165,7 +165,7 @@ Commit when all pass on API 37. Run again on API 26 and record results; failures
 **Files:**
 - Create `bench/Cargo.toml` (workspace member, binary `phonedriver-bench`, `publish = false`), `bench/src/main.rs`
 - Create `bench/baseline/run_baseline.py` (not `phone_harness.py`: beside the venv's `phone_harness` package the script would shadow the import)
-- Create `docs/bench/m1.md`
+- Create `docs/bench/history/m1.md`
 
 **Where:** build `phonedriver` and `phonedriver-bench` for Windows on win-pc (`ssh win-pc`; install Rust there if missing) and run both harnesses there, next to the emulator, with the default local adb server. Architecture section 12 explains why the tunnel is not used for budgets. If the Windows build needs fixes (named pipe, process detach), they are part of this task.
 
@@ -173,14 +173,14 @@ Commit when all pass on API 37. Run again on API 26 and record results; failures
 
 **Baseline**: on win-pc, install phone-harness 0.3.3 into an isolated venv (`uv venv ph && uv pip install --python ph phone-harness==0.3.3`). Run with `DO_NOT_TRACK=1 PHONE_HARNESS_TELEMETRY=0 PHONE_HARNESS_NO_UPDATE_CHECK=1 PHONE_HARNESS_PLATFORM=android` (its telemetry sends scripts and output; it must be off). Before the timed run, confirm no outbound connection during one call (`Get-NetTCPConnection -OwningProcess <pid>` in PowerShell) and the same `ADB_SERVER_SOCKET`. Time `tap`, `screenshot`, `screen()`, and `type_text` (ASCII only; record that the Unicode case is unsupported) with the same iteration counts.
 
-**Gate M1:** `docs/bench/m1.md` holds both tables, machine and emulator details, and the commands. phonedriver must beat phone-harness on every op it supports. Where a budget from architecture section 12 is missed, profile (`samply` on the host, `simpleperf` or method tracing on the device), fix, and re-run before moving on. Record what you changed and why.
+**Gate M1:** `docs/bench/history/m1.md` holds both tables, machine and emulator details, and the commands. phonedriver must beat phone-harness on every op it supports. Where a budget from architecture section 12 is missed, profile (`samply` on the host, `simpleperf` or method tracing on the device), fix, and re-run before moving on. Record what you changed and why.
 
-**Result (2026-11-05):** M1 met (3x to 150x faster on every op phone-harness supports). Budgets met: snapshot, screenshot, tap to settled diff; missed: tap (30 to 37 ms against 15) and type 100 chars (253 to 288 ms against 150), both explained in `docs/bench/m1.md` and decision D14. Fixes from profiling: `FLAG_PREFETCH_UNINTERRUPTIBLE` on the tree walk, a division-free `resample` for screenshots, and a handle-list `CreateProcessW` for the Windows daemon.
+**Result (2026-11-05):** M1 met (3x to 150x faster on every op phone-harness supports). Budgets met: snapshot, screenshot, tap to settled diff; missed: tap (30 to 37 ms against 15) and type 100 chars (253 to 288 ms against 150), both explained in `docs/bench/history/m1.md` and decision D14. Fixes from profiling: `FLAG_PREFETCH_UNINTERRUPTIBLE` on the tree walk, a division-free `resample` for screenshots, and a handle-list `CreateProcessW` for the Windows daemon.
 
 ---
 
 ## Phase gate
 
 - All non-ignored tests green; all ignored device tests green on API 37 and recorded for API 26.
-- `docs/bench/m1.md` complete; M1 met.
+- `docs/bench/history/m1.md` complete; M1 met.
 - `progress.md` updated.

@@ -19,3 +19,5 @@ __pycache__
 /android-agent/private
 /packaging/npm/LICENSE
 *.tgz
+/.audit/
+/.claude/

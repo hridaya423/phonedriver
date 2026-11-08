@@ -30,7 +30,7 @@ An `.mcpb` bundle is not added:
 - It cannot choose by CPU. macOS arm64 and x64 would each need their own bundle, and the registry entry would list several packages for one server. A fat bundle with both binaries (and Linux and Windows) would be about 17 MB of binaries per download. (Archive sizes: the aarch64 macOS `.tar.gz` is 3.3 MB; the other four are not built yet.)
 - The unsigned binary inside a bundle would meet the user's client in the way the client decides, and we cannot test Claude Desktop installs here.
 - The bundle would need a second release asset, a hash in `server.json` that changes with every build, and a version-bump step per release. The npm route has none of that.
-- Claude's own directory no longer takes local `.mcpb` servers (`docs/launch/directories.md`).
+- Claude's own directory no longer takes local `.mcpb` servers.
 
 Revisit if Claude Desktop users ask for double-click install. Then ship one `node`-type bundle that runs the same launcher (no architecture problem, because the launcher downloads the right binary).
 

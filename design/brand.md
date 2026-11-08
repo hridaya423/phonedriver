@@ -84,7 +84,7 @@ Sentences and headlines are Inter Display in sentence case. Mono capitals are fo
 
 ## Voice in images
 
-Use the product's own output, verbatim from the repo: snapshot lines, `~` diffs, measured figures from `docs/bench/m1.md`. Say what happens, in plain words. No hype words, no emoji, no em dash, no invented numbers.
+Use the product's own output, verbatim from the repo: snapshot lines, `~` diffs, measured figures from `docs/bench/history/m1.md`. Say what happens, in plain words. No hype words, no emoji, no em dash, no invented numbers.
 
 ## Do
 

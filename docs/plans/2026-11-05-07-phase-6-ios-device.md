@@ -77,7 +77,7 @@ Build the runner for the device with the user's team (`xcodebuild build-for-test
 
 ### Task 6.7: Benchmark (M5)
 
-Run `phonedriver-bench` on each approved device and tier. **Gate M5:** budgets from architecture section 12 (iOS columns) met or, where missed, profiled with the cause recorded in `docs/bench/m5.md`. Run the iOS scenario suite on each device: 12/12.
+Run `phonedriver-bench` on each approved device and tier. **Gate M5:** budgets from architecture section 12 (iOS columns) met or, where missed, profiled with the cause recorded in `docs/bench/history/m5.md`. Run the iOS scenario suite on each device: 12/12.
 
 ### Task 6.8: doctor for devices
 

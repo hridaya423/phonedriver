@@ -415,7 +415,7 @@ def build_benchmarks():
 <li>phone-harness's helpers ran in process, which spares it a Python start per call and favours it.</li>
 <li>Emulator only. No physical Android phone and no iOS device is in this run. On the iOS 26.5 Simulator a tap takes 357 ms against 80 ms for the Simulator's own tool, because XCTest takes about 240 ms to confirm the event (D15). On an iPhone 14 Plus and an iPad Pro (M5) it takes 534 and 454 ms.</li>
 </ul>
-<p>The earlier 153x figure came from a quieter, single-tool run and is not current. <a href="{raw('docs/bench/speed-2026-11-07.md')}">The full method, machine state and the history of the number</a> are in the repo.</p>
+<p>The earlier 153x figure came from a quieter, single-tool run and is not current. <a href="{raw('docs/bench/speed.md')}">The full method, machine state and the history of the number</a> are in the repo.</p>
 
 <h2 id="tokens">Tokens: what an agent spends on a task</h2>
 <p>Claude Sonnet 5.5 through <code>claude -p</code>, each harness the only tool, three tasks checked from device state (the alarm database, the testbed event log, the answer text), never from the agent's claim. Tokens are input, output, cache creation and cache read. Device: a 2560x1600 tablet emulator.</p>

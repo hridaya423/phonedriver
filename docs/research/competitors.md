@@ -1,6 +1,6 @@
 # Competitor gap analysis (2026-11-06)
 
-Question: what do the leading phone-control harnesses give an agent that phonedriver does not, or give it better? Scope: Android and iOS action layers, observation formats, and harness design. phonedriver baseline is `README.md`, `docs/architecture.md` (sections 4, 10, 14), `docs/audits/ax-audit.md`, `docs/bench/m1.md`, and `docs/research/competitor-teardown.md` (phone-harness, already torn down in detail).
+Question: what do the leading phone-control harnesses give an agent that phonedriver does not, or give it better? Scope: Android and iOS action layers, observation formats, and harness design. phonedriver baseline is `README.md`, `docs/architecture.md` (sections 4, 10, 14), `docs/audits/ax-audit.md`, `docs/bench/history/m1.md`, and `docs/research/competitor-teardown.md` (phone-harness, already torn down in detail).
 
 ## How to read this
 
@@ -174,7 +174,7 @@ Evidence: Open-AutoGLM supports HarmonyOS NEXT via hdc; agent-device lists Harmo
 
 ## 3. Where phonedriver is clearly ahead
 
-Only claims I can support from our measurements (`docs/bench/m1.md`) or from what a competitor's own page says it does.
+Only claims I can support from our measurements (`docs/bench/history/m1.md`) or from what a competitor's own page says it does.
 
 - **Latency, measured against the one competitor we benchmarked.** phonedriver vs phone-harness 0.3.3 on an Android 17 emulator, median of 50: screenshot 15.2 ms vs 390.1 ms, Settings snapshot 67.7 ms vs 2,426 ms, 1,000-row list snapshot 15.5 ms vs 2,370 ms, tap 36.5 ms vs 110.7 ms (`m1.md`). No other competitor has a published latency figure that I found (mobilecli: "only the first command pays the discovery cost" is the only performance statement on its page; Android-MCP: "The page makes no performance or latency statements"). So "fastest" is unproven against anyone but phone-harness. Section 4 fixes that.
 - **Act and observe in one call.** Every phonedriver action returns the settled diff (README: tap returns `~ @e10 switch "Dark theme" off → on`). mobile-mcp's `server.ts` has no sleeps after actions and no diff, so an agent calls `list_elements` after each action; its batch tool needs `listElementsAtEnd` to do the same. agent-device has the closest equivalent (`--settle` returns a `+ - =` diff), so this is parity with one competitor and ahead of the rest. How agent-device decides "settled" I did not read.

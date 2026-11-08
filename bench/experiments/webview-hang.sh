@@ -3,7 +3,7 @@ set -uo pipefail
 
 usage() {
   cat <<'EOF'
-webview-hang.sh: one trial of the API 37 WebView hang experiment (docs/bench/m2.md).
+webview-hang.sh: one trial of the API 37 WebView hang experiment (docs/bench/history/m2.md).
 
 Usage: bench/experiments/webview-hang.sh <arm> <trial-name> [iterations]
 

@@ -95,7 +95,7 @@ As built (`bench/scenarios/android/*.yaml`, 20 files; run with `phonedriver-benc
 
 Avoid stock Contacts: on a fresh emulator it raises Google account and sync prompts that make the scenario test the setup, not the harness.
 
-**Gate M2:** 20/20 on API 37 and API 26, three consecutive runs each (flake check). Emulators use a software encoder and no OEM changes, so M2 also needs one physical Android phone: ask the user (master plan question 3). On it, run the Phase 2 e2e tests and the scenarios that do not depend on emulator-only setup; record the encoder name and profile from spike A3's method. If no phone is available, M2 is met for emulators only and `progress.md` says so plainly. Record run times in `docs/bench/m2.md`. A flaky scenario is a bug: find the cause with the trace file, fix it, rerun three times.
+**Gate M2:** 20/20 on API 37 and API 26, three consecutive runs each (flake check). Emulators use a software encoder and no OEM changes, so M2 also needs one physical Android phone: ask the user (master plan question 3). On it, run the Phase 2 e2e tests and the scenarios that do not depend on emulator-only setup; record the encoder name and profile from spike A3's method. If no phone is available, M2 is met for emulators only and `progress.md` says so plainly. Record run times in `docs/bench/history/m2.md`. A flaky scenario is a bug: find the cause with the trace file, fix it, rerun three times.
 
 ---
 

@@ -31,11 +31,11 @@ Create AVD `Pixel_Tablet_API_37` on win-pc and boot an iPad Pro 13-inch simulato
 
 ### Task 7.4: Android over Wi-Fi
 
-No new code: `adb pair` and `adb connect` already exist, and a connected Wi-Fi device appears in `track-devices` like any other. Add a `doctor` hint for devices in state `offline` over TCP, and document the two adb commands in `README.md`. **Test** on a phone or emulator with wireless debugging (Android 11+): pair and connect with adb, run the Phase 2 e2e tests over Wi-Fi, and record latency next to USB in `docs/bench/wifi.md`.
+No new code: `adb pair` and `adb connect` already exist, and a connected Wi-Fi device appears in `track-devices` like any other. Add a `doctor` hint for devices in state `offline` over TCP, and document the two adb commands in `README.md`. **Test** on a phone or emulator with wireless debugging (Android 11+): pair and connect with adb, run the Phase 2 e2e tests over Wi-Fi, and record latency next to USB in `docs/bench/history/wifi.md`.
 
 ### Task 7.5: Two devices at once
 
-**Tests:** two clients each lease a different emulator and run the full Android scenario suite concurrently. Both pass; no cross-talk (each trace only names its own device). Then one client drives both devices alternately with `--device`. Measure daemon CPU and memory with two video streams; record in `docs/bench/multi.md`.
+**Tests:** two clients each lease a different emulator and run the full Android scenario suite concurrently. Both pass; no cross-talk (each trace only names its own device). Then one client drives both devices alternately with `--device`. Measure daemon CPU and memory with two video streams; record in `docs/bench/history/multi.md`.
 
 ### Task 7.6: Remote use over SSH
 

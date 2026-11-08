@@ -46,7 +46,7 @@ Test: with the emulator, all `ok`. With the adb tunnel down, `fail` on the adb l
 
 ### Task 4.5: Agent evaluation (M3)
 
-**Files:** Create `bench/agent-eval/tasks.yaml`, `bench/agent-eval/run.sh`, `docs/bench/m3.md`.
+**Files:** Create `bench/agent-eval/tasks.yaml`, `bench/agent-eval/run.sh`, `docs/bench/history/m3.md`.
 
 Ten tasks in natural language, each with a programmatic check reused from the scenario suite, split into two sets. Do not look at the held-out set's transcripts until the gate run.
 
@@ -57,7 +57,7 @@ Runner: for each task, reset the emulator state, then run `claude -p "<task>" --
 
 Record per task: success, number of tool calls, total tokens, wall time. Read every tuning-set transcript. For each place the agent hesitated, misused a verb, or misread an error, improve the tool description, the error hint, or the snapshot format, then rerun the tuning set.
 
-**Gate M3:** on the held-out set, run each task 3 times (15 runs): at least 13/15 succeed, and no failure is caused by the harness (wrong tap, missed element, misleading error). Classify every failure by reading its transcript. Record all metrics, the changes made during tuning, and their before/after effect on tool calls and tokens in `docs/bench/m3.md`.
+**Gate M3:** on the held-out set, run each task 3 times (15 runs): at least 13/15 succeed, and no failure is caused by the harness (wrong tap, missed element, misleading error). Classify every failure by reading its transcript. Record all metrics, the changes made during tuning, and their before/after effect on tool calls and tokens in `docs/bench/history/m3.md`.
 
 ### Task 4.6: README
 
