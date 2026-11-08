@@ -182,7 +182,19 @@ pub fn command() -> clap::Command {
     for (verb, unused) in UNUSED_GLOBALS {
         cmd = cmd.mut_subcommand(*verb, |s| without_globals(s, unused));
     }
-    cmd
+    cmd.build();
+    cmd.mut_subcommands(own_options_only)
+}
+
+const GLOBALS_POINTER: &str =
+    "Options that apply to every command (--device, --json, --timeout, ...): `phonedriver --help`.";
+
+/// A command's help lists its own options. The copies of the global options clap puts on it are hidden: they
+/// were 14 lines on every command.
+fn own_options_only(cmd: clap::Command) -> clap::Command {
+    cmd.mut_args(|a| if a.is_global_set() { a.hide(true) } else { a })
+        .mut_subcommands(own_options_only)
+        .after_help(GLOBALS_POINTER)
 }
 
 const DIRECTIONS: [&str; 4] = ["up", "down", "left", "right"];
