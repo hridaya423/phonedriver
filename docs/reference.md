@@ -2,6 +2,90 @@
 
 Moved out of the README. Commands use the current binary name, `phonedriver`.
 
+## Install
+
+After the first release (nothing is published yet, so these do not work today), one line gets you the prebuilt binary. Each artifact has the Android agent inside.
+
+The shortest route is `npx`. The `phonedriver` npm package is a small launcher: on first run it downloads the binary for your platform from GitHub Releases, checks its SHA-256, caches it and runs it. It contacts GitHub only for that download and sends no telemetry.
+
+```sh
+npx -y phonedriver --version                              # try it
+claude mcp add phonedriver -- npx -y phonedriver mcp      # Claude Code
+```
+
+The installers below put a permanent `phonedriver` on your `PATH` instead.
+
+```sh
+# macOS and Linux
+curl --proto '=https' --tlsv1.2 -LsSf https://github.com/hridaya423/phonedriver/releases/latest/download/phonedriver-installer.sh | sh
+
+# Homebrew (macOS and Linux)
+brew install hridaya423/tap/phonedriver
+```
+
+```powershell
+# Windows
+powershell -ExecutionPolicy Bypass -c "irm https://github.com/hridaya423/phonedriver/releases/latest/download/phonedriver-installer.ps1 | iex"
+```
+
+The shell and PowerShell installers put `phonedriver` in `$CARGO_HOME/bin` (`~/.cargo/bin`) and add it to your `PATH`. The iOS Simulator runner needs no download: its sources are inside the binary, and the first command that needs it builds it on your Mac with Xcode and XcodeGen.
+
+To build from source instead, use Rust 1.99 or later.
+
+```sh
+cargo build --release
+```
+
+The build packs the Android agent, so it needs the Android SDK with build-tools **37.0.0** and platform **android-37.0** (`ANDROID_HOME`, falling back to `ANDROID_SDK_ROOT`, then `/opt/homebrew/share/android-commandlinetools`), `d8` and JDK 17. Override the versions with `ANDROID_BUILD_TOOLS` and `ANDROID_PLATFORM`. If anything is missing the build says exactly what and how to get it. To skip that step, set `PHONEDRIVER_AGENT_JAR` to a built `phonedriver-agent.jar` (`bash android-agent/build.sh` makes one; none is published yet).
+
+**iOS only, no Android toolchain:**
+
+```sh
+cargo build --release -p phonedriver --no-default-features
+```
+
+That binary has no Android support (`phonedriver doctor` skips the Android checks). Run the tests with the default features. The binary is `target/release/phonedriver`.
+
+```console
+$ target/release/phonedriver version
+phonedriver 0.1.0
+```
+
+Run `phonedriver doctor`. It checks adb, each Android device, the agent, UiAutomation, the video stream, Xcode, the simulators, and the permissions of the daemon socket. Each line says `ok`, `warn` or `fail`, and a fix follows every line that is not `ok`.
+
+```console
+$ phonedriver doctor
+ok    adb server       0029 at 127.0.0.1:5037
+warn  android devices  none connected
+      fix: Connect a phone with USB debugging on, or start an emulator; `adb devices` lists what adb sees.
+ok    xcode            Xcode 27.0, Build version 27A266a
+ok    xcodegen         /opt/homebrew/bin/xcodegen
+warn  simulators       none booted
+      fix: Boot one in Simulator.app or with `xcrun simctl boot <udid>`; `xcrun simctl list devices available` lists them.
+ok    daemon socket    /Users/you/.phonedriver/run/daemon.sock mode 600 in a directory of mode 700
+```
+
+The CLI runs the same loop. `phonedriver skill` prints [`SKILL.md`](../SKILL.md), the instructions an agent reads before it uses the tools.
+
+```sh
+phonedriver devices
+phonedriver snapshot
+phonedriver tap "Dark theme"
+phonedriver wait settled
+```
+
+### iPhone or iPad
+
+A physical iOS device needs the runner signed with your Apple developer team (a free Apple ID works and expires every 7 days). Plug the device in, unlock it, then:
+
+```sh
+phonedriver ios setup                  # pairing, Developer Mode, developer disk image
+export PHONEDRIVER_TEAM=<your team ID>   # Xcode > Settings > Accounts, or: security find-identity -v -p codesigning
+phonedriver --device ios:<udid> snapshot
+```
+
+Without a team, the command stops with exit code 3 and says so. With a booted Simulator and an iPhone that has no team, the Simulator is the default device. The daemon reads `PHONEDRIVER_TEAM` when it starts, so run `phonedriver daemon stop` after setting it.
+
 ## Environment variables
 
 | Name | Default | Meaning |
