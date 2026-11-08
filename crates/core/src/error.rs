@@ -315,6 +315,12 @@ pub enum Error {
         /// Seconds until the lease lapses without another call.
         expires_s: u64,
     },
+    #[error("device {id} is driven by another phonedriver daemon (pid {pid} on {host})")]
+    DeviceDriven {
+        id: DeviceId,
+        pid: u32,
+        host: String,
+    },
     #[error("{}", action.message())]
     NeedsUser { action: UserAction },
     #[error("{}", stale_message(*r#ref, *unseen))]
@@ -447,6 +453,7 @@ impl Error {
             Error::AmbiguousDevice { .. } => -32002,
             Error::DeviceGone { .. } => -32003,
             Error::DeviceBusy { .. } => -32004,
+            Error::DeviceDriven { .. } => -32021,
             Error::NeedsUser { .. } => -32005,
             Error::StaleRef { .. } => -32006,
             Error::NotFound { .. } => -32007,
@@ -493,6 +500,9 @@ impl Error {
                 "Wait for session {held_by} to release it (idle {}, lease expires in {}), or use another device.",
                 span(*idle_s),
                 span(*expires_s)
+            ),
+            Error::DeviceDriven { pid, host, .. } => format!(
+                "Stop that daemon (`kill {pid}` on {host}) or use another device, then retry."
             ),
             Error::NeedsUser { action } => action.hint(),
             Error::StaleRef { unseen: true, .. } => {
@@ -660,6 +670,11 @@ mod tests {
                 idle_s: 180,
                 expires_s: 420,
             },
+            Error::DeviceDriven {
+                id: "android:emulator-5554".into(),
+                pid: 4242,
+                host: "mac.local".into(),
+            },
             Error::StaleRef {
                 r#ref: Ref(4),
                 closest: Some("@e9 button \"Network & internet\"".into()),
@@ -776,6 +791,7 @@ mod tests {
             Error::AmbiguousDevice { .. } => (-32002, "ambiguous_device"),
             Error::DeviceGone { .. } => (-32003, "device_gone"),
             Error::DeviceBusy { .. } => (-32004, "device_busy"),
+            Error::DeviceDriven { .. } => (-32021, "device_driven"),
             Error::NeedsUser { .. } => (-32005, "needs_user"),
             Error::StaleRef { .. } => (-32006, "stale_ref"),
             Error::NotFound { .. } => (-32007, "not_found"),

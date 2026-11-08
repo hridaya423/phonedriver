@@ -21,6 +21,10 @@ const JAR: &[u8] = include_bytes!(env!("PHONEDRIVER_AGENT_JAR"));
 const JAR_MISSING: i32 = 99;
 const NO_HIDDEN_DISPLAY: i32 = 5;
 const SIGTERM: i32 = 143;
+const OWNED: i32 = 98;
+const OWNER_FILE: &str = "/data/local/tmp/phonedriver-owner";
+const OWNER_GRACE_TRIES: u32 = 4;
+const OWNER_GRACE_STEP: Duration = Duration::from_millis(500);
 const READY_TIMEOUT: Duration = Duration::from_secs(3);
 /// Creating the encoder and the virtual display at 2560x1600 took 5 to 8 s to `ready` on the API 37 tablet emulator.
 const HIDDEN_READY_TIMEOUT: Duration = Duration::from_secs(20);
@@ -47,6 +51,52 @@ fn jar_path() -> String {
     format!("/data/local/tmp/phonedriver-agent-{sha8}.jar")
 }
 
+fn host_name() -> String {
+    static HOST: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+    HOST.get_or_init(|| {
+        let name = std::process::Command::new("hostname")
+            .output()
+            .ok()
+            .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
+            .unwrap_or_default();
+        let name: String = name
+            .chars()
+            .filter(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '-' | '_'))
+            .collect();
+        if name.is_empty() {
+            "unknown-host".into()
+        } else {
+            name
+        }
+    })
+    .clone()
+}
+
+/// Names this daemon in the owner file: another daemon that finds a live agent under a different name must not kill it.
+fn owner() -> String {
+    format!("pid={} host={}", std::process::id(), host_name())
+}
+
+/// One adb shell does the existence check of the jar, the owner check, the kill and the start. The owner file is read
+/// only while an agent is running: an agent that adbd has already ended leaves a stale file, and an agent with no file
+/// is from a phonedriver that did not write one.
+fn start_command(
+    jar: &str,
+    owner_file: &str,
+    name: &str,
+    display: DisplayMode,
+    me: &str,
+) -> String {
+    let hidden = match display {
+        DisplayMode::Main => "",
+        DisplayMode::Hidden => " hidden",
+    };
+    // `$M` keeps the class name out of this shell's own command line, which `pkill -f` would otherwise match.
+    format!(
+        "[ -f {jar} ] || exit {JAR_MISSING}; o=$(cat {owner_file} 2>/dev/null); if [ -n \"$o\" ] && [ \"$o\" != '{me}' ] && pgrep -f 'dev.phonedriver.agent.[M]ain' >/dev/null; then echo \"owned $o\"; exit {OWNED}; fi; pkill -f 'dev.phonedriver.agent.[M]ain'; echo '{me}' > {owner_file}; M=Main; CLASSPATH={jar} exec app_process / dev.phonedriver.agent.$M {VERSION} {name}{hidden}"
+    )
+}
+
 async fn start(
     adb: &Adb,
     serial: &str,
@@ -55,17 +105,10 @@ async fn start(
     token: &str,
     display: DisplayMode,
 ) -> Result<ShellStream> {
-    let hidden = match display {
-        DisplayMode::Main => "",
-        DisplayMode::Hidden => " hidden",
-    };
-    // `$M` keeps the class name out of this shell's own command line, which `pkill -f` would otherwise match.
     let mut shell = adb
         .shell_stream(
             serial,
-            &format!(
-                "[ -f {jar} ] || exit {JAR_MISSING}; pkill -f 'dev.phonedriver.agent.[M]ain'; M=Main; CLASSPATH={jar} exec app_process / dev.phonedriver.agent.$M {VERSION} {name}{hidden}"
-            ),
+            &start_command(jar, OWNER_FILE, name, display, &owner()),
         )
         .await?;
     shell.write_stdin(format!("{token}\n").as_bytes()).await?;
@@ -150,7 +193,12 @@ impl LineSplitter {
 }
 
 /// `Ok(false)` when the shell found no jar at the path (exit `JAR_MISSING`).
-async fn wait_ready(shell: &mut ShellStream, log: &AgentLog, limit: Duration) -> Result<bool> {
+async fn wait_ready(
+    shell: &mut ShellStream,
+    log: &AgentLog,
+    limit: Duration,
+    serial: &str,
+) -> Result<bool> {
     let mut out = LineSplitter {
         pending: String::new(),
     };
@@ -182,11 +230,30 @@ async fn wait_ready(shell: &mut ShellStream, log: &AgentLog, limit: Duration) ->
     if exit == Some(JAR_MISSING) {
         return Ok(false);
     }
-    Err(not_ready(exit, timed_out, limit, &log.recent()))
+    Err(not_ready(exit, timed_out, limit, &log.recent(), serial))
 }
 
-fn not_ready(exit: Option<i32>, timed_out: bool, limit: Duration, lines: &[String]) -> Error {
+fn not_ready(
+    exit: Option<i32>,
+    timed_out: bool,
+    limit: Duration,
+    lines: &[String],
+    serial: &str,
+) -> Error {
     let tail = lines.join("\n");
+    if exit == Some(OWNED)
+        && let Some(held) = lines.iter().rev().find_map(|l| l.strip_prefix("owned "))
+        && let Some((pid, host)) = held
+            .strip_prefix("pid=")
+            .and_then(|r| r.split_once(" host="))
+        && let Ok(pid) = pid.parse()
+    {
+        return Error::DeviceDriven {
+            id: format!("android:{serial}"),
+            pid,
+            host: host.to_string(),
+        };
+    }
     if exit == Some(4) || tail.contains("already registered") {
         return Error::AutomationConflict {
             holder: CONFLICT_HOLDER.to_string(),
@@ -215,7 +282,33 @@ fn not_ready(exit: Option<i32>, timed_out: bool, limit: Duration, lines: &[Strin
     ))
 }
 
-/// Kills any running agent, starts a new one and waits for it to listen. One adb shell does the existence check of the
+/// adbd ends an agent about a second after its shell stream closes, so an owner that has just exited still shows for
+/// that long: an owned device is asked again a few times before it is reported.
+#[allow(clippy::too_many_arguments)]
+async fn start_ready(
+    adb: &Adb,
+    serial: &str,
+    jar: &str,
+    name: &str,
+    token: &str,
+    display: DisplayMode,
+    log: &AgentLog,
+    limit: Duration,
+) -> Result<(ShellStream, bool)> {
+    let mut tries = 0;
+    loop {
+        let mut shell = start(adb, serial, jar, name, token, display).await?;
+        match wait_ready(&mut shell, log, limit, serial).await {
+            Err(Error::DeviceDriven { .. }) if tries < OWNER_GRACE_TRIES => {
+                tries += 1;
+                tokio::time::sleep(OWNER_GRACE_STEP).await;
+            }
+            found => return found.map(|found| (shell, found)),
+        }
+    }
+}
+
+/// Kills this daemon's own running agent, starts a new one and waits for it to listen. One adb shell does the existence check of the
 /// jar, the kill and the start, so a warm start costs one round trip to the device before the agent boots; the jar is
 /// pushed only when the shell reports it missing.
 pub async fn launch(adb: &Adb, serial: &str, display: DisplayMode) -> Result<Launched> {
@@ -227,11 +320,14 @@ pub async fn launch(adb: &Adb, serial: &str, display: DisplayMode) -> Result<Lau
         DisplayMode::Main => READY_TIMEOUT,
         DisplayMode::Hidden => HIDDEN_READY_TIMEOUT,
     };
-    let mut shell = start(adb, serial, &jar, &name, &token, display).await?;
-    if !wait_ready(&mut shell, &log, ready_limit).await? {
+    let (mut shell, found) =
+        start_ready(adb, serial, &jar, &name, &token, display, &log, ready_limit).await?;
+    if !found {
         deploy(adb, serial).await?;
-        shell = start(adb, serial, &jar, &name, &token, display).await?;
-        if !wait_ready(&mut shell, &log, ready_limit).await? {
+        let (again, found) =
+            start_ready(adb, serial, &jar, &name, &token, display, &log, ready_limit).await?;
+        shell = again;
+        if !found {
             return Err(transport(format!(
                 "the agent jar is not at {jar} after the push"
             )));
@@ -402,12 +498,125 @@ mod tests {
         assert_eq!(plain.hidden_display, None);
     }
 
+    fn run_start_command(
+        owner_in_file: Option<&str>,
+        agent_running: bool,
+        me: &str,
+    ) -> (i32, String, Vec<String>) {
+        let dir = tempfile::tempdir().unwrap();
+        let bin = dir.path().join("bin");
+        std::fs::create_dir(&bin).unwrap();
+        let log = dir.path().join("calls");
+        let stub = |name: &str, body: &str| {
+            let path = bin.join(name);
+            std::fs::write(&path, format!("#!/bin/sh\n{body}\n")).unwrap();
+            std::process::Command::new("chmod")
+                .arg("+x")
+                .arg(&path)
+                .status()
+                .unwrap();
+        };
+        stub("pgrep", if agent_running { "exit 0" } else { "exit 1" });
+        stub("pkill", &format!("echo pkill >> {}", log.display()));
+        stub(
+            "app_process",
+            &format!("echo app_process >> {}", log.display()),
+        );
+        let jar = dir.path().join("agent.jar");
+        std::fs::write(&jar, b"").unwrap();
+        let owner_file = dir.path().join("owner");
+        if let Some(o) = owner_in_file {
+            std::fs::write(&owner_file, format!("{o}\n")).unwrap();
+        }
+        let command = start_command(
+            jar.to_str().unwrap(),
+            owner_file.to_str().unwrap(),
+            "phonedriver-0.1.0-ab",
+            DisplayMode::Main,
+            me,
+        );
+        let out = std::process::Command::new("sh")
+            .arg("-c")
+            .arg(&command)
+            .env("PATH", format!("{}:/usr/bin:/bin", bin.display()))
+            .output()
+            .unwrap();
+        let calls = std::fs::read_to_string(&log)
+            .unwrap_or_default()
+            .lines()
+            .map(str::to_string)
+            .collect();
+        (
+            out.status.code().unwrap(),
+            String::from_utf8_lossy(&out.stdout).trim().to_string(),
+            calls,
+        )
+    }
+
+    #[test]
+    fn a_live_agent_another_daemon_owns_is_not_killed() {
+        let (code, out, calls) =
+            run_start_command(Some("pid=4242 host=other"), true, "pid=7 host=mine");
+        assert_eq!(code, OWNED, "{out}");
+        assert_eq!(out, "owned pid=4242 host=other");
+        assert!(calls.is_empty(), "{calls:?}");
+    }
+
+    #[test]
+    fn this_daemons_own_agent_is_replaced_and_the_owner_file_names_it() {
+        let (code, _, calls) = run_start_command(Some("pid=7 host=mine"), true, "pid=7 host=mine");
+        assert_eq!(code, 0);
+        assert_eq!(calls, ["pkill", "app_process"]);
+    }
+
+    #[test]
+    fn an_owner_file_with_no_agent_running_is_stale_and_is_taken_over() {
+        let (code, _, calls) =
+            run_start_command(Some("pid=4242 host=other"), false, "pid=7 host=mine");
+        assert_eq!(code, 0);
+        assert_eq!(calls, ["pkill", "app_process"]);
+    }
+
+    #[test]
+    fn an_agent_with_no_owner_file_is_from_an_older_phonedriver_and_is_replaced() {
+        let (code, _, calls) = run_start_command(None, true, "pid=7 host=mine");
+        assert_eq!(code, 0);
+        assert_eq!(calls, ["pkill", "app_process"]);
+    }
+
+    #[test]
+    fn an_agent_owned_by_another_daemon_is_an_error_naming_it() {
+        let lines = vec!["owned pid=4242 host=mac.local".to_string()];
+        let e = not_ready(Some(OWNED), false, READY_TIMEOUT, &lines, "emulator-5556");
+        assert_eq!(
+            e,
+            Error::DeviceDriven {
+                id: "android:emulator-5556".into(),
+                pid: 4242,
+                host: "mac.local".into(),
+            }
+        );
+        let text = e.to_string();
+        assert!(
+            text.contains("4242") && text.contains("mac.local"),
+            "{text}"
+        );
+        assert!(e.hint().contains("kill 4242"), "{}", e.hint());
+    }
+
     #[test]
     fn an_agent_stopped_before_it_was_ready_names_what_stops_agents() {
-        let e = not_ready(Some(143), false, READY_TIMEOUT, &[]).to_string();
+        let e = not_ready(Some(143), false, READY_TIMEOUT, &[], "emulator-5556").to_string();
         assert!(e.contains("another phonedriver"), "{e}");
         assert!(!e.trim_end().ends_with(':'), "{e}");
-        let other = not_ready(Some(1), false, READY_TIMEOUT, &["boom".into()]).to_string();
+        let other = not_ready(
+            Some(1),
+            false,
+            READY_TIMEOUT,
+            &["boom".into()],
+            "emulator-5556",
+        )
+        .to_string();
         assert!(other.ends_with("before it was ready: boom"), "{other}");
     }
 
@@ -415,14 +624,20 @@ mod tests {
     fn an_agent_that_refuses_a_hidden_display_is_unsupported_not_a_transport_failure() {
         let lines = vec!["hidden display: needs Android 13 (API 33), this is API 26".to_string()];
         assert!(matches!(
-            not_ready(Some(NO_HIDDEN_DISPLAY), false, READY_TIMEOUT, &lines),
+            not_ready(
+                Some(NO_HIDDEN_DISPLAY),
+                false,
+                READY_TIMEOUT,
+                &lines,
+                "emulator-5556"
+            ),
             Error::Unsupported {
                 op: Op::Display,
                 ..
             }
         ));
         assert!(matches!(
-            not_ready(Some(1), false, READY_TIMEOUT, &lines),
+            not_ready(Some(1), false, READY_TIMEOUT, &lines, "emulator-5556"),
             Error::Transport { .. }
         ));
     }
