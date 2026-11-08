@@ -550,7 +550,7 @@ def build_home():
 <div class="split">
 <div class="txt">
 <p>When a tap lands on a button labeled Pay, Buy now, Place order, Subscribe, Transfer or Delete account, phonedriver holds the tap and asks you in Claude Code's own prompt. The model never sees that question and can't answer it. In a client that can't show such a prompt, the tap waits and the model has to ask you in chat.</p>
-<p>You choose Allow, Allow for this session, or Decline. If you want an agent to run without asking, you can say so in its instructions, and it passes <code>autonomous: true</code>; you can also turn the check off with <code>PHONEDRIVER_GUARD=off</code>. The check reads English button labels. It does not catch a payment button that is only an icon, or one in another language.</p>
+<p>You choose Allow, Allow for this session, or Decline. If you want an agent to run without asking, you can say so in its instructions, and it passes <code>autonomous: true</code>; you can also turn the check off with <code>PHONEDRIVER_GUARD=off</code>. The check reads button labels in English, Spanish, Portuguese, French, German, Italian, Dutch, Japanese, Chinese (Simplified), Korean and Hindi. It does not catch a payment button that is only an icon, or one labeled in another language.</p>
 </div>
 <figure class="shot"><img src="/assets/guard-poster.jpg" width="1280" height="720" alt="Claude Code shows phonedriver's question: your agent wants to tap Place order, $12.00, in the testbed app. The choices are Allow, Accept and Decline." decoding="async" loading="lazy"></figure>
 </div></div></section>
