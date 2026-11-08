@@ -153,6 +153,26 @@ async fn snapshot_is_one_text_block_equal_to_what_the_cli_prints() {
 }
 
 #[tokio::test]
+async fn a_web_radio_shows_on_or_off_like_a_web_checkbox_and_a_native_one_shows_its_own_state() {
+    let json = r#"{"windows":[{"id":1,"type":"application","package":"com.android.chrome","bounds":[0,0,360,800]}],"nodes":[
+        {"p":-1,"w":1,"cls":"android.widget.FrameLayout","b":[0,0,360,800],"f":"vVe"},
+        {"p":0,"w":1,"cls":"android.webkit.WebView","text":"Order","b":[0,0,360,500],"f":"vVe"},
+        {"p":1,"w":1,"cls":"android.widget.RadioButton","text":"Medium","b":[10,100,30,120],"f":"vVe","a":["tap"]},
+        {"p":1,"w":1,"cls":"android.widget.CheckBox","text":"Bacon","b":[10,200,30,220],"f":"vVe","a":["tap"]},
+        {"p":0,"w":1,"cls":"android.widget.RadioButton","text":"Native","b":[10,600,30,620],"f":"vVecC","a":["tap"]}]}"#;
+    let tree = RawTree::from_android_json(json, phonedriver_core::geometry::Scale { density: 1.0 })
+        .unwrap();
+    let rig = rig(vec![tree]).await;
+    let text = rig.daemon("snapshot", json!({})).await.unwrap()["text"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert!(text.contains("radio \"Medium\" off"), "{text}");
+    assert!(text.contains("checkbox \"Bacon\" off"), "{text}");
+    assert!(text.contains("radio \"Native\" on"), "{text}");
+}
+
+#[tokio::test]
 async fn the_device_line_is_told_once_and_told_again_only_when_it_changes() {
     let rig = rig(vec![tree(&["One", "Two"])]).await;
     let first = texts(&rig.call("snapshot", json!({})).await).remove(0);

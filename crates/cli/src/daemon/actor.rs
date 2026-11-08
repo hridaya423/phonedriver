@@ -1041,7 +1041,7 @@ impl Actor {
         Ok(rendered)
     }
 
-    /// A web checkbox repaints after the screen has looked settled (up to 3 s on a page that has just loaded in the
+    /// A web checkbox or radio repaints after the screen has looked settled (up to 3 s on a page that has just loaded in the
     /// emulator), so a read right away still shows the old state and the reply says nothing changed.
     async fn await_toggle(&mut self, s: &mut Session, r: Ref, was: bool) -> Result<(), Error> {
         let started = Instant::now();
@@ -1056,14 +1056,14 @@ impl Actor {
         Ok(())
     }
 
-    /// A web checkbox says neither checkable nor checked in the tree, so its state is read from the screenshot.
+    /// A web checkbox or radio says neither checkable nor checked in the tree, so its state is read from the screenshot.
     async fn read_checkboxes(&self, rendered: &mut Rendered) -> Result<(), Error> {
         let boxes: Vec<usize> = rendered
             .elements
             .iter()
             .enumerate()
             .filter(|(_, e)| {
-                e.role == Role::Checkbox
+                matches!(e.role, Role::Checkbox | Role::Radio)
                     && !e.state.contains(ElementState::CHECKABLE)
                     && e.bounds.w > 0.0
                     && e.bounds.h > 0.0
@@ -1453,8 +1453,12 @@ impl Actor {
                 };
                 let summary = approved_summary(summary, approved);
                 if let Some(e) = found.as_ref().filter(|e| {
-                    e.role == Role::Checkbox
-                        && s.last.as_ref().is_some_and(|l| l.in_web_view(e.r#ref))
+                    let can_change = match e.role {
+                        Role::Checkbox => true,
+                        Role::Radio => !e.state.contains(ElementState::CHECKED),
+                        _ => false,
+                    };
+                    can_change && s.last.as_ref().is_some_and(|l| l.in_web_view(e.r#ref))
                 }) {
                     self.await_toggle(s, e.r#ref, e.state.contains(ElementState::CHECKED))
                         .await?;

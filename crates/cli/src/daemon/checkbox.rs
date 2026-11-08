@@ -1,9 +1,9 @@
-//! Whether a web checkbox is ticked, read from the screenshot.
+//! Whether a web checkbox or radio button is ticked, read from the screenshot.
 //!
-//! Chromium's accessibility node for a web page's checkbox says neither checkable nor checked (checked, checkable,
-//! `getChecked`, state description and extras all stay empty on API 37, before and after the box is toggled), so the
-//! tree cannot tell a ticked box from an empty one. A ticked box is drawn filled with the page's accent color, an empty
-//! one is not.
+//! Chromium's accessibility node for a web page's checkbox or radio button says neither checkable nor checked (checked,
+//! checkable, `getChecked`, state description and extras all stay empty on API 37, before and after it is toggled), so
+//! the tree cannot tell a ticked one from an empty one. A ticked box is drawn filled with the page's accent color, a
+//! ticked radio has a dot of it, an empty one has neither.
 
 use phonedriver_core::error::{Error, Op};
 use phonedriver_core::geometry::Rect;
@@ -113,6 +113,38 @@ mod tests {
         });
         assert_eq!(
             ticked(&png, &[box_at(5.0), box_at(40.0)]).unwrap(),
+            [true, false]
+        );
+    }
+
+    #[test]
+    fn a_radio_is_ticked_when_its_dot_is_colored_and_not_when_only_its_ring_is_drawn() {
+        let radio = |x: usize, y: usize, left: usize, dot: bool| {
+            let (cx, cy) = (left as f32 + 3.5, 13.5f32);
+            let d = ((x as f32 + 0.5 - cx).powi(2) + (y as f32 + 0.5 - cy).powi(2)).sqrt();
+            if dot && d < 2.4 {
+                BLUE
+            } else if d > 2.9 && d < 3.6 {
+                if dot { BLUE } else { GRAY }
+            } else {
+                WHITE
+            }
+        };
+        let png = screen(|x, y| {
+            if x < 20 {
+                radio(x, y, 5, true)
+            } else {
+                radio(x, y, 40, false)
+            }
+        });
+        let small = |left: f32| Rect {
+            x: left,
+            y: 10.0,
+            w: 7.0,
+            h: 7.0,
+        };
+        assert_eq!(
+            ticked(&png, &[small(5.0), small(40.0)]).unwrap(),
             [true, false]
         );
     }
