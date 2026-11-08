@@ -161,7 +161,7 @@ System alerts (decision D23, `core::alert`): a window the system puts over the s
 
 Text that reads like an instruction to an AI (decision D24, `core::inject`): the element line ends with ` (ai-instruction)` when its label, shown value or hint matches the phrase rules; the text itself is printed unchanged.
 
-Approval guard (decision D27, `daemon::guard`): a tap, or a `type --submit` into a field whose form holds one, on an element whose label says it spends money or cannot be undone (`Place order · $34.10`, `Buy now`, `Pay $12.00`, `Confirm payment`, `Delete account`) fails with `needs_approval` unless the request carries an `approval` (below). The error carries `label`, `app` and `details`, the visible lines that say what is committed. The daemon holds one flag per session, `guard_allowed`, set by `approval: "session"` and gone with the daemon.
+Approval guard (decision D27, `daemon::guard`): a tap, or a `type --submit` into a field whose form holds one, on an element whose label says it spends money or cannot be undone (`Place order · $34.10`, `Buy now`, `Pay $12.00`, `Confirm payment`, `Delete account`) fails with `needs_approval` unless the request carries an `approval` (below). The error carries `label`, `app`, `category` (`payment` and `account` are always asked; `send`, `delete` and `install` only when the request names them in `ask`, which the CLI and MCP server fill from `PHONEDRIVER_ASK`, decision D30) and `details`, the visible lines that say what is committed. The daemon holds the categories allowed for the session, `guard_allowed`, set by `approval: "session"` and gone with the daemon.
 
 Filters: `--interactive` (only nodes with actions), `--within @eN`, `--max-lines N` (summarizes the rest as `… N more`).
 

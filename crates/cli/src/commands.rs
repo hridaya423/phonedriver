@@ -17,7 +17,7 @@ use crate::daemon::ios::{PhysicalSource, SimSource};
 use crate::daemon::sources::Sources;
 use crate::daemon::trace::TraceOptions;
 use crate::daemon::{Config, Daemon, socket};
-use phonedriver_core::error::span;
+use phonedriver_core::error::{Category, span};
 
 use crate::wire::{
     ActionResult, Approval, BatchResult, DeviceEntry, Kind, Observation, ScreenshotResult,
@@ -490,6 +490,13 @@ pub fn run(cli: Cli) -> ExitCode {
                 eprintln!("error: cannot start the async runtime");
                 return ExitCode::from(1);
             };
+            let ask = match ask_env() {
+                Ok(a) => a,
+                Err(message) => {
+                    eprintln!("error: {message}");
+                    return ExitCode::from(2);
+                }
+            };
             let globals = Globals {
                 device: cli.device,
                 json: cli.json,
@@ -498,6 +505,7 @@ pub fn run(cli: Cli) -> ExitCode {
                 expect_change: cli.expect_change,
                 share: cli.share,
                 approval: None,
+                ask,
             };
             match rt.block_on(execute(verb, secret, &cli.session, &globals)) {
                 Ok(out) => {
@@ -524,6 +532,33 @@ pub(crate) struct Globals {
     pub expect_change: Option<u64>,
     pub share: bool,
     pub approval: Option<Approval>,
+    pub ask: Vec<Category>,
+}
+
+/// The opt-in categories of tap the human wants to be asked about, from `PHONEDRIVER_ASK` (decision D30). A name that
+/// is not one of them is an error: a typo must not leave a category unguarded without saying so.
+pub(crate) fn parse_ask(env: Option<&str>) -> Result<Vec<Category>, String> {
+    let mut ask = Vec::new();
+    for word in env.unwrap_or_default().split(',').map(str::trim) {
+        if word.is_empty() {
+            continue;
+        }
+        let Some(category) = Category::from_opt_in(word) else {
+            let valid: Vec<_> = Category::OPT_IN.iter().map(|c| c.name()).collect();
+            return Err(format!(
+                "PHONEDRIVER_ASK has \"{word}\", which is not a category; use a comma list of {}",
+                valid.join(", ")
+            ));
+        };
+        if !ask.contains(&category) {
+            ask.push(category);
+        }
+    }
+    Ok(ask)
+}
+
+pub(crate) fn ask_env() -> Result<Vec<Category>, String> {
+    parse_ask(std::env::var("PHONEDRIVER_ASK").ok().as_deref())
 }
 
 /// The guard's answer that does not come from asking: `--autonomous`, or `PHONEDRIVER_GUARD=off` for the whole process.
@@ -636,6 +671,9 @@ pub(crate) async fn execute_with(
         let mut p = json!({"action": action, "settle": !g.no_settle});
         if let Some(a) = approval {
             p["approval"] = json!(a);
+        }
+        if !g.ask.is_empty() {
+            p["ask"] = json!(g.ask);
         }
         if let Some(t) = g.timeout {
             p["timeout_ms"] = json!(t);
@@ -1057,6 +1095,9 @@ pub(crate) async fn run_batch(
     if guard_off(guard_env().as_deref()) || g.approval == Some(Approval::Autonomous) {
         p["approval"] = json!(Approval::Autonomous);
     }
+    if !g.ask.is_empty() {
+        p["ask"] = json!(g.ask);
+    }
     if let Some(d) = &g.device {
         p["device"] = json!(d);
     }
@@ -1395,6 +1436,25 @@ mod tests {
             guard_override(&tap(false), Some(Approval::Once), None),
             Some(Approval::Once)
         );
+    }
+
+    #[test]
+    fn the_ask_list_takes_the_opt_in_categories_and_refuses_the_rest() {
+        use phonedriver_core::error::Category::{Delete, Install, Send};
+        assert_eq!(parse_ask(None), Ok(vec![]));
+        assert_eq!(parse_ask(Some("")), Ok(vec![]));
+        assert_eq!(parse_ask(Some("send")), Ok(vec![Send]));
+        assert_eq!(
+            parse_ask(Some(" Send, delete ,INSTALL,send,")),
+            Ok(vec![Send, Delete, Install])
+        );
+        for bad in ["sned", "all", "payment", "send;delete"] {
+            let e = parse_ask(Some(bad)).unwrap_err();
+            assert!(
+                e.contains("PHONEDRIVER_ASK") && e.contains("send, delete, install"),
+                "{e}"
+            );
+        }
     }
 
     fn action(changed: bool, kind: &str, text: &str) -> Value {

@@ -11,6 +11,7 @@ use phonedriver::client::{Client, Failure};
 use phonedriver::daemon::{Config, Daemon, socket};
 use phonedriver::mcp::Mcp;
 use phonedriver_core::device::{Capabilities, Device, DeviceEvent, FrameRef, Gesture};
+use phonedriver_core::error::Category;
 use phonedriver_core::geometry::Scale;
 use phonedriver_core::raw::RawTree;
 use phonedriver_core::testing::{Call, FakeDevice};
@@ -45,6 +46,15 @@ fn checkout() -> RawTree {
         node("android.widget.TextView", "Total $34.10", 200, "vVe", ""),
         node("android.widget.Button", "Back", 300, "vVe", r#""tap""#),
         node("android.widget.Button", PLACE_ORDER, 400, "vVe", r#""tap""#),
+        node("android.widget.Button", "Send", 0, "vVe", r#""tap""#),
+        node(
+            "android.widget.Button",
+            "Delete photo",
+            50,
+            "vVe",
+            r#""tap""#,
+        ),
+        node("android.widget.Button", "Install", 550, "vVe", r#""tap""#),
         node(
             "android.widget.EditText",
             "",
@@ -60,6 +70,14 @@ fn checkout() -> RawTree {
     RawTree::from_android_json(&json, Scale { density: 1.0 }).unwrap()
 }
 
+fn composer() -> RawTree {
+    let json = r#"{"windows":[{"id":1,"type":"application","package":"com.example.chat","bounds":[0,0,360,800]}],"nodes":[
+        {"p":-1,"w":1,"cls":"android.widget.FrameLayout","b":[0,0,360,800],"f":"vVe"},
+        {"p":0,"w":1,"cls":"android.widget.EditText","text":"","b":[0,500,300,550],"f":"vVeEF","a":["tap","set_text"]},
+        {"p":0,"w":1,"cls":"android.widget.Button","text":"Send","b":[300,500,360,550],"f":"vVe","a":["tap"]}]}"#;
+    RawTree::from_android_json(json, Scale { density: 1.0 }).unwrap()
+}
+
 struct Rig {
     fake: Arc<FakeDevice>,
     socket: PathBuf,
@@ -67,7 +85,11 @@ struct Rig {
 }
 
 async fn rig() -> Rig {
-    let fake = Arc::new(FakeDevice::new(vec![checkout()]));
+    rig_showing(checkout()).await
+}
+
+async fn rig_showing(tree: RawTree) -> Rig {
+    let fake = Arc::new(FakeDevice::new(vec![tree]));
     let mut info = fake.info().clone();
     info.capabilities |= Capabilities::SCREENSHOT;
     let device: Arc<dyn Device> = Arc::new(Pixels(fake.clone(), info));
@@ -90,10 +112,19 @@ async fn rig() -> Rig {
 
 impl Rig {
     async fn act(&self, action: Value, approval: Option<&str>) -> Result<Value, Failure> {
+        self.act_asking(action, approval, &[]).await
+    }
+
+    async fn act_asking(
+        &self,
+        action: Value,
+        approval: Option<&str>,
+        ask: &[&str],
+    ) -> Result<Value, Failure> {
         let mut c = Client::connect_to(&self.socket, "guard-test")
             .await
             .unwrap();
-        let mut p = json!({"action": action, "settle": false});
+        let mut p = json!({"action": action, "settle": false, "ask": ask});
         if let Some(a) = approval {
             p["approval"] = json!(a);
         }
@@ -232,6 +263,120 @@ async fn a_batch_stops_at_a_guarded_step_unless_autonomous() {
     assert_eq!(rig.gestures(), 3);
 }
 
+#[tokio::test]
+async fn a_refusal_names_the_category_that_triggered_it() {
+    let rig = rig().await;
+    let data = refused(rig.act(tap("Place order"), None).await);
+    assert_eq!(data["category"], "payment");
+}
+
+#[tokio::test]
+async fn opt_in_categories_hold_a_tap_only_when_asked_for() {
+    let rig = rig().await;
+    let table = [
+        ("Send", "send"),
+        ("Delete photo", "delete"),
+        ("Install", "install"),
+    ];
+    for (label, category) in table {
+        let before = rig.gestures();
+        rig.act(tap(label), None).await.unwrap();
+        assert_eq!(
+            rig.gestures(),
+            before + 1,
+            "{label} is not asked by default"
+        );
+        let others: Vec<&str> = table
+            .iter()
+            .map(|t| t.1)
+            .filter(|c| *c != category)
+            .collect();
+        rig.act_asking(tap(label), None, &others).await.unwrap();
+        assert_eq!(rig.gestures(), before + 2, "{label} with {others:?}");
+        let data = refused(rig.act_asking(tap(label), None, &[category]).await);
+        assert_eq!(data["category"], category);
+        assert_eq!(data["label"], label);
+        assert_eq!(
+            rig.gestures(),
+            before + 2,
+            "{label} was tapped when asked for"
+        );
+        let r = rig
+            .act_asking(tap(label), Some("once"), &[category])
+            .await
+            .unwrap();
+        assert!(
+            r["summary"]
+                .as_str()
+                .unwrap()
+                .contains("approved by the human")
+        );
+    }
+}
+
+#[tokio::test]
+async fn payments_are_asked_whatever_is_turned_on() {
+    let rig = rig().await;
+    refused(rig.act_asking(tap("Place order"), None, &["send"]).await);
+    refused(rig.act_asking(tap("Place order"), None, &[]).await);
+}
+
+#[tokio::test]
+async fn a_session_approval_covers_only_the_category_it_was_given_for() {
+    let rig = rig().await;
+    rig.act(tap("Place order"), Some("session")).await.unwrap();
+    rig.act(tap("Place order"), None).await.unwrap();
+    let data = refused(rig.act_asking(tap("Send"), None, &["send"]).await);
+    assert_eq!(data["category"], "send");
+    rig.act_asking(tap("Send"), Some("session"), &["send"])
+        .await
+        .unwrap();
+    rig.act_asking(tap("Send"), None, &["send"]).await.unwrap();
+    refused(rig.act_asking(tap("Delete photo"), None, &["delete"]).await);
+}
+
+#[tokio::test]
+async fn submitting_a_form_with_a_send_button_is_held_when_send_is_asked_for() {
+    let rig = rig().await;
+    let mut c = Client::connect_to(&rig.socket, "guard-test").await.unwrap();
+    c.call("snapshot", json!({})).await.unwrap();
+    let typed = json!({"kind": "type", "text": "x", "submit": true});
+    refused(rig.act(typed.clone(), None).await);
+    let data = refused(rig.act_asking(typed, None, &["send"]).await);
+    assert_eq!(
+        data["category"], "payment",
+        "the payment button comes first"
+    );
+}
+
+#[tokio::test]
+async fn submitting_a_message_is_held_only_when_send_is_asked_for() {
+    let rig = rig_showing(composer()).await;
+    let mut c = Client::connect_to(&rig.socket, "guard-test").await.unwrap();
+    c.call("snapshot", json!({})).await.unwrap();
+    let typed = json!({"kind": "type", "text": "hi", "submit": true});
+    rig.act(typed.clone(), None).await.unwrap();
+    let data = refused(rig.act_asking(typed, None, &["send"]).await);
+    assert_eq!(data["category"], "send");
+    assert_eq!(data["label"], "Send");
+}
+
+#[tokio::test]
+async fn a_batch_carries_the_categories_asked_for() {
+    let rig = rig().await;
+    let steps = vec![tap("Back"), tap("Send")];
+    let mut c = Client::connect_to(&rig.socket, "guard-test").await.unwrap();
+    let r = c
+        .call("batch", json!({"steps": steps, "ask": ["send"]}))
+        .await
+        .unwrap();
+    assert_eq!(r["failed"]["step"], 2, "{r}");
+    assert_eq!(r["failed"]["error"]["code"], -32019, "{r}");
+    assert_eq!(rig.gestures(), 1);
+    let r = c.call("batch", json!({"steps": steps})).await.unwrap();
+    assert!(r["failed"].is_null(), "{r}");
+}
+
 type Asked = Arc<Mutex<Vec<ElicitRequestParams>>>;
 
 struct Human {
@@ -273,9 +418,17 @@ struct Mcp2 {
 }
 
 async fn mcp(answer: Option<(ElicitationAction, Option<Value>)>, version: ProtocolVersion) -> Mcp2 {
+    mcp_asking(answer, version, vec![]).await
+}
+
+async fn mcp_asking(
+    answer: Option<(ElicitationAction, Option<Value>)>,
+    version: ProtocolVersion,
+    ask: Vec<Category>,
+) -> Mcp2 {
     let rig = rig().await;
     let (client_io, server_io) = tokio::io::duplex(1 << 20);
-    let server = Mcp::new(Some(rig.socket.clone()), "mcp-guard".into());
+    let server = Mcp::new(Some(rig.socket.clone()), "mcp-guard".into()).asking(ask);
     tokio::spawn(async move {
         let running = server.serve(server_io).await.unwrap();
         let _ = running.waiting().await;
@@ -407,6 +560,26 @@ async fn a_client_that_cannot_ask_gets_the_question_and_nothing_is_tapped(v: Pro
     assert_eq!(m.rig.gestures(), 1);
 }
 
+async fn the_prompt_names_the_category_that_triggered_it(v: ProtocolVersion) {
+    let m = mcp_asking(accept("allow"), v, vec![Category::Send, Category::Install]).await;
+    m.tap(json!({"target": "Send"})).await;
+    m.tap(json!({"target": "Place order"})).await;
+    m.tap(json!({"target": "Delete photo"})).await;
+    let asked = m.asked.lock().unwrap().clone();
+    let messages: Vec<String> = asked
+        .iter()
+        .map(|a| match a {
+            ElicitRequestParams::FormElicitationParams { message, .. } => message.clone(),
+            _ => panic!("a form was expected"),
+        })
+        .collect();
+    assert_eq!(messages.len(), 2, "{messages:?}: delete was not turned on");
+    assert!(messages[0].contains("Category: send"), "{}", messages[0]);
+    assert!(messages[0].contains("Tap \"Send\""), "{}", messages[0]);
+    assert!(messages[1].contains("Category: payment"), "{}", messages[1]);
+    assert_eq!(m.rig.gestures(), 3);
+}
+
 async fn autonomous_never_asks(v: ProtocolVersion) {
     let m = mcp(accept("allow"), v).await;
     let r = m
@@ -442,6 +615,7 @@ on_both_protocols!(
     declining_taps_nothing_and_says_the_human_declined,
     a_dismissed_prompt_is_no_answer_and_names_the_way_forward,
     a_client_that_cannot_ask_gets_the_question_and_nothing_is_tapped,
+    the_prompt_names_the_category_that_triggered_it,
     autonomous_never_asks
 );
 

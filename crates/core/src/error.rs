@@ -45,6 +45,52 @@ impl Direction {
     }
 }
 
+/// What a guarded tap does (decision D30). `Payment` and `Account` are always asked about; the rest only when the
+/// human turned them on with `PHONEDRIVER_ASK`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Category {
+    Payment,
+    Account,
+    Send,
+    Delete,
+    Install,
+}
+
+impl Category {
+    pub const OPT_IN: [Category; 3] = [Category::Send, Category::Delete, Category::Install];
+
+    pub fn name(self) -> &'static str {
+        match self {
+            Category::Payment => "payment",
+            Category::Account => "account",
+            Category::Send => "send",
+            Category::Delete => "delete",
+            Category::Install => "install",
+        }
+    }
+
+    pub fn what(self) -> &'static str {
+        match self {
+            Category::Payment => "spends money or cannot be undone",
+            Category::Account => "deletes an account",
+            Category::Send => "sends a message or post",
+            Category::Delete => "deletes something",
+            Category::Install => "installs or removes an app",
+        }
+    }
+
+    pub fn always(self) -> bool {
+        !Category::OPT_IN.contains(&self)
+    }
+
+    pub fn from_opt_in(word: &str) -> Option<Category> {
+        Category::OPT_IN
+            .into_iter()
+            .find(|c| c.name().eq_ignore_ascii_case(word))
+    }
+}
+
 /// Why a search by scrolling stopped without finding its target.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -257,9 +303,10 @@ pub enum Error {
     },
     #[error("unknown key \"{key}\"")]
     UnknownKey { key: String, valid: Vec<String> },
-    #[error("{}", needs_approval(label, app.as_deref(), details))]
+    #[error("{}", needs_approval(label, app.as_deref(), *category, details))]
     NeedsApproval {
         label: String,
+        category: Category,
         app: Option<String>,
         /// Visible text near the button that says what is being bought or done.
         details: Vec<String>,
@@ -324,14 +371,16 @@ fn no_device(requested: Option<&str>, connected: &[DeviceSummary]) -> String {
 }
 
 /// The refusal's message: what the tap is, and the screen text that says what it commits.
-pub fn needs_approval(label: &str, app: Option<&str>, details: &[String]) -> String {
+pub fn needs_approval(
+    label: &str,
+    app: Option<&str>,
+    category: Category,
+    details: &[String],
+) -> String {
+    let what = category.what();
     let mut text = match app {
-        Some(app) => format!(
-            "\"{label}\" in {app} spends money or cannot be undone: it needs the human's approval"
-        ),
-        None => {
-            format!("\"{label}\" spends money or cannot be undone: it needs the human's approval")
-        }
+        Some(app) => format!("\"{label}\" in {app} {what}: it needs the human's approval"),
+        None => format!("\"{label}\" {what}: it needs the human's approval"),
     };
     if !details.is_empty() {
         text.push_str("\nOn screen:");
@@ -619,6 +668,7 @@ mod tests {
             },
             Error::NeedsApproval {
                 label: "Place order · $12.00".into(),
+                category: Category::Payment,
                 app: Some("Testbed".into()),
                 details: vec!["Total $12.00".into()],
             },

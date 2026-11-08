@@ -1,7 +1,7 @@
 //! What one named session remembers about one device: its refs and the last screen it was shown.
 
 use phonedriver_core::element::{Element, Role};
-use phonedriver_core::error::{Direction, Error};
+use phonedriver_core::error::{Category, Direction, Error};
 use phonedriver_core::geometry::Point;
 use phonedriver_core::refs::RefTable;
 use phonedriver_core::render::{Rendered, TextMatch};
@@ -15,8 +15,8 @@ pub struct Session {
     pub last: Option<Rendered>,
     /// The last snapshot merged text from pixels, so target resolution does too.
     pub ocr: bool,
-    /// The human allowed guarded taps for the rest of this session; it ends with the daemon.
-    pub guard_allowed: bool,
+    /// The categories of guarded tap the human allowed for the rest of this session; it ends with the daemon.
+    pub guard_allowed: Vec<Category>,
 }
 
 pub struct Resolved {
