@@ -19,6 +19,7 @@ use crate::daemon::trace::TraceOptions;
 use crate::daemon::{Config, Daemon, socket};
 use phonedriver_core::device::DisplayMode;
 use phonedriver_core::error::{Category, span};
+use phonedriver_core::render::plural;
 
 use crate::wire::{
     ActionResult, Approval, BatchResult, DeviceEntry, Kind, Observation, ScreenshotResult,
@@ -829,7 +830,12 @@ pub(crate) async fn execute_with(
                 return Ok(result.to_string());
             }
             Ok(match shot.marks {
-                Some(n) => format!("{path} {}x{} · {n} marks", shot.width, shot.height),
+                Some(n) => format!(
+                    "{path} {}x{} · {}",
+                    shot.width,
+                    shot.height,
+                    plural(n.into(), "mark")
+                ),
                 None => format!("{path} {}x{}", shot.width, shot.height),
             })
         }
@@ -1233,7 +1239,7 @@ fn show_batch(result: &Value, json: bool, sent: usize) -> Result<String, Failure
     if json {
         return Ok(result.to_string());
     }
-    let mut head = format!("ok {total} steps");
+    let mut head = format!("ok {}", plural(total as u64, "step"));
     if !r.settled {
         head.push_str(&format!(" · not settled after {}ms", r.settle_ms));
     } else if !r.changed {

@@ -1548,6 +1548,24 @@ async fn a_tap_on_a_target_that_is_not_there_fails_without_the_daemon_waiting() 
 }
 
 #[tokio::test(start_paused = true)]
+async fn scroll_until_after_one_gesture_says_one_time() {
+    let (source, _fake) = FakeSource::with(vec![
+        list_tree(&["Row 0", "Row 1"]),
+        list_tree(&["Row 5", "Row 6"]),
+    ]);
+    let (d, _home) = daemon(source);
+    let r = ok(
+        &d,
+        "default",
+        "act",
+        scroll(json!({"until": {"text": "Row 6"}})),
+    )
+    .await;
+    let summary = r["summary"].as_str().unwrap();
+    assert!(summary.contains("down 1 time to"), "{summary}");
+}
+
+#[tokio::test(start_paused = true)]
 async fn scroll_until_reports_unsettled_when_the_last_scroll_never_settled() {
     let (source, fake) = FakeSource::with(vec![
         list_tree(&["Row 0", "Row 1"]),
@@ -2779,7 +2797,7 @@ async fn scroll_until_keeps_going_while_the_target_is_under_the_toolbar() {
     )
     .await;
     assert!(
-        r["summary"].as_str().unwrap().contains("1 times"),
+        r["summary"].as_str().unwrap().contains("down 1 time to"),
         "{}",
         r["summary"]
     );
