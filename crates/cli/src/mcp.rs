@@ -32,6 +32,7 @@ pub struct Mcp {
     client: Arc<Mutex<Option<Client>>>,
     ask: Vec<Category>,
     held: Arc<Mutex<Option<Held>>>,
+    told: Told,
 }
 
 /// The question a 2026-07-28 call returned: the call it belongs to, the batch step it holds and what it asked.
@@ -40,6 +41,32 @@ struct Held {
     key: String,
     step: usize,
     asked: String,
+}
+
+/// The device line (`device <id> · <model> · <os> · <size> · <orientation>`) of the last reply this server sent. The
+/// model keeps every reply in its context, so the line is sent again only when it changes.
+#[derive(Clone, Default)]
+struct Told(Arc<std::sync::Mutex<Option<String>>>);
+
+impl Told {
+    fn trim(&self, text: String) -> String {
+        let Some(at) = text
+            .lines()
+            .take(3)
+            .position(|l| l.starts_with("device ") && l.matches(" · ").count() >= 3)
+        else {
+            return text;
+        };
+        let mut lines: Vec<&str> = text.lines().collect();
+        let line = lines[at].to_string();
+        let mut last = self.0.lock().unwrap_or_else(|e| e.into_inner());
+        if last.as_deref() == Some(line.as_str()) {
+            lines.remove(at);
+            return lines.join("\n");
+        }
+        *last = Some(line);
+        text
+    }
 }
 
 #[derive(Deserialize, JsonSchema)]
@@ -370,6 +397,7 @@ impl Mcp {
             client: Arc::default(),
             ask: Vec::new(),
             held: Arc::default(),
+            told: Told::default(),
         }
     }
 
@@ -476,7 +504,7 @@ impl Mcp {
             .await;
         let Some((label, app, category, details)) = first.as_ref().err().and_then(approval_needed)
         else {
-            return Outcome::Done(Self::reply(first));
+            return Outcome::Done(self.reply(first));
         };
         let asked = commitment(&label, app.as_deref(), category, &details);
         let prompt = format!("Your agent wants to do this on your phone:\n{asked}\nAllow it?");
@@ -520,7 +548,7 @@ impl Mcp {
                         execute_with(client, verb(), secret, &globals).await
                     })
                     .await;
-                Outcome::Done(Self::reply(second))
+                Outcome::Done(self.reply(second))
             }
         }
     }
@@ -563,7 +591,7 @@ impl Mcp {
             let Some((label, app, category, details)) =
                 result.as_ref().err().and_then(approval_needed)
             else {
-                return Outcome::Done(Self::reply(result));
+                return Outcome::Done(self.reply(result));
             };
             let held = result
                 .as_ref()
@@ -679,9 +707,9 @@ impl Mcp {
         })
     }
 
-    fn reply(result: Result<String, Failure>) -> CallToolResult {
+    fn reply(&self, result: Result<String, Failure>) -> CallToolResult {
         match result {
-            Ok(text) => text_result(success_text(text)),
+            Ok(text) => text_result(self.told.trim(success_text(text))),
             Err(f) => failure(&f),
         }
     }
@@ -696,7 +724,7 @@ impl Mcp {
             .with_client(async |client| execute_with(client, verb, secret, &globals).await)
             .await;
         match result {
-            Ok(text) => CallToolResult::success(vec![ContentBlock::text(success_text(text))]),
+            Ok(text) => text_result(self.told.trim(success_text(text))),
             Err(f) => failure(&f),
         }
     }
@@ -1356,6 +1384,26 @@ mod tests {
             !for_mcp("Run `phonedriver doctor` to check the connection.")
                 .contains("Run `phonedriver")
         );
+    }
+
+    #[test]
+    fn a_device_line_is_dropped_when_it_repeats_the_last_one_told() {
+        let told = Told::default();
+        let line = "device android:a · Pixel · Android API 37 · 1280x800pt · landscape";
+        let text = format!("ok tapped @e1\n{line}\napp x · keyboard hidden\n@e1 button \"A\"");
+        assert_eq!(told.trim(text.clone()), text);
+        assert_eq!(
+            told.trim(text.clone()),
+            "ok tapped @e1\napp x · keyboard hidden\n@e1 button \"A\""
+        );
+        let turned = text.replace("landscape", "portrait");
+        assert_eq!(told.trim(turned.clone()), turned);
+        assert_eq!(told.trim(turned.clone()).lines().count(), 3);
+        let other = text.replace("android:a", "android:b");
+        assert_eq!(told.trim(other.clone()), other);
+        let table = "ID  MODEL\nandroid:a  Pixel".to_string();
+        assert_eq!(told.trim(table.clone()), table);
+        assert_eq!(told.trim(table.clone()), table);
     }
 
     #[test]
