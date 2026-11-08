@@ -1511,6 +1511,24 @@ async fn scroll_until_two_matches_names_them_by_label_since_refs_do_not_survive_
 }
 
 #[tokio::test(start_paused = true)]
+async fn a_tap_on_a_target_that_is_not_there_fails_without_the_daemon_waiting() {
+    let (source, fake) = FakeSource::with(vec![list_tree(&["Row 0", "Row 1"])]);
+    let (d, _home) = daemon(source);
+    ok(&d, "default", "snapshot", json!({})).await;
+    let started = tokio::time::Instant::now();
+    let e = err(
+        &d,
+        "default",
+        "act",
+        json!({"action": {"kind": "tap", "target": {"text": "Nope"}}}),
+    )
+    .await;
+    assert_eq!(e.code, -32007, "{e:?}");
+    assert_eq!(started.elapsed(), Duration::ZERO);
+    assert!(fake.calls().is_empty());
+}
+
+#[tokio::test(start_paused = true)]
 async fn scroll_until_reports_unsettled_when_the_last_scroll_never_settled() {
     let (source, fake) = FakeSource::with(vec![
         list_tree(&["Row 0", "Row 1"]),
