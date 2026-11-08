@@ -153,6 +153,22 @@ async fn snapshot_is_one_text_block_equal_to_what_the_cli_prints() {
 }
 
 #[tokio::test]
+async fn the_device_line_is_told_once_and_told_again_only_when_it_changes() {
+    let rig = rig(vec![tree(&["One", "Two"])]).await;
+    let first = texts(&rig.call("snapshot", json!({})).await).remove(0);
+    assert!(first.starts_with("device fake:1 · "), "{first}");
+    let second = texts(&rig.call("snapshot", json!({})).await).remove(0);
+    assert!(!second.contains("device fake:1"), "{second}");
+    assert!(second.contains("@e1 button \"One\""), "{second}");
+    assert!(
+        second.lines().next().unwrap().starts_with("app "),
+        "{second}"
+    );
+    let find = texts(&rig.call("snapshot", json!({"find": "One"})).await).remove(0);
+    assert!(find.starts_with("@e1 button"), "{find}");
+}
+
+#[tokio::test]
 async fn screenshot_is_one_png_image_block_and_one_text_block_with_size_and_scale() {
     let rig = rig(vec![tree(&["One"])]).await;
     let r = rig.call("screenshot", json!({})).await;
