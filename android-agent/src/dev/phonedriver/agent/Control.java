@@ -92,7 +92,7 @@ final class Control {
     }
 
     private static JSONObject helloReply(JSONObject reply) {
-        DisplayInfo di = ServiceManager.getDisplayManager().getDisplayInfo(0);
+        DisplayInfo di = ServiceManager.getDisplayManager().getDisplayInfo(Hidden.displayId());
         JSONObject display = new JSONObject();
         Json.put(display, "w", di.getSize().getWidth());
         Json.put(display, "h", di.getSize().getHeight());
@@ -102,6 +102,9 @@ final class Control {
         Json.put(reply, "model", Build.MODEL);
         Json.put(reply, "density", di.getDpi() / 160.0);
         Json.put(reply, "display", display);
+        if (Hidden.active()) {
+            Json.put(reply, "hidden_display", Hidden.displayId());
+        }
         return reply;
     }
 

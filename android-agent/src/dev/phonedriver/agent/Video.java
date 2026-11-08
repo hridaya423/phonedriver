@@ -33,7 +33,7 @@ final class Video {
         syncRequested = true;
     }
 
-    private static int[] fit(int w, int h, int maxSize, int align) {
+    static int[] fit(int w, int h, int maxSize, int align) {
         if (maxSize > 0 && Math.max(w, h) > maxSize) {
             double s = (double) maxSize / Math.max(w, h);
             w = (int) Math.round(w * s);
@@ -42,7 +42,7 @@ final class Video {
         return new int[] {w & ~(align - 1), h & ~(align - 1)};
     }
 
-    private static MediaFormat format(int w, int h) {
+    static MediaFormat format(int w, int h) {
         MediaFormat f = new MediaFormat();
         f.setString(MediaFormat.KEY_MIME, "video/avc");
         f.setInteger(MediaFormat.KEY_BIT_RATE, 8_000_000);
@@ -59,7 +59,19 @@ final class Video {
         return f;
     }
 
+    private void runHidden() throws Exception {
+        out.writeInt(FOURCC_H264);
+        out.writeInt(Hidden.width());
+        out.writeInt(Hidden.height());
+        out.flush();
+        pump(Hidden.codec(), -1, 0, 0, 0);
+    }
+
     void run() throws Exception {
+        if (Hidden.active()) {
+            runHidden();
+            return;
+        }
         MediaCodec codec = MediaCodec.createEncoderByType("video/avc");
         MediaCodecInfo.VideoCapabilities caps =
                 codec.getCodecInfo().getCapabilitiesForType("video/avc").getVideoCapabilities();
@@ -104,7 +116,7 @@ final class Video {
                 out.writeInt(size[0]);
                 out.writeInt(size[1]);
                 out.flush();
-                pump(codec, dw, dh, rotation);
+                pump(codec, 0, dw, dh, rotation);
             } catch (IOException e) {
                 throw e;
             } catch (Exception e) {
@@ -135,7 +147,7 @@ final class Video {
         }
     }
 
-    private void pump(MediaCodec codec, int dw, int dh, int rotation) throws IOException {
+    private void pump(MediaCodec codec, int displayId, int dw, int dh, int rotation) throws IOException {
         MediaCodec.BufferInfo info = new MediaCodec.BufferInfo();
         long lastCheck = 0;
         while (true) {
@@ -147,9 +159,9 @@ final class Video {
             }
             int id = codec.dequeueOutputBuffer(info, 50_000);
             long now = System.nanoTime();
-            if (now - lastCheck > DISPLAY_POLL_NS) {
+            if (displayId >= 0 && now - lastCheck > DISPLAY_POLL_NS) {
                 lastCheck = now;
-                DisplayInfo d = ServiceManager.getDisplayManager().getDisplayInfo(0);
+                DisplayInfo d = ServiceManager.getDisplayManager().getDisplayInfo(displayId);
                 if (d.getSize().getWidth() != dw || d.getSize().getHeight() != dh || d.getRotation() != rotation) {
                     if (id >= 0) {
                         codec.releaseOutputBuffer(id, false);

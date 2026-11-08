@@ -52,6 +52,9 @@ public final class Main {
             System.exit(2);
         }
         Workarounds.apply();
+        if (args.length > 2 && "hidden".equals(args[2])) {
+            Hidden.open();
+        }
         try {
             Accessibility.connect();
         } catch (IllegalStateException e) {

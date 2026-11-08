@@ -1,11 +1,13 @@
 package dev.phonedriver.agent;
 
+import android.app.ActivityOptions;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
 import android.net.Uri;
+import android.os.Bundle;
 import com.genymobile.scrcpy.FakeContext;
 import com.genymobile.scrcpy.wrappers.ServiceManager;
 import java.util.List;
@@ -44,7 +46,11 @@ final class Apps {
 
     private static void start(Intent intent) {
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-        int result = ServiceManager.getActivityManager().startActivity(intent);
+        Bundle options = null;
+        if (Hidden.active()) {
+            options = ActivityOptions.makeBasic().setLaunchDisplayId(Hidden.displayId()).toBundle();
+        }
+        int result = ServiceManager.getActivityManager().startActivity(intent, options);
         if (result < 0) {
             throw new IllegalStateException("startActivity failed with " + result);
         }

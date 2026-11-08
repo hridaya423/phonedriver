@@ -28,7 +28,7 @@ final class Monitor {
         long keyguardAt = 0;
         while (true) {
             try {
-                DisplayInfo now = ServiceManager.getDisplayManager().getDisplayInfo(0);
+                DisplayInfo now = ServiceManager.getDisplayManager().getDisplayInfo(Hidden.displayId());
                 if (last != null && (!now.getSize().equals(last.getSize()) || now.getRotation() != last.getRotation()
                         || now.getDpi() != last.getDpi())) {
                     JSONObject e = Json.put(new JSONObject(), "ev", "display_changed");

@@ -46,8 +46,10 @@ final class Ops {
                 Video.requestSyncFrame();
                 return r;
             case "wake":
-                Accessibility.allowKick();
-                Input.key(android.view.KeyEvent.KEYCODE_WAKEUP, "press");
+                if (!Hidden.active()) {
+                    Accessibility.allowKick();
+                    Input.key(android.view.KeyEvent.KEYCODE_WAKEUP, "press");
+                }
                 return r;
             default:
                 throw new IllegalArgumentException("unknown op " + op);

@@ -19,9 +19,9 @@ final class DeviceState {
             }
         }
         JSONObject r = new JSONObject();
-        Json.put(r, "screen_on", ServiceManager.getPowerManager().isScreenOn(0));
-        Json.put(r, "locked", Keyguard.locked());
-        Json.put(r, "secure_keyguard", Keyguard.secure());
+        Json.put(r, "screen_on", Hidden.active() || ServiceManager.getPowerManager().isScreenOn(0));
+        Json.put(r, "locked", !Hidden.active() && Keyguard.locked());
+        Json.put(r, "secure_keyguard", !Hidden.active() && Keyguard.secure());
         Json.put(r, "ime_visible", imeVisible);
         Json.put(r, "foreground", foreground == null ? JSONObject.NULL : foreground);
         return r;
@@ -29,9 +29,9 @@ final class DeviceState {
 
     static JSONObject power() {
         JSONObject r = new JSONObject();
-        Json.put(r, "screen_on", ServiceManager.getPowerManager().isScreenOn(0));
-        Json.put(r, "locked", Keyguard.locked());
-        Json.put(r, "secure_keyguard", Keyguard.secure());
+        Json.put(r, "screen_on", Hidden.active() || ServiceManager.getPowerManager().isScreenOn(0));
+        Json.put(r, "locked", !Hidden.active() && Keyguard.locked());
+        Json.put(r, "secure_keyguard", !Hidden.active() && Keyguard.secure());
         boolean focused = false;
         for (AccessibilityWindowInfo w : Accessibility.windows()) {
             focused |= w.isFocused();
