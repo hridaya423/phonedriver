@@ -201,8 +201,12 @@ pub fn prune(tree: &RawTree) -> Vec<Node> {
         };
         let (label, hint) = match texts.split_first() {
             Some((first, rest)) => {
-                let mut hints: Vec<&str> = node.hint.as_deref().into_iter().collect();
-                hints.extend(rest);
+                let mut hints: Vec<&str> = Vec::new();
+                for h in node.hint.as_deref().into_iter().chain(rest.iter().copied()) {
+                    if h != *first && !hints.contains(&h) {
+                        hints.push(h);
+                    }
+                }
                 (
                     Some(first.to_string()),
                     (!hints.is_empty()).then(|| hints.join(" · ")),
@@ -551,6 +555,29 @@ mod tests {
         let nodes = prune(&RawTree::from_android_json(json, Scale { density: 1.0 }).unwrap());
         let labels: Vec<_> = nodes.iter().filter_map(|n| n.label.as_deref()).collect();
         assert_eq!(labels, ["Send"]);
+    }
+
+    #[test]
+    fn texts_that_repeat_in_a_merged_label_are_said_once() {
+        let json = r#"{"windows":[{"id":1,"type":"application","bounds":[0,0,400,200]}],"nodes":[
+            {"p":-1,"w":1,"cls":"android.widget.FrameLayout","b":[0,0,400,200],"f":"vVe"},
+            {"p":0,"w":1,"cls":"android.widget.Button","hint":"Go forward","b":[0,0,100,50],"f":"vVe","a":["tap"]},
+            {"p":1,"w":1,"cls":"android.widget.TextView","text":"Go forward","b":[0,0,50,50],"f":"vVe"},
+            {"p":1,"w":1,"cls":"android.widget.TextView","text":"Go forward","b":[50,0,100,50],"f":"vVe"},
+            {"p":0,"w":1,"cls":"android.widget.Button","b":[0,100,100,150],"f":"vVe","a":["tap"]},
+            {"p":4,"w":1,"cls":"android.widget.TextView","text":"Home","b":[0,100,50,150],"f":"vVe"},
+            {"p":4,"w":1,"cls":"android.widget.TextView","text":"News","b":[50,100,100,150],"f":"vVe"},
+            {"p":4,"w":1,"cls":"android.widget.TextView","text":"News","b":[50,120,100,150],"f":"vVe"}
+        ]}"#;
+        let nodes = prune(&RawTree::from_android_json(json, Scale { density: 1.0 }).unwrap());
+        let said: Vec<_> = nodes
+            .iter()
+            .map(|n| (n.label.as_deref(), n.hint.as_deref()))
+            .collect();
+        assert_eq!(
+            said,
+            [(Some("Go forward"), None), (Some("Home"), Some("News"))]
+        );
     }
 
     #[test]

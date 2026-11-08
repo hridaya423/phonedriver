@@ -11,7 +11,7 @@ use phonedriver_core::device::{
     App, AppId, AppOp, Button, Capabilities, ClipboardOp, Device, DeviceEvent, DisplayMode,
     FrameRef, Gesture, Key, Quality, ScreenState, ShellRequest, TextInput, TimedPoint, Url,
 };
-use phonedriver_core::diff::{Change, DiffOrFull, diff};
+use phonedriver_core::diff::{Change, DiffOrFull, Field, diff};
 use phonedriver_core::element::{Actions, Element, ElementState, Ref, Role, Source};
 use phonedriver_core::error::{Category, Direction, Error, Op, ScrollEnd, UserAction};
 use phonedriver_core::geometry::{Point, Rect, Size};
@@ -2636,6 +2636,10 @@ fn moved_beyond(s: &Session, now: &Rendered, field: Option<Ref>) -> bool {
     changes.iter().any(|c| {
         let r = match c {
             Change::Added(r) | Change::Removed(r) => *r,
+            Change::Changed {
+                field: Field::Covered,
+                ..
+            } => return false,
             Change::Changed { r#ref, .. } => *r#ref,
         };
         let element = now

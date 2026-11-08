@@ -128,6 +128,13 @@ impl Rendered {
         false
     }
 
+    /// The keyboard is shown over the element, which is not part of the keyboard.
+    pub fn under_keyboard(&self, e: &Element) -> bool {
+        self.header
+            .keyboard
+            .is_some_and(|k| k.contains(e.bounds) && !self.in_keyboard(e.r#ref))
+    }
+
     pub fn in_web_view(&self, r: Ref) -> bool {
         self.index_of(r).is_some_and(|i| {
             self.ancestors(i)
@@ -275,10 +282,7 @@ impl Rendered {
             s.push(' ');
             s.push_str(w);
         }
-        if let Some(k) = self.header.keyboard
-            && k.contains(e.bounds)
-            && !self.in_keyboard(e.r#ref)
-        {
+        if self.under_keyboard(e) {
             s.push_str(" under-keyboard");
         }
         if e.source == Source::Ocr {
