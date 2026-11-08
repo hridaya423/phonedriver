@@ -846,3 +846,14 @@ The fixes come from the first run on a physical Android phone, a Honor X8 (TFY-L
 - `find` with no match now says `no match on this screen; to look further, scroll with until: "patch"`. In run t2 (security patch level), Sonnet 5.5 got `no match` for text below the fold. It then spent a full 618-character snapshot before it scrolled. The assertion in `tests/actions.rs` was updated, but that test is `#[ignore]` (it needs a device), so it never ran red. Live check on the Honor X8, release build: `phonedriver find "zzzz-nothing"` printed `no match on this screen; to look further, scroll with until: "zzzz-nothing"`.
 - Both core tests failed first and reproduced the phone's output. Golden `captured_honor_wikipedia_main` changed in one line: `webview focused scrollable↓` became `webview scrollable↓`.
 - `cargo test --workspace --no-fail-fast`: 658 passed. The one failure was the golden change above, which was reviewed and accepted.
+
+## 2026-11-08: an opened link replies with its page, not Chrome's empty web view
+
+- Seen in agent run t3: `launch Chrome url=en.wikipedia.org` replied after 3,002 ms with only `@e6 group "Web View" focused`, so Sonnet 5.5 had to snapshot again (1,406 characters). It reproduced with `phonedriver open …` at 1,708 ms.
+- Changed:
+  - `RawTree::web_view_pending` also counts Chrome's empty node named "Web View", so the header says `loading` while it shows.
+  - `Action::Open` re-reads the tree every 100 ms, for up to `PAGE_WAIT` (5 s), while a web view is pending. A deep link into a native app has no web view and does not wait.
+- Test: `an_opened_page_is_in_the_reply_not_chromes_empty_web_view` failed first. The reply was `@e1 group "Web View"` with `loading: false`.
+- Live check on the Honor X8, release build: `phonedriver open https://en.wikipedia.org/wiki/Snapdragon` replied after `settled in 3607ms` with the article (`heading "Antirrhinum"`, the redirect target) in the reply. 5.9 s wall time, which includes starting the daemon.
+- `cargo test --workspace --no-fail-fast`: 660 passed, 0 failed. Clippy is clean.
+- Limit: the placeholder is matched by its English name. Chrome in another language falls back to the old reply.

@@ -181,10 +181,12 @@ impl RawTree {
         self.web_view_pending() || self.progress_visible()
     }
 
-    /// A web view has no children yet: its page has not reached the accessibility tree.
+    /// A web view has no children yet: its page has not reached the accessibility tree. Chrome shows an empty node
+    /// named "Web View" until its page arrives (seen on a Honor X8, Android 13, for over 1.7 s after opening a link).
     pub fn web_view_pending(&self) -> bool {
         self.nodes.iter().enumerate().any(|(i, n)| {
-            n.role == Role::WebView && !self.nodes.iter().any(|c| c.parent == Some(i))
+            let placeholder = n.role == Role::WebView || n.label.as_deref() == Some("Web View");
+            placeholder && !self.nodes.iter().any(|c| c.parent == Some(i))
         })
     }
 
