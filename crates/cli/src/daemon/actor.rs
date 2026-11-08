@@ -63,6 +63,9 @@ const FOCUS_KEYBOARD_WAIT: Duration = Duration::from_millis(1200);
 const TREE_STABLE_WAIT: Duration = Duration::from_secs(1);
 const LOADING_WAIT: Duration = Duration::from_secs(4);
 const CONTENT_WAIT: Duration = Duration::from_secs(2);
+/// Chrome exposes a web field's new text to accessibility up to a second after the page shows it (Domino's checkout,
+/// keys typed in a batch, API 37 emulator).
+const WEB_TEXT_WAIT: Duration = Duration::from_millis(1500);
 const WEB_VIEW_WAIT: Duration = Duration::from_secs(10);
 const LEAVE_WAIT: Duration = Duration::from_millis(2500);
 /// Observed on the API 37 tablet emulator: the first "Add alarm" tap after a cold Clock launch opened its time picker
@@ -1706,6 +1709,7 @@ impl Actor {
                 submit,
                 append,
             } => {
+                let chosen = mode.is_some();
                 let mode = mode.unwrap_or(TypeMode::Paste);
                 let (cap, reason) = match mode {
                     TypeMode::Paste => (Capabilities::TEXT_PASTE, "this device cannot paste"),
@@ -1837,13 +1841,21 @@ impl Actor {
                         text: text.clone(),
                     }
                 };
+                let field_ref = field.map(|f| f.r#ref);
                 let verify = Verify {
-                    field: field.map(|f| f.r#ref),
+                    field: field_ref,
                     expect,
                     secure,
                     mode: Some(mode_name(mode)),
                     submitted: submit,
                 };
+                let rekey = !chosen
+                    && !secure
+                    && !submit
+                    && replace
+                    && !text.is_empty()
+                    && field_ref.is_some_and(|r| s.last.as_ref().is_some_and(|l| l.in_web_view(r)));
+                let keys = rekey.then(|| text.clone());
                 let mask = secret.then_some(text);
                 let cfg = if submit || p.expect_change_ms.is_some() {
                     cfg
@@ -1854,13 +1866,36 @@ impl Actor {
                         ..cfg
                     }
                 };
+                let first = self
+                    .finish(
+                        s,
+                        p.settle,
+                        cfg,
+                        started,
+                        summary.clone(),
+                        Some(mode_name(mode)),
+                        Some(verify.clone()),
+                        mask.clone(),
+                    )
+                    .await?;
+                let Some(keys) = keys.filter(|_| {
+                    first.verified == Some(false) && field_empty(s.last.as_ref(), field_ref)
+                }) else {
+                    return Ok(first);
+                };
+                let started = self.begin_action();
+                device.text(TextInput::Keystrokes(keys)).await?;
+                let verify = Verify {
+                    mode: Some("keys"),
+                    ..verify
+                };
                 self.finish(
                     s,
                     p.settle,
                     cfg,
                     started,
                     summary,
-                    Some(mode_name(mode)),
+                    Some("keys"),
                     Some(verify),
                     mask,
                 )
@@ -2147,12 +2182,27 @@ impl Actor {
             }
         }
         self.read_checkboxes(&mut rendered).await?;
-        let verdict = verify.as_ref().map(|v| {
-            v.check(
-                &rendered,
-                v.submitted && moved_beyond(s, &rendered, v.field),
-            )
-        });
+        let judge = |s: &Session, rendered: &Rendered| {
+            verify
+                .as_ref()
+                .map(|v| v.check(rendered, v.submitted && moved_beyond(s, rendered, v.field)))
+        };
+        let mut verdict = judge(s, &rendered);
+        let in_page = verify
+            .as_ref()
+            .and_then(|v| v.field)
+            .is_some_and(|r| rendered.in_web_view(r));
+        let waited = Instant::now();
+        while in_page
+            && matches!(verdict, Some(Verdict::Failed(_)))
+            && waited.elapsed() < WEB_TEXT_WAIT
+        {
+            tokio::time::sleep(TREE_STEP).await;
+            let tree = self.device()?.tree().await?;
+            rendered = self.build(s, &tree, st.map(settle_line));
+            self.read_checkboxes(&mut rendered).await?;
+            verdict = judge(s, &rendered);
+        }
         let verified = verdict.as_ref().and_then(Verdict::verified);
         let unverified = match verdict {
             Some(Verdict::Failed(u)) => Some(u),
@@ -2838,4 +2888,10 @@ fn approved_summary(summary: String, note: Option<&str>) -> String {
         Some(note) => format!("{summary}; {note}"),
         None => summary,
     }
+}
+
+fn field_empty(now: Option<&Rendered>, field: Option<Ref>) -> bool {
+    now.zip(field)
+        .and_then(|(n, r)| n.index_of(r).map(|i| &n.elements[i]))
+        .is_none_or(|e| e.value.as_deref().is_none_or(str::is_empty))
 }

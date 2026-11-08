@@ -44,7 +44,10 @@ pub struct FakeDevice {
     events: broadcast::Sender<DeviceEvent>,
     frames: watch::Sender<FrameRef>,
     shell: Mutex<ShellReply>,
+    on_text: Mutex<Option<TextHook>>,
 }
+
+type TextHook = Box<dyn Fn(&TextInput) -> Option<Vec<RawTree>> + Send + Sync>;
 
 impl FakeDevice {
     /// `tree()` returns these in order, then keeps returning the last one.
@@ -75,7 +78,14 @@ impl FakeDevice {
             events: broadcast::channel(64).0,
             frames: watch::channel(FrameRef::default()).0,
             shell: Mutex::new(ShellReply::default()),
+            on_text: Mutex::new(None),
         }
+    }
+
+    /// After a `text` call for which `f` returns trees, `tree()` returns those in order, then keeps the last: a field
+    /// that ignores one kind of input, or shows the text a few reads late.
+    pub fn on_text(&self, f: impl Fn(&TextInput) -> Option<Vec<RawTree>> + Send + Sync + 'static) {
+        *lock(&self.on_text) = Some(Box::new(f));
     }
 
     /// The same device without some capabilities, as the polled iOS tier lacks `FRAMES`.
@@ -201,6 +211,9 @@ impl Device for FakeDevice {
     }
 
     async fn text(&self, t: TextInput) -> Result<()> {
+        if let Some(trees) = lock(&self.on_text).as_ref().and_then(|f| f(&t)) {
+            *lock(&self.trees) = trees.into_iter().rev().collect();
+        }
         self.record(Call::Text(t))
     }
 
