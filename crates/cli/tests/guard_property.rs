@@ -867,7 +867,6 @@ proptest! {
     }
 
     #[test]
-    #[ignore = "finding F1: a tap or type retry carries its own answer and the server keeps no record of the question"]
     fn a_stale_or_mismatched_retry_of_a_tap_or_type_never_taps_a_guarded_step(
         scenarios in proptest::collection::vec(pool_and_ops(false), 1..=8),
     ) {
@@ -885,7 +884,6 @@ async fn once(w: &World, item: &Item, answer: Option<Ans>) -> CallToolResponse {
 }
 
 #[test]
-#[ignore = "finding F1: an answer to a question nobody asked taps the button"]
 fn f1_an_answer_with_no_question_taps_a_payment() {
     RT.block_on(async {
         let w = world(ProtocolVersion::V_2026_07_28, true, &[], &[]).await;
@@ -900,7 +898,6 @@ fn f1_an_answer_with_no_question_taps_a_payment() {
 }
 
 #[test]
-#[ignore = "finding F1: an answer to one tap approves a different tap"]
 fn f1_an_answer_to_one_tap_approves_another() {
     RT.block_on(async {
         let w = world(
@@ -922,7 +919,6 @@ fn f1_an_answer_to_one_tap_approves_another() {
 }
 
 #[test]
-#[ignore = "finding F2: a stray answer for another batch cancels the pending question"]
 fn f2_a_stray_answer_does_not_cancel_the_pending_question() {
     RT.block_on(async {
         let w = world(ProtocolVersion::V_2026_07_28, true, &[], &[]).await;
