@@ -2149,11 +2149,11 @@ async fn launching_an_unknown_app_says_no_app_and_lists_apps_that_share_a_word()
         &d,
         "default",
         "act",
-        act_with(json!({"kind": "launch", "app": "phonedriver testbed"})),
+        act_with(json!({"kind": "launch", "app": "testbed app"})),
     )
     .await;
     assert_eq!(e.code, -32017, "{e:?}");
-    assert_eq!(e.message, "no app named \"phonedriver testbed\"");
+    assert_eq!(e.message, "no app named \"testbed app\"");
     let hint = e.data["hint"].as_str().unwrap();
     assert!(hint.contains("Testbed (dev.phonedriver.testbed)"), "{hint}");
     assert!(!hint.contains("snapshot"), "{hint}");

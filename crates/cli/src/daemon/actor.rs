@@ -2847,6 +2847,9 @@ fn find_app<'a>(installed: &'a [App], query: &str) -> Result<&'a App, Error> {
             }
         }
     }
+    if let Some(app) = named_inside(installed, query) {
+        return Ok(app);
+    }
     let words = |s: &str| -> Vec<String> {
         s.to_lowercase()
             .split(|c: char| !c.is_alphanumeric())
@@ -2873,6 +2876,35 @@ fn find_app<'a>(installed: &'a [App], query: &str) -> Result<&'a App, Error> {
             .map(|(_, a)| format!("{} ({})", a.name, a.id.0))
             .collect(),
     })
+}
+
+/// Agents name an app with its maker in front ("Google Play Store" for Play Store, "Google Chrome" for Chrome). An
+/// installed name that ends the query in whole words wins, the longest first; "Google Maps" does not open Google.
+fn named_inside<'a>(installed: &'a [App], query: &str) -> Option<&'a App> {
+    let words = |s: &str| -> Vec<String> {
+        s.to_lowercase()
+            .split(|c: char| !c.is_alphanumeric())
+            .filter(|w| !w.is_empty())
+            .map(str::to_string)
+            .collect()
+    };
+    let q = words(query);
+    let mut best: Vec<(usize, &App)> = Vec::new();
+    for a in installed {
+        let name = words(&a.name);
+        if name.is_empty() || name.len() >= q.len() || !q.ends_with(&name) {
+            continue;
+        }
+        match best.first() {
+            Some((n, _)) if *n > name.len() => {}
+            Some((n, _)) if *n == name.len() => best.push((name.len(), a)),
+            _ => best = vec![(name.len(), a)],
+        }
+    }
+    match best.as_slice() {
+        [(_, one)] => Some(one),
+        _ => None,
+    }
 }
 
 fn describe(target: &Target) -> String {
@@ -2969,4 +3001,36 @@ fn field_empty(now: Option<&Rendered>, field: Option<Ref>) -> bool {
     now.zip(field)
         .and_then(|(n, r)| n.index_of(r).map(|i| &n.elements[i]))
         .is_none_or(|e| e.value.as_deref().is_none_or(str::is_empty))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use phonedriver_core::device::{App, AppId};
+
+    fn apps(names: &[(&str, &str)]) -> Vec<App> {
+        names
+            .iter()
+            .map(|(name, id)| App {
+                id: AppId(id.to_string()),
+                name: name.to_string(),
+                system: false,
+            })
+            .collect()
+    }
+
+    #[test]
+    fn an_app_asked_for_with_its_maker_in_front_is_found() {
+        let installed = apps(&[
+            ("Play Store", "com.android.vending"),
+            ("Google", "com.google.android.googlequicksearchbox"),
+            ("Chrome", "com.android.chrome"),
+            ("Google TV", "com.google.android.videos"),
+        ]);
+        let id = |q: &str| find_app(&installed, q).map(|a| a.id.0.clone());
+        assert_eq!(id("Google Play Store").unwrap(), "com.android.vending");
+        assert_eq!(id("Google Chrome").unwrap(), "com.android.chrome");
+        assert!(matches!(id("Store"), Ok(i) if i == "com.android.vending"));
+        assert!(id("Google Maps").is_err());
+    }
 }
