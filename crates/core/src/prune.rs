@@ -328,7 +328,7 @@ const SLIVER: f32 = 12.0;
 
 /// MagicOS wraps one control in unlabeled tappable layouts (three around the Settings search box) and names a card
 /// on the layout around its unlabeled button (the Light and Dark cards, "Dark,Selected"). Either way the screen holds
-/// one control. An unlabeled row the list has almost scrolled away shows a few points of nothing.
+/// one control, and so is a group named like its only child or an inert copy lying on a control. An unlabeled row the list has almost scrolled away shows a few points of nothing.
 fn fold_wrappers(mut nodes: Vec<Node>) -> Vec<Node> {
     let mut kids: Vec<Vec<usize>> = vec![Vec::new(); nodes.len()];
     for (i, n) in nodes.iter().enumerate() {
@@ -339,8 +339,29 @@ fn fold_wrappers(mut nodes: Vec<Node>) -> Vec<Node> {
     let tappable = |n: &Node| n.actions.intersects(Actions::TAP | Actions::LONG_PRESS);
     let bare = |n: &Node| n.label.is_none() && n.value.is_none() && n.hint.is_none();
     let mut drop = vec![false; nodes.len()];
+    let place = |n: &Node| {
+        (
+            n.label.clone(),
+            [n.bounds.x, n.bounds.y, n.bounds.w, n.bounds.h].map(f32::to_bits),
+        )
+    };
+    let controls: std::collections::HashSet<_> = nodes
+        .iter()
+        .filter(|n| !n.actions.is_empty() && n.label.is_some())
+        .map(place)
+        .collect();
     for i in 0..nodes.len() {
         let n = &nodes[i];
+        if n.actions.is_empty()
+            && kids[i].is_empty()
+            && n.value.is_none()
+            && n.hint.is_none()
+            && n.label.is_some()
+            && controls.contains(&place(n))
+        {
+            drop[i] = true;
+            continue;
+        }
         let plain = n.collection.is_none()
             && n.value.is_none()
             && n.hint.is_none()
@@ -349,10 +370,15 @@ fn fold_wrappers(mut nodes: Vec<Node>) -> Vec<Node> {
         if !plain {
             continue;
         }
-        if n.label.is_none() && n.actions.difference(Actions::TAP | Actions::LONG_PRESS).is_empty() {
+        if n.label.is_none()
+            && n.actions
+                .difference(Actions::TAP | Actions::LONG_PRESS)
+                .is_empty()
+        {
             let sliver = n.bounds.h.min(n.bounds.w) < SLIVER
                 && kids[i].is_empty()
-                && n.parent.is_some_and(|p| nodes[p].actions.intersects(Actions::SCROLL));
+                && n.parent
+                    .is_some_and(|p| nodes[p].actions.intersects(Actions::SCROLL));
             if sliver {
                 drop[i] = true;
                 continue;
@@ -364,8 +390,16 @@ fn fold_wrappers(mut nodes: Vec<Node>) -> Vec<Node> {
             }
             continue;
         }
-        let Some(label) = n.label.clone() else { continue };
+        let Some(label) = n.label.clone() else {
+            continue;
+        };
         if !n.actions.is_empty() {
+            continue;
+        }
+        if let [c] = kids[i][..]
+            && nodes[c].label.as_ref() == Some(&label)
+        {
+            drop[i] = true;
             continue;
         }
         let (buttons, rest): (Vec<usize>, Vec<usize>) = kids[i]
@@ -374,10 +408,7 @@ fn fold_wrappers(mut nodes: Vec<Node>) -> Vec<Node> {
         let echoes = rest.iter().all(|&c| {
             kids[c].is_empty()
                 && nodes[c].actions.is_empty()
-                && nodes[c]
-                    .label
-                    .as_deref()
-                    .is_some_and(|l| label.contains(l))
+                && nodes[c].label.as_deref().is_some_and(|l| label.contains(l))
         });
         let [b] = buttons[..] else { continue };
         if !echoes {
@@ -767,11 +798,12 @@ mod tests {
         ]}"#;
         let nodes = prune(&RawTree::from_android_json(json, Scale { density: 1.0 }).unwrap());
         let labels: Vec<_> = nodes.iter().filter_map(|n| n.label.as_deref()).collect();
-        assert_eq!(
-            labels.iter().filter(|l| **l == "Clipboard").count(),
-            2,
-            "{labels:?}"
-        );
+        let kept: Vec<_> = nodes
+            .iter()
+            .filter(|n| n.label.as_deref() == Some("Clipboard"))
+            .collect();
+        assert_eq!(kept.len(), 1, "{labels:?}");
+        assert_eq!((kept[0].role, kept[0].bounds.y), (Role::Button, 300.0));
         assert!(!labels.contains(&"Content copied"), "{labels:?}");
     }
 
@@ -911,7 +943,11 @@ mod tests {
         let nodes = prune(&RawTree::from_android_json(json, Scale { density: 1.0 }).unwrap());
         assert_eq!(nodes[0].role, Role::TextField);
         assert_eq!(nodes[0].parent, None);
-        assert_eq!(nodes.len(), 4, "a wrapper around two controls stays: {nodes:#?}");
+        assert_eq!(
+            nodes.len(),
+            4,
+            "a wrapper around two controls stays: {nodes:#?}"
+        );
     }
 
     #[test]
@@ -926,7 +962,10 @@ mod tests {
         let nodes = prune(&RawTree::from_android_json(json, Scale { density: 1.0 }).unwrap());
         assert_eq!(
             labels_and_roles(&nodes),
-            [(Role::Button, "Light".to_string()), (Role::Button, "Dark".to_string())]
+            [
+                (Role::Button, "Light".to_string()),
+                (Role::Button, "Dark".to_string())
+            ]
         );
         assert!(!nodes[0].state.contains(ElementState::SELECTED));
         assert!(nodes[1].state.contains(ElementState::SELECTED));
@@ -942,10 +981,45 @@ mod tests {
             {"p":0,"w":1,"cls":"android.widget.ImageButton","b":[0,120,400,170],"f":"vVe","a":["tap"]}
         ]}"#;
         let nodes = prune(&RawTree::from_android_json(json, Scale { density: 1.0 }).unwrap());
-        let shown: Vec<_> = nodes.iter().map(|n| (n.role, n.label.clone(), n.bounds.y)).collect();
+        let shown: Vec<_> = nodes
+            .iter()
+            .map(|n| (n.role, n.label.clone(), n.bounds.y))
+            .collect();
         assert_eq!(nodes.len(), 3, "{shown:?}");
         assert_eq!(nodes[1].label.as_deref(), Some("Wi-Fi"));
         assert_eq!(nodes[2].bounds.y, 120.0);
+    }
+
+    #[test]
+    fn a_group_named_like_its_only_control_is_that_control() {
+        let json = r#"{"windows":[{"id":1,"type":"application","bounds":[0,0,400,800]}],"nodes":[
+            {"p":-1,"w":1,"cls":"android.view.View","desc":"Play trailer","b":[0,100,400,300],"f":"vVe"},
+            {"p":0,"w":1,"cls":"android.widget.Button","desc":"Play trailer","b":[150,150,250,250],"f":"vVe","a":["tap"]}
+        ]}"#;
+        let nodes = prune(&RawTree::from_android_json(json, Scale { density: 1.0 }).unwrap());
+        assert_eq!(
+            labels_and_roles(&nodes),
+            [(Role::Button, "Play trailer".to_string())]
+        );
+        assert_eq!(nodes[0].parent, None);
+    }
+
+    #[test]
+    fn an_inert_copy_of_a_control_in_the_same_place_is_not_listed() {
+        let json = r#"{"windows":[{"id":1,"type":"application","bounds":[0,0,400,800]}],"nodes":[
+            {"p":-1,"w":1,"cls":"android.widget.HorizontalScrollView","b":[0,100,400,300],"f":"vVeS","a":["scroll_fwd"]},
+            {"p":0,"w":1,"cls":"android.view.View","desc":"Play trailer","b":[300,150,340,190],"f":"vVe"},
+            {"p":0,"w":1,"cls":"android.view.View","desc":"Play trailer","b":[300,150,340,190],"f":"vVe","a":["tap"]},
+            {"p":0,"w":1,"cls":"android.widget.TextView","text":"Play trailer","b":[0,200,100,240],"f":"vVe"}
+        ]}"#;
+        let nodes = prune(&RawTree::from_android_json(json, Scale { density: 1.0 }).unwrap());
+        let shown: Vec<_> = nodes
+            .iter()
+            .map(|n| (n.role, n.label.clone(), n.bounds.y))
+            .collect();
+        assert_eq!(nodes.len(), 3, "{shown:?}");
+        assert_eq!(nodes[1].role, Role::Button);
+        assert_eq!(nodes[2].bounds.y, 200.0, "the same words elsewhere stay");
     }
 
     #[test]
