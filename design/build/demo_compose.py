@@ -150,16 +150,20 @@ class Scene:
         delta, ft = self.phone_offset()
         inputs, chains, labels = [], [], []
         placed = self.t0
+        last = len(self.times["segments"]) - 1
         for i, seg in enumerate(self.times["segments"]):
             inputs += ["-i", str(self.run / seg["file"])]
             start = seg["start"] + delta
             d = duration(self.run / seg["file"])
-            end = start + d
+            # screenrecord writes no frame while the screen is still, so the last file can end before the recording
+            # did; its last frame is held to the end.
+            hold = max(0.0, self.t1 - (start + d)) + 1.0 if i == last else 0.0
+            end = start + d + hold
             if end <= placed:
                 continue
             trim = max(0.0, placed - start)
             pad = max(0.0, start - placed)
-            chains.append(f"[{i}:v]fps={FPS},trim=start={trim:.3f},setpts=PTS-STARTPTS,tpad=start_duration={pad:.3f}:start_mode=clone,scale={size[0]}:{size[1]}:flags=lanczos[s{i}]")
+            chains.append(f"[{i}:v]fps={FPS},tpad=stop_duration={hold:.3f}:stop_mode=clone,trim=start={trim:.3f},setpts=PTS-STARTPTS,tpad=start_duration={pad:.3f}:start_mode=clone,scale={size[0]}:{size[1]}:flags=lanczos[s{i}]")
             labels.append(f"[s{i}]")
             placed = end
         fc = ";".join(chains) + ";" + ("".join(labels) + f"concat=n={len(labels)}:v=1[o]" if len(labels) > 1 else f"{labels[0]}null[o]")

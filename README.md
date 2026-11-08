@@ -10,10 +10,10 @@
 phonedriver lets Claude Code, Codex, Cursor or any MCP client use an Android phone or an iPhone. The model opens apps, taps, types, scrolls and reads the screen. It reads the screen as text instead of screenshots, and after each tap it gets back only the lines that changed. On the same nine phone jobs, that took 5x fewer tokens than mobile-mcp. And when it reaches a button labeled Pay or Place order, phonedriver stops and asks you.
 
 <p align="center">
-  <img alt="Claude Code drives an Android phone through phonedriver. It finds the best-rated Indian restaurant near Times Square on Uber Eats, adds butter chicken and garlic naan to the cart and stops at checkout. Then, on a test checkout screen, it taps Place order and phonedriver asks the human first. The human declines and nothing is ordered." src=".github/assets/demo.gif" width="100%">
+  <img alt="Claude Code drives an Android phone through phonedriver on the real dominos.co.uk website. Asked for a large pepperoni pizza from the Domino's nearest Leicester Square, it finds the store, fills the basket and the guest checkout, and taps Buy with GPay. phonedriver holds the tap and asks the human in Claude Code. The human declines and nothing is ordered." src=".github/assets/demo.gif" width="100%">
 </p>
 
-<p align="center"><sub>Claude Code (Opus 5.5) with phonedriver on an Android emulator. The Uber Eats run took 6 minutes and is shown at 15x; the approval prompt plays at real speed. Nothing was ordered. <a href=".github/assets/demo.mp4">Full video (MP4)</a>.</sub></p>
+<p align="center"><sub>One real Claude Code (Opus 5.5) session on an Android emulator, ordering on dominos.co.uk. The run took 6.5 minutes and is shown at 15x; the approval prompt plays at real speed. Nothing was ordered. <a href=".github/assets/demo.mp4">Full video (MP4)</a>.</sub></p>
 
 ## Start
 
@@ -82,7 +82,7 @@ Measured on an Android 17 emulator, median of 50 runs, against `adb shell uiauto
 
 When a tap lands on a button labeled Pay, Buy now, Place order, Subscribe, Transfer or Delete account, phonedriver holds the tap and asks you in Claude Code's own prompt. The model never sees that question and can't answer it. In a client that can't show such a prompt, the tap waits and the model has to ask you in chat.
 
-<p align="center"><img alt="Claude Code shows phonedriver's question: your agent wants to tap Place order, $12.00, in the testbed app. The human declined, and Claude reports that nothing was submitted." src=".github/assets/demo-poster.png" width="100%"></p>
+<p align="center"><img alt="Claude Code after phonedriver asked about tapping Buy with GPay on dominos.co.uk: the human declined, and Claude reports that no order was placed and nothing was charged." src=".github/assets/demo-poster.png" width="100%"></p>
 
 You choose Allow, Allow for this session, or Decline. If you want an agent to run without asking, you can say so in its instructions, and it passes `autonomous: true`; you can also turn the check off with `PHONEDRIVER_GUARD=off`.
 
@@ -100,6 +100,8 @@ The model can't type plain text into a password field or a one-time code field. 
 | iPhone or iPad | a Mac with Xcode and an Apple developer team ([setup](docs/reference.md#iphone-or-ipad)) |
 
 On Android there is no app to install. phonedriver pushes its helper over adb when it connects. On iOS it builds a small XCTest runner on your Mac.
+
+On Android 13 and later, the agent can work on a hidden second screen, so your own screen stays yours. Set `PHONEDRIVER_DISPLAY=hidden` in the MCP config, or pass `--display hidden` to the CLI. This has been tested on an emulator so far.
 
 The MCP server has 14 tools: `devices`, `apps`, `snapshot`, `screenshot`, `tap`, `type`, `swipe`, `scroll`, `press`, `launch`, `wait`, `batch`, `clipboard` and `shell`. The `phonedriver` CLI has the same commands, for scripts and for agents that prefer a shell.
 
