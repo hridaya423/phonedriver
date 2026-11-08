@@ -1345,8 +1345,8 @@ mod tests {
                 "Connect a device or start an emulator; ask the user to run phonedriver doctor to see what is missing (adb, USB debugging, a dropped tunnel).",
             ),
             (
-                "nothing changed; `phonedriver wait settled` waits for the screen, `phonedriver snapshot` shows it",
-                "nothing changed; `wait` with condition `settled` waits for the screen, `snapshot` shows it",
+                "nothing changed; the tap may have missed, or changed only what the element list does not show (a web checkbox): `phonedriver screenshot` shows the picture",
+                "nothing changed; the tap may have missed, or changed only what the element list does not show (a web checkbox): `screenshot` shows the picture",
             ),
         ];
         for (from, to) in cases {

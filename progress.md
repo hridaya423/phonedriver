@@ -618,3 +618,9 @@ Evidence:
 - Test first: `a_web_view_without_a_title_is_kept_so_what_is_in_it_is_known_to_be_web` in `crates/core/src/prune.rs`; red: `left: [Checkbox] right: [WebView, Checkbox]`. After: `cargo test -p phonedriver-core` 150 passed; `cargo test -p phonedriver` 302 passed, 0 failed.
 - Cost: an untitled page now has one more line (`@eN webview`) and its children are indented one level.
 - Not done: radio buttons (`daemon/checkbox.rs` reads `Role::Checkbox` only); a live recheck on the emulator (another session's daemon was driving emulator-5558).
+
+## AX/DX audit: "nothing changed" no longer says `wait settled`; `--timeout` help says what it times (2026-11-08)
+
+- Found: after a tap on a web checkbox the reply was `ok tapped @e24 "Extra Cheese" at 36,511 · no change after 502ms` / `hint: nothing changed; `phonedriver wait settled` waits for the screen, `phonedriver snapshot` shows it`. The hint is printed only when the screen already settled, so `wait settled` can only return at once, and the reply gives a model no reason to suspect that the tap worked and the list just does not show it. `phonedriver wait --help` described the global `--timeout` as "how long to wait for the screen to settle" though `wait` uses it for its condition.
+- Changed: hint `nothing changed; the tap may have missed, or changed only what the element list does not show (a web checkbox): `phonedriver screenshot` shows the picture` (the MCP rewrite gives `screenshot`); `--timeout` help names both uses and the 5000 default of `wait`.
+- Test: `a_no_change_hint_does_not_send_the_reader_to_wait_for_a_screen_that_has_settled`, red against the old string (`FAILED. 0 passed; 1 failed`), green after; `hints_name_tools_and_arguments` updated. `cargo test -p phonedriver`: no failures; clippy clean.
