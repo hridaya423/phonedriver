@@ -123,6 +123,7 @@ JSON-RPC `error` with `code` from the table, `message`, and `data: {code_name, h
 | -32012 | not_settled |
 | -32013 | timeout |
 | -32014 | automation_conflict |
+| -32021 | device_driven (another phonedriver daemon owns the device's agent; `data.id`, `data.pid`, `data.host`; decision D34) |
 | -32015 | transport |
 | -32017 | no_app (`data.similar` lists installed apps that share a word with the name) |
 | -32018 | unknown_key (`press` got a key it does not know; `data.valid` lists the keys) |
