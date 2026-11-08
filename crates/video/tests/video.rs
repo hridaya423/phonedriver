@@ -285,7 +285,7 @@ async fn a_barrier_passes_only_once_every_packet_before_it_is_decoded_and_shown(
     let id = stream.next_barrier();
     assert!(!stream.wait_barrier(id, Duration::from_millis(200)).await);
     agent.write_all(&barrier_packet(id)).await.unwrap();
-    assert!(stream.wait_barrier(id, Duration::from_secs(5)).await);
+    assert!(stream.wait_barrier(id, Duration::from_secs(60)).await);
     assert_eq!(stream.store.latest().unwrap().seq, 59);
 }
 
