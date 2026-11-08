@@ -923,3 +923,13 @@ The fixes come from the first run on a physical Android phone, a Honor X8 (TFY-L
 - Test: `an_app_asked_for_with_its_maker_in_front_is_found` covers Google Play Store, Google Chrome, Store and Google Maps. It failed first. `launching_an_unknown_app_says_no_app_and_lists_apps_that_share_a_word` now asks for "testbed app", because "phonedriver testbed" opens Testbed under the new rule.
 - Live check on the Honor X8: `launch "Google Play Store"` replied `ok launched Play Store`.
 - `cargo test --workspace --no-fail-fast`: 673 passed, 0 failed. Clippy is clean.
+
+## 2026-11-08: the hidden display works on a HONOR phone (D32 limits updated)
+
+- Ran on the Honor X8 (MagicOS, Android 13, API 33) with `PHONEDRIVER_DISPLAY=hidden`, release build, session `hid`.
+  - `launch Settings`: the reply was `not settled after 6010ms` (8.4 s wall time, with display and encoder start). `devices` showed `hidden (display 2)`. `dumpsys activity activities` showed Settings on display 2 and the Play Store still on display 0.
+  - `tap "Search query"`, then `type battery`: `verified · settled in 386ms`. The screenshot of display 2 shows the results and the keyboard. An `adb screencap` of the phone's own screen shows the Play Store, unchanged except for the system's "Copied." toast.
+  - `press home` started the secondary-display launcher. `launch Calculator` settled in 1117 ms, and a tap settled in 382 ms. I deleted the digit the tap added, so the user's calculator is as it was.
+  - `press back` acted on display 2. Display 0 still showed the Play Store.
+  - `release`, then `daemon stop`: `dumpsys display` lists only Display 0.
+- Docs: the D32 limits, why and reopen-if text, and the README line that said the mode was tested on an emulator only.
