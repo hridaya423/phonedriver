@@ -129,6 +129,14 @@ pub fn span(secs: u64) -> String {
     }
 }
 
+fn stale_message(r: Ref, unseen: bool) -> String {
+    if unseen {
+        format!("@{r} belongs to an earlier screen or another session")
+    } else {
+        format!("@{r} is no longer on screen")
+    }
+}
+
 fn covered(behind_keyboard: bool, by: Option<&str>) -> String {
     match (behind_keyboard, by) {
         (true, _) => "under the keyboard".into(),
@@ -309,11 +317,13 @@ pub enum Error {
     },
     #[error("{}", action.message())]
     NeedsUser { action: UserAction },
-    #[error("@{} is no longer on screen", r#ref)]
+    #[error("{}", stale_message(*r#ref, *unseen))]
     StaleRef {
         #[serde(rename = "ref")]
         r#ref: Ref,
         closest: Option<ElementLine>,
+        /// This session has not been shown the ref: it comes from another session or an older daemon.
+        unseen: bool,
     },
     #[error("no element matches \"{query}\"")]
     NotFound {
@@ -485,6 +495,9 @@ impl Error {
                 span(*expires_s)
             ),
             Error::NeedsUser { action } => action.hint(),
+            Error::StaleRef { unseen: true, .. } => {
+                "Run `phonedriver snapshot` to read the screen, then use its refs; refs are per session.".into()
+            }
             Error::StaleRef { closest, .. } => match closest {
                 Some(line) => {
                     format!("Run `phonedriver snapshot` for fresh refs; closest now: {line}")
@@ -650,6 +663,7 @@ mod tests {
             Error::StaleRef {
                 r#ref: Ref(4),
                 closest: Some("@e9 button \"Network & internet\"".into()),
+                unseen: false,
             },
             Error::NotFound {
                 query: "Wifi".into(),
@@ -825,6 +839,7 @@ mod tests {
         let v = Error::StaleRef {
             r#ref: Ref(4),
             closest: None,
+            unseen: false,
         }
         .to_rpc();
         assert_eq!(v["data"]["ref"], json!("e4"));
@@ -844,11 +859,30 @@ mod tests {
         let e = Error::StaleRef {
             r#ref: Ref(4),
             closest: Some("@e9 button \"Network & internet\"".into()),
+            unseen: false,
         };
         let hint = e.hint();
         assert!(hint.contains("phonedriver snapshot"), "{hint}");
         assert!(hint.contains("@e9 button \"Network & internet\""), "{hint}");
         assert!(e.to_string().contains("@e4"));
+    }
+
+    #[test]
+    fn a_ref_this_session_never_saw_says_so_and_how_to_get_refs() {
+        let e = Error::StaleRef {
+            r#ref: Ref(5),
+            closest: None,
+            unseen: true,
+        };
+        let message = e.to_string();
+        assert!(
+            message.contains("@e5") && message.contains("earlier screen or another session"),
+            "{message}"
+        );
+        assert!(!message.contains("no longer on screen"), "{message}");
+        let hint = e.hint();
+        assert!(hint.contains("phonedriver snapshot"), "{hint}");
+        assert!(hint.contains("per session"), "{hint}");
     }
 
     #[test]

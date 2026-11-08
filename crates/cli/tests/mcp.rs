@@ -286,7 +286,7 @@ async fn an_error_is_is_error_with_the_message_and_the_hint() {
     assert_eq!(
         texts(&r),
         vec![format!(
-            "{}\nhint: Call `snapshot` for fresh refs.",
+            "{}\nhint: Call `snapshot` to read the screen, then use its refs; refs are per session.",
             want.message()
         )]
     );

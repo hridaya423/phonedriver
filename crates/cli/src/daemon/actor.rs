@@ -976,13 +976,13 @@ impl Actor {
                 }
                 DiffOrFull::Full => (
                     Kind::Full,
-                    rendered.text(&filters).map_err(|r| stale(r, &rendered))?,
+                    rendered.text(&filters).map_err(|r| stale(r, s))?,
                 ),
             }
         } else {
             (
                 Kind::Full,
-                rendered.text(&filters).map_err(|r| stale(r, &rendered))?,
+                rendered.text(&filters).map_err(|r| stale(r, s))?,
             )
         };
         let capture = if p.capture {
@@ -2297,6 +2297,7 @@ impl Actor {
         let baseline = s.last.clone();
         let mut done = Vec::new();
         let mut failed = None;
+        let mut unseen_ref = false;
         let mut last: Option<ActionResult> = None;
         for (i, raw) in p.steps.iter().enumerate() {
             let step = Step::parse(raw).map_err(|_| unreachable_state())?;
@@ -2338,6 +2339,7 @@ impl Actor {
                 }
                 Err(e @ Error::DeviceGone { .. }) => return Err(e),
                 Err(e) => {
+                    unseen_ref = matches!(e, Error::StaleRef { unseen: true, .. });
                     failed = Some(StepFailure {
                         step: i + 1,
                         error: e.to_rpc(),
@@ -2379,7 +2381,10 @@ impl Actor {
                 }
             }
         };
-        if let (Some(base), Some(now)) = (&baseline, &s.last) {
+        if unseen_ref {
+            result.observation.kind = Kind::Full;
+            result.observation.text = String::new();
+        } else if let (Some(base), Some(now)) = (&baseline, &s.last) {
             match diff(base, now) {
                 DiffOrFull::Diff(changes) => {
                     result.observation.kind = Kind::Diff;
@@ -2896,10 +2901,11 @@ async fn press(device: &dyn Device, key: &str) -> Result<Option<&'static str>, E
     })
 }
 
-fn stale(r: Ref, _now: &Rendered) -> Error {
+fn stale(r: Ref, s: &Session) -> Error {
     Error::StaleRef {
         r#ref: r,
         closest: None,
+        unseen: s.unseen(r),
     }
 }
 

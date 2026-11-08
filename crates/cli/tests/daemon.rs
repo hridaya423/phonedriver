@@ -2837,6 +2837,58 @@ async fn a_batch_stops_at_the_first_failing_step_and_says_which_one_failed_and_w
 }
 
 #[tokio::test]
+async fn a_ref_from_another_session_is_named_as_such_and_a_batch_does_not_dump_the_screen() {
+    let (source, fake) = FakeSource::with(vec![tree(&["One", "Two"])]);
+    let (d, _home) = daemon(source);
+    ok(&d, "first", "snapshot", json!({})).await;
+    let mut tap = tap_ref("e9");
+    tap["share"] = json!(true);
+    let e = err(&d, "second", "act", tap).await;
+    assert_eq!(e.code, -32006, "{e:?}");
+    assert!(
+        e.message.contains("earlier screen or another session"),
+        "{}",
+        e.message
+    );
+    assert_eq!(e.data["unseen"], true, "{e:?}");
+    assert!(e.data["hint"].as_str().unwrap().contains("snapshot"));
+    let mut steps = batch(json!([{"kind": "tap", "target": {"ref": "e9"}}]));
+    steps["share"] = json!(true);
+    let r = ok(&d, "third", "batch", steps).await;
+    assert_eq!(r["failed"]["step"], 1, "{r}");
+    assert_eq!(r["failed"]["error"]["data"]["unseen"], true, "{r}");
+    assert_eq!(r["observation"]["text"], "", "{r}");
+    assert!(fake.calls().is_empty());
+}
+
+#[tokio::test]
+async fn a_stale_ref_in_a_batch_still_shows_what_changed_in_this_session() {
+    let (source, _fake) = FakeSource::with(vec![
+        tree(&["One", "Two", "Three"]),
+        tree(&["One", "Two", "Three"]),
+        tree(&["Other"]),
+    ]);
+    let (d, _home) = daemon(source);
+    ok(&d, "default", "snapshot", json!({})).await;
+    let r = ok(
+        &d,
+        "default",
+        "batch",
+        batch(json!([
+            {"kind": "tap", "target": {"ref": "e1"}},
+            {"kind": "tap", "target": {"ref": "e3"}},
+        ])),
+    )
+    .await;
+    assert_eq!(r["failed"]["step"], 2, "{r}");
+    assert_eq!(r["failed"]["error"]["data"]["unseen"], false, "{r}");
+    assert!(
+        !r["observation"]["text"].as_str().unwrap().is_empty(),
+        "{r}"
+    );
+}
+
+#[tokio::test]
 async fn a_batch_with_a_malformed_step_runs_nothing_and_names_the_step() {
     let (source, fake) = FakeSource::with(vec![tree(&["One"])]);
     let (d, _home) = daemon(source);

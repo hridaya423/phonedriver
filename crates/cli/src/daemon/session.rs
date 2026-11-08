@@ -48,6 +48,7 @@ impl Session {
                 None => Err(Error::StaleRef {
                     r#ref: *r#ref,
                     closest: self.closest(*r#ref, now),
+                    unseen: self.unseen(*r#ref),
                 }),
             },
             Target::Text { text, role } => match find_text(now, text, *role) {
@@ -89,6 +90,11 @@ impl Session {
             .filter(|e| parts(e).any(|p| p.to_lowercase().contains(&q)))
             .map(|e| now.line(e))
             .collect()
+    }
+
+    /// The session was never shown this ref: it has seen no screen yet, or never issued a ref that high.
+    pub fn unseen(&self, r: phonedriver_core::element::Ref) -> bool {
+        self.last.is_none() || !self.refs.issued(r)
     }
 
     fn closest(&self, r: phonedriver_core::element::Ref, now: &Rendered) -> Option<String> {

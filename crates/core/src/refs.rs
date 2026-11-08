@@ -51,6 +51,11 @@ impl RefTable {
         Ref(self.next)
     }
 
+    /// Whether this table has handed out `r`.
+    pub fn issued(&self, r: Ref) -> bool {
+        r.0 <= self.next
+    }
+
     /// One ref per node, matched against the previous call's nodes.
     pub fn assign(&mut self, tree: &RawTree, nodes: &[Node]) -> Vec<Ref> {
         let keys: Vec<StructuralKey> = nodes
