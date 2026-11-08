@@ -263,8 +263,8 @@ impl Rendered {
             && let Some(c) = e.collection
         {
             let _ = match (c.rows, c.cols) {
-                (rows, 0 | 1) => write!(s, " {rows} rows"),
-                (1, cols) => write!(s, " {cols} columns"),
+                (rows, 0 | 1) => write!(s, " {}", plural(rows.into(), "row")),
+                (1, cols) => write!(s, " {}", plural(cols.into(), "column")),
                 (rows, cols) => write!(s, " {rows}x{cols} cells"),
             };
         }
@@ -355,6 +355,15 @@ fn second_text(e: &Element) -> Option<String> {
         .map(|t| quote(&t))
 }
 
+/// `1 time`, `2 times`.
+pub fn plural(n: u64, noun: &str) -> String {
+    if n == 1 {
+        format!("1 {noun}")
+    } else {
+        format!("{n} {noun}s")
+    }
+}
+
 pub fn quote(s: &str) -> String {
     let n = s.chars().count();
     let body = if n > MAX_TEXT {
@@ -435,6 +444,22 @@ pub fn state_words(e: &Element) -> Vec<&'static str> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn counts_of_one_are_singular() {
+        assert_eq!(plural(0, "time"), "0 times");
+        assert_eq!(plural(1, "time"), "1 time");
+        assert_eq!(plural(2, "char"), "2 chars");
+    }
+
+    #[test]
+    fn a_list_of_one_row_says_row() {
+        let r = one(
+            r#"{"p":-1,"w":1,"cls":"androidx.recyclerview.widget.RecyclerView","b":[0,0,400,800],"f":"vVeS","a":["scroll_down"],"coll":{"rows":1,"cols":1}}"#,
+        );
+        let text = r.text(&Filters::default()).unwrap();
+        assert!(text.contains("@e1 list 1 row scrollable↓"), "{text}");
+    }
     use crate::element::ItemPos;
     use crate::geometry::{Point, Scale, Size};
     use crate::prune::prune;

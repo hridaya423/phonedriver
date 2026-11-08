@@ -741,3 +741,8 @@ Evidence:
   - A change that raises no event would come back stale.
   - A stale screen is worse than a slow one.
 - Next: run those suites, then decide. Before merging, renumber its decision to D35, because D33 and D34 are taken.
+## AX/DX audit: counts of one are singular everywhere (2026-11-08)
+
+- Found: `scrolled down 1 times to @e5 "Row 6"` (scroll `--until`), and the same pattern in `the list did not move after 1 scrolls`, `typed 1 chars`, `1 rows` (list line), `1 marks`, `ok 1 steps`.
+- Changed: one helper, `render::plural(n, noun)`; `error::times` is gone, and the scroll summary, scroll errors, `typed N chars`, list rows/columns, screenshot marks and batch steps use it.
+- Test first (red: compile error on `plural`; the daemon test printed `scrolled down 1 times to @e5 "Row 6"`): `counts_of_one_are_singular`, `a_list_of_one_row_says_row`, `a_scroll_count_of_one_is_singular` (core) and `scroll_until_after_one_gesture_says_one_time` (daemon); the old `scroll_until_keeps_going_while_the_target_is_under_the_toolbar` asserted `1 times` and now asserts `down 1 time to`. `cargo test -p phonedriver-core` 154 passed; `cargo test -p phonedriver` no failures.

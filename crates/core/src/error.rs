@@ -3,6 +3,7 @@ use serde_json::{Value, json};
 
 use crate::element::Ref;
 use crate::geometry::Rect;
+use crate::render::plural;
 
 pub type DeviceId = String;
 pub type SessionName = String;
@@ -145,29 +146,24 @@ fn covered(behind_keyboard: bool, by: Option<&str>) -> String {
     }
 }
 
-fn times(n: u32) -> String {
-    if n == 1 {
-        "1 time".into()
-    } else {
-        format!("{n} times")
-    }
-}
-
 fn not_reached(query: &str, scrolls: u32, end: ScrollEnd, last: Option<&str>) -> String {
     match end {
         ScrollEnd::Ended => {
             let at = last.map_or_else(String::new, |l| format!(" at \"{l}\""));
             format!(
                 "scrolled {} and the list ended{at}; \"{query}\" is not in it",
-                times(scrolls)
+                plural(scrolls.into(), "time")
             )
         }
         ScrollEnd::Stuck => {
-            format!("the list did not move after {scrolls} scrolls; \"{query}\" not found")
+            format!(
+                "the list did not move after {}; \"{query}\" not found",
+                plural(scrolls.into(), "scroll")
+            )
         }
         ScrollEnd::Limit => format!(
             "scrolled {} and \"{query}\" is still not on screen",
-            times(scrolls)
+            plural(scrolls.into(), "time")
         ),
     }
 }
@@ -613,6 +609,28 @@ mod tests {
     use serde_json::{Value, json};
 
     use super::*;
+
+    #[test]
+    fn a_scroll_count_of_one_is_singular() {
+        let not_reached = |scrolls, end| {
+            Error::NotReached {
+                query: "Row 640".into(),
+                scrolls,
+                end,
+                last: None,
+            }
+            .to_string()
+        };
+        assert_eq!(
+            not_reached(1, ScrollEnd::Stuck),
+            "the list did not move after 1 scroll; \"Row 640\" not found"
+        );
+        assert_eq!(
+            not_reached(1, ScrollEnd::Limit),
+            "scrolled 1 time and \"Row 640\" is still not on screen"
+        );
+        assert!(not_reached(2, ScrollEnd::Stuck).contains("after 2 scrolls"));
+    }
     use crate::element::Ref;
     use crate::geometry::Rect;
 

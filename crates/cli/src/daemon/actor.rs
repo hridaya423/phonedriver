@@ -20,7 +20,7 @@ use phonedriver_core::ocr::{merge, tree_is_hollow};
 use phonedriver_core::prune::prune;
 use phonedriver_core::raw::RawTree;
 use phonedriver_core::render::{
-    AppLine, DeviceLine, Filters, Header, Orientation, Rendered, SettleLine,
+    AppLine, DeviceLine, Filters, Header, Orientation, Rendered, SettleLine, plural,
 };
 use phonedriver_core::settle::{Config, Detector, Input, State};
 use phonedriver_core::similar::{SUGGEST_WITHIN, normalized_distance};
@@ -1862,7 +1862,10 @@ impl Actor {
                     .as_ref()
                     .map(|f| format!(" into @{}", f.r#ref))
                     .unwrap_or_default();
-                let summary = approved_summary(format!("typed {n} chars{label}"), approved);
+                let summary = approved_summary(
+                    format!("typed {}{label}", plural(n as u64, "char")),
+                    approved,
+                );
                 let expect = if replace {
                     Expect::Exactly(text.clone())
                 } else {
@@ -2029,8 +2032,9 @@ impl Actor {
                 Ok(found) if found.covered.is_none() || idle >= 2 => {
                     let line = found.line.unwrap_or_default();
                     let summary = format!(
-                        "scrolled {} {gestures} times to {}",
+                        "scrolled {} {} to {}",
                         direction.name(),
+                        plural(gestures.into(), "time"),
                         short(&line)
                     );
                     let st = match last {
