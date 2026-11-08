@@ -12,6 +12,22 @@ URL: https://phonedriver.dev/
 
 phonedriver is an open-source MCP server and CLI that lets AI agents like Claude Code see and control Android and iOS phones. It shows a screen as numbered text, and every tap, type or swipe returns only the lines that changed.
 
+## How do I let Claude control my Android phone?
+
+Run claude mcp add phonedriver -- npx -y phonedriver mcp, turn on USB debugging, and plug the phone in.
+
+## Does it work with an iPhone?
+
+Yes, from a Mac with Xcode, on the Simulator or on an iPhone or iPad signed with your Apple developer team.
+
+## Can my agent buy things with it?
+
+Not without your answer, unless you have told it to run autonomously. See Asking before it pays.
+
+## Can I use it at work?
+
+Yes. It is AGPL-3.0: you can use it freely. If you change it and offer it to others as a network service, you must publish your changes.
+
 ## How do I let an AI agent control my phone?
 
 Install phonedriver, add it to your agent as an MCP server (claude mcp add phonedriver -- npx -y phonedriver mcp for Claude Code), connect an Android phone with USB debugging, start an emulator, or boot the iOS Simulator, and ask the agent in plain language, for example "Open Settings and turn on dark mode." The agent gets a text view of the screen and tools to tap, type and swipe. See the setup guides.
@@ -46,7 +62,7 @@ Not without asking you. Before a tap on a button such as Place order, Pay, Send 
 
 ## Does phonedriver send telemetry?
 
-No. It talks to the device, the local daemon socket and the local adb server, and to Apple only when mounting an iOS developer disk image. A test runs the CLI, daemon and MCP server under a macOS sandbox that kills any process opening a non-local connection. Text passed with --secret never reaches logs, traces or replies. This website sets no cookies and runs no scripts.
+No. It talks to the device, the local daemon socket and the local adb server, and to Apple only when mounting an iOS developer disk image. A test runs the CLI, daemon and MCP server under a macOS sandbox that kills any process opening a non-local connection. Text passed with --secret never reaches logs, traces or replies. This website sets no cookies and loads no third-party scripts.
 
 ## Does it install anything on my phone?
 

@@ -5,7 +5,7 @@ ROOT = Path(__file__).resolve().parents[2]
 
 DEFINITION = "phonedriver is an open-source MCP server and CLI that lets AI agents like Claude Code see and control Android and iOS phones. It shows a screen as numbered text, and every tap, type or swipe returns only the lines that changed."
 
-HOME_DESC = "phonedriver lets an AI agent see and operate an Android or iOS phone: tap, type, swipe, with an MCP server for Claude Code and Cursor. Up to 98x faster than adb."
+HOME_DESC = "phonedriver lets Claude Code, Codex, Cursor or any MCP client use an Android phone or an iPhone. It reads the screen as text and asks you before it pays."
 
 LLMS_NOTE = "phonedriver is a free, open-source (AGPL-3.0) CLI and MCP server. It runs on macOS, Linux and Windows and controls Android emulators and phones, the iOS Simulator and iPhones. It sends no telemetry. Numbers below come from benchmarks on an Android 17 emulator; each page links its method and raw data."
 
@@ -32,6 +32,17 @@ if _svg.exists():
         HERO_H = int(m.group(1))
 
 FAQ = [
+    ("How do I let Claude control my Android phone?",
+     "Run `claude mcp add phonedriver -- npx -y phonedriver mcp`, turn on USB debugging, and plug the phone in."),
+    ("Does it work with an iPhone?",
+     "Yes, from a Mac with Xcode, on the Simulator or on an iPhone or iPad signed with your Apple developer team."),
+    ("Can my agent buy things with it?",
+     "Not without your answer, unless you have told it to run autonomously. See [Asking before it pays](#asking-before-it-pays)."),
+    ("Can I use it at work?",
+     "Yes. It is AGPL-3.0: you can use it freely. If you change it and offer it to others as a network service, you must publish your changes."),
+]
+
+FAQ_MORE = [
     ("How do I let an AI agent control my phone?",
      "Install phonedriver, add it to your agent as an MCP server (`claude mcp add phonedriver -- npx -y phonedriver mcp` for Claude Code), connect an Android phone with USB debugging, start an emulator, or boot the iOS Simulator, and ask the agent in plain language, for example \"Open Settings and turn on dark mode.\" The agent gets a text view of the screen and tools to tap, type and swipe. See the [setup guides](/docs/)."),
     ("How do I let Claude control my Android phone?",
@@ -49,7 +60,7 @@ FAQ = [
     ("Can the agent spend my money or delete things?",
      "Not without asking you. Before a tap on a button such as `Place order`, `Pay`, `Send $20.00` or `Delete account`, phonedriver stops and asks the human through the MCP client, showing the app, the button and the amounts on screen. This stops an agent that follows its rules or is steered by screen text; it does not stop one set on bypassing it, and it matches English labels only. See [the approval guard](/docs/approval-guard/)."),
     ("Does phonedriver send telemetry?",
-     "No. It talks to the device, the local daemon socket and the local adb server, and to Apple only when mounting an iOS developer disk image. A test runs the CLI, daemon and MCP server under a macOS sandbox that kills any process opening a non-local connection. Text passed with `--secret` never reaches logs, traces or replies. This website sets no cookies and runs no scripts."),
+     "No. It talks to the device, the local daemon socket and the local adb server, and to Apple only when mounting an iOS developer disk image. A test runs the CLI, daemon and MCP server under a macOS sandbox that kills any process opening a non-local connection. Text passed with `--secret` never reaches logs, traces or replies. This website sets no cookies and loads no third-party scripts."),
     ("Does it install anything on my phone?",
      "On Android, no app and no accessibility service. The daemon pushes a small jar over adb and starts it with `app_process` as the shell user, the way scrcpy does. On iOS, a small XCTest runner is built on your Mac with Xcode the first time it is needed."),
     ("How many tokens does it use?",
@@ -84,4 +95,4 @@ JOBS = [
     ("log-code (mixed)", "Find a pickup code in the device log and put it in a contact \"Locker 9\"", "The code is only in logcat; the contact is made in the Contacts UI; any route allowed"),
 ]
 
-DEMO_CAPTION = "Real Claude Code sessions (Opus 5.5) driving an Android emulator through phonedriver, unedited except for speed. Scene 1: asked to order butter chicken and garlic naan on Uber Eats, it picks Indian Tanpura (4.8 stars), adds both items and stops at Uber's sign-in page; 6 minutes 4 seconds sped up 15x, with the first 2 seconds held and the last 3 at real speed. Scene 2, at real speed: on a testbed checkout screen Claude Code taps Place order, phonedriver's approval prompt appears in Claude Code, the human picks Decline, and nothing is ordered."
+DEMO_CAPTION = "Claude Code (Opus 5.5) with phonedriver on an Android emulator. The Uber Eats run took 6 minutes and is shown at 15x; the approval prompt plays at real speed. Nothing was ordered."
