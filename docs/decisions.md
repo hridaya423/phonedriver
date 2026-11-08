@@ -423,4 +423,6 @@ Secrets. The trace keeps the command text (an agent's command is what it did), b
 - Listing links after the paragraph: each link name is printed twice.
 - Joining across different parents: paragraphs would merge into each other.
 
+A diff applies the same rule to the elements it adds, so text that appears (a section that expands) is one `+` line per run.
+
 **Limits.** Commas that a page puts in their own node are already dropped by the separator rule (`a5914b9`), so `[bachata @e32] [R&B @e33]` reads without its comma.

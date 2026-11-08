@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use crate::element::{Element, ElementState, Ref, Role};
-use crate::render::{Rendered, quote, shown_hint, shown_value, state_words};
+use crate::render::{Plan, Rendered, quote, shown_hint, shown_value, state_words};
 
 /// Above this share of changed refs the agent is on a new screen and gets a full snapshot.
 const NEW_SCREEN_SHARE: f32 = 0.6;
@@ -158,6 +158,15 @@ impl DiffOrFull {
             }
         }
         let mut told: Vec<Ref> = Vec::new();
+        let mut added = vec![false; next.elements.len()];
+        for c in changes {
+            if let Change::Added(r) = c
+                && let Some(i) = next.index_of(*r)
+            {
+                added[i] = true;
+            }
+        }
+        let plan = next.inline_plan(&added);
         for c in changes {
             match c {
                 Change::Removed(r) => {
@@ -177,8 +186,12 @@ impl DiffOrFull {
                     .into(),
                 ),
                 Change::Added(r) => {
-                    if let Some(e) = next.index_of(*r).map(|i| &next.elements[i]) {
-                        lines.push(format!("+ {}", next.line(e)));
+                    if let Some(i) = next.index_of(*r) {
+                        match &plan[i] {
+                            Plan::Own => lines.push(format!("+ {}", next.line(&next.elements[i]))),
+                            Plan::Line(l) => lines.push(format!("+ {l}")),
+                            Plan::Skip => {}
+                        }
                     }
                 }
                 Change::Changed {
@@ -297,6 +310,44 @@ mod tests {
         let a = screen(&mut t, &[cell("General", long)]);
         let b = screen(&mut t, &[cell(long, "")]);
         assert_eq!(diff(&a, &b).text(&b), format!("~ @e1 button \"{long}\""));
+    }
+
+    #[test]
+    fn web_text_that_appears_is_one_line_with_its_links_inline() {
+        let mut t = RefTable::default();
+        let page = |extra: &[String]| {
+            let mut nodes = vec![
+                r#"{"p":-1,"w":1,"cls":"android.webkit.WebView","b":[0,0,400,2000],"n":"web","f":"vVe"}"#.to_string(),
+                r#"{"p":0,"w":1,"cls":"android.view.View","text":"History","b":[0,0,400,40],"n":"h","f":"vVe","a":["tap"]}"#.to_string(),
+            ];
+            nodes.extend_from_slice(extra);
+            nodes
+        };
+        let text = |t: &str, n: &str, y: usize| {
+            format!(
+                r#"{{"p":0,"w":1,"cls":"android.widget.TextView","text":"{t}","b":[0,{y},400,{}],"n":"{n}","f":"vVe"}}"#,
+                y + 20
+            )
+        };
+        let link = |t: &str, n: &str, y: usize| {
+            format!(
+                r#"{{"p":0,"w":1,"cls":"android.view.View","text":"{t}","b":[0,{y},400,{}],"n":"{n}","f":"vVe","a":["tap"]}}"#,
+                y + 20
+            )
+        };
+        let a = screen(&mut t, &page(&[]));
+        let b = screen(
+            &mut t,
+            &page(&[
+                text("Qualcomm announced it was developing the ", "t1", 100),
+                link("Scorpion", "l1", 120),
+                text(" CPU in November 2007.", "t2", 140),
+            ]),
+        );
+        assert_eq!(
+            diff(&a, &b).text(&b),
+            "+ @e3 text \"Qualcomm announced it was developing the [Scorpion @e4] CPU in November 2007.\""
+        );
     }
 
     #[test]
