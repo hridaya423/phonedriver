@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Builds the phonedriver site into site/public. Plain HTML and CSS, no scripts.
+"""Builds the phonedriver site into site/public. Plain HTML and CSS, plus one inline script on the home page for the copy button.
 
     python3 site/build.py            build
     PHONEDRIVER_SITE_URL=https://example.test python3 site/build.py
@@ -124,11 +124,11 @@ def layout(path, title, desc, body, kind="WebPage", crumbs=None, extra_ld=None, 
 </main>
 <footer class="foot"><div class="wrap">
 <div class="fgrid">
-<div><p class="fbrand">{MARK}<span>phonedriver</span></p><p class="small">Let an AI agent use an Android or iOS phone. Free and open source under AGPL-3.0.</p></div>
+<div><p class="fbrand">{MARK}<span>phonedriver</span></p><p class="small">Give your AI agent a phone. Free and open source under AGPL-3.0.</p></div>
 <nav aria-label="Learn"><p class="lab">Learn</p><a href="/docs/install/">Install</a><a href="/docs/">Docs</a><a href="/benchmarks/">Benchmarks</a><a href="/compare/">Compare</a><a href="/blog/">Blog</a></nav>
 <nav aria-label="Project"><p class="lab">Project</p><a href="{REPO}">GitHub</a><a href="{REPO}/blob/main/LICENSE">License: AGPL-3.0</a><a href="{REPO}/blob/main/docs/decisions.md">Design decisions</a><a href="/llms.txt">llms.txt</a><a href="/blog/feed.xml">RSS</a></nav>
 </div>
-<p class="small legal">phonedriver sends no telemetry. This site sets no cookies and runs no scripts. Brand: Sodium design system, Inter Display and Commit Mono under the SIL Open Font License 1.1.</p>
+<p class="small legal">phonedriver sends no telemetry. This site sets no cookies and loads no third-party scripts. Brand: Sodium design system, Inter Display and Commit Mono under the SIL Open Font License 1.1.</p>
 </div></footer>
 </body>
 </html>
@@ -474,84 +474,127 @@ def faq_html():
     return out
 
 
-def install_box():
-    note = "" if RELEASED else '<p class="small note">Pre-release. The installer URLs go live with the first release. Until then, <a href="/docs/install/#build-from-source">build from source</a>.</p>'
-    return f"""<div class="installs">
-<div class="ibox"><p class="lab">Claude Code</p>
-<pre tabindex="0"><code><span class="cmd">claude mcp add phonedriver -- npx -y phonedriver mcp</span></code></pre></div>
-<div class="ibox"><p class="lab">Cursor and other MCP clients</p>
-<pre tabindex="0"><code>{esc(D.MCP_JSON)}</code></pre></div>
-{note}</div>"""
+INSTALL_CMD = "claude mcp add phonedriver -- npx -y phonedriver mcp"
+
+COPY_JS = """(function(){var c=document.querySelector("[data-copy]");if(!c||!navigator.clipboard)return;var b=document.createElement("button");b.type="button";b.className="btn";b.setAttribute("aria-live","polite");b.textContent="Copy";b.addEventListener("click",function(){navigator.clipboard.writeText(c.textContent.trim()).then(function(){b.textContent="Copied";setTimeout(function(){b.textContent="Copy"},2000)})});c.parentNode.appendChild(b)})()"""
+
+
+def term(lines, label):
+    out = ""
+    for ln in lines:
+        cls = ""
+        if ln.startswith("$ "):
+            cls = " cmd"
+        elif ln.startswith("~ "):
+            cls = " chg"
+        n = len(ln) - len(ln.lstrip(" "))
+        out += '<span class="tl%s" style="--i:%d">%s</span>' % (cls, n + 4, esc(ln.lstrip(" ")))
+    return '<figure class="term"><pre tabindex="0" aria-label="%s"><code>%s</code></pre></figure>' % (esc(label), out)
+
+
+SNAPSHOT = [
+    "$ phonedriver snapshot",
+    "app com.android.settings (Settings) · keyboard hidden · settled in 0ms",
+    '@e1 button "Search Settings"',
+    "@e2 group scrollable↓",
+    '  @e3 button "Google" "Services & preferences"',
+    '  @e4 button "Network & internet" "Mobile, Wi‑Fi, hotspot"',
+    '  @e5 button "Connected devices" "Bluetooth, pairing"',
+    "  ...",
+    '  @e10 button "Display & touch" "Dark theme, font size, touch"',
+]
+TAPDIFF = [
+    "$ phonedriver tap @e24",
+    'ok tapped @e24 "Dark theme" at 353,532 · settled in 2034ms',
+    '~ @e23 button "Dark theme" "Will turn on when Bedtime starts" → "Will never turn off automatically"',
+    '~ @e24 switch "Dark theme" off → on',
+]
 
 
 def build_home():
-    demo = '<video controls preload="none" width="1280" height="720" poster="/assets/demo-poster.jpg"><source src="/assets/demo.mp4" type="video/mp4"></video><figcaption class="small">%s</figcaption>' % esc(D.DEMO_CAPTION)
-    rows = ""
-    for r in D.COMPARE_TABLE[1:]:
-        rows += "<tr><th scope=\"row\">%s</th>%s</tr>" % (esc(r[0]), "".join('<td data-label="%s">%s</td>' % (esc(D.COMPARE_TABLE[0][i + 1]), mdlite.inline(c)) for i, c in enumerate(r[1:])))
-    head = "".join('<th scope="col">%s</th>' % esc(c) for c in D.COMPARE_TABLE[0])
-    guard_sample = """<figure class="form"><video controls preload="none" width="1280" height="720" poster="/assets/guard-poster.jpg"><source src="/assets/guard.mp4" type="video/mp4"></video>
-<figcaption class="small">The real prompt, recorded at real speed: Claude Code taps Place order, phonedriver stops the tap and Claude Code asks. Claude Code shows the app, the button and the first lines from the screen, a choice (Allow, or Allow for this session behind the arrow) and Accept or Decline. Here the human picks Decline and nothing is tapped.</figcaption></figure>"""
+    cap = esc(D.DEMO_CAPTION)
+    note = "" if RELEASED else '<p class="small">Not released yet. Until the first release, <a href="/docs/install/#build-from-source">build from source</a>.</p>'
     body = f"""<div class="wrap hero">
-<div class="hcol">
-<p class="lab">@e1 PHONEDRIVER</p>
-<h1>Let your AI agent <span class="hl">use a phone</span>.</h1>
-<p class="lede def">phonedriver gives an AI agent a text view of an Android or iOS screen and the means to tap, type and swipe. Every action returns only the lines that changed.</p>
-<p class="meta">Free and open source (AGPL-3.0). CLI and MCP server. Up to 98 times faster than adb.</p>
-<p class="cta"><a class="btn" href="/docs/install/">Install</a><a class="btn ghost" href="/benchmarks/">See the benchmarks</a></p>
+<h1>Give your AI agent <span class="hl">a phone</span>.</h1>
+<div class="hcopy">
+<p class="lede">phonedriver lets Claude Code, Codex, Cursor or any MCP client use an Android phone or an iPhone. The model opens apps, taps, types, scrolls and reads the screen. It reads the screen as text instead of screenshots: on an emulator, a 1,000-row screen comes back in 24 ms. After each tap it gets back only the lines that changed. And when it reaches a button labeled Pay or Place order, phonedriver stops and asks you.</p>
+<div class="install"><code data-copy>{INSTALL_CMD}</code></div>
+<p class="small">Start an Android emulator, plug in a phone with USB debugging on, or boot the iOS Simulator. Then ask Claude: <q>Open Settings and turn on Dark theme.</q> Other clients, Homebrew and real iPhones: <a href="/docs/install/">install guide</a>.</p>
+{note}
 </div>
-<figure class="scr"><figcaption class="lab">iOS Simulator, Settings</figcaption>
-<pre tabindex="0"><code><span class="cmd">$ phonedriver tap @e41</span>
-ok tapped @e41 "Dark Appearance" at 337,198 · settled in 607ms
-- @e65 @e66 @e67
-<span class="chg">~ @e41 switch "Dark Appearance" off → on</span>
-<span class="add">+ @e68 button "L4S"</span></code></pre>
-<p class="small"><span class="add">+</span> appeared, <span class="del">-</span> left, <span class="chg">~</span> changed. The agent never polls or sleeps: each action waits for the screen to settle.</p></figure>
+<figure class="demo"><video controls preload="none" width="1280" height="720" poster="/assets/demo-poster.jpg"><source src="/assets/demo.mp4" type="video/mp4"></video><figcaption class="small">{cap}</figcaption></figure>
 </div>
 
-<section class="sec" id="install"><div class="wrap"><div class="sh"><span class="lab">@e2</span><h2>Connect it to your agent</h2></div>
-{install_box()}
-<p>Then ask: <q>Open Settings and turn on dark mode.</q> Setup for <a href="/docs/claude-code/">Claude Code</a>, <a href="/docs/cursor-and-mcp-clients/">Cursor and other MCP clients</a>, an <a href="/docs/android-emulator/">Android emulator</a>, a <a href="/docs/android-phone/">real Android phone</a>, the <a href="/docs/ios-simulator/">iOS Simulator</a> and an <a href="/docs/iphone/">iPhone</a>.</p></div></section>
+<section class="sec" id="what-the-model-sees"><div class="wrap">
+<h2>What the model sees</h2>
+<div class="pair">
+<div class="pc">
+<p class="a">Each screen arrives as a short numbered list. This is the Settings app on an Android emulator:</p>
+<div class="b">{term(SNAPSHOT, "phonedriver snapshot output")}</div>
+</div>
+<div class="pc">
+<p class="c">The model taps by number. phonedriver waits until the screen stops changing, then replies. After <code>tap @e10</code> the Display screen opens and the reply lists it, including <code>@e24 switch "Dark theme" off</code>. The next tap returns only what changed:</p>
+<div class="d">{term(TAPDIFF, "phonedriver tap output")}</div>
+<p class="e"><code>+</code> marks a line that appeared, <code>-</code> one that left, <code>~</code> one that changed. The model doesn't need to poll or guess how long a screen takes to load. It takes a screenshot only when it needs to see a picture.</p>
+</div>
+</div></div></section>
 
-<section class="sec"><div class="wrap"><div class="sh"><span class="lab">@e3</span><h2>Speed, measured against adb and phone-harness</h2></div>
-<figure class="chart"><picture><source media="(prefers-color-scheme: dark)" srcset="/assets/hero-dark.svg"><img src="/assets/hero-light.svg" width="1280" height="{D.HERO_H}" alt="{esc(D.HERO_ALT)}" decoding="async"></picture></figure>
-<p>p50 of 50 runs after 20 warm-ups on an Android 17 emulator, the three tools interleaved on the emulator's own host. The headline row is a 1,000-row list read: 24.0 ms against 2,352.4 ms for adb, 95% CI on the ratio 92.2 to 106.0. The bare tap is the close one, 1.1 to 1.7 times faster than adb host to reply. <a href="/benchmarks/">Every operation, p95, intervals and raw samples</a>.</p></div></section>
+<section class="sec" id="speed"><div class="wrap">
+<h2>Speed</h2>
+<figure class="chart"><a href="/benchmarks/"><picture><source media="(prefers-color-scheme: dark)" srcset="/assets/hero-dark.svg"><img src="/assets/hero-light.svg" width="1280" height="{D.HERO_H}" alt="phonedriver against adb on an Android emulator, median of 50 runs. Reading the screen: 24 ms against 2,352 ms, 98 times faster. Screenshot: 12 ms against 476 ms, 41 times faster. Typing 100 characters: 251 ms against 4,841 ms, 19 times faster. Tapping and seeing what changed: 587 ms against 2,726 ms, 4.6 times faster." decoding="async"></picture></a></figure>
+<p class="narrow">Measured on an Android 17 emulator, median of 50 runs, against <code>adb shell uiautomator dump</code>, <code>screencap</code> and <code>input</code>. The difference comes from a small helper process that phonedriver starts on the phone. It keeps the accessibility connection open, where adb starts a new process and writes XML each time. <a href="/benchmarks/">Method and raw data.</a></p>
+</div></section>
 
-<section class="sec"><div class="wrap"><div class="sh"><span class="lab">@e4</span><h2>See it work</h2></div>
-<figure class="demo">{demo}</figure></div></section>
+<section class="sec" id="asking-before-it-pays"><div class="wrap">
+<h2>Asking before it pays</h2>
+<div class="split">
+<div class="txt">
+<p>When a tap lands on a button labeled Pay, Buy now, Place order, Subscribe, Transfer or Delete account, phonedriver holds the tap and asks you in Claude Code's own prompt. The model never sees that question and can't answer it. In a client that can't show such a prompt, the tap waits and the model has to ask you in chat.</p>
+<p>You choose Allow, Allow for this session, or Decline. If you want an agent to run without asking, you can say so in its instructions, and it passes <code>autonomous: true</code>; you can also turn the check off with <code>PHONEDRIVER_GUARD=off</code>. The check reads English button labels. It does not catch a payment button that is only an icon, or one in another language.</p>
+</div>
+<figure class="shot"><img src="/assets/guard-poster.jpg" width="1280" height="720" alt="Claude Code shows phonedriver's question: your agent wants to tap Place order, $12.00, in the testbed app. The choices are Allow, Accept and Decline." decoding="async" loading="lazy"></figure>
+</div></div></section>
 
-<section class="sec"><div class="wrap"><div class="sh"><span class="lab">@e5</span><h2>How a screen becomes text</h2></div>
-<div class="two"><div><p>A daemon keeps the device connection open, so each call costs milliseconds. On Android it pushes a small agent to the phone and starts it with <code>app_process</code> as the shell user, the way scrcpy does: nothing to install, no accessibility service to switch on. The agent reads the UI tree through UiAutomation and streams the display as H.264, so the daemon knows when the screen has stopped changing.</p>
-<p>Refs such as <code>@e10</code> are found again at tap time, so a list that shifted by a row still gets the right tap. <a href="/blog/how-phonedriver-reads-a-screen-98x-faster-than-adb/">How it reads a screen 98x faster than adb</a>.</p></div>
-<pre tabindex="0"><code><span class="cmd">$ phonedriver snapshot</span>
-device android:emulator-5554 · Pixel 9 · Android 17 · 360x800pt · portrait
-app com.android.settings (Settings) · keyboard hidden · settled in 212ms
-@e1 button "Search Settings"
-@e2 group scrollable↓
-  @e3 button "Google" "Services &amp; preferences"
-  @e4 button "Network &amp; internet" "Mobile, Wi‑Fi, hotspot"
-  @e5 button "Connected devices" "Bluetooth, pairing"</code></pre></div></div></section>
+<section class="sec" id="real-jobs"><div class="wrap">
+<h2>Real jobs</h2>
+<p class="big">I tested phonedriver on nine jobs done in apps' own screens. They included setting Chrome's search engine, cropping a photo, pinning and archiving Messages threads, finding the app that keeps the phone awake, and testing a sign-up flow for planted bugs. Each job ran twice with Claude Sonnet 5.5. A script checked the phone's own data afterwards, not the model's report. All 18 runs passed. This is my own test set, published with every run: <a href="/benchmarks/#jobs">the jobs and the checks</a>.</p>
+</div></section>
 
-<section class="sec" id="compare"><div class="wrap"><div class="sh"><span class="lab">@e6</span><h2>phonedriver, adb, mobile-mcp and phone-harness</h2></div>
-<div class="tw stack"><table><thead><tr>{head}</tr></thead><tbody>{rows}</tbody></table></div>
-<p class="small">Sources: each tool's own README on 2026-11-07, the <a href="{raw('docs/research/competitors.md')}">competitor research</a> and the <a href="/benchmarks/">benchmarks</a>. A blank cell means we did not verify it. <a href="/compare/adb/">vs adb</a>, <a href="/compare/mobile-mcp/">vs mobile-mcp</a>, <a href="/compare/phone-harness/">vs phone-harness</a>.</p></div></section>
+<section class="sec" id="works-with"><div class="wrap">
+<h2>Works with</h2>
+<div class="split rev"><div class="tw plain"><table><thead><tr><th scope="col">Phone</th><th scope="col">You need</th></tr></thead><tbody>
+<tr><th scope="row">Android emulator</th><td>adb</td></tr>
+<tr><th scope="row">Android phone or tablet</th><td>adb and USB debugging</td></tr>
+<tr><th scope="row">iOS Simulator</th><td>a Mac with Xcode</td></tr>
+<tr><th scope="row">iPhone or iPad</th><td>a Mac with Xcode and an Apple developer team (<a href="/docs/iphone/">setup</a>)</td></tr>
+</tbody></table></div>
+<div class="txt"><p>On Android there is no app to install. phonedriver pushes its helper over adb when it connects. On iOS it builds a small XCTest runner on your Mac.</p>
+<p>The MCP server has 14 tools: <code>devices</code>, <code>apps</code>, <code>snapshot</code>, <code>screenshot</code>, <code>tap</code>, <code>type</code>, <code>swipe</code>, <code>scroll</code>, <code>press</code>, <code>launch</code>, <code>wait</code>, <code>batch</code>, <code>clipboard</code> and <code>shell</code>. The <code>phonedriver</code> CLI has the same commands, for scripts and for agents that prefer a shell.</p></div>
+</div></div></section>
 
-<section class="sec" id="guard"><div class="wrap"><div class="sh"><span class="lab">@e7</span><h2>It asks you before it spends your money</h2></div>
-<div class="two"><div><p>An agent that can drive any app can place an order. phonedriver classifies the button the agent is about to tap. If the label says <code>Place order</code>, <code>Pay</code>, <code>Send $20.00</code> or <code>Delete account</code>, the tool stops and asks the human through the MCP client, with the app, the button and the amounts on screen. Allow runs the tap. Decline does not.</p>
-<p>The guard stops an agent that follows its rules or is steered by text on the screen. It does not stop an agent set on bypassing it, it reads English labels only, and a missing prompt is not proof a tap is safe. <a href="/blog/letting-claude-order-dinner-without-letting-it-spend-your-money/">The design and its limits</a>, and the <a href="/docs/approval-guard/">setup guide</a>.</p></div>
-{guard_sample}</div></div></section>
+<section class="sec" id="limits"><div class="wrap rail">
+<h2>Limits</h2>
+<ul class="limits">
+<li>Tested on Android emulators (API 26 and 37), the iOS Simulator, an iPhone 14 Plus and an iPad Pro. Real Android phones use the same path but have had little testing. Bug reports from real phones are welcome.</li>
+<li>A tap takes 70 to 120 ms on an Android emulator and 450 to 530 ms on a real iPhone.</li>
+<li>The model can do anything on the phone you could do with your finger. For unattended runs, use an emulator or a spare phone.</li>
+<li>phonedriver never enters a passcode and can't pass Face ID or a fingerprint check. Screens that block screenshots, as some banking apps do, come out black in a screenshot, though their text can still be read.</li>
+</ul>
+</div></section>
 
-<section class="sec" id="faq"><div class="wrap"><div class="sh"><span class="lab">@e8</span><h2>Questions people ask</h2></div>
+<section class="sec" id="faq"><div class="wrap">
+<h2>FAQ</h2>
 <div class="faq">{faq_html()}</div></div></section>
+<script>{COPY_JS}</script>
 """
     sw = software_ld()
     faq = {"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [
         {"@type": "Question", "name": q, "acceptedAnswer": {"@type": "Answer", "text": plain(a)}} for q, a in D.FAQ]}
-    video = {"@context": "https://schema.org", "@type": "VideoObject", "name": "Claude Code orders food on an Android emulator with phonedriver",
+    video = {"@context": "https://schema.org", "@type": "VideoObject", "name": "Claude Code drives an Android emulator with phonedriver and asks before it pays",
              "description": D.DEMO_CAPTION, "thumbnailUrl": url("/assets/demo-poster.jpg"), "uploadDate": TODAY, "contentUrl": url("/assets/demo.mp4"), "duration": "PT46S", "width": 1280, "height": 720}
     site = {"@context": "https://schema.org", "@type": "WebSite", "name": "phonedriver", "url": url("/"), "inLanguage": "en"}
-    layout("/", "phonedriver: let an AI agent control an Android or iOS phone", D.HOME_DESC, body, "WebPage", None, sw + [site, video, faq], og="/assets/hero-social.png")
-    FULL.insert(0, ("/", "phonedriver", "# phonedriver\n\n" + D.DEFINITION + "\n\n" + "\n\n".join("## %s\n\n%s" % (q, plain(a)) for q, a in D.FAQ) + "\n"))
+    layout("/", "phonedriver: give your AI agent a phone", D.HOME_DESC, body, "WebPage", None, sw + [site, video, faq], og="/assets/hero-social.png")
+    FULL.insert(0, ("/", "phonedriver", "# phonedriver\n\n" + D.DEFINITION + "\n\n" + "\n\n".join("## %s\n\n%s" % (q, plain(a)) for q, a in D.FAQ + D.FAQ_MORE) + "\n"))
 
 
 def plain(s):
