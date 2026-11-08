@@ -653,3 +653,10 @@ Evidence:
 ## AX/DX audit: reference.md says how to register a source build (2026-11-08)
 
 - Found: the README's prelaunch note says "build from source with `cargo build --release`" and reference.md ends at `target/release/phonedriver version`; nothing says how a client reaches that binary (`claude mcp add phonedriver -- npx -y phonedriver mcp` fails until the package exists). Added the one line with the full path to `docs/reference.md`. The README is unchanged.
+
+## AX/DX audit: a text target matches a whole label or whole words of a short one (2026-11-08)
+
+- Found: `scroll --until "Row 3"` stopped at "Row 364" (any substring matched); `tap "List"` matched a long permission-rationale sentence. Text targets all resolve in `Session::resolve` (tap, type --into, scroll --until, wait, wait gone:, batch steps), so one matcher fixes all; `find` stays a substring search by design.
+- Changed: `find_text` in `daemon/session.rs`: exact label, then same label in any case and whitespace (no-break space too), then a label holding the text at word boundaries with at most four other words (CJK/Thai letters never join a word). Rule, cases and rejected alternatives: decision D33. `scroll --until` with two matches now fails `Ambiguous` listing labels (`cell "Row 1"; cell "Row 2"`), not refs that die at the next scroll, with the hint "Use text that only one of these has: ..." (`Error::hint` picks by whether the lines start with `@`; app names get the same hint).
+- Tests first (unit tests in `session.rs`): red against the old matcher: `a_target_is_not_found_inside_a_longer_number` (got `Ambiguous ["Row 364", "Row 30"]`), `a_short_target_is_not_found_inside_a_long_sentence` (resolved to the sentence), `a_target_matches_whole_words_of_a_short_label` ("net" matched "Network & internet"). Integration (`tests/daemon.rs`): `scroll_until_row_3_does_not_stop_at_row_364`, `scroll_until_two_matches_names_them_by_label_since_refs_do_not_survive_a_scroll` (red: hint was `Use a ref instead: @e2 cell "Row 1"; ...`).
+- After: `cargo test -p phonedriver -p phonedriver-core --no-fail-fast`: all ok (lib 66, daemon 114, core 151).

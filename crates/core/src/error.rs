@@ -504,8 +504,14 @@ impl Error {
                 format!("Use one of these installed apps: {}.", similar.join("; "))
             }
             Error::NoApp { .. } => "Use `phonedriver apps` to list the installed apps.".into(),
-            Error::Ambiguous { matches, .. } => {
+            Error::Ambiguous { matches, .. } if matches.iter().all(|m| m.starts_with('@')) => {
                 format!("Use a ref instead: {}", matches.join("; "))
+            }
+            Error::Ambiguous { matches, .. } => {
+                format!(
+                    "Use text that only one of these has: {}.",
+                    matches.join("; ")
+                )
             }
             Error::OffScreen {
                 behind_keyboard: true,

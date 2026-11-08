@@ -375,3 +375,19 @@ Secrets. The trace keeps the command text (an agent's command is what it did), b
 
 **Reopen if.** A phone from HONOR, Xiaomi, Samsung or Oppo refuses the display or draws it on the physical screen, or the clipboard chip on the phone's own screen turns out to matter to users (then `type` defaults to `--mode set` in hidden mode).
 
+## D33. A text target matches a whole label, or whole words of a short one; never the middle of a word or a long sentence
+
+**Choice.** Every text target (`tap`, `type --into`, `scroll --until`, `wait`, `wait gone:`, `batch` steps) resolves in `Session::resolve`, in three steps: (1) the label exactly; (2) the label equal after lowercasing and collapsing runs of whitespace (a no-break space too); (3) a label that holds the text at word boundaries and has at most four words besides the text's own. The first step that finds anything decides; two or more matches in it are `Ambiguous`. Before this, step 3 was any substring. A word boundary is the edge of a letter or digit run; Chinese, Japanese and Thai letters never join a word, since those scripts have no spaces. `find` stays a plain substring search (it lists, it does not pick).
+
+**Cases.**
+- `scroll --until "Row 3"` on a list that shows "Row 364" first: "Row 3" is inside the number, so it keeps scrolling to the real "Row 3" (it stopped at "Row 364" before). With "Row 3" and "Row 364" both on screen, step 1 picks "Row 3".
+- `tap "List"` with a permission sentence "Allow phonedriver to read the list of apps on this device so that it can open them" on screen: the sentence has 16 words around a 1-word target, so it is skipped; "List" the tab (step 1) or "List view" (step 3) are found.
+- `tap "Save"` finds "Save and continue" (2 other words); `tap "network"` finds "Network & internet"; `tap "net"` finds nothing and `NotFound` lists "Network & internet" among `similar`.
+- `tap "Row"` with "Row 1", "Row 2" is `Ambiguous`, as before.
+- `tap "设置"` still finds "网络设置".
+
+**Why.** A model reads its own target back as the screen it expects; a match in the wrong place taps or stops there without a sign. Both failures came from audit runs. A label that is mostly something else is not the thing the model named.
+
+**Limits.** The four-word allowance is a judgement, not a measurement: a legitimate button with five extra words around the target needs its full text or a ref. `NotFound` still suggests substring neighbors, so the model sees what was skipped. A hint part (`label · hint`) is matched like a label.
+
+**Rejected.** Share of characters (a long word "Save" in "Save and continue" falls below any share that also rejects the sentence); keeping any substring as a last resort (it is what stops "Row 3" at "Row 364").

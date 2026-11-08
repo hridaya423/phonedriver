@@ -2040,6 +2040,18 @@ impl Actor {
                     return self.report(s, st, None, summary, None, None, None).await;
                 }
                 Ok(_) | Err(Error::NotFound { .. } | Error::StaleRef { .. }) => {}
+                Err(Error::Ambiguous { query, matches }) => {
+                    return Err(Error::Ambiguous {
+                        query,
+                        matches: matches
+                            .into_iter()
+                            .map(|m| match m.split_once(' ') {
+                                Some((r, rest)) if r.starts_with('@') => rest.to_string(),
+                                _ => m,
+                            })
+                            .collect(),
+                    });
+                }
                 Err(e) => return Err(e),
             }
             let query = || match &until {
