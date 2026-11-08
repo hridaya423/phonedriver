@@ -52,4 +52,4 @@ A tap on a button that spends money or cannot be undone (`Place order`, `Pay`, `
 
 ## Secrets
 
-Text typed with `secret: true` over MCP never reaches logs, traces or replies.
+Text typed with `secret: true` over MCP never reaches logs, traces or replies. Plain `type` into a password field or a one-time code field is refused, and the error tells the agent to get the text from you and pass it with `secret`.

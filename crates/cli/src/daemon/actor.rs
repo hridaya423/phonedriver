@@ -30,10 +30,10 @@ use tokio::time::Instant;
 
 use super::DeviceSource;
 use super::checkbox;
-use super::guard;
 use super::session::{Resolved, Session};
 use super::shell;
 use super::verify::{Expect, Verdict, Verify};
+use super::{guard, secret_field};
 use crate::wire::{
     ActParams, Action, ActionResult, AppParams, Approval, BatchParams, BatchResult,
     ClipboardParams, FindParams, Kind, Observation, PinchDirection, ScreenshotParams,
@@ -1749,6 +1749,17 @@ impl Actor {
                         None,
                     ),
                 };
+                if !secret
+                    && !text.is_empty()
+                    && let Some((f, kind)) = field
+                        .as_ref()
+                        .and_then(|f| secret_field::kind(f).map(|k| (f, k)))
+                {
+                    return Err(Error::SecretField {
+                        r#ref: f.r#ref,
+                        kind,
+                    });
+                }
                 let approved = if submit {
                     self.guard_submit(s, p.approval, &p.ask, field.as_ref())
                         .await?

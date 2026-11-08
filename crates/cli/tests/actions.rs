@@ -72,7 +72,7 @@ async fn toggling_a_switch_returns_one_changed_line() {
 
 #[tokio::test]
 #[ignore = "needs PHONEDRIVER_TEST_DEVICE"]
-async fn typing_into_a_field_returns_a_value_line_and_a_password_returns_no_value() {
+async fn typing_into_a_field_returns_a_value_line() {
     let rig = Rig::new().await;
     rig.tab("text").await;
     let r = rig.json(&["type", "hello", "--into", "plain"]);
@@ -83,12 +83,6 @@ async fn typing_into_a_field_returns_a_value_line_and_a_password_returns_no_valu
             .any(|l| l.contains("textbox") && l.contains("→ \"hello\"")),
         "{r}"
     );
-
-    let r = rig.json(&["type", "hunter2", "--into", "password"]);
-    let t = text(&r);
-    assert!(t.contains("secure field changed"), "{t}");
-    assert!(!t.contains("hunter2"), "{t}");
-    assert!(!r.to_string().contains("hunter2"), "{r}");
 }
 
 fn failure(out: &std::process::Output) -> String {

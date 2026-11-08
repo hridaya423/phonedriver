@@ -11,6 +11,7 @@ pub mod guard;
 pub mod ios;
 pub mod progress;
 pub mod rpc;
+pub mod secret_field;
 pub mod session;
 pub mod shell;
 pub mod socket;

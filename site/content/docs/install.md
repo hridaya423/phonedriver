@@ -86,6 +86,7 @@ Connect it to an agent: [Claude Code](/docs/claude-code/) or [Cursor and other M
 | `PHONEDRIVER_SESSION` | `default` | The session name, as `--session`. |
 | `PHONEDRIVER_TEAM` | none | Apple developer team ID that signs the iOS runner on a physical device. |
 | `PHONEDRIVER_GUARD` | on | `off` stops the [approval guard](/docs/approval-guard/). |
+| `PHONEDRIVER_ASK` | none | More taps to ask about, besides payments and account deletion: `send`, `delete`, `install`, comma separated. See the [approval guard](/docs/approval-guard/). |
 | `PHONEDRIVER_SECRET` | none | The text for `type --secret`, instead of stdin. |
 | `PHONEDRIVER_TRACE_FULL`, `PHONEDRIVER_TRACE_SCREENS` | off | Keep observation text, or screenshots, in traces. |
 | `ADB_SERVER_SOCKET` | `tcp:127.0.0.1:5037` | The adb server to use, for example a tunnel to another machine. |
