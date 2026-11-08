@@ -137,6 +137,12 @@ pub fn reply_error(op: Op, error: &str) -> Error {
             reason: "the hidden display has no notification shade",
         };
     }
+    if error.contains("IllegalArgumentException: no app handles") {
+        return Error::Unsupported {
+            op,
+            reason: "no app on this device opens that link",
+        };
+    }
     Error::Transport {
         detail: format!("the agent could not run {}: {error}", op.name()),
     }
@@ -152,6 +158,26 @@ mod tests {
 
     const SETTINGS: &str =
         include_str!("../../core/tests/fixtures/android/real_settings_main.json");
+
+    #[test]
+    fn a_link_no_app_opens_is_not_a_broken_connection() {
+        let e = reply_error(
+            Op::OpenUrl,
+            "java.lang.IllegalArgumentException: no app handles data:text/html,<form></form>",
+        );
+        assert!(
+            matches!(
+                e,
+                Error::Unsupported {
+                    op: Op::OpenUrl,
+                    ..
+                }
+            ),
+            "{e:?}"
+        );
+        assert!(!e.to_string().contains("<form>"), "{e}");
+        assert!(e.hint().contains("`https:`"), "{}", e.hint());
+    }
 
     #[test]
     fn what_the_hidden_display_lacks_is_unsupported_not_a_broken_connection() {
