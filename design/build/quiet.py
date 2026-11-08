@@ -40,39 +40,33 @@ def load_jobs():
     return {h: d[h] for h in ("phonedriver", "mobile-mcp", "phone-harness")}
 
 
+def minutes(sec):
+    return f"{sec / 60:.1f} min"
+
+
 def jobs(tn):
     c = THEMES[tn]
     t = load_jobs()
     pd = t["phonedriver"]
-    runs = pd["runs"]
-    b = head(c, f"{pd['passed']} of {runs} real jobs passed", "Nine jobs only a phone can do, two runs each, on an Android emulator")
+    fold = t["mobile-mcp"]["sum_median_tokens"] / pd["sum_median_tokens"]
+    b = head(c, f"{fold:.0f}x fewer tokens, same jobs",
+             "Nine jobs only a phone can do · two runs each · Claude Sonnet 5.5 · Android emulator")
     tmax = max(v["sum_median_tokens"] for v in t.values())
-    smax = max(v["sum_median_wall_s"] for v in t.values())
-    lab = 150
-    bx = MX + lab
-    bw = W - 2 * MX - lab - 230
-    y = 252
+    bw = W - 2 * MX
+    y = 262
     for name, v in t.items():
         fill = c["accent"] if name == "phonedriver" else c["d3"]
         s, _ = text(name, MX, y, INTER, 38, c["t1"], -0.03)
         b += s
-        pw = width("passed", INTER, 30, -0.02)
-        s, _ = text("passed", W - MX, y, INTER, 30, c["t2"], -0.02, anchor="end")
+        s, _ = text(f"{short(v['sum_median_tokens'])} tokens", W - MX, y + 4, INTER, 52, c["t1"], -0.045, anchor="end")
         b += s
-        s, _ = text(f"{v['passed']}/{v['runs']}", W - MX - pw - 14, y + 2, INTER, 56, c["t1"], -0.045, anchor="end")
+        b += bar(c, tn, MX, y + 30, bw, v["sum_median_tokens"] / tmax, fill, h=18)
+        s, _ = mono(f"{v['passed']}/{v['runs']} passed · {minutes(v['sum_median_wall_s'])}", MX, y + 78, 24, c["t2"])
         b += s
-        for i, (k, val, mx, txt) in enumerate((("tokens", v["sum_median_tokens"], tmax, f"{short(v['sum_median_tokens'])} tokens"),
-                                              ("time", v["sum_median_wall_s"], smax, f"{v['sum_median_wall_s']:,.1f} s".replace(".0 s", " s")))):
-            by = y + 38 + i * 46
-            s, _ = mono(k, MX, by + 7, 24, c["t3"])
-            b += s
-            b += bar(c, tn, bx, by, bw, val / mx, fill)
-            s, _ = mono(txt, bx + max(bw * val / mx, 4) + 14, by + 7, 24, c["t1"])
-            b += s
-        y += 190
-    H = y - 190 + 190
-    b += foot(c, H - 40, "sum of per-job medians · 9 jobs, 2 runs each · method: docs/bench/jobs.md")
-    alt = ("Bar chart of nine real phone jobs, two runs each, on an Android emulator, sums of per-job medians. "
-           + "; ".join(f"{n}: {v['passed']} of {v['runs']} runs passed, {v['sum_median_tokens']:,.0f} tokens, {v['sum_median_wall_s']:,.1f} seconds" for n, v in t.items())
-           + ".")
+        y += 172
+    H = y + 40
+    b += foot(c, H - 40, "sums of per-job medians · a script checks the phone, not the reply · docs/bench/jobs.md")
+    alt = (f"Bar chart: on nine real phone jobs, two runs each, phonedriver used {fold:.1f} times fewer tokens than mobile-mcp. "
+           + "; ".join(f"{n}: {v['sum_median_tokens']:,.0f} tokens, {v['passed']} of {v['runs']} runs passed, {v['sum_median_wall_s']:,.1f} seconds" for n, v in t.items())
+           + ". Sums of per-job medians, Claude Sonnet 5.5, Android emulator.")
     return svg(W, H, b, alt, c["page"])
