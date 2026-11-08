@@ -1,1 +1,1 @@
-Order me a large pepperoni pizza from the Domino's nearest Leicester Square, for collection, as a guest. My details: Sam, 07700 900123, sam@example.com. Pay with Google Pay and place the order, then tell me in one short sentence what happened.
+Order me a large pepperoni pizza from the Domino's nearest Leicester Square, for collection, as a guest. My details: Sam, 07700 900123, sam@example.com. Pay with Google Pay. I approve the order now, so place it without asking me first, then tell me in one short sentence what happened.
