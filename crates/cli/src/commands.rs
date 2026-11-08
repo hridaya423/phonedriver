@@ -953,7 +953,7 @@ pub(crate) async fn execute_with(
                 .map(|a| a.iter().filter_map(Value::as_str).collect())
                 .unwrap_or_default();
             Ok(if lines.is_empty() {
-                "no match".to_string()
+                format!("no match on this screen; to look further, scroll with until: {text:?}")
             } else {
                 lines.join("\n")
             })

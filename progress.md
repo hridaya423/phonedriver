@@ -838,3 +838,11 @@ The fixes come from the first run on a physical Android phone, a Honor X8 (TFY-L
   - `text_outside_a_web_view_keeps_one_line_per_element` passed before the change and still passes.
 - `cargo test --workspace --no-fail-fast`: 657 passed, 0 failed. Clippy is clean.
 - Fixture privacy: only the Wikipedia capture is committed. The launcher and Settings captures from the user's phone show their weather locations, Wi-Fi name and a partial email, so they stay out of the repository.
+
+## 2026-11-08: lines that told the agent nothing (from the agent runs on the Honor X8)
+
+- `focused` prints only on text fields, as the diff already did. Seen: `@e3 list focused scrollable↓` on Settings › About phone, and `@e6 webview focused` in Chrome. Test: `only_a_text_field_says_it_is_focused`.
+- A leaf with no action that repeats its parent's label is dropped (`prune::drop_echoes`). Seen: every MagicOS Settings screen printed `@e1 group "Settings"` and then `  @e2 group "Settings"`. Test: `a_group_inside_a_group_of_the_same_name_is_said_once`.
+- `find` with no match now says `no match on this screen; to look further, scroll with until: "patch"`. In run t2 (security patch level), Sonnet 5.5 got `no match` for text below the fold. It then spent a full 618-character snapshot before it scrolled. The test in `tests/actions.rs` was updated first and failed.
+- Both core tests failed first and reproduced the phone's output. Golden `captured_honor_wikipedia_main` changed in one line: `webview focused scrollable↓` became `webview scrollable↓`.
+- `cargo test --workspace --no-fail-fast`: 658 passed. The one failure was the golden change above, which was reviewed and accepted.
