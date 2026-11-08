@@ -136,7 +136,15 @@ Two things differ from a local run. `phonedriver screenshot` prints a path on th
 
 ### Android over Wi-Fi
 
-An Android 11 or later phone on the same network needs no cable. On the phone, turn on Developer options, then Wireless debugging, and choose Pair device with pairing code. Then:
+An Android 11 or later phone on the same network needs no cable. On the phone, turn on Developer options, then Wireless debugging. `phonedriver pair` shows a QR code in the terminal (the flow Android Studio uses):
+
+```sh
+phonedriver pair
+```
+
+On the phone choose Wireless debugging, then Pair device with QR code, and scan it. phonedriver finds the phone on the network, pairs, connects, and prints `connected: android:192.168.1.20:41233`. It waits 2 minutes for the scan. Exit code 3 means nobody scanned; 1 means adb's mDNS is unavailable or pairing failed, and the message says what to do. *Not yet tested on a physical phone.*
+
+If the QR does not work (the phone and computer are on different networks, a guest network, or a router that blocks mDNS), pair with the code instead. On the phone choose Pair device with pairing code. Then:
 
 ```sh
 adb pair 192.168.1.20:37099
@@ -145,6 +153,18 @@ phonedriver devices
 ```
 
 The first address and the six-digit code are on the pairing screen; the second address is on the Wireless debugging screen (the port changes each time wireless debugging is switched on). The phone then appears as `android:192.168.1.20:41233`. If it shows `offline`, `phonedriver doctor` says what to check.
+
+#### Away from your Wi-Fi
+
+Wireless debugging works only on the Wi-Fi it was switched on for. To use a phone from anywhere you can reach it, for example over [Tailscale](https://tailscale.com), switch the phone to classic adb over TCP while it is connected by cable or already over Wi-Fi:
+
+```sh
+phonedriver untether
+```
+
+It lists the phone's addresses (`wlan0 (Wi-Fi)`, `tun0 (Tailscale)`), runs `adb tcpip 5555`, connects to the first address that answers and prints `connected: android:<ip>:5555`. With more than one device pass `--device android:<serial>`. *Not yet tested on a physical phone.*
+
+This is opt-in on purpose. adb then listens on port 5555 on every network the phone joins, until it reboots. A new computer still has to be allowed on the phone's screen, but do this only on networks you trust, or with Tailscale on both ends and the phone's other networks untrusted. `adb -s <ip>:5555 usb` or a reboot turns it off. See decision D30.
 
 ### Shell
 

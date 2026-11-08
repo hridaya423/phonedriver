@@ -116,6 +116,39 @@ async fn serve(
                 return;
             }
             r if r.starts_with("host:transport:") => s.write_all(b"OKAY").await.unwrap(),
+            "host:mdns:check" => {
+                send_text(&mut s, "mdns daemon version [adb discovery 0.0.0]").await
+            }
+            "host:mdns:services" => {
+                send_text(
+                    &mut s,
+                    "phonedriver-4F9K2M\t_adb-tls-pairing\t192.168.1.20:37099\n",
+                )
+                .await
+            }
+            "host:pair:7QX3NB0HT5WA:192.168.1.20:37099" => {
+                let line =
+                    "Successfully paired to 192.168.1.20:37099 [guid=adb-R5CW30ABCDE-xYz12a]";
+                send_text(&mut s, line).await;
+                return;
+            }
+            "host:pair:123456:127.0.0.1:9" => {
+                let msg = "Failed: Unable to start pairing client.";
+                s.write_all(format!("OKAYFAIL{:04x}{msg}", msg.len()).as_bytes())
+                    .await
+                    .unwrap();
+                return;
+            }
+            "host:connect:192.168.1.20:41233" => {
+                send_text(&mut s, "connected to 192.168.1.20:41233").await;
+                return;
+            }
+            "tcpip:5555" => {
+                s.write_all(b"OKAYrestarting in TCP mode port: 5555\n")
+                    .await
+                    .unwrap();
+                return;
+            }
             "shell,v2,raw:echo hi" => {
                 s.write_all(b"OKAY").await.unwrap();
                 send_packet(&mut s, 1, b"hi\n").await;
@@ -331,4 +364,54 @@ async fn fail_reply_becomes_transport_with_the_servers_message() {
         panic!("expected Transport, got {err:?}");
     };
     assert!(detail.contains("device 'nope' not found"), "{detail}");
+}
+
+#[tokio::test]
+async fn pair_sends_the_code_then_the_address_and_returns_the_success_line() {
+    let fake = FakeAdb::start().await;
+    let line = fake
+        .adb()
+        .pair("192.168.1.20:37099", "7QX3NB0HT5WA")
+        .await
+        .unwrap();
+    assert_eq!(
+        line,
+        "Successfully paired to 192.168.1.20:37099 [guid=adb-R5CW30ABCDE-xYz12a]"
+    );
+}
+
+#[tokio::test]
+async fn pair_failure_arrives_after_okay_as_fail_with_a_length_as_adb_services_cpp_sends_it() {
+    let fake = FakeAdb::start().await;
+    let err = fake.adb().pair("127.0.0.1:9", "123456").await.unwrap_err();
+    assert!(
+        err.to_string()
+            .contains("Failed: Unable to start pairing client."),
+        "{err}"
+    );
+}
+
+#[tokio::test]
+async fn mdns_check_services_and_connect_return_the_servers_text() {
+    let fake = FakeAdb::start().await;
+    let adb = fake.adb();
+    assert_eq!(
+        adb.mdns_check().await.unwrap(),
+        "mdns daemon version [adb discovery 0.0.0]"
+    );
+    assert_eq!(
+        adb.mdns_services().await.unwrap(),
+        "phonedriver-4F9K2M\t_adb-tls-pairing\t192.168.1.20:37099\n"
+    );
+    assert_eq!(
+        adb.connect_device("192.168.1.20:41233").await.unwrap(),
+        "connected to 192.168.1.20:41233"
+    );
+}
+
+#[tokio::test]
+async fn tcpip_asks_the_device_to_listen_and_returns_its_answer() {
+    let fake = FakeAdb::start().await;
+    let answer = fake.adb().tcpip("emulator-5554", 5555).await.unwrap();
+    assert_eq!(answer.trim(), "restarting in TCP mode port: 5555");
 }

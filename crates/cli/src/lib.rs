@@ -10,3 +10,5 @@ mod lean;
 pub mod mcp;
 pub mod ocr;
 pub mod wire;
+#[cfg(feature = "android")]
+pub mod wireless;

@@ -225,7 +225,7 @@ pub async fn android(adb: &Adb) -> Vec<Check> {
             Status::Warn,
             "android devices",
             "none connected",
-            "Connect a phone with USB debugging on, or start an emulator; `adb devices` lists what adb sees.",
+            "Connect a phone with USB debugging on, pair an Android 11+ phone over Wi-Fi with `phonedriver pair`, or start an emulator; `adb devices` lists what adb sees.",
         ));
     }
     for d in &devices {
@@ -279,7 +279,7 @@ fn device_state(d: &AdbDevice) -> Check {
                 name,
                 "offline (Wi-Fi)",
                 format!(
-                    "The phone left the network or its wireless debugging port changed. Check that Wireless debugging is on and both are on the same Wi-Fi, then run `adb connect <ip>:<port>` with the address on the Wireless debugging screen. If it keeps going offline, run `adb disconnect {}` first.",
+                    "The phone left the network or its wireless debugging port changed. Check that Wireless debugging is on and both are on the same Wi-Fi, then run `adb connect <ip>:<port>` with the address on the Wireless debugging screen, or `phonedriver pair` to pair again with a QR code. If it keeps going offline, run `adb disconnect {}` first.",
                     d.serial
                 ),
             )
@@ -677,6 +677,7 @@ mod tests {
         let wifi = device_state(&dev("192.168.1.20:37041"));
         assert_eq!(wifi.detail, "offline (Wi-Fi)");
         assert!(wifi.fix.as_deref().unwrap().contains("adb connect"));
+        assert!(wifi.fix.as_deref().unwrap().contains("phonedriver pair"));
         let cable = device_state(&dev("R5CT1234ABC"));
         assert!(cable.fix.as_deref().unwrap().contains("cable"));
         let emulator = device_state(&dev("emulator-5554"));
