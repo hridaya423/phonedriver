@@ -80,7 +80,7 @@ Measured on an Android 17 emulator, median of 50 runs, against `adb shell uiauto
 
 ## Asking before it pays
 
-When a tap lands on a button labeled Pay, Buy now, Place order, Subscribe, Transfer or Delete account, phonedriver holds the tap and asks you in Claude Code's own prompt. The model never sees that question and can't answer it. In a client that can't show such a prompt, the tap waits and the model has to ask you in chat.
+When a tap lands on a button labeled Pay, Buy now, Buy with GPay, Place order, Start subscription, Transfer or Delete account, phonedriver holds the tap and asks you in Claude Code's own prompt. The model never sees that question and can't answer it. In a client that can't show such a prompt, the tap waits and the model has to ask you in chat.
 
 <p align="center"><img alt="Claude Code after phonedriver asked about tapping Buy with GPay on dominos.co.uk: the human declined, and Claude reports that no order was placed and nothing was charged." src=".github/assets/demo-poster.png" width="100%"></p>
 
