@@ -2221,13 +2221,13 @@ impl Actor {
         }
         let render = Instant::now();
         let st = Some(st);
-        let mut rendered = self.build(s, &tree, st.map(settle_line));
+        let mut rendered = self.build(s, &tree, None);
         if only_lost_lines(s, &rendered) {
             let started = Instant::now();
             while started.elapsed() < CONTENT_WAIT {
                 tokio::time::sleep(TREE_STEP).await;
                 let tree = self.device()?.tree().await?;
-                rendered = self.build(s, &tree, st.map(settle_line));
+                rendered = self.build(s, &tree, None);
                 if !only_lost_lines(s, &rendered) {
                     break;
                 }
@@ -2237,7 +2237,7 @@ impl Actor {
         while rendered.elements.is_empty() && empty_since.elapsed() < CONTENT_WAIT {
             tokio::time::sleep(TREE_STEP).await;
             let tree = self.device()?.tree().await?;
-            rendered = self.build(s, &tree, st.map(settle_line));
+            rendered = self.build(s, &tree, None);
         }
         self.read_checkboxes(&mut rendered).await?;
         let judge = |s: &Session, rendered: &Rendered| {
@@ -2257,7 +2257,7 @@ impl Actor {
         {
             tokio::time::sleep(TREE_STEP).await;
             let tree = self.device()?.tree().await?;
-            rendered = self.build(s, &tree, st.map(settle_line));
+            rendered = self.build(s, &tree, None);
             self.read_checkboxes(&mut rendered).await?;
             verdict = judge(s, &rendered);
         }

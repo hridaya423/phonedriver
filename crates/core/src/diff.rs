@@ -153,6 +153,15 @@ impl DiffOrFull {
         let mut lines: Vec<String> = Vec::new();
         let mut removing = false;
         let mut covering: Vec<(&str, &str, Vec<Ref>)> = Vec::new();
+        let mut fields: HashMap<Ref, usize> = HashMap::new();
+        for c in changes {
+            if let Change::Changed { r#ref, field, .. } = c
+                && *field != Field::Covered
+            {
+                *fields.entry(*r#ref).or_default() += 1;
+            }
+        }
+        let mut told: Vec<Ref> = Vec::new();
         for c in changes {
             match c {
                 Change::Removed(r) => {
@@ -190,6 +199,14 @@ impl DiffOrFull {
                             Some((_, _, refs)) => refs.push(*r#ref),
                             None => covering.push((from, to, vec![*r#ref])),
                         }
+                        continue;
+                    }
+                    if fields.get(r#ref).is_some_and(|n| *n > 1) && !is_secure(e) {
+                        if !told.contains(r#ref) {
+                            told.push(*r#ref);
+                            lines.push(format!("~ {}", next.line(e).trim_start()));
+                        }
+                        removing = false;
                         continue;
                     }
                     let head = format!("~ @{} {}", r#ref, e.role.name());
@@ -267,6 +284,23 @@ mod tests {
                 )
             })
             .collect()
+    }
+
+    #[test]
+    fn an_element_that_changes_in_several_ways_is_one_line_with_what_it_shows_now() {
+        let mut t = RefTable::default();
+        let cell = |text: &str, hint: &str| {
+            node(
+                1,
+                "cell",
+                "android.widget.Button",
+                &format!(r#""text":"{text}","hint":"{hint}","f":"vVe","a":["tap"]"#),
+            )
+        };
+        let long = "Manage your overall setup and preferences";
+        let a = screen(&mut t, &[cell("General", long)]);
+        let b = screen(&mut t, &[cell(long, "")]);
+        assert_eq!(diff(&a, &b).text(&b), format!("~ @e1 button \"{long}\""));
     }
 
     #[test]
