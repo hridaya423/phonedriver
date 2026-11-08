@@ -163,7 +163,8 @@ fn not_found(now: &Rendered, text: &str) -> Error {
     }
 }
 
-/// Exact label first (core), then case-insensitive exact, then substring (architecture 10.1).
+/// Exact label first (core), then the same label in any case and spacing, then a label that holds the text as whole
+/// words and not much else (decision D33).
 fn find_text(
     now: &Rendered,
     text: &str,
@@ -173,20 +174,15 @@ fn find_text(
     if exact != TextMatch::None {
         return exact;
     }
-    let q = text.to_lowercase();
+    let q = normalize(text);
     for matches in [
         (|l: &str, q: &str| l == q) as fn(&str, &str) -> bool,
-        |l, q| l.contains(q),
+        holds_as_words,
     ] {
         let mut labels: Vec<&str> = Vec::new();
         for e in &now.elements {
-            for l in e
-                .label
-                .iter()
-                .map(String::as_str)
-                .chain(e.hint.as_deref().into_iter().flat_map(|h| h.split(" · ")))
-            {
-                if matches(&l.to_lowercase(), &q) && !labels.contains(&l) {
+            for l in parts(e) {
+                if matches(&normalize(l), &q) && !labels.contains(&l) {
                     labels.push(l);
                 }
             }
@@ -211,4 +207,140 @@ fn find_text(
         }
     }
     TextMatch::None
+}
+
+const EXTRA_WORDS: usize = 4;
+
+fn normalize(s: &str) -> String {
+    s.split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+        .to_lowercase()
+}
+
+fn joins_a_word(c: char) -> bool {
+    let unspaced =
+        matches!(c, '\u{0e00}'..='\u{0e7f}' | '\u{3040}'..='\u{30ff}' | '\u{3400}'..='\u{9fff}');
+    c.is_alphanumeric() && !unspaced
+}
+
+/// `label` has `query` at word boundaries and at most `EXTRA_WORDS` other words. Both are normalized.
+fn holds_as_words(label: &str, query: &str) -> bool {
+    let (Some(first), Some(last)) = (query.chars().next(), query.chars().next_back()) else {
+        return false;
+    };
+    let extra = label
+        .split(' ')
+        .count()
+        .saturating_sub(query.split(' ').count());
+    extra <= EXTRA_WORDS
+        && label.match_indices(query).any(|(at, _)| {
+            let before = label[..at].chars().next_back();
+            let after = label[at + query.len()..].chars().next();
+            !(joins_a_word(first) && before.is_some_and(joins_a_word))
+                && !(joins_a_word(last) && after.is_some_and(joins_a_word))
+        })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use phonedriver_core::geometry::Scale;
+    use phonedriver_core::prune::prune;
+    use phonedriver_core::raw::RawTree;
+    use phonedriver_core::render::Header;
+
+    fn screen(labels: &[&str]) -> Rendered {
+        let nodes: Vec<String> = labels
+            .iter()
+            .enumerate()
+            .map(|(i, l)| {
+                let y = i * 40;
+                format!(
+                    r#"{{"p":-1,"w":1,"cls":"android.widget.Button","text":{},"b":[0,{y},400,{}],"f":"vVe","a":["tap"]}}"#,
+                    serde_json::to_string(l).unwrap(),
+                    y + 30
+                )
+            })
+            .collect();
+        let json = format!(
+            r#"{{"windows":[{{"id":1,"type":"application","bounds":[0,0,400,800]}}],"nodes":[{}]}}"#,
+            nodes.join(",")
+        );
+        let tree = RawTree::from_android_json(&json, Scale { density: 1.0 }).unwrap();
+        let nodes = prune(&tree);
+        let refs = RefTable::default().assign(&tree, &nodes);
+        Rendered::build(nodes, &refs, Header::default())
+    }
+
+    fn text(t: &str) -> Target {
+        Target::Text {
+            text: t.into(),
+            role: None,
+        }
+    }
+
+    fn picked(labels: &[&str], target: &str) -> Result<String, Error> {
+        let now = screen(labels);
+        Session::default()
+            .resolve(&text(target), &now)
+            .map(|r| r.line.unwrap_or_default())
+    }
+
+    #[test]
+    fn a_target_is_not_found_inside_a_longer_number() {
+        let err = picked(&["Row 364", "Row 30"], "Row 3").unwrap_err();
+        let Error::NotFound { similar, .. } = err else {
+            panic!("{err:?}")
+        };
+        assert!(similar.iter().any(|l| l.contains("Row 364")), "{similar:?}");
+    }
+
+    #[test]
+    fn an_exact_label_wins_over_longer_labels_that_contain_it() {
+        let line = picked(&["Row 364", "Row 3", "Row 30"], "Row 3").unwrap();
+        assert!(line.ends_with("\"Row 3\""), "{line}");
+        let line = picked(&["List view", "List"], "list").unwrap();
+        assert!(line.ends_with("\"List\""), "{line}");
+    }
+
+    #[test]
+    fn a_short_target_is_not_found_inside_a_long_sentence() {
+        let sentence =
+            "Allow phonedriver to read the list of apps on this device so that it can open them";
+        let err = picked(&[sentence, "Allow"], "list").unwrap_err();
+        assert!(matches!(err, Error::NotFound { .. }), "{err:?}");
+        let err = picked(&[sentence], "list").unwrap_err();
+        assert!(matches!(err, Error::NotFound { .. }), "{err:?}");
+    }
+
+    #[test]
+    fn a_target_matches_whole_words_of_a_short_label() {
+        let line = picked(&["Network & internet", "Display"], "network").unwrap();
+        assert!(line.ends_with("\"Network & internet\""), "{line}");
+        let line = picked(&["Save and continue", "Cancel"], "Save").unwrap();
+        assert!(line.contains("Save and continue"), "{line}");
+        assert!(picked(&["Network & internet"], "net").is_err());
+    }
+
+    #[test]
+    fn whitespace_does_not_tell_two_labels_apart() {
+        let line = picked(&["Dark \u{a0} theme"], " dark theme").unwrap();
+        assert!(line.contains("theme"), "{line}");
+    }
+
+    #[test]
+    fn text_without_spaces_still_matches_inside_a_label() {
+        let line = picked(&["网络设置", "显示"], "设置").unwrap();
+        assert!(line.contains("网络设置"), "{line}");
+    }
+
+    #[test]
+    fn several_whole_word_matches_are_ambiguous_and_listed() {
+        let err = picked(&["Row 1", "Row 2"], "Row").unwrap_err();
+        let Error::Ambiguous { matches, .. } = err else {
+            panic!("{err:?}")
+        };
+        assert_eq!(matches.len(), 2, "{matches:?}");
+    }
 }
