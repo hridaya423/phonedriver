@@ -780,3 +780,16 @@ Evidence:
 - Tests first: `closing_a_dialog_that_replaced_the_screen_says_the_screen_is_back_instead_of_printing_it_again`, `a_screen_that_came_back_with_a_few_changes_lists_them`, `a_different_screen_after_a_dialog_is_new_and_so_is_any_screen_with_nothing_below` (diff.rs; red: `diff_below` did not exist) and `a_dialog_that_closes_is_told_as_the_screen_being_back_not_as_a_new_screen` (daemon.rs, the real daemon with a fake device; red with the memory disabled: `"kind":"full"` and the whole screen). `cargo test --workspace`: 611 passed, 0 failed; `cargo clippy --workspace --all-targets -- -D warnings` clean; `cargo fmt --check` clean.
 - Expected reply after (computed from the format, **not run on a device**): `ok tapped @e346 "Cancel" at 236,521 · settled in 501ms` plus `back to the screen from before, unchanged`: 97 characters against 865 (768 saved, 89%), and the model keeps its earlier screen.
 - **Live proof not done.** After the last live run, win-ts stopped answering (`ssh: connect to host 100.90.237.82 port 22: Operation timed out`, ping 100% loss, for 5+ minutes), so the tunnel to emulator-5554 is gone and I could not run `tap "Force stop"` / `tap "Cancel"` with the new build. Before that, the emulator's agent had stopped starting (`the agent did not print ready within 3 s`) after Settings raised two ANR dialogs; I tried `adb reboot` on emulator-5554 and the connection dropped at that moment, so the emulator's state is unknown. To prove: `ssh -N -L 5044:127.0.0.1:5037 win-ts`, then with `ADB_SERVER_SOCKET=tcp:127.0.0.1:5044 phonedriver --device android:emulator-5554`: `launch settings`, `tap Apps`, `tap Chrome`, `tap "Force stop"`, `tap "Cancel"`; the last reply should be the two lines above.
+
+## 2026-11-08: a screenshot encodes while the video barrier travels
+
+- Changed: `newest_png` in `crates/android/src/device.rs`.
+  - The PNG of the frame on hand is encoded at the same time as the video barrier (`caught_up`) travels.
+  - When the barrier passes, the encoded PNG is served if no newer frame arrived. Otherwise the newest frame is encoded and served.
+  - A screenshot now costs max(barrier, encode), not barrier + encode.
+  - The tree-before-frame order for `--marks` is unchanged.
+- Why: the barrier (f7f1324) raised daemon screenshot p50 from 203 to 280 ms over the win-ts tunnel in a debug build. The speed chart's 11.6 ms p50 (docs/bench/speed.md) was measured before the barrier existed.
+- Tests: `a_frame_that_arrives_while_the_barrier_travels_is_the_one_served` and `a_barrier_that_fails_fails_the_screenshot`.
+  - Red-green check: with the re-encode branch forced off (`|| true`), the first test FAILED. With it restored, it passed.
+- `cargo test --workspace --no-fail-fast`: 644 passed, 0 failed. Clippy is clean.
+- Not measured: the co-located release screenshot p50. win-ts is offline (Tailscale shows `mmhv` offline). Re-run the screenshot row of `bench/speed` before the chart's 41x is quoted again.

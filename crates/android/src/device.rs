@@ -162,23 +162,10 @@ impl Device for AndroidDevice {
                 id: self.info.id.clone(),
             });
         }
-        caught_up(&self.video, &self.info.id, BARRIER_WAIT, |id| {
+        let barrier = caught_up(&self.video, &self.info.id, BARRIER_WAIT, |id| {
             self.simple(Op::Screenshot, json!({"op": "video_barrier", "id": id}))
-        })
-        .await?;
-        let frame = store.latest().ok_or_else(|| Error::Transport {
-            detail: "no video frame".into(),
-        })?;
-        let scale = 1.0 / store.pixels_per_point(&frame);
-        let (width, height) = scaled_size(frame.width, frame.height, scale);
-        let bytes = tokio::task::spawn_blocking(move || encode_png(&frame, scale))
-            .await
-            .map_err(|e| Error::Transport {
-                detail: format!("the screenshot task failed: {e}"),
-            })?
-            .map_err(|e| Error::Transport {
-                detail: e.to_string(),
-            })?;
+        });
+        let (width, height, bytes) = newest_png(store, barrier).await?;
         Ok(Image {
             width,
             height,
@@ -427,6 +414,44 @@ fn permission_name(name: &str) -> Result<String> {
     }
 }
 
+/// The newest frame as PNG once `barrier` has passed. The frame on hand is encoded while the barrier travels, and
+/// encoded again only when a newer one arrived meanwhile, so a screenshot costs the slower of the two, not both.
+async fn newest_png(
+    store: &FrameStore,
+    barrier: impl std::future::Future<Output = Result<()>>,
+) -> Result<(u32, u32, Vec<u8>)> {
+    let latest = || {
+        store.latest().ok_or_else(|| Error::Transport {
+            detail: "no video frame".into(),
+        })
+    };
+    let encode = |frame: std::sync::Arc<phonedriver_video::frame_store::Frame>| {
+        let scale = 1.0 / store.pixels_per_point(&frame);
+        let (width, height) = scaled_size(frame.width, frame.height, scale);
+        async move {
+            let bytes = tokio::task::spawn_blocking(move || encode_png(&frame, scale))
+                .await
+                .map_err(|e| Error::Transport {
+                    detail: format!("the screenshot task failed: {e}"),
+                })?
+                .map_err(|e| Error::Transport {
+                    detail: e.to_string(),
+                })?;
+            Ok::<_, Error>((width, height, bytes))
+        }
+    };
+    let early = latest()?;
+    let seq = early.seq;
+    let (passed, encoded) = tokio::join!(barrier, encode(early));
+    passed?;
+    let now = latest()?;
+    if now.seq == seq {
+        encoded
+    } else {
+        encode(now).await
+    }
+}
+
 /// Asks the agent to write barrier `id` into the video stream and waits for it to arrive, so the frame a screenshot
 /// serves is the newest the agent has produced. Observed on API 26 through an adb tunnel: after the agent was
 /// killed (which is what a second daemon does), neither socket reported it for 5 to 21 s, the stream looked open,
@@ -464,7 +489,7 @@ mod barrier_tests {
     use serde_json::json;
     use tokio::io::{AsyncWriteExt, DuplexStream};
 
-    use super::caught_up;
+    use super::{caught_up, newest_png};
 
     const LIMIT: Duration = Duration::from_millis(300);
 
@@ -524,6 +549,51 @@ mod barrier_tests {
         caught_up(&video, "android:x", LIMIT, |_| async { Ok(json!({})) })
             .await
             .unwrap();
+    }
+
+    fn frame(shade: u8) -> phonedriver_video::frame_store::Frame {
+        phonedriver_video::frame_store::Frame::from_i420(
+            8,
+            8,
+            vec![shade; 64],
+            vec![128; 16],
+            vec![128; 16],
+        )
+    }
+
+    #[tokio::test]
+    async fn a_frame_that_arrives_while_the_barrier_travels_is_the_one_served() {
+        let store = std::sync::Arc::new(FrameStore::new(1.0));
+        store.publish(frame(0));
+        let later = store.clone();
+        let (_, _, served) = newest_png(&store, async move {
+            tokio::time::sleep(Duration::from_millis(50)).await;
+            later.publish(frame(255));
+            Ok(())
+        })
+        .await
+        .unwrap();
+        let (_, _, newest) = newest_png(&store, async { Ok(()) }).await.unwrap();
+        assert_eq!(served, newest);
+    }
+
+    #[tokio::test]
+    async fn a_barrier_that_fails_fails_the_screenshot() {
+        let store = FrameStore::new(1.0);
+        store.publish(frame(0));
+        let e = newest_png(&store, async {
+            Err(Error::DeviceGone {
+                id: "android:x".into(),
+            })
+        })
+        .await
+        .unwrap_err();
+        assert_eq!(
+            e,
+            Error::DeviceGone {
+                id: "android:x".into()
+            }
+        );
     }
 
     #[tokio::test]
