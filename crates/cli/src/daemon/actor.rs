@@ -2226,7 +2226,7 @@ impl Actor {
                         s,
                         ActParams {
                             action,
-                            approval: p.approval.filter(|a| *a == Approval::Autonomous),
+                            approval: p.approval.filter(|a| *a == Approval::Autonomous || i == 0),
                             ask: p.ask.clone(),
                             settle: true,
                             timeout_ms: p.timeout_ms,
