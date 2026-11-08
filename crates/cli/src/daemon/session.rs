@@ -3,7 +3,7 @@
 use phonedriver_core::diff::{Change, DiffOrFull, diff_below};
 use phonedriver_core::element::{Element, Ref, Role};
 use phonedriver_core::error::{Category, Direction, Error};
-use phonedriver_core::geometry::Point;
+use phonedriver_core::geometry::{Point, Rect};
 use phonedriver_core::refs::RefTable;
 use phonedriver_core::render::{Rendered, TextMatch};
 use phonedriver_core::similar::{SUGGEST_WITHIN, normalized_distance};
@@ -179,7 +179,7 @@ impl Session {
 fn element_at(now: &Rendered, i: usize) -> Resolved {
     let e = &now.elements[i];
     Resolved {
-        at: e.bounds.center(),
+        at: free_point(now, i),
         element: Some(e.clone()),
         line: Some(now.line(e)),
         under_keyboard: e.role != Role::Keyboard
@@ -188,6 +188,73 @@ fn element_at(now: &Rendered, i: usize) -> Resolved {
             .covered_by(i)
             .map(|(bar, toward)| (bar.label.clone().unwrap_or_default(), toward)),
     }
+}
+
+/// Points of free height that hold a line of text.
+const MIN_BAND: f32 = 12.0;
+
+/// A control inside an element takes a tap at its own bounds, and so may a panel around it. The Play Store result card
+/// spans the whole result: an Install button, a row of ratings that scrolls, and an "Ask Play" panel whose text does
+/// not open the app. A card's own title is on top, so an element with controls inside is tapped in the middle of the
+/// first free band on its vertical center line. Failing that, the tap goes to the free point nearest the center, and
+/// with none free, to the center.
+fn free_point(now: &Rendered, i: usize) -> Point {
+    let b = now.elements[i].bounds;
+    let center = b.center();
+    let mut inner: Vec<Rect> = Vec::new();
+    let mut stack = now.elements[i].children.clone();
+    while let Some(c) = stack.pop() {
+        let child = &now.elements[c];
+        if child.actions.is_empty() {
+            stack.extend(&child.children);
+        } else {
+            inner.push(child.bounds);
+        }
+    }
+    let free = |p: Point| {
+        !inner
+            .iter()
+            .any(|r| p.x >= r.x && p.x <= r.x + r.w && p.y >= r.y && p.y <= r.y + r.h)
+    };
+    if inner.is_empty() {
+        return center;
+    }
+    const STEP: f32 = 4.0;
+    let mut run: Option<(f32, f32)> = None;
+    let mut y = b.y + STEP / 2.0;
+    while y < b.y + b.h {
+        let open = free(Point { x: center.x, y });
+        match (open, run) {
+            (true, None) => run = Some((y, y)),
+            (true, Some((top, _))) => run = Some((top, y)),
+            (false, Some((top, bottom))) if bottom - top >= MIN_BAND => break,
+            (false, _) => run = None,
+        }
+        y += STEP;
+    }
+    if let Some((top, bottom)) = run
+        && bottom - top >= MIN_BAND
+    {
+        return Point {
+            x: center.x,
+            y: (top + bottom) / 2.0,
+        };
+    }
+    let mut best: Option<(f32, Point)> = None;
+    let mut y = b.y + STEP / 2.0;
+    while y < b.y + b.h {
+        let mut x = b.x + STEP / 2.0;
+        while x < b.x + b.w {
+            let p = Point { x, y };
+            let d = (x - center.x).powi(2) + (y - center.y).powi(2);
+            if free(p) && best.is_none_or(|(bd, _)| d < bd) {
+                best = Some((d, p));
+            }
+            x += STEP;
+        }
+        y += STEP;
+    }
+    best.map_or(center, |(_, p)| p)
 }
 
 fn lines(now: &Rendered, refs: &[phonedriver_core::element::Ref]) -> Vec<String> {
@@ -404,6 +471,33 @@ mod tests {
         assert!(line.ends_with("\"Display & brightness\""), "{line}");
         assert!(picked(&["Battery"], "\u{201c}Battery\u{201d}").is_ok());
         assert!(picked(&["\"Hi\" she said", "Hi"], "\"Hi\" she said").unwrap().contains("she said"));
+    }
+
+    #[test]
+    fn a_tap_on_a_card_lands_on_the_card_not_on_a_control_inside_it() {
+        let json = r#"{"windows":[{"id":1,"type":"application","bounds":[0,0,400,800]}],"nodes":[
+            {"p":-1,"w":1,"cls":"android.view.View","b":[0,100,400,400],"f":"vVe","a":["tap"]},
+            {"p":0,"w":1,"cls":"android.widget.TextView","text":"Wikipedia","b":[60,110,300,140],"f":"vVe"},
+            {"p":0,"w":1,"cls":"android.widget.Button","text":"Install","b":[310,110,390,150],"f":"vVe","a":["tap"]},
+            {"p":0,"w":1,"cls":"androidx.recyclerview.widget.RecyclerView","b":[0,160,400,200],"f":"vVeS","a":["scroll_fwd"]},
+            {"p":0,"w":1,"cls":"android.widget.TextView","text":"Yes, the app has voice search","b":[0,210,400,290],"f":"vVe"},
+            {"p":0,"w":1,"cls":"android.widget.EditText","hint":"Ask a question","b":[0,300,400,400],"f":"vVe","a":["tap","set_text"]}
+        ]}"#;
+        let tree = RawTree::from_android_json(json, Scale { density: 1.0 }).unwrap();
+        let nodes = prune(&tree);
+        let refs = RefTable::default().assign(&tree, &nodes);
+        let now = Rendered::build(nodes, &refs, Header::default());
+        let at = Session::default().resolve(&text("Wikipedia"), &now).unwrap().at;
+        let card = now.elements[0].bounds;
+        assert!(card.x <= at.x && at.x <= card.x + card.w && card.y <= at.y && at.y <= card.y + card.h, "{at:?}");
+        assert!(at.y < 160.0, "the card's own title band, above the ratings: {at:?}");
+        for e in &now.elements[1..] {
+            let b = e.bounds;
+            let inside = b.x <= at.x && at.x <= b.x + b.w && b.y <= at.y && at.y <= b.y + b.h;
+            assert!(!inside, "{at:?} is on {:?}", e.label);
+        }
+        let plain = Session::default().resolve(&text("Install"), &now).unwrap().at;
+        assert_eq!((plain.x, plain.y), (350.0, 130.0));
     }
 
     #[test]
