@@ -863,8 +863,6 @@ The fixes come from the first run on a physical Android phone, a Honor X8 (TFY-L
 - Seen in agent run t5 on the Honor X8, Sonnet 5.5, finding when Snapdragon was announced. Across 16 calls and 116 s, `scroll --until "announced"` never stopped. The D33 four-word cap ruled out every sentence of prose, and the article's sections were also collapsed.
 - Changed: `Session::seek` in `crates/cli/src/daemon/session.rs`. It is used by `scroll --until` and `wait`. It runs the same steps as `resolve`, but step 3 has no cap on extra words, and several matches pick the first on screen. `tap` and `type --into` still use `resolve` with the cap.
 - Tests: `a_search_finds_a_word_inside_a_long_sentence` (it also checks that `tap` still refuses the sentence), `a_search_that_matches_twice_stops_at_the_first` and `a_search_keeps_word_boundaries`. They failed first because `seek` did not exist.
-- `cargo test --workspace --no-fail-fast`: the result is below. Clippy is clean.
-    Finished `dev` profile [unoptimized + debuginfo] target(s) in 2.91s
 - `cargo test --workspace --no-fail-fast`: 663 passed, 0 failed. Clippy is clean.
 
 ## 2026-11-08: web text that appears in a diff is one line with its links inline (D35 in diffs)
@@ -873,3 +871,15 @@ The fixes come from the first run on a physical Android phone, a Honor X8 (TFY-L
 - Changed: `DiffOrFull::text` runs `Rendered::inline_plan` over the set of added elements, so a run of added sibling text and links prints as one `+` line, as a full screen already does. Changed and removed lines are as before.
 - Test: `web_text_that_appears_is_one_line_with_its_links_inline` failed first with the three-line output.
 - `cargo test --workspace --no-fail-fast`: 664 passed, 0 failed. Clippy is clean.
+
+## 2026-11-08: one-control wrappers fold, a card lends its name to its button, scrolled-off slivers go
+
+- Seen in agent run t4 on the Honor X8: the Settings search box printed as three nested unlabeled `button` lines around `textbox "Search query"`. On Display & brightness, the Light and Dark cards printed as `group "Light"` over an unlabeled `button`, and `group "Dark,Selected"` over an unlabeled `button` and `text "Dark"`. The first row of the Settings list was an unlabeled `button` 8 pt tall, the part of a tile that was scrolled away.
+- Changed: `fold_wrappers` in `crates/core/src/prune.rs` runs after `drop_echoes`.
+  - An unlabeled tappable wrapper with one child that is tappable or a text field is dropped, and the child moves up.
+  - A labeled, inert group around one unlabeled button (plus texts its label holds) gives the button its label. A `,Selected` suffix becomes the selected state.
+  - An unlabeled, childless row of a scrollable list that is under 12 pt in one dimension is dropped.
+  - `remove` now recomputes depth when it moves children up.
+- Tests: `unlabeled_tappable_wrappers_around_a_search_box_are_the_search_box`, `a_labeled_card_around_one_unlabeled_button_is_that_button_and_says_it_is_selected` and `an_unlabeled_row_scrolled_almost_out_of_its_list_is_not_listed`. Each failed first; the sliver test failed again with its rule switched off.
+- Live check on the Honor X8, release build: Settings now starts `@e1 group "Settings"`, `@e2 textbox "Search query"`, `@e3 list`, `@e4 button "Wi-Fi" "<network name>"`. Display & brightness prints `@e61 button "Light"` and `@e62 button "Dark" selected`. That is 9 lines fewer across the two screens.
+- `cargo test --workspace`: 668 passed, 0 failed. Clippy is clean.

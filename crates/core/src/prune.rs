@@ -273,7 +273,7 @@ pub fn prune(tree: &RawTree) -> Vec<Node> {
             absorbed: merged[i].clone(),
         });
     }
-    drop_echoes(out)
+    fold_wrappers(drop_echoes(out))
 }
 
 /// A leaf with no action that only repeats its parent's label (MagicOS Settings nests a toolbar named "Settings" in an
@@ -298,20 +298,111 @@ fn drop_echoes(nodes: Vec<Node>) -> Vec<Node> {
                     .is_some_and(|p| nodes[p].label == n.label && nodes[p].actions.is_empty())
         })
         .collect();
-    if !echo.contains(&true) {
+    remove(nodes, &echo)
+}
+
+/// Drops the marked nodes; their children move up to the nearest kept ancestor.
+fn remove(nodes: Vec<Node>, drop: &[bool]) -> Vec<Node> {
+    if !drop.contains(&true) {
         return nodes;
     }
-    let mut index = vec![None; nodes.len()];
-    let mut out = Vec::with_capacity(nodes.len());
+    let mut index: Vec<Option<usize>> = vec![None; nodes.len()];
+    let mut up: Vec<Option<usize>> = vec![None; nodes.len()];
+    let mut out: Vec<Node> = Vec::with_capacity(nodes.len());
     for (i, mut n) in nodes.into_iter().enumerate() {
-        if echo[i] {
+        let parent = n.parent.and_then(|p| index[p].or(up[p]));
+        if drop[i] {
+            up[i] = parent;
             continue;
         }
-        n.parent = n.parent.and_then(|p| index[p]);
+        n.parent = parent;
+        n.depth = parent.map_or(0, |p| out[p].depth + 1);
         index[i] = Some(out.len());
         out.push(n);
     }
     out
+}
+
+/// Points of a scrolled-off row that can still show; less than any tap target.
+const SLIVER: f32 = 12.0;
+
+/// MagicOS wraps one control in unlabeled tappable layouts (three around the Settings search box) and names a card
+/// on the layout around its unlabeled button (the Light and Dark cards, "Dark,Selected"). Either way the screen holds
+/// one control. An unlabeled row the list has almost scrolled away shows a few points of nothing.
+fn fold_wrappers(mut nodes: Vec<Node>) -> Vec<Node> {
+    let mut kids: Vec<Vec<usize>> = vec![Vec::new(); nodes.len()];
+    for (i, n) in nodes.iter().enumerate() {
+        if let Some(p) = n.parent {
+            kids[p].push(i);
+        }
+    }
+    let tappable = |n: &Node| n.actions.intersects(Actions::TAP | Actions::LONG_PRESS);
+    let bare = |n: &Node| n.label.is_none() && n.value.is_none() && n.hint.is_none();
+    let mut drop = vec![false; nodes.len()];
+    for i in 0..nodes.len() {
+        let n = &nodes[i];
+        let plain = n.collection.is_none()
+            && n.value.is_none()
+            && n.hint.is_none()
+            && !n.role.is_text_entry()
+            && matches!(n.role, Role::Button | Role::Other | Role::Cell);
+        if !plain {
+            continue;
+        }
+        if n.label.is_none() && n.actions.difference(Actions::TAP | Actions::LONG_PRESS).is_empty() {
+            let sliver = n.bounds.h.min(n.bounds.w) < SLIVER
+                && kids[i].is_empty()
+                && n.parent.is_some_and(|p| nodes[p].actions.intersects(Actions::SCROLL));
+            if sliver {
+                drop[i] = true;
+                continue;
+            }
+            if let [c] = kids[i][..]
+                && (tappable(&nodes[c]) || nodes[c].role.is_text_entry())
+            {
+                drop[i] = true;
+            }
+            continue;
+        }
+        let Some(label) = n.label.clone() else { continue };
+        if !n.actions.is_empty() {
+            continue;
+        }
+        let (buttons, rest): (Vec<usize>, Vec<usize>) = kids[i]
+            .iter()
+            .partition(|&&c| tappable(&nodes[c]) && bare(&nodes[c]) && kids[c].is_empty());
+        let echoes = rest.iter().all(|&c| {
+            kids[c].is_empty()
+                && nodes[c].actions.is_empty()
+                && nodes[c]
+                    .label
+                    .as_deref()
+                    .is_some_and(|l| label.contains(l))
+        });
+        let [b] = buttons[..] else { continue };
+        if !echoes {
+            continue;
+        }
+        let (name, selected) = match label.rsplit_once(',') {
+            Some((name, flag)) if flag.trim().eq_ignore_ascii_case("selected") => {
+                (name.trim().to_string(), true)
+            }
+            _ => (label, false),
+        };
+        let button = &mut nodes[b];
+        button.label = Some(name);
+        if selected {
+            button.state |= ElementState::SELECTED;
+        }
+        if matches!(button.role, Role::Other | Role::Image) {
+            button.role = Role::Button;
+        }
+        drop[i] = true;
+        for &c in &rest {
+            drop[c] = true;
+        }
+    }
+    remove(nodes, &drop)
 }
 
 /// A labeled control is one element to a screen reader: its icons and the texts its label already holds add nothing.
@@ -804,6 +895,57 @@ mod tests {
             labels_and_roles(&nodes),
             [(Role::Button, "Buy".to_string())]
         );
+    }
+
+    #[test]
+    fn unlabeled_tappable_wrappers_around_a_search_box_are_the_search_box() {
+        let json = r#"{"windows":[{"id":1,"type":"application","bounds":[0,0,400,800]}],"nodes":[
+            {"p":-1,"w":1,"cls":"android.widget.LinearLayout","b":[0,100,400,160],"f":"vVe","a":["tap"]},
+            {"p":0,"w":1,"cls":"android.widget.LinearLayout","b":[0,100,400,160],"f":"vVe","a":["tap"]},
+            {"p":1,"w":1,"cls":"android.widget.LinearLayout","b":[10,105,390,155],"f":"vVe","a":["tap"]},
+            {"p":2,"w":1,"cls":"android.widget.EditText","hint":"Search query","b":[20,110,380,150],"f":"vVe","a":["tap","set_text"]},
+            {"p":-1,"w":1,"cls":"android.widget.LinearLayout","b":[0,200,400,260],"f":"vVe","a":["tap"]},
+            {"p":4,"w":1,"cls":"android.widget.ImageView","b":[0,200,60,260],"f":"vVe","a":["tap"]},
+            {"p":4,"w":1,"cls":"android.widget.ImageView","b":[300,200,360,260],"f":"vVe","a":["tap"]}
+        ]}"#;
+        let nodes = prune(&RawTree::from_android_json(json, Scale { density: 1.0 }).unwrap());
+        assert_eq!(nodes[0].role, Role::TextField);
+        assert_eq!(nodes[0].parent, None);
+        assert_eq!(nodes.len(), 4, "a wrapper around two controls stays: {nodes:#?}");
+    }
+
+    #[test]
+    fn a_labeled_card_around_one_unlabeled_button_is_that_button_and_says_it_is_selected() {
+        let json = r#"{"windows":[{"id":1,"type":"application","bounds":[0,0,400,800]}],"nodes":[
+            {"p":-1,"w":1,"cls":"android.widget.LinearLayout","desc":"Light","b":[0,100,190,300],"f":"vVe"},
+            {"p":0,"w":1,"cls":"android.widget.ImageView","b":[10,110,180,250],"f":"vVe","a":["tap"]},
+            {"p":-1,"w":1,"cls":"android.widget.LinearLayout","desc":"Dark,Selected","b":[200,100,390,300],"f":"vVe"},
+            {"p":2,"w":1,"cls":"android.widget.ImageView","b":[210,110,380,250],"f":"vVe","a":["tap"]},
+            {"p":2,"w":1,"cls":"android.widget.TextView","text":"Dark","b":[210,260,380,290],"f":"vVe"}
+        ]}"#;
+        let nodes = prune(&RawTree::from_android_json(json, Scale { density: 1.0 }).unwrap());
+        assert_eq!(
+            labels_and_roles(&nodes),
+            [(Role::Button, "Light".to_string()), (Role::Button, "Dark".to_string())]
+        );
+        assert!(!nodes[0].state.contains(ElementState::SELECTED));
+        assert!(nodes[1].state.contains(ElementState::SELECTED));
+        assert!(nodes.iter().all(|n| n.parent.is_none()));
+    }
+
+    #[test]
+    fn an_unlabeled_row_scrolled_almost_out_of_its_list_is_not_listed() {
+        let json = r#"{"windows":[{"id":1,"type":"application","bounds":[0,0,400,800]}],"nodes":[
+            {"p":-1,"w":1,"cls":"androidx.recyclerview.widget.RecyclerView","b":[0,100,400,800],"f":"vVeS","a":["scroll_fwd"]},
+            {"p":0,"w":1,"cls":"android.widget.LinearLayout","b":[0,100,400,108],"f":"vVe","a":["tap"]},
+            {"p":0,"w":1,"cls":"android.widget.LinearLayout","text":"Wi-Fi","b":[0,110,400,118],"f":"vVe","a":["tap"]},
+            {"p":0,"w":1,"cls":"android.widget.ImageButton","b":[0,120,400,170],"f":"vVe","a":["tap"]}
+        ]}"#;
+        let nodes = prune(&RawTree::from_android_json(json, Scale { density: 1.0 }).unwrap());
+        let shown: Vec<_> = nodes.iter().map(|n| (n.role, n.label.clone(), n.bounds.y)).collect();
+        assert_eq!(nodes.len(), 3, "{shown:?}");
+        assert_eq!(nodes[1].label.as_deref(), Some("Wi-Fi"));
+        assert_eq!(nodes[2].bounds.y, 120.0);
     }
 
     #[test]
