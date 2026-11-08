@@ -5,7 +5,9 @@ use std::time::Duration;
 use async_trait::async_trait;
 use phonedriver::daemon::rpc::RpcError;
 use phonedriver::daemon::{Config, Daemon, DeviceSource, Listed};
-use phonedriver_core::device::{AppId, Capabilities, Device, DeviceEvent, FrameRef, Url};
+use phonedriver_core::device::{
+    AppId, Capabilities, Device, DeviceEvent, FrameRef, TextInput, Url,
+};
 use phonedriver_core::error::Error;
 use phonedriver_core::geometry::{Point, Rect, Scale};
 use phonedriver_core::raw::RawTree;
@@ -712,6 +714,81 @@ fn page_tree() -> RawTree {
         {"p":-1,"w":1,"cls":"android.widget.FrameLayout","b":[0,0,360,800],"f":"vVe"},
         {"p":0,"w":1,"cls":"android.widget.TextView","text":"Grace Hopper - Wikipedia","b":[0,0,360,60],"f":"vVe"}]}"#;
     RawTree::from_android_json(json, Scale { density: 1.0 }).unwrap()
+}
+
+fn web_field_tree(value: &str) -> RawTree {
+    let json = format!(
+        r#"{{"windows":[{{"id":1,"type":"application","package":"com.android.chrome","bounds":[0,0,360,800]}}],"nodes":[
+        {{"p":-1,"w":1,"cls":"android.widget.FrameLayout","b":[0,0,360,800],"f":"vVe"}},
+        {{"p":0,"w":1,"cls":"android.webkit.WebView","text":"Checkout","b":[0,0,360,800],"f":"vVe"}},
+        {{"p":1,"w":1,"cls":"android.widget.EditText","text":"{value}","desc":"Postcode","b":[0,100,360,160],"f":"vVeEF","a":["tap"]}}]}}"#
+    );
+    RawTree::from_android_json(&json, Scale { density: 1.0 }).unwrap()
+}
+
+fn web_type(text: &str) -> Value {
+    json!({"action": {"kind": "type", "text": text, "into": {"text": "Postcode"}}})
+}
+
+fn is_keys(t: &TextInput) -> bool {
+    matches!(t, TextInput::Keystrokes(_))
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_web_field_that_ignores_a_paste_gets_the_text_key_by_key() {
+    let (source, fake) = FakeSource::with(vec![web_field_tree("")]);
+    fake.on_text(|t| is_keys(t).then(|| vec![web_field_tree("WC2H 7LU")]));
+    let (d, _home) = daemon(source);
+    ok(&d, "default", "snapshot", json!({})).await;
+    let r = ok(&d, "default", "act", web_type("WC2H 7LU")).await;
+    assert_eq!(r["verified"], true, "{r}");
+    assert_eq!(r["via"], "keys", "{r}");
+    let texts: Vec<Call> = fake
+        .calls()
+        .into_iter()
+        .filter(|c| matches!(c, Call::Text(_)))
+        .collect();
+    assert_eq!(
+        texts,
+        [
+            Call::Text(TextInput::Paste("WC2H 7LU".into())),
+            Call::Text(TextInput::Keystrokes("WC2H 7LU".into()))
+        ]
+    );
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_paste_asked_for_by_name_is_not_retried_another_way() {
+    let (source, fake) = FakeSource::with(vec![web_field_tree("")]);
+    fake.on_text(|t| is_keys(t).then(|| vec![web_field_tree("WC2H 7LU")]));
+    let (d, _home) = daemon(source);
+    ok(&d, "default", "snapshot", json!({})).await;
+    let params = json!({"action": {"kind": "type", "text": "WC2H 7LU", "into": {"text": "Postcode"}, "mode": "paste"}});
+    let r = ok(&d, "default", "act", params).await;
+    assert_eq!(r["verified"], false, "{r}");
+    assert!(
+        !fake
+            .calls()
+            .iter()
+            .any(|c| matches!(c, Call::Text(t) if is_keys(t)))
+    );
+}
+
+#[tokio::test(start_paused = true)]
+async fn text_that_shows_in_a_web_field_a_moment_late_is_verified() {
+    let (source, fake) = FakeSource::with(vec![web_field_tree("")]);
+    fake.on_text(|t| {
+        matches!(t, TextInput::Paste(_)).then(|| {
+            let mut trees = vec![web_field_tree(""); 8];
+            trees.push(web_field_tree("Sam"));
+            trees
+        })
+    });
+    let (d, _home) = daemon(source);
+    ok(&d, "default", "snapshot", json!({})).await;
+    let r = ok(&d, "default", "act", web_type("Sam")).await;
+    assert_eq!(r["verified"], true, "{r}");
+    assert_eq!(r["via"], "paste", "{r}");
 }
 
 #[tokio::test(start_paused = true)]
