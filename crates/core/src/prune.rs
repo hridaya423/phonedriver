@@ -220,7 +220,7 @@ pub fn prune(tree: &RawTree) -> Vec<Node> {
             || node.role.is_text_entry()
             || node.role == Role::ProgressIndicator
             || node.role == Role::Keyboard
-            || (node.role == Role::WebView && children[i].is_empty())
+            || node.role == Role::WebView
             || scrollable;
         if !keep {
             continue;
@@ -375,6 +375,19 @@ mod tests {
 
     fn settings() -> Vec<Node> {
         prune(&RawTree::from_android_json(FIXTURE, Scale { density: 3.0 }).unwrap())
+    }
+
+    #[test]
+    fn a_web_view_without_a_title_is_kept_so_what_is_in_it_is_known_to_be_web() {
+        let json = r#"{"density":1.0,"windows":[],"nodes":[
+            {"p":-1,"w":1,"cls":"android.widget.FrameLayout","b":[0,0,400,800],"f":"vVe"},
+            {"p":0,"w":1,"cls":"android.webkit.WebView","b":[0,100,400,800],"f":"vVe"},
+            {"p":1,"w":1,"cls":"android.widget.CheckBox","text":"Bacon","b":[10,200,40,230],"f":"vVe","a":["tap"]}
+        ]}"#;
+        let nodes = prune(&RawTree::from_android_json(json, Scale { density: 1.0 }).unwrap());
+        let roles: Vec<Role> = nodes.iter().map(|n| n.role).collect();
+        assert_eq!(roles, [Role::WebView, Role::Checkbox]);
+        assert_eq!(nodes[1].parent, Some(0));
     }
 
     #[test]
