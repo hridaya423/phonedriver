@@ -793,3 +793,21 @@ Evidence:
   - Red-green check: with the re-encode branch forced off (`|| true`), the first test FAILED. With it restored, it passed.
 - `cargo test --workspace --no-fail-fast`: 644 passed, 0 failed. Clippy is clean.
 - Not measured: the co-located release screenshot p50. win-ts is offline (Tailscale shows `mmhv` offline). Re-run the screenshot row of `bench/speed` before the chart's 41x is quoted again.
+
+## 2026-11-08: one line per element that changed in several ways; the settle time is said once
+
+- Seen live on the iOS 26.5 simulator, iPhone 17, Settings → Fonts → back:
+  - `@e5` came out as two `~` lines that repeated a 120-character string three times: `~ @e5 cell "General" → "Manage…"`, then `~ @e5 cell "Manage…" "Manage…" → (none)`.
+  - A list took two lines for its label and its scroll state.
+- Changed in `DiffOrFull::text`, `crates/core/src/diff.rs`:
+  - An element with more than one changed field is one line, `~ <its line now>`.
+  - A single-field change keeps `from → to`.
+  - The secure-field masking is unchanged.
+- Changed in `report`, `crates/cli/src/daemon/actor.rs`:
+  - The screen that comes back with an action no longer carries `settled in Nms`, because the action line already says it.
+  - `settle_ms` stays in the JSON.
+  - Seen: `ok launched Settings · settled in 978ms · new screen` followed by `app … · settled in 978ms`.
+- Tests:
+  - `an_element_that_changes_in_several_ways_is_one_line_with_what_it_shows_now` failed first with exactly the iOS output.
+  - `a_new_screen_after_an_action_leaves_the_settle_time_to_the_action_line` failed first.
+- `cargo test --workspace --no-fail-fast`: 646 passed, 0 failed.

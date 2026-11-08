@@ -604,6 +604,23 @@ async fn a_window_change_event_counts_as_the_first_change() {
     assert_eq!(r["observation"]["kind"], "full");
 }
 
+#[tokio::test]
+async fn a_new_screen_after_an_action_leaves_the_settle_time_to_the_action_line() {
+    let (source, fake) = FakeSource::with(vec![tree(&["One"]), tree(&["Other"])]);
+    let (d, _home) = daemon(source);
+    ok(&d, "default", "snapshot", json!({})).await;
+    let emitter = fake.clone();
+    tokio::spawn(async move {
+        tokio::time::sleep(Duration::from_millis(20)).await;
+        emitter.emit(DeviceEvent::WindowChanged { package: None });
+    });
+    let r = ok(&d, "default", "act", tap_point(10.0, 10.0)).await;
+    assert_eq!(r["observation"]["kind"], "full");
+    let text = r["observation"]["text"].as_str().unwrap();
+    assert!(!text.contains("settled in"), "{text}");
+    assert!(r["settle_ms"].as_u64().is_some(), "{r}");
+}
+
 #[cfg(unix)]
 #[tokio::test]
 async fn the_socket_file_is_0600_and_its_directory_0700() {
