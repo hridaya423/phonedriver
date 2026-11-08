@@ -891,3 +891,11 @@ The fixes come from the first run on a physical Android phone, a Honor X8 (TFY-L
 - Test: `a_target_copied_with_the_quotes_the_screen_prints_around_labels_still_matches`. It failed with the retry switched off.
 - Live check on the Honor X8, release build: `tap '"Display & brightness"'` replied `ok tapped @e10 "Display & brightness"`.
 - `cargo test --workspace`: 668 passed, 0 failed. Clippy is clean.
+
+## 2026-11-08: a tap on a card with controls inside lands on the card's own title band
+
+- Seen in agent run t6 on the Honor X8 (Play Store, read a rating). `tap @e63` on the Wikipedia search result card tapped its center, 180,365. That point is inside the card's "Ask Play" panel, so the panel opened an AI answer and the app page did not open. The agent gave up on the page.
+- Changed: `free_point` in `crates/cli/src/daemon/session.rs` replaces `bounds.center()` in `element_at`. An element without controls inside is tapped at its center, as before. An element with controls inside is tapped in the middle of the first band, at least 12 pt high, on its vertical center line that no control covers. If there is no such band, the tap goes to the free point nearest the center.
+- Test: `a_tap_on_a_card_lands_on_the_card_not_on_a_control_inside_it` has the phone's layout: a title, Install, a scrolling ratings row, an inert answer text over the center, and a question box. It failed first at 200,250, the center.
+- Live check on the Honor X8, release build: `tap "Wikipedia · Wikimedia Foundation"` replied `at 180,132 · settled in 517ms · new screen` and showed the app page. Before the change it replied `at 180,392 · no change`.
+- `cargo test --workspace --no-fail-fast`: 673 passed, 0 failed. Clippy is clean.
