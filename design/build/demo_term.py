@@ -1,6 +1,6 @@
 """Draws a tmux screen capture (capture-pane -p -e) as an image in the Sodium dark theme with Commit Mono.
 Glyphs Commit Mono lacks (Claude Code's bullets and spinners) come from Menlo, Apple Symbols or Arial Unicode.
-Colour indexes are mapped to the brand: Claude's orange and the 'auto mode' yellow become the selection yellow."""
+Colours are exactly the ones Claude Code sent; only the page background is the brand's."""
 import re
 import tempfile
 from pathlib import Path
@@ -16,9 +16,6 @@ SGR = re.compile(r"\x1b\[([0-9;]*)m")
 OTHER = re.compile(r"\x1b\[[0-9;?]*[A-Za-ln-z]")
 BASE16 = ["#141412", "#ff6b57", "#8cc79a", "#ffd400", "#7f9fc4", "#c49fc4", "#7fc4bf", "#c4c0b6",
           "#736d61", "#ff8a79", "#a8dcb3", "#ffe14d", "#a3bfe0", "#dcbfdc", "#a3dcd7", "#f5f3ee"]
-OVERRIDE = {174: C["accent"], 216: "#ffe14d", 220: C["accent"], 231: C["t1"], 255: C["t1"], 246: "#a19c90", 244: "#6c675c", 243: "#6c675c", 245: "#a19c90",
-            240: "#4a463e", 238: "#33312b", 236: "#2c2a25", 235: "#22211e", 237: "#2c2a25", 239: "#3a372f"}
-UNKNOWN = set()
 SUBSTITUTE = {"\u23fa": "\u25cf", "\u23f5": "\u25b6", "\u23f8": "\u2016"}
 
 
@@ -34,31 +31,7 @@ def xterm(n):
 
 
 def color(n):
-    if n in OVERRIDE:
-        return OVERRIDE[n]
-    if n >= 16:
-        UNKNOWN.add(n)
     return xterm(n)
-
-
-GRAYS = [(0, "#141412"), (55, "#2c2a25"), (100, "#5a564d"), (136, "#8a8478"), (153, "#a19c90"), (185, "#c4c0b6"), (255, "#f5f3ee")]
-
-
-def brand(r, g, b):
-    if r == g == b:
-        for (a, ca), (z, cz) in zip(GRAYS, GRAYS[1:]):
-            if r <= z:
-                k = (r - a) / (z - a)
-                return "#%02x%02x%02x" % tuple(round(x + (y - x) * k) for x, y in zip(hexrgb(ca), hexrgb(cz)))
-    if r > 190 and 95 < g < 215 and b < g and r - g > 40:
-        return C["accent"]
-    if g > r and g > b:
-        return "#8cc79a"
-    if b > r and b > g:
-        return "#a3bfe0"
-    if r > 200 and g < 140 and b < 150:
-        return "#ff6b57"
-    return "#%02x%02x%02x" % (r, g, b)
 
 
 def hexrgb(h):
@@ -108,7 +81,7 @@ def parse(screen):
                             v = color(p[k + 2])
                             k += 2
                         elif p[k + 1] == 2 and k + 4 < len(p):
-                            v = brand(*p[k + 2:k + 5])
+                            v = "#%02x%02x%02x" % tuple(p[k + 2:k + 5])
                             k += 4
                         else:
                             v = None
