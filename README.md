@@ -10,10 +10,10 @@
 phonedriver lets Claude Code, Codex, Cursor or any MCP client use an Android phone or an iPhone. The model opens apps, taps, types, scrolls and reads the screen. It reads the screen as text instead of screenshots: on an emulator, a 1,000-row screen comes back in 24 ms. After each tap it gets back only the lines that changed. And when it reaches a button labeled Pay or Place order, phonedriver stops and asks you.
 
 <p align="center">
-  <a href=".github/assets/demo.mp4"><img alt="Claude Code drives an Android phone through phonedriver. It finds the best-rated Indian restaurant near Times Square on Uber Eats, adds butter chicken and garlic naan to the cart and stops at checkout. Then, on a test checkout screen, it taps Place order and phonedriver asks the human first. The human declines and nothing is ordered." src=".github/assets/demo.gif" width="100%"></a>
+  <img alt="Claude Code drives an Android phone through phonedriver. It finds the best-rated Indian restaurant near Times Square on Uber Eats, adds butter chicken and garlic naan to the cart and stops at checkout. Then, on a test checkout screen, it taps Place order and phonedriver asks the human first. The human declines and nothing is ordered." src=".github/assets/demo.gif" width="100%">
 </p>
 
-<p align="center"><sub>Claude Code (Opus 5.5) with phonedriver on an Android emulator. The Uber Eats run took 6 minutes and is shown at 15x; the approval prompt plays at real speed. Nothing was ordered.</sub></p>
+<p align="center"><sub>Claude Code (Opus 5.5) with phonedriver on an Android emulator. The Uber Eats run took 6 minutes and is shown at 15x; the approval prompt plays at real speed. Nothing was ordered. <a href=".github/assets/demo.mp4">Full video (MP4)</a>.</sub></p>
 
 ## Start
 
@@ -21,9 +21,13 @@ phonedriver lets Claude Code, Codex, Cursor or any MCP client use an Android pho
 claude mcp add phonedriver -- npx -y phonedriver mcp
 ```
 
-Start an Android emulator, plug in an Android phone with USB debugging on, or boot the iOS Simulator. Then ask Claude:
+Start an Android emulator, plug in an Android phone with USB debugging on, or boot the iOS Simulator. Then give Claude a job that only a phone can do:
 
-> Open Settings and turn on Dark theme.
+> Open my app, sign up with a new account, and tell me every bug you find on the way. Give me steps to reproduce each one.
+
+> Find the app that drains my battery and tell me how long it ran in the background today.
+
+> Go through my app's onboarding in dark mode and in light mode, and show me every screen where the text is hard to read.
 
 The first run downloads one binary for your machine (macOS, Linux or Windows) and caches it. `phonedriver doctor` checks adb, Xcode and each device and tells you what to fix. Codex, Cursor and other clients: see [Other clients](#other-clients). Homebrew, the shell installer and real iPhones: [docs/reference.md](docs/reference.md#install).
 
@@ -61,7 +65,7 @@ ok tapped @e24 "Dark theme" at 353,532 · settled in 2034ms
 ## Speed
 
 <p align="center">
-  <a href="docs/bench/speed.md"><picture><source media="(prefers-color-scheme: dark)" srcset=".github/assets/hero-dark.svg"><img alt="phonedriver against adb on an Android emulator, median of 50 runs. Reading the screen: 24 ms against 2,352 ms, 98 times faster. Screenshot: 12 ms against 476 ms, 41 times faster. Typing 100 characters: 251 ms against 4,841 ms, 19 times faster. Tapping and seeing what changed: 587 ms against 2,726 ms, 4.6 times faster." src=".github/assets/hero-light.svg" width="100%"></picture></a>
+  <picture><source media="(prefers-color-scheme: dark)" srcset=".github/assets/hero-dark.svg"><img alt="phonedriver against adb on an Android emulator, median of 50 runs. Reading the screen: 24 ms against 2,352 ms, 98 times faster. Screenshot: 12 ms against 476 ms, 41 times faster. Typing 100 characters: 251 ms against 4,841 ms, 19 times faster. Tapping and seeing what changed: 587 ms against 2,726 ms, 4.6 times faster." src=".github/assets/hero-light.svg" width="100%"></picture>
 </p>
 
 Measured on an Android 17 emulator, median of 50 runs, against `adb shell uiautomator dump`, `screencap` and `input`. The difference comes from a small helper process that phonedriver starts on the phone. It keeps the accessibility connection open, where adb starts a new process and writes XML each time. [Method and raw data.](docs/bench/speed.md)
