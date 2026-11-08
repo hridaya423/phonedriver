@@ -2037,7 +2037,7 @@ impl Actor {
         let may_fling = device.info().capabilities.contains(Capabilities::FRAMES);
         let max = max.unwrap_or_else(|| default_scroll_limit(&until, &now, direction));
         loop {
-            match s.resolve(&until, &now) {
+            match s.seek(&until, &now) {
                 Ok(found) if found.covered.is_none() || idle >= 2 => {
                     let line = found.line.unwrap_or_default();
                     let summary = format!(
@@ -2483,7 +2483,7 @@ impl Actor {
             reads += 1;
             let rendered = self.build(s, &tree, None);
             let found = matches!(
-                s.resolve(target, &rendered),
+                s.seek(target, &rendered),
                 Ok(_) | Err(Error::Ambiguous { .. })
             );
             if found == present {

@@ -75,6 +75,27 @@ impl Session {
     }
 
     /// Finds where a target is on `now`. A ref the screen no longer has fails with the closest current element.
+    /// `resolve` for a search (`scroll --until`, `wait`): a text may sit anywhere in a long sentence, and when it is
+    /// on screen more than once the first one ends the search.
+    pub fn seek(&self, target: &Target, now: &Rendered) -> Result<Resolved, Error> {
+        let Target::Text { text, role } = target else {
+            return self.resolve(target, now);
+        };
+        match find_text(now, text, *role, None) {
+            TextMatch::None => Err(not_found(now, text)),
+            TextMatch::One { r#ref, .. } => now
+                .index_of(r#ref)
+                .map(|i| element_at(now, i))
+                .ok_or_else(|| not_found(now, text)),
+            TextMatch::Many(refs) => refs
+                .iter()
+                .filter_map(|r| now.index_of(*r))
+                .min()
+                .map(|i| element_at(now, i))
+                .ok_or_else(|| not_found(now, text)),
+        }
+    }
+
     pub fn resolve(&self, target: &Target, now: &Rendered) -> Result<Resolved, Error> {
         match target {
             Target::Point {
@@ -94,7 +115,7 @@ impl Session {
                     unseen: self.unseen(*r#ref),
                 }),
             },
-            Target::Text { text, role } => match find_text(now, text, *role) {
+            Target::Text { text, role } => match find_text(now, text, *role, Some(EXTRA_WORDS)) {
                 TextMatch::One { r#ref, .. } => {
                     let i = now.index_of(r#ref).ok_or_else(|| not_found(now, text))?;
                     Ok(element_at(now, i))
@@ -218,20 +239,24 @@ fn find_text(
     now: &Rendered,
     text: &str,
     role: Option<phonedriver_core::element::Role>,
+    extra_words: Option<usize>,
 ) -> TextMatch {
     let exact = now.resolve_text(text, role);
     if exact != TextMatch::None {
         return exact;
     }
     let q = normalize(text);
-    for matches in [
-        (|l: &str, q: &str| l == q) as fn(&str, &str) -> bool,
-        holds_as_words,
-    ] {
+    for whole in [true, false] {
         let mut labels: Vec<&str> = Vec::new();
         for e in &now.elements {
             for l in parts(e) {
-                if matches(&normalize(l), &q) && !labels.contains(&l) {
+                let l_norm = normalize(l);
+                let hit = if whole {
+                    l_norm == q
+                } else {
+                    holds_as_words(&l_norm, &q, extra_words)
+                };
+                if hit && !labels.contains(&l) {
                     labels.push(l);
                 }
             }
@@ -273,8 +298,8 @@ fn joins_a_word(c: char) -> bool {
     c.is_alphanumeric() && !unspaced
 }
 
-/// `label` has `query` at word boundaries and at most `EXTRA_WORDS` other words. Both are normalized.
-fn holds_as_words(label: &str, query: &str) -> bool {
+/// `label` has `query` at word boundaries and, with `extra_words`, at most that many other words. Both are normalized.
+fn holds_as_words(label: &str, query: &str, extra_words: Option<usize>) -> bool {
     let (Some(first), Some(last)) = (query.chars().next(), query.chars().next_back()) else {
         return false;
     };
@@ -282,7 +307,7 @@ fn holds_as_words(label: &str, query: &str) -> bool {
         .split(' ')
         .count()
         .saturating_sub(query.split(' ').count());
-    extra <= EXTRA_WORDS
+    extra_words.is_none_or(|cap| extra <= cap)
         && label.match_indices(query).any(|(at, _)| {
             let before = label[..at].chars().next_back();
             let after = label[at + query.len()..].chars().next();
@@ -334,6 +359,36 @@ mod tests {
         Session::default()
             .resolve(&text(target), &now)
             .map(|r| r.line.unwrap_or_default())
+    }
+
+    fn sought(labels: &[&str], target: &str) -> Result<String, Error> {
+        let now = screen(labels);
+        Session::default()
+            .seek(&text(target), &now)
+            .map(|r| r.line.unwrap_or_default())
+    }
+
+    #[test]
+    fn a_search_finds_a_word_inside_a_long_sentence() {
+        let sentence = "The Snapdragon system on chip was announced in November 2006 and included the Scorpion processor";
+        let line = sought(&["History", sentence], "announced").unwrap();
+        assert!(line.contains("was announced in"), "{line}");
+        assert!(picked(&[sentence], "announced").is_err());
+    }
+
+    #[test]
+    fn a_search_that_matches_twice_stops_at_the_first() {
+        let line = sought(
+            &["It was announced in 2006", "Scorpion was announced in 2007"],
+            "announced",
+        )
+        .unwrap();
+        assert!(line.contains("2006"), "{line}");
+    }
+
+    #[test]
+    fn a_search_keeps_word_boundaries() {
+        assert!(sought(&["Row 364"], "Row 3").is_err());
     }
 
     #[test]

@@ -1526,23 +1526,18 @@ async fn scroll_until_row_3_does_not_stop_at_row_364() {
 }
 
 #[tokio::test(start_paused = true)]
-async fn scroll_until_two_matches_names_them_by_label_since_refs_do_not_survive_a_scroll() {
+async fn scroll_until_text_already_on_screen_twice_stops_at_the_first_without_scrolling() {
     let (source, fake) = FakeSource::with(vec![list_tree(&["Row 1", "Row 2"])]);
     let (d, _home) = daemon(source);
-    let e = err(
+    let r = ok(
         &d,
         "default",
         "act",
         scroll(json!({"until": {"text": "Row"}})),
     )
     .await;
-    assert_eq!(e.code, -32008, "{e:?}");
-    let hint = e.data["hint"].as_str().unwrap();
-    assert!(
-        hint.contains("\"Row 1\"") && hint.contains("\"Row 2\"") && !hint.contains('@'),
-        "{hint}"
-    );
-    assert!(!hint.contains("ref"), "{hint}");
+    let summary = r["summary"].as_str().unwrap();
+    assert!(summary.contains("\"Row 1\""), "{summary}");
     assert!(fake.calls().is_empty());
 }
 

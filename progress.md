@@ -857,3 +857,12 @@ The fixes come from the first run on a physical Android phone, a Honor X8 (TFY-L
 - Live check on the Honor X8, release build: `phonedriver open https://en.wikipedia.org/wiki/Snapdragon` replied after `settled in 3607ms` with the article (`heading "Antirrhinum"`, the redirect target) in the reply. 5.9 s wall time, which includes starting the daemon.
 - `cargo test --workspace --no-fail-fast`: 660 passed, 0 failed. Clippy is clean.
 - Limit: the placeholder is matched by its English name. Chrome in another language falls back to the old reply.
+
+## 2026-11-08: scroll --until and wait find a word in a long sentence (D33 amended)
+
+- Seen in agent run t5 on the Honor X8, Sonnet 5.5, finding when Snapdragon was announced. Across 16 calls and 116 s, `scroll --until "announced"` never stopped. The D33 four-word cap ruled out every sentence of prose, and the article's sections were also collapsed.
+- Changed: `Session::seek` in `crates/cli/src/daemon/session.rs`. It is used by `scroll --until` and `wait`. It runs the same steps as `resolve`, but step 3 has no cap on extra words, and several matches pick the first on screen. `tap` and `type --into` still use `resolve` with the cap.
+- Tests: `a_search_finds_a_word_inside_a_long_sentence` (it also checks that `tap` still refuses the sentence), `a_search_that_matches_twice_stops_at_the_first` and `a_search_keeps_word_boundaries`. They failed first because `seek` did not exist.
+- `cargo test --workspace --no-fail-fast`: the result is below. Clippy is clean.
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 2.91s
+- `cargo test --workspace --no-fail-fast`: 663 passed, 0 failed. Clippy is clean.
