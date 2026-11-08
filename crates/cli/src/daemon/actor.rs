@@ -62,6 +62,8 @@ const FOCUS_FOLLOW_WAIT: Duration = Duration::from_secs(5);
 const FOCUS_KEYBOARD_WAIT: Duration = Duration::from_millis(1200);
 const TREE_STABLE_WAIT: Duration = Duration::from_secs(1);
 const LOADING_WAIT: Duration = Duration::from_secs(4);
+/// How long a reply waits for a tree that lists elements. A read right after an app starts can list none (observed
+/// on the first launch after a daemon restart: a header and no lines), and the reply must carry the screen.
 const CONTENT_WAIT: Duration = Duration::from_secs(2);
 /// Chrome exposes a web field's new text to accessibility up to a second after the page shows it (Domino's checkout,
 /// keys typed in a batch, API 37 emulator).
@@ -2210,6 +2212,12 @@ impl Actor {
                     break;
                 }
             }
+        }
+        let empty_since = Instant::now();
+        while rendered.elements.is_empty() && empty_since.elapsed() < CONTENT_WAIT {
+            tokio::time::sleep(TREE_STEP).await;
+            let tree = self.device()?.tree().await?;
+            rendered = self.build(s, &tree, st.map(settle_line));
         }
         self.read_checkboxes(&mut rendered).await?;
         let judge = |s: &Session, rendered: &Rendered| {

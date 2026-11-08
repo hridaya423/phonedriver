@@ -1888,6 +1888,38 @@ async fn a_tap_long_after_a_launch_still_reports_no_change_after_500_ms() {
     assert_eq!(r["changed"], false, "{r}");
 }
 
+#[tokio::test(start_paused = true)]
+async fn a_launch_that_never_settles_still_answers_with_the_screen_lines_once_the_tree_has_them() {
+    let hollow = || tree_of("com.android.calculator2", &[]);
+    let (source, fake) = FakeSource::with(vec![
+        hollow(),
+        hollow(),
+        hollow(),
+        hollow(),
+        tree_of("com.android.calculator2", &["Calculator", "7", "8"]),
+    ]);
+    fake.install(&[("com.android.calculator2", "Calculator")]);
+    let (d, _home) = daemon(source);
+    let busy = fake.clone();
+    tokio::spawn(async move {
+        for seq in 1..400 {
+            tokio::time::sleep(Duration::from_millis(50)).await;
+            busy.push_frame(big_frame(seq));
+        }
+    });
+    let r = ok(
+        &d,
+        "default",
+        "act",
+        act_with(json!({"kind": "launch", "app": "Calculator"})),
+    )
+    .await;
+    assert_eq!(r["settled"], false, "{r}");
+    let text = r["observation"]["text"].as_str().unwrap();
+    assert!(text.contains("@e"), "{r}");
+    assert!(text.contains("\"Calculator\""), "{r}");
+}
+
 fn tree_of(package: &str, labels: &[&str]) -> RawTree {
     let mut nodes = vec![
         r#"{"p":-1,"w":1,"cls":"android.widget.FrameLayout","b":[0,0,360,800],"f":"vVe"}"#
