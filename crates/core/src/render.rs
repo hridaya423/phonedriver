@@ -347,7 +347,7 @@ pub fn shown_value(e: &Element) -> Option<String> {
     let redundant = e.state.contains(ElementState::CHECKABLE)
         && matches!(
             v.to_lowercase().as_str(),
-            "on" | "off" | "checked" | "not checked" | "0" | "1"
+            "on" | "off" | "checked" | "not checked" | "selected" | "not selected" | "0" | "1"
         );
     (!redundant).then(|| v.to_string())
 }
@@ -448,6 +448,16 @@ pub fn state_words(e: &Element) -> Vec<&'static str> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_radio_whose_state_description_only_says_selected_prints_its_state_once() {
+        let r = one(
+            r#"{"p":-1,"w":1,"cls":"android.widget.RadioButton","sd":"not selected","b":[0,0,100,50],"f":"vVce","a":["tap"]},
+            {"p":-1,"w":1,"cls":"android.widget.RadioButton","sd":"selected","b":[0,60,100,110],"f":"vVcCe","a":["tap"]}"#,
+        );
+        let text = r.text(&Filters::default()).unwrap();
+        assert!(text.ends_with("@e1 radio off\n@e2 radio on"), "{text}");
+    }
 
     #[test]
     fn counts_of_one_are_singular() {
