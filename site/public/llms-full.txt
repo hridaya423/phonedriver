@@ -58,7 +58,7 @@ mobile-mcp is an MCP server that reads the accessibility tree and also supports 
 
 ## Can the agent spend my money or delete things?
 
-Not without asking you. Before a tap on a button such as Place order, Pay, Send $20.00 or Delete account, phonedriver stops and asks the human through the MCP client, showing the app, the button and the amounts on screen. This stops an agent that follows its rules or is steered by screen text; it does not stop one set on bypassing it, and it matches English labels only. See the approval guard.
+Not without asking you. Before a tap on a button such as Place order, Pay, Send $20.00 or Delete account, phonedriver stops and asks the human through the MCP client, showing the app, the button and the amounts on screen. This stops an agent that follows its rules or is steered by screen text; it does not stop one set on bypassing it, and it reads labels in eleven languages, not icons. See the approval guard.
 
 ## Does phonedriver send telemetry?
 
@@ -463,7 +463,7 @@ An agent that can drive any app can place an order. phonedriver's approval guard
 
 ## What is guarded
 
-The guard reads the tapped element's label. It matches whole-label phrases such as `Pay`, `Pay now`, `Buy now`, `Place order`, `Confirm payment`, `Send money`, `Transfer`, `Start subscription` and `Delete account`, and short labels that start with a money verb and hold an amount, such as `Place order · $34.10`, `Send $20.00 to Sam` or `Subscribe · $9.99/month`.
+The guard reads the tapped element's label. It matches whole-label phrases such as `Pay`, `Pagar`, `Jetzt kaufen`, `提交订单`, `Pay now`, `Buy now`, `Place order`, `Confirm payment`, `Send money`, `Transfer`, `Start subscription` and `Delete account`, and short labels that start with a money verb and hold an amount, such as `Place order · $34.10`, `Send $20.00 to Sam` or `Subscribe · $9.99/month`.
 
 It covers `tap` by ref, by text or by point, `type --submit` when a guarded button sits in the field's own form, and every step of a `batch`.
 
@@ -492,7 +492,7 @@ Switch the guard off only when you have decided the agent may spend money or del
 
 ## What it does not catch
 
-- English labels only, from a fixed list. A button labelled `Bestellen`, or an icon with no label, is not guarded. A missing prompt is not evidence a tap is safe.
+- A fixed list of labels in English, Spanish, Portuguese, French, German, Italian, Dutch, Japanese, Chinese (Simplified), Korean and Hindi. A button in another language, or an icon with no label, is not guarded. A missing prompt is not evidence a tap is safe.
 - A tap on a container that merges the label of a guarded child is guarded only when the merged label matches.
 - `shell` is out of scope: `input tap` through the shell is not seen.
 - An agent can pass `autonomous: true` over MCP, or add `--autonomous` on the CLI, when you never granted it. The guard stops a model that follows the rules or is steered by screen text. It does not stop a model set on bypassing it.
@@ -987,7 +987,7 @@ Every one of those is a judgment call. We wrote the reasoning next to the list, 
 
 This is the part to read before you hand an agent a phone with a payment app signed in.
 
-- **English labels, fixed list.** A button labelled `Bestellen`, or an icon with no label, is not guarded. A prompt that does not appear is not evidence that a tap is safe.
+- **Fixed list, eleven languages.** The list covers English, Spanish, Portuguese, French, German, Italian, Dutch, Japanese, Chinese (Simplified), Korean and Hindi. A button in another language, or an icon with no label, is not guarded. A prompt that does not appear is not evidence that a tap is safe.
 - **A model set on bypassing it can.** Over MCP an agent can pass `autonomous: true`, and on the CLI it can add `--autonomous` or set `PHONEDRIVER_GUARD=off`, when you never granted it. The guard stops a model that follows its rules or is steered by text on the screen. `PHONEDRIVER_GUARD` belongs in the MCP server's environment, which the agent does not write, but the CLI has no human at that terminal to ask.
 - **A merged container.** Names are matched on the element tapped. A tap on a container that merges the label of a guarded child is guarded only when the merged label matches.
 - **The shell.** `input tap` through `shell` is out of scope. A button pressed by shell input is not seen.

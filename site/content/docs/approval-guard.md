@@ -9,7 +9,7 @@ An agent that can drive any app can place an order. phonedriver's approval guard
 
 ## What is guarded
 
-The guard reads the tapped element's label. It matches whole-label phrases such as `Pay`, `Pay now`, `Buy now`, `Place order`, `Confirm payment`, `Send money`, `Transfer`, `Start subscription` and `Delete account`, and short labels that start with a money verb and hold an amount, such as `Place order · $34.10`, `Send $20.00 to Sam` or `Subscribe · $9.99/month`.
+The guard reads the tapped element's label. It matches whole-label phrases such as `Pay`, `Pagar`, `Jetzt kaufen`, `提交订单`, `Pay now`, `Buy now`, `Place order`, `Confirm payment`, `Send money`, `Transfer`, `Start subscription` and `Delete account`, and short labels that start with a money verb and hold an amount, such as `Place order · $34.10`, `Send $20.00 to Sam` or `Subscribe · $9.99/month`.
 
 It covers `tap` by ref, by text or by point, `type --submit` when a guarded button sits in the field's own form, and every step of a `batch`.
 
@@ -38,7 +38,7 @@ Switch the guard off only when you have decided the agent may spend money or del
 
 ## What it does not catch
 
-- English labels only, from a fixed list. A button labelled `Bestellen`, or an icon with no label, is not guarded. A missing prompt is not evidence a tap is safe.
+- A fixed list of labels in English, Spanish, Portuguese, French, German, Italian, Dutch, Japanese, Chinese (Simplified), Korean and Hindi. A button in another language, or an icon with no label, is not guarded. A missing prompt is not evidence a tap is safe.
 - A tap on a container that merges the label of a guarded child is guarded only when the merged label matches.
 - `shell` is out of scope: `input tap` through the shell is not seen.
 - An agent can pass `autonomous: true` over MCP, or add `--autonomous` on the CLI, when you never granted it. The guard stops a model that follows the rules or is steered by screen text. It does not stop a model set on bypassing it.

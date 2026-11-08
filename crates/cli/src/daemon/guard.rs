@@ -1,11 +1,14 @@
 //! The approval guard (decision D27): which taps spend money or cannot be undone, and what to tell the human.
 
+mod labels;
+
 use phonedriver_core::element::{Element, ElementState, Role};
 use phonedriver_core::geometry::Point;
 use phonedriver_core::render::Rendered;
 
 use crate::daemon::session::Session;
 use crate::wire::Approval;
+use labels::{AMOUNT_VERBS, CJK_HEADS, EXACT, ORDER_VERBS, PREFIX};
 
 /// What to do with a tap that the classifier guards.
 #[derive(Debug, PartialEq, Eq)]
@@ -27,68 +30,11 @@ pub fn stance(s: &mut Session, approval: Option<Approval>) -> Stance {
     }
 }
 
-const EXACT: &[&str] = &[
-    "pay",
-    "pay now",
-    "buy",
-    "buy now",
-    "purchase",
-    "checkout and pay",
-    "pay and place order",
-    "place order",
-    "place your order",
-    "place my order",
-    "place your order and pay",
-    "confirm payment",
-    "confirm and pay",
-    "confirm purchase",
-    "confirm order",
-    "complete purchase",
-    "complete order",
-    "complete payment",
-    "order now",
-    "send money",
-    "transfer",
-    "transfer money",
-    "transfer now",
-    "confirm transfer",
-    "delete account",
-    "delete my account",
-    "delete your account",
-    "permanently delete account",
-    "start subscription",
-    "confirm subscription",
-    "subscribe and pay",
-];
-
-const PREFIX: &[&str] = &[
-    "buy now",
-    "buy with",
-    "pay now",
-    "place order",
-    "place your order",
-];
-
-const AMOUNT_VERBS: &[&str] = &[
-    "pay",
-    "buy",
-    "purchase",
-    "checkout",
-    "subscribe",
-    "send",
-    "transfer",
-    "donate",
-    "order",
-    "confirm",
-    "place",
-    "complete",
-];
-
 const CODES: &[&str] = &[
-    "usd", "eur", "gbp", "cad", "aud", "inr", "jpy", "mxn", "chf", "cny",
+    "usd", "eur", "gbp", "cad", "aud", "inr", "jpy", "mxn", "chf", "cny", "brl", "krw",
 ];
 
-const SYMBOLS: &[char] = &['$', '€', '£', '¥', '₹'];
+const SYMBOLS: &[char] = &['$', '€', '£', '¥', '￥', '₹', '₩'];
 
 pub fn app_name(now: &Rendered) -> Option<String> {
     now.header
@@ -105,7 +51,11 @@ fn tokens(text: &str) -> Vec<String> {
         .chars()
         .filter(|c| !matches!(c, '\'' | '’'))
         .map(|c| {
-            if c.is_alphanumeric() || SYMBOLS.contains(&c) || c == '.' || c == ',' || c == '#' {
+            if c.is_alphanumeric()
+                || SYMBOLS.contains(&c)
+                || matches!(c, '.' | ',' | '#')
+                || is_devanagari(c)
+            {
                 c
             } else {
                 ' '
@@ -119,6 +69,22 @@ fn tokens(text: &str) -> Vec<String> {
         .collect()
 }
 
+fn is_devanagari(c: char) -> bool {
+    ('\u{0900}'..='\u{097F}').contains(&c) && !matches!(c, '।' | '॥')
+}
+
+fn is_cjk(c: char) -> bool {
+    matches!(
+        c,
+        '\u{1100}'..='\u{11FF}'
+            | '\u{3040}'..='\u{30FF}'
+            | '\u{3400}'..='\u{4DBF}'
+            | '\u{4E00}'..='\u{9FFF}'
+            | '\u{AC00}'..='\u{D7AF}'
+            | '々'
+    )
+}
+
 fn has_digit(t: &str) -> bool {
     t.chars().any(|c| c.is_ascii_digit())
 }
@@ -130,6 +96,9 @@ fn has_amount(words: &[String]) -> bool {
             return true;
         }
         if symbol && words.get(i + 1).is_some_and(|n| has_digit(n)) {
+            return true;
+        }
+        if symbol && i > 0 && has_digit(&words[i - 1]) {
             return true;
         }
         let number = has_digit(w);
@@ -150,9 +119,27 @@ fn role_can_commit(role: Role) -> bool {
     )
 }
 
+/// Japanese, Chinese and Korean write no spaces between words, so the label is read as one run: the characters up to
+/// the first space, digit or symbol must be a known phrase (`购买` yes, `购买记录` no), and what follows must be
+/// an amount or nothing.
+fn classify_cjk(label: &str) -> bool {
+    let run: String = label.split_whitespace().collect();
+    if run.chars().count() > 40 || run.contains('#') {
+        return false;
+    }
+    let head: String = run.chars().take_while(|c| is_cjk(*c)).collect();
+    let tail = &run[head.len()..];
+    CJK_HEADS.contains(&head.as_str())
+        && (tail.chars().all(|c| !c.is_alphanumeric())
+            || tail.chars().any(|c| c.is_numeric() || SYMBOLS.contains(&c)))
+}
+
 pub fn classify(role: Role, label: &str) -> bool {
     if !role_can_commit(role) {
         return false;
+    }
+    if label.trim_start().starts_with(is_cjk) {
+        return classify_cjk(label);
     }
     let words = tokens(label);
     if words.is_empty() || words.len() > MAX_WORDS || words.iter().any(|w| w.starts_with('#')) {
@@ -177,13 +164,16 @@ pub fn classify(role: Role, label: &str) -> bool {
     {
         return true;
     }
-    if words.len() == 1 || !AMOUNT_VERBS.contains(&words[0].as_str()) || !has_amount(&words) {
+    if words.len() == 1 || !has_amount(&words) {
         return false;
     }
-    words[0] != "order"
-        || words
+    let verb = words[0].as_str();
+    if ORDER_VERBS.contains(&verb) {
+        return words
             .get(1)
-            .is_some_and(|w| has_digit(w) || w.contains(SYMBOLS) || w == "now" || w == "for")
+            .is_some_and(|w| has_digit(w) || w.contains(SYMBOLS) || w == "now" || w == "for");
+    }
+    AMOUNT_VERBS.contains(&verb)
 }
 
 fn text_of(e: &Element) -> Option<&str> {
@@ -429,6 +419,383 @@ mod tests {
             false_alarms.is_empty(),
             "guarded by mistake: {false_alarms:?}"
         );
+    }
+
+    const LANGUAGES: &[(&str, &[&str], &[&str])] = &[
+        (
+            "es",
+            &[
+                "Pagar",
+                "Pagar ahora",
+                "Comprar",
+                "Comprar ahora",
+                "Realizar pedido",
+                "Realizar el pedido",
+                "Confirmar pedido",
+                "Confirmar y pagar",
+                "Pagar 34,10 €",
+                "Pagar · $34.10",
+                "Realizar pedido · 34,10 €",
+                "Enviar dinero",
+                "Transferir",
+                "Transferir 500,00 €",
+                "Eliminar cuenta",
+                "Eliminar mi cuenta",
+                "Sí, eliminar mi cuenta",
+            ],
+            &[
+                "Métodos de pago",
+                "Historial de pedidos",
+                "Mis pedidos",
+                "Mis compras",
+                "Pagar más tarde",
+                "Añadir al carrito",
+                "Comprar de nuevo",
+                "Cancelar pedido",
+                "Enviar",
+                "Enviar mensaje",
+                "Suscribirse",
+                "Pedido #4821 · 34,10 €",
+                "Pagos",
+                "Transferencias",
+                "Eliminar mensaje",
+                "Cómo eliminar mi cuenta",
+            ],
+        ),
+        (
+            "pt",
+            &[
+                "Pagar",
+                "Pagar agora",
+                "Comprar agora",
+                "Fazer pedido",
+                "Finalizar pedido",
+                "Confirmar pagamento",
+                "Confirmar pedido",
+                "Pagar R$ 34,10",
+                "Comprar · R$ 12,00",
+                "Enviar dinheiro",
+                "Transferir",
+                "Excluir conta",
+                "Excluir minha conta",
+            ],
+            &[
+                "Formas de pagamento",
+                "Meus pedidos",
+                "Histórico de compras",
+                "Adicionar ao carrinho",
+                "Comprar novamente",
+                "Cancelar pedido",
+                "Enviar mensagem",
+                "Assinar",
+                "Pagar depois",
+                "Pedido #123 · R$ 12,00",
+                "Como excluir minha conta",
+            ],
+        ),
+        (
+            "fr",
+            &[
+                "Payer",
+                "Payer maintenant",
+                "Acheter",
+                "Acheter maintenant",
+                "Commander",
+                "Passer la commande",
+                "Confirmer la commande",
+                "Valider la commande",
+                "Confirmer et payer",
+                "Payer 34,10 €",
+                "Payer · 12,00 €",
+                "Commander · 34,10 €",
+                "Envoyer de l'argent",
+                "Envoyer de l’argent",
+                "Supprimer mon compte",
+                "Supprimer le compte",
+                "Oui, supprimer mon compte",
+            ],
+            &[
+                "Moyens de paiement",
+                "Mes commandes",
+                "Historique des commandes",
+                "Ajouter au panier",
+                "Acheter à nouveau",
+                "Annuler la commande",
+                "Payer plus tard",
+                "Envoyer",
+                "Envoyer un message",
+                "Commande #4821 · 34,10 €",
+                "Suivre ma commande",
+                "S'abonner",
+                "Comment supprimer mon compte",
+            ],
+        ),
+        (
+            "de",
+            &[
+                "Bezahlen",
+                "Jetzt bezahlen",
+                "Jetzt kaufen",
+                "Jetzt kaufen mit Google Pay",
+                "Kaufen",
+                "Bestellen",
+                "Zahlungspflichtig bestellen",
+                "Kostenpflichtig bestellen",
+                "Jetzt bestellen",
+                "Bestellung aufgeben",
+                "Bestellung abschicken",
+                "Kauf abschließen",
+                "Bezahlen · 34,10 €",
+                "Geld senden",
+                "Überweisen",
+                "Konto löschen",
+                "Mein Konto löschen",
+                "Ja, Konto löschen",
+            ],
+            &[
+                "Zahlungsarten",
+                "Zahlungsmethoden",
+                "Bestellungen",
+                "Meine Bestellungen",
+                "Bestellverlauf",
+                "In den Warenkorb",
+                "Erneut kaufen",
+                "Bestellung stornieren",
+                "Später bezahlen",
+                "Senden",
+                "Nachricht senden",
+                "Abonnieren",
+                "Bestellung #4821 · 34,10 €",
+                "Zur Kasse",
+                "Wie kann ich mein Konto löschen",
+            ],
+        ),
+        (
+            "it",
+            &[
+                "Paga",
+                "Paga ora",
+                "Pagare",
+                "Acquista",
+                "Acquista ora",
+                "Compra ora",
+                "Conferma ordine",
+                "Conferma e paga",
+                "Conferma pagamento",
+                "Completa ordine",
+                "Effettua l'ordine",
+                "Ordina ora",
+                "Paga 34,10 €",
+                "Acquista · 12,00 €",
+                "Invia denaro",
+                "Trasferisci",
+                "Elimina account",
+                "Elimina il mio account",
+            ],
+            &[
+                "Metodi di pagamento",
+                "I miei ordini",
+                "Cronologia ordini",
+                "Aggiungi al carrello",
+                "Acquista di nuovo",
+                "Annulla ordine",
+                "Paga dopo",
+                "Invia messaggio",
+                "Ordina per",
+                "Ordine #4821 · 34,10 €",
+                "Acquisti",
+                "Come eliminare il mio account",
+            ],
+        ),
+        (
+            "nl",
+            &[
+                "Betalen",
+                "Nu betalen",
+                "Betaal nu",
+                "Kopen",
+                "Nu kopen",
+                "Koop nu",
+                "Bestellen",
+                "Bestelling plaatsen",
+                "Bestelling bevestigen",
+                "Betaal € 34,10",
+                "Bestellen en betalen",
+                "Geld versturen",
+                "Overmaken",
+                "Account verwijderen",
+                "Mijn account verwijderen",
+            ],
+            &[
+                "Betaalmethoden",
+                "Mijn bestellingen",
+                "Bestelgeschiedenis",
+                "Toevoegen aan winkelwagen",
+                "Opnieuw kopen",
+                "Bestelling annuleren",
+                "Later betalen",
+                "Verstuur bericht",
+                "Bestelling #4821 · € 34,10",
+                "Aankopen",
+                "Betalingen",
+                "Hoe verwijder ik mijn account",
+            ],
+        ),
+        (
+            "ja",
+            &[
+                "注文を確定する",
+                "注文を確定",
+                "購入",
+                "購入する",
+                "今すぐ購入",
+                "今すぐ買う",
+                "支払う",
+                "支払いを確定する",
+                "購入する（¥1,200）",
+                "購入 ¥1,200",
+                "送金する",
+                "アカウントを削除",
+                "アカウントを削除する",
+                "退会する",
+            ],
+            &[
+                "支払い方法",
+                "お支払い方法",
+                "購入履歴",
+                "注文履歴",
+                "カートに入れる",
+                "カート",
+                "購入手続きへ",
+                "購入済み",
+                "購入完了",
+                "メッセージを削除",
+                "アカウント設定",
+                "支払い履歴",
+            ],
+        ),
+        (
+            "zh",
+            &[
+                "购买",
+                "立即购买",
+                "立即支付",
+                "确认支付",
+                "确认付款",
+                "提交订单",
+                "立即下单",
+                "支付",
+                "支付 ¥99.00",
+                "立即支付¥99",
+                "确认转账",
+                "注销账号",
+                "删除账号",
+                "立即开通",
+                "确认协议并支付",
+            ],
+            &[
+                "支付方式",
+                "付款方式",
+                "我的订单",
+                "订单详情",
+                "购买记录",
+                "购买须知",
+                "去结算",
+                "结算",
+                "加入购物车",
+                "购物车",
+                "已购买",
+                "支付成功",
+                "取消订单",
+                "删除消息",
+                "支付设置",
+            ],
+        ),
+        (
+            "ko",
+            &[
+                "결제하기",
+                "주문하기",
+                "구매하기",
+                "구매",
+                "바로 구매",
+                "바로구매",
+                "송금하기",
+                "이체하기",
+                "회원탈퇴",
+                "계정 삭제",
+                "결제하기 ₩12,000",
+                "구매하기 · ₩12,000",
+            ],
+            &[
+                "결제 수단",
+                "결제수단",
+                "결제 내역",
+                "주문 내역",
+                "주문 완료",
+                "결제 완료",
+                "장바구니",
+                "장바구니 담기",
+                "구매 내역",
+                "메시지 삭제",
+                "계정 설정",
+            ],
+        ),
+        (
+            "hi",
+            &[
+                "भुगतान करें",
+                "अभी भुगतान करें",
+                "भुगतान करें ₹499",
+                "खरीदें",
+                "अभी खरीदें",
+                "ऑर्डर करें",
+                "अभी ऑर्डर करें",
+                "ऑर्डर कन्फर्म करें",
+                "पैसे भेजें",
+                "खाता हटाएं",
+                "अकाउंट डिलीट करें",
+            ],
+            &[
+                "भुगतान विधि",
+                "भुगतान इतिहास",
+                "मेरे ऑर्डर",
+                "ऑर्डर इतिहास",
+                "कार्ट में जोड़ें",
+                "भुगतान जारी रखें",
+                "ऑर्डर रद्द करें",
+                "संदेश भेजें",
+                "भुगतान राशि ₹500",
+                "भुगतान के तरीके",
+            ],
+        ),
+    ];
+
+    #[test]
+    fn labels_in_other_languages_are_told_from_look_alikes() {
+        let mut wrong = Vec::new();
+        for (lang, positive, negative) in LANGUAGES {
+            for label in *positive {
+                if !classify(Role::Button, label) {
+                    wrong.push(format!("{lang}: not guarded: {label}"));
+                }
+            }
+            for label in *negative {
+                if classify(Role::Button, label) {
+                    wrong.push(format!("{lang}: guarded by mistake: {label}"));
+                }
+            }
+        }
+        assert!(wrong.is_empty(), "{wrong:#?}");
+    }
+
+    #[test]
+    fn a_label_in_another_language_on_a_navigating_role_is_not_guarded() {
+        for label in ["Pagar", "立即支付", "भुगतान करें", "Jetzt kaufen"] {
+            for role in [Role::Tab, Role::MenuItem, Role::TextField, Role::Heading] {
+                assert!(!classify(role, label), "{role:?} {label}");
+            }
+        }
     }
 
     #[test]

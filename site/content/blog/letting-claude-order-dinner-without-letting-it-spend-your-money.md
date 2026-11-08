@@ -39,7 +39,7 @@ Every one of those is a judgment call. We wrote the reasoning next to the list, 
 
 This is the part to read before you hand an agent a phone with a payment app signed in.
 
-- **English labels, fixed list.** A button labelled `Bestellen`, or an icon with no label, is not guarded. A prompt that does not appear is not evidence that a tap is safe.
+- **Fixed list, eleven languages.** The list covers English, Spanish, Portuguese, French, German, Italian, Dutch, Japanese, Chinese (Simplified), Korean and Hindi. A button in another language, or an icon with no label, is not guarded. A prompt that does not appear is not evidence that a tap is safe.
 - **A model set on bypassing it can.** Over MCP an agent can pass `autonomous: true`, and on the CLI it can add `--autonomous` or set `PHONEDRIVER_GUARD=off`, when you never granted it. The guard stops a model that follows its rules or is steered by text on the screen. `PHONEDRIVER_GUARD` belongs in the MCP server's environment, which the agent does not write, but the CLI has no human at that terminal to ask.
 - **A merged container.** Names are matched on the element tapped. A tap on a container that merges the label of a guarded child is guarded only when the merged label matches.
 - **The shell.** `input tap` through `shell` is out of scope. A button pressed by shell input is not seen.
