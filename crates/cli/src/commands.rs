@@ -70,7 +70,7 @@ pub struct Cli {
     /// Do not wait for the screen to settle after the action.
     #[arg(long, global = true)]
     no_settle: bool,
-    /// How long to wait for the screen to settle, in milliseconds.
+    /// How long to wait, in milliseconds: for the screen to settle after an action, or for what `wait` waits for (default 5000).
     #[arg(long, global = true)]
     timeout: Option<u64>,
     /// How long to wait for an action's first visible change, in milliseconds (default 500).
@@ -1368,7 +1368,7 @@ fn show_action(result: &Value, json: bool) -> Result<String, Failure> {
         out.push_str(&r.observation.text);
     }
     if r.settled && !r.changed {
-        out.push_str("\nhint: nothing changed; `phonedriver wait settled` waits for the screen, `phonedriver snapshot` shows it");
+        out.push_str("\nhint: nothing changed; the tap may have missed, or changed only what the element list does not show (a web checkbox): `phonedriver screenshot` shows the picture");
     }
     if let Some(u) = &r.unverified {
         out.push_str("\nhint: ");
@@ -1584,6 +1584,17 @@ mod tests {
         assert!(parse_step_line("devices").unwrap_err().contains("batch"));
         assert!(parse_step_line("").is_err());
         assert!(parse_step_line("tap").is_err());
+    }
+
+    #[test]
+    fn a_no_change_hint_does_not_send_the_reader_to_wait_for_a_screen_that_has_settled() {
+        let mut v = action(false, "diff", "");
+        v["settle_ms"] = json!(502);
+        let shown = show_action(&v, false).unwrap();
+        assert!(shown.contains("no change after 502ms"), "{shown}");
+        let hint = shown.lines().find(|l| l.starts_with("hint: ")).unwrap();
+        assert!(!hint.contains("wait settled"), "{hint}");
+        assert!(hint.contains("`phonedriver screenshot`"), "{hint}");
     }
 
     #[test]
