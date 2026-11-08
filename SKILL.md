@@ -19,7 +19,7 @@ Run a setting, intent or key with `shell`: one call returns the exit code, the o
 
 1. `snapshot` lists the screen as lines such as `@e4 button "Save"`.
 2. Act on a ref: `tap @e4`.
-3. Read the lines the action returns: what changed once the screen settled, or the whole new screen. Act from those lines; call `snapshot` when you need the whole screen again.
+3. Read the lines the action returns: what changed once the screen settled, or the whole new screen. Act from those lines; call `snapshot` when you need the whole screen again. `back to the screen from before` means a dialog closed: the lines and refs you had before it hold again, apart from the changes listed.
 
 Actions already wait for the screen; use `wait` when something loads later (`wait "Row 640"`, `wait gone:"Loading"`).
 
@@ -57,6 +57,7 @@ Each error has a hint that names the next step; follow it.
 
 - No device: `phonedriver doctor` says what is missing (adb, USB debugging, a dropped tunnel); with only the MCP tools, ask the user to run it. More than one device: pass `device` with an id from `devices`.
 - Another session holds the device: wait or use another device; the error says how long it has been idle.
+- `driven by another phonedriver daemon`: another program on that computer runs the device. Tell the user the pid the error names. Do not stop that program yourself.
 - Text not found: the error lists similar text; scroll or fix the spelling.
 - Not supported on this device: the error says why; use another approach.
 
