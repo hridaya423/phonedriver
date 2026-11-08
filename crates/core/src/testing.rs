@@ -45,6 +45,7 @@ pub struct FakeDevice {
     frames: watch::Sender<FrameRef>,
     shell: Mutex<ShellReply>,
     on_text: Mutex<Option<TextHook>>,
+    hidden: Option<u32>,
 }
 
 type TextHook = Box<dyn Fn(&TextInput) -> Option<Vec<RawTree>> + Send + Sync>;
@@ -79,6 +80,7 @@ impl FakeDevice {
             frames: watch::channel(FrameRef::default()).0,
             shell: Mutex::new(ShellReply::default()),
             on_text: Mutex::new(None),
+            hidden: None,
         }
     }
 
@@ -86,6 +88,12 @@ impl FakeDevice {
     /// that ignores one kind of input, or shows the text a few reads late.
     pub fn on_text(&self, f: impl Fn(&TextInput) -> Option<Vec<RawTree>> + Send + Sync + 'static) {
         *lock(&self.on_text) = Some(Box::new(f));
+    }
+
+    /// The same device working on virtual display `id`.
+    pub fn on_hidden_display(mut self, id: u32) -> FakeDevice {
+        self.hidden = Some(id);
+        self
     }
 
     /// The same device without some capabilities, as the polled iOS tier lacks `FRAMES`.
@@ -154,6 +162,10 @@ fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
 impl Device for FakeDevice {
     fn info(&self) -> &DeviceInfo {
         &self.info
+    }
+
+    fn hidden_display(&self) -> Option<u32> {
+        self.hidden
     }
 
     fn current_screen(&self) -> Option<Size> {

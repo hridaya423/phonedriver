@@ -17,6 +17,7 @@ use crate::daemon::ios::{PhysicalSource, SimSource};
 use crate::daemon::sources::Sources;
 use crate::daemon::trace::TraceOptions;
 use crate::daemon::{Config, Daemon, socket};
+use phonedriver_core::device::DisplayMode;
 use phonedriver_core::error::{Category, span};
 
 use crate::wire::{
@@ -78,6 +79,15 @@ pub struct Cli {
     /// Use a device that another session holds the lease on.
     #[arg(long, global = true)]
     share: bool,
+    /// Which screen to work on (Android): `main`, the phone's own screen (default), or `hidden`, a second screen the person holding the phone cannot see (Android 13 and later).
+    #[arg(
+        long,
+        global = true,
+        env = "PHONEDRIVER_DISPLAY",
+        value_parser = ["main", "hidden"],
+        default_value = "main"
+    )]
+    display: String,
     #[command(subcommand)]
     command: Option<Verb>,
 }
@@ -85,7 +95,14 @@ pub struct Cli {
 const UNUSED_GLOBALS: &[(&str, &[&str])] = &[
     (
         "devices",
-        &["session", "no_settle", "timeout", "expect_change", "share"],
+        &[
+            "session",
+            "no_settle",
+            "timeout",
+            "expect_change",
+            "share",
+            "display",
+        ],
     ),
     ("snapshot", &["expect_change"]),
     ("wait", &["no_settle"]),
@@ -132,6 +149,7 @@ const ALL_GLOBALS: &[&str] = &[
     "timeout",
     "expect_change",
     "share",
+    "display",
 ];
 
 fn ignored_here(id: &'static str) -> clap::Arg {
@@ -142,11 +160,13 @@ fn ignored_here(id: &'static str) -> clap::Arg {
         "session" => "session",
         "json" => "json",
         "timeout" => "timeout",
+        "display" => "display",
         _ => "share",
     };
     let arg = clap::Arg::new(id).long(long).hide(true);
     match id {
         "json" | "no_settle" | "share" => arg.action(clap::ArgAction::SetTrue),
+        "display" => arg.num_args(1).value_parser(["main", "hidden"]),
         _ => arg.num_args(1),
     }
 }
@@ -514,6 +534,7 @@ pub fn run(cli: Cli) -> ExitCode {
                 timeout: cli.timeout,
                 expect_change: cli.expect_change,
                 share: cli.share,
+                display: display_mode(&cli.display),
                 approval: None,
                 ask,
             };
@@ -541,6 +562,7 @@ pub(crate) struct Globals {
     pub timeout: Option<u64>,
     pub expect_change: Option<u64>,
     pub share: bool,
+    pub display: DisplayMode,
     pub approval: Option<Approval>,
     pub ask: Vec<Category>,
 }
@@ -569,6 +591,20 @@ pub(crate) fn parse_ask(env: Option<&str>) -> Result<Vec<Category>, String> {
 
 pub(crate) fn ask_env() -> Result<Vec<Category>, String> {
     parse_ask(std::env::var("PHONEDRIVER_ASK").ok().as_deref())
+}
+
+pub(crate) fn display_mode(name: &str) -> DisplayMode {
+    if name == "hidden" {
+        DisplayMode::Hidden
+    } else {
+        DisplayMode::Main
+    }
+}
+
+pub(crate) fn put_display(params: &mut Value, display: DisplayMode) {
+    if display == DisplayMode::Hidden {
+        params["display"] = json!("hidden");
+    }
 }
 
 /// The guard's answer that does not come from asking: `--autonomous`, or `PHONEDRIVER_GUARD=off` for the whole process.
@@ -674,6 +710,7 @@ pub(crate) async fn execute_with(
         if g.share {
             params["share"] = json!(true);
         }
+        put_display(&mut params, g.display);
         params
     };
     let approval = guard_override(&verb, g.approval, guard_env().as_deref());
@@ -1116,6 +1153,7 @@ pub(crate) async fn run_batch(
     if g.share {
         p["share"] = json!(true);
     }
+    put_display(&mut p, g.display);
     if let Some(t) = g.timeout {
         p["timeout_ms"] = json!(t);
     }
@@ -1208,9 +1246,14 @@ fn device_table(result: &Value) -> String {
     let Ok(devices) = serde_json::from_value::<Vec<DeviceEntry>>(result.clone()) else {
         return result.to_string();
     };
-    let mut rows = vec![["ID", "MODEL", "OS", "TIER", "LEASE"].map(String::from)];
+    let any_hidden = devices.iter().any(|d| d.hidden_display.is_some());
+    let mut head = vec!["ID", "MODEL", "OS", "TIER", "LEASE"];
+    if any_hidden {
+        head.push("DISPLAY");
+    }
+    let mut rows = vec![head.into_iter().map(String::from).collect::<Vec<_>>()];
     for d in devices {
-        rows.push([
+        let mut row = vec![
             d.id,
             d.model,
             if d.os.is_empty() { "-".into() } else { d.os },
@@ -1220,9 +1263,17 @@ fn device_table(result: &Value) -> String {
                 (Some(by), None) => by,
                 (None, _) => "-".into(),
             },
-        ]);
+        ];
+        if any_hidden {
+            row.push(match d.hidden_display {
+                Some(id) => format!("hidden (display {id})"),
+                None => "main".into(),
+            });
+        }
+        rows.push(row);
     }
-    let widths: Vec<usize> = (0..5)
+    let columns = rows[0].len();
+    let widths: Vec<usize> = (0..columns)
         .map(|c| rows.iter().map(|r| r[c].chars().count()).max().unwrap_or(0))
         .collect();
     rows.iter()

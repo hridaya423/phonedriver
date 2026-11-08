@@ -22,7 +22,9 @@ pub struct RawAgent {
 }
 
 pub async fn launch(adb: &Adb, serial: &str) -> RawAgent {
-    let launched = agent::launch(adb, serial).await.unwrap();
+    let launched = agent::launch(adb, serial, phonedriver_core::device::DisplayMode::Main)
+        .await
+        .unwrap();
     RawAgent {
         adb: adb.clone(),
         serial: serial.to_string(),

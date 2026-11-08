@@ -4,7 +4,8 @@ use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-use phonedriver_core::error::Error;
+use phonedriver_core::device::DisplayMode;
+use phonedriver_core::error::{Error, Op};
 use serde::Deserialize;
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
@@ -18,7 +19,10 @@ pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 const JAR: &[u8] = include_bytes!(env!("PHONEDRIVER_AGENT_JAR"));
 const JAR_MISSING: i32 = 99;
+const NO_HIDDEN_DISPLAY: i32 = 5;
 const READY_TIMEOUT: Duration = Duration::from_secs(3);
+/// Creating the encoder and the virtual display at 2560x1600 took 5 to 8 s to `ready` on the API 37 tablet emulator.
+const HIDDEN_READY_TIMEOUT: Duration = Duration::from_secs(20);
 const LOG_LINES: usize = 200;
 const MAX_FRAME: usize = 64 << 20;
 const CONFLICT_HOLDER: &str = "another UiAutomation client, such as `uiautomator`, an Appium server or an instrumentation test";
@@ -42,13 +46,24 @@ fn jar_path() -> String {
     format!("/data/local/tmp/phonedriver-agent-{sha8}.jar")
 }
 
-async fn start(adb: &Adb, serial: &str, jar: &str, name: &str, token: &str) -> Result<ShellStream> {
+async fn start(
+    adb: &Adb,
+    serial: &str,
+    jar: &str,
+    name: &str,
+    token: &str,
+    display: DisplayMode,
+) -> Result<ShellStream> {
+    let hidden = match display {
+        DisplayMode::Main => "",
+        DisplayMode::Hidden => " hidden",
+    };
     // `$M` keeps the class name out of this shell's own command line, which `pkill -f` would otherwise match.
     let mut shell = adb
         .shell_stream(
             serial,
             &format!(
-                "[ -f {jar} ] || exit {JAR_MISSING}; pkill -f 'dev.phonedriver.agent.[M]ain'; M=Main; CLASSPATH={jar} exec app_process / dev.phonedriver.agent.$M {VERSION} {name}"
+                "[ -f {jar} ] || exit {JAR_MISSING}; pkill -f 'dev.phonedriver.agent.[M]ain'; M=Main; CLASSPATH={jar} exec app_process / dev.phonedriver.agent.$M {VERSION} {name}{hidden}"
             ),
         )
         .await?;
@@ -134,7 +149,7 @@ impl LineSplitter {
 }
 
 /// `Ok(false)` when the shell found no jar at the path (exit `JAR_MISSING`).
-async fn wait_ready(shell: &mut ShellStream, log: &AgentLog) -> Result<bool> {
+async fn wait_ready(shell: &mut ShellStream, log: &AgentLog, limit: Duration) -> Result<bool> {
     let mut out = LineSplitter {
         pending: String::new(),
     };
@@ -159,45 +174,58 @@ async fn wait_ready(shell: &mut ShellStream, log: &AgentLog) -> Result<bool> {
         }
         Ok::<(), Error>(())
     };
-    let timed_out = tokio::time::timeout(READY_TIMEOUT, wait).await.is_err();
+    let timed_out = tokio::time::timeout(limit, wait).await.is_err();
     if ready {
         return Ok(true);
     }
     if exit == Some(JAR_MISSING) {
         return Ok(false);
     }
-    let lines = log.recent();
+    Err(not_ready(exit, timed_out, limit, &log.recent()))
+}
+
+fn not_ready(exit: Option<i32>, timed_out: bool, limit: Duration, lines: &[String]) -> Error {
     let tail = lines.join("\n");
     if exit == Some(4) || tail.contains("already registered") {
-        return Err(Error::AutomationConflict {
+        return Error::AutomationConflict {
             holder: CONFLICT_HOLDER.to_string(),
-        });
+        };
+    }
+    if exit == Some(NO_HIDDEN_DISPLAY) {
+        return Error::Unsupported {
+            op: Op::Display,
+            reason: "a hidden display needs Android 13 (API 33) or newer, and the phone must allow it",
+        };
     }
     if timed_out {
-        return Err(transport(format!(
+        return transport(format!(
             "the agent did not print `ready` within {} s: {tail}",
-            READY_TIMEOUT.as_secs()
-        )));
+            limit.as_secs()
+        ));
     }
-    Err(transport(format!(
+    transport(format!(
         "the agent exited with code {} before it was ready: {tail}",
         exit.unwrap_or(-1)
-    )))
+    ))
 }
 
 /// Kills any running agent, starts a new one and waits for it to listen. One adb shell does the existence check of the
 /// jar, the kill and the start, so a warm start costs one round trip to the device before the agent boots; the jar is
 /// pushed only when the shell reports it missing.
-pub async fn launch(adb: &Adb, serial: &str) -> Result<Launched> {
+pub async fn launch(adb: &Adb, serial: &str, display: DisplayMode) -> Result<Launched> {
     let jar = jar_path();
     let name = format!("phonedriver-{VERSION}-{}", random_hex(4)?);
     let token = random_hex(32)?;
     let log = AgentLog::default();
-    let mut shell = start(adb, serial, &jar, &name, &token).await?;
-    if !wait_ready(&mut shell, &log).await? {
+    let ready_limit = match display {
+        DisplayMode::Main => READY_TIMEOUT,
+        DisplayMode::Hidden => HIDDEN_READY_TIMEOUT,
+    };
+    let mut shell = start(adb, serial, &jar, &name, &token, display).await?;
+    if !wait_ready(&mut shell, &log, ready_limit).await? {
         deploy(adb, serial).await?;
-        shell = start(adb, serial, &jar, &name, &token).await?;
-        if !wait_ready(&mut shell, &log).await? {
+        shell = start(adb, serial, &jar, &name, &token, display).await?;
+        if !wait_ready(&mut shell, &log, ready_limit).await? {
             return Err(transport(format!(
                 "the agent jar is not at {jar} after the push"
             )));
@@ -278,6 +306,9 @@ pub struct Hello {
     pub model: String,
     pub density: f32,
     pub display: DisplaySize,
+    /// Set when the agent works on a virtual display: its id.
+    #[serde(default)]
+    pub hidden_display: Option<u32>,
 }
 
 /// A connected agent. Dropping it closes the shell stream, which ends the agent on the device within about a second.
@@ -306,8 +337,8 @@ async fn open_stream(
 }
 
 impl Agent {
-    pub async fn start(adb: &Adb, serial: &str) -> Result<Agent> {
-        let launched = launch(adb, serial).await?;
+    pub async fn start(adb: &Adb, serial: &str, display: DisplayMode) -> Result<Agent> {
+        let launched = launch(adb, serial, display).await?;
         let (control, video) = tokio::try_join!(
             open_stream(
                 adb,
@@ -341,5 +372,43 @@ impl Agent {
             log: launched.log.clone(),
             launched,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn hello_carries_the_hidden_display_id_when_there_is_one() {
+        let hello: Hello = serde_json::from_value(json!({
+            "api": 37, "model": "m", "density": 2.0,
+            "display": {"w": 2560, "h": 1600, "rotation": 0},
+            "hidden_display": 7
+        }))
+        .unwrap();
+        assert_eq!(hello.hidden_display, Some(7));
+        let plain: Hello = serde_json::from_value(json!({
+            "api": 37, "model": "m", "density": 2.0,
+            "display": {"w": 2560, "h": 1600, "rotation": 0}
+        }))
+        .unwrap();
+        assert_eq!(plain.hidden_display, None);
+    }
+
+    #[test]
+    fn an_agent_that_refuses_a_hidden_display_is_unsupported_not_a_transport_failure() {
+        let lines = vec!["hidden display: needs Android 13 (API 33), this is API 26".to_string()];
+        assert!(matches!(
+            not_ready(Some(NO_HIDDEN_DISPLAY), false, READY_TIMEOUT, &lines),
+            Error::Unsupported {
+                op: Op::Display,
+                ..
+            }
+        ));
+        assert!(matches!(
+            not_ready(Some(1), false, READY_TIMEOUT, &lines),
+            Error::Transport { .. }
+        ));
     }
 }

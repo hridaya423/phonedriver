@@ -8,8 +8,8 @@ use std::time::Duration;
 
 use base64::Engine;
 use phonedriver_core::device::{
-    App, AppId, AppOp, Button, Capabilities, ClipboardOp, Device, DeviceEvent, FrameRef, Gesture,
-    Key, Quality, ScreenState, ShellRequest, TextInput, TimedPoint, Url,
+    App, AppId, AppOp, Button, Capabilities, ClipboardOp, Device, DeviceEvent, DisplayMode,
+    FrameRef, Gesture, Key, Quality, ScreenState, ShellRequest, TextInput, TimedPoint, Url,
 };
 use phonedriver_core::diff::{Change, DiffOrFull, diff};
 use phonedriver_core::element::{Actions, Element, ElementState, Ref, Role, Source};
@@ -98,6 +98,7 @@ pub type Phases = Vec<(&'static str, u32)>;
 pub struct Job {
     pub session: String,
     pub share: bool,
+    pub display: DisplayMode,
     pub call: Call,
     pub reply: oneshot::Sender<(Result<Value, Error>, Phases)>,
 }
@@ -133,6 +134,7 @@ struct Lease {
 
 struct Live {
     device: Arc<dyn Device>,
+    display: DisplayMode,
     frames: watch::Receiver<FrameRef>,
     events: broadcast::Receiver<DeviceEvent>,
     screen: Size,
@@ -261,7 +263,8 @@ impl Actor {
             tokio::select! {
                 job = rx.recv() => {
                     let Some(job) = job else { break };
-                    let result = self.handle(job.session, job.share, job.call).await;
+                    let result = self.handle(job.session, job.share, job.display, job.call)
+                        .await;
                     let phases = std::mem::take(&mut self.phases);
                     let _ = job.reply.send((result, phases));
                 }
@@ -388,11 +391,14 @@ impl Actor {
         Ok(())
     }
 
-    async fn ensure_live(&mut self) -> Result<(), Error> {
-        if self.live.is_some() {
+    async fn ensure_live(&mut self, display: DisplayMode) -> Result<(), Error> {
+        if self.live.as_ref().is_some_and(|l| l.display == display) {
             return Ok(());
         }
-        let device = self.source.connect(&self.id).await?;
+        self.live = None;
+        self.awake = None;
+        self.guard_view = None;
+        let device = self.source.connect_on(&self.id, display).await?;
         let frames = device
             .frames()
             .unwrap_or_else(|| watch::channel(FrameRef::default()).1);
@@ -411,6 +417,7 @@ impl Actor {
         self.recent = Some((self.now(), Input::WindowChanged));
         self.live = Some(Live {
             device,
+            display,
             frames,
             events,
             screen,
@@ -418,12 +425,21 @@ impl Actor {
         Ok(())
     }
 
-    async fn handle(&mut self, session: String, share: bool, call: Call) -> Result<Value, Error> {
+    async fn handle(
+        &mut self,
+        session: String,
+        share: bool,
+        display: DisplayMode,
+        call: Call,
+    ) -> Result<Value, Error> {
         if matches!(call, Call::Leased) {
-            return Ok(self.lease.as_ref().map_or(
-                Value::Null,
-                |l| json!({"session": l.session, "idle_s": l.last_call.elapsed().as_secs()}),
-            ));
+            let hidden_display = self.live.as_ref().and_then(|l| l.device.hidden_display());
+            return Ok(match &self.lease {
+                Some(l) => {
+                    json!({"session": l.session, "idle_s": l.last_call.elapsed().as_secs(), "hidden_display": hidden_display})
+                }
+                None => json!({"hidden_display": hidden_display}),
+            });
         }
         if matches!(call, Call::Release) {
             if self.lease.as_ref().is_some_and(|l| l.session == session) {
@@ -433,7 +449,7 @@ impl Actor {
         }
         self.acquire(&session, share)?;
         let t = Instant::now();
-        let live = self.ensure_live().await;
+        let live = self.ensure_live(display).await;
         self.lap("connect", t);
         if let Err(e) = live {
             if self.lease.as_ref().is_some_and(|l| l.session == session) {
@@ -691,7 +707,9 @@ impl Actor {
             }
         };
         let info = device.info();
-        Ok(json!({"id": info.id, "model": info.model, "os": info.os, "frames_ms": frames_ms}))
+        Ok(
+            json!({"id": info.id, "model": info.model, "os": info.os, "frames_ms": frames_ms, "hidden_display": device.hidden_display()}),
+        )
     }
 
     /// With `marks`, boxes every element that takes a tap, a long press or text, labelled with the ref a tap on it

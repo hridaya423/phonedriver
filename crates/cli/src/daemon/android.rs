@@ -6,7 +6,7 @@ use std::sync::{Arc, Mutex};
 use async_trait::async_trait;
 use phonedriver_android::adb::{Adb, AdbDevice, DeviceState};
 use phonedriver_android::device::AndroidDevice;
-use phonedriver_core::device::{Capabilities, Device};
+use phonedriver_core::device::{Capabilities, Device, DisplayMode};
 use phonedriver_core::error::Error;
 
 use super::progress::after_a_second;
@@ -127,8 +127,12 @@ impl DeviceSource for AdbSource {
     }
 
     async fn connect(&self, id: &str) -> Result<Arc<dyn Device>, Error> {
+        self.connect_on(id, DisplayMode::Main).await
+    }
+
+    async fn connect_on(&self, id: &str, display: DisplayMode) -> Result<Arc<dyn Device>, Error> {
         let serial = id.strip_prefix("android:").unwrap_or(id);
-        let connecting = AndroidDevice::connect(&self.adb, serial);
+        let connecting = AndroidDevice::connect(&self.adb, serial, display);
         let device = after_a_second(
             || {
                 format!(
