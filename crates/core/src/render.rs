@@ -243,7 +243,7 @@ impl Rendered {
 
     /// Runs of sibling text and links in a web view become lines of their own; a heading whose children spell its
     /// label takes them into its line.
-    fn inline_plan(&self, shown: &[bool]) -> Vec<Plan> {
+    pub(crate) fn inline_plan(&self, shown: &[bool]) -> Vec<Plan> {
         let n = self.elements.len();
         let mut plan = vec![Plan::Own; n];
         let mut i = 0;
@@ -437,7 +437,7 @@ impl Rendered {
 }
 
 #[derive(Clone)]
-enum Plan {
+pub(crate) enum Plan {
     Own,
     Line(String),
     Skip,

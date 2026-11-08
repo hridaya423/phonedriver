@@ -866,3 +866,10 @@ The fixes come from the first run on a physical Android phone, a Honor X8 (TFY-L
 - `cargo test --workspace --no-fail-fast`: the result is below. Clippy is clean.
     Finished `dev` profile [unoptimized + debuginfo] target(s) in 2.91s
 - `cargo test --workspace --no-fail-fast`: 663 passed, 0 failed. Clippy is clean.
+
+## 2026-11-08: web text that appears in a diff is one line with its links inline (D35 in diffs)
+
+- Seen in agent run t5: tapping a collapsed Wikipedia section returned one `+` line per inline fragment (`+ @e821 text "Qualcomm announced it was developing the "`, `+ @e822 button "Scorpion"`, `+ @e823 text " central processing unit…"`).
+- Changed: `DiffOrFull::text` runs `Rendered::inline_plan` over the set of added elements, so a run of added sibling text and links prints as one `+` line, as a full screen already does. Changed and removed lines are as before.
+- Test: `web_text_that_appears_is_one_line_with_its_links_inline` failed first with the three-line output.
+- `cargo test --workspace --no-fail-fast`: 664 passed, 0 failed. Clippy is clean.
