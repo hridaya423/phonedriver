@@ -288,6 +288,8 @@ Secrets. The trace keeps the command text (an agent's command is what it did), b
 
 **Update 2026-11-07 (jobs benchmark).** An elicitation answered `cancel` is no answer, not a refusal: only `decline` says `The human declined`. `claude -p` answers every prompt with `cancel` because nobody is there, so a job whose prompt said "you may place the order" ended at a dead stop with no way forward. `cancel` now replies `Needs the human's approval; nothing was tapped (no answer ...)` with the screen facts and the way on: ask in chat, and call again with `autonomous: true` only if the user's own instructions already approve the tap. The guard still taps nothing without an approval; a prompt-injected screen can still not approve, since `autonomous` stays the agent's call under the SKILL.md rule.
 
+**Update 2026-11-08 (first recording).** Claude Code 2.1.319 renders the form as: `MCP server "phonedriver" requests your input`, the message (the app and the button, then the first line of screen text and `(+3 more lines)`), `Your answer: Allow` as a collapsed choice (Right expands it to `Allow` and `Allow for this session`, seen at 28 rows; at 17 rows only the focused option shows), and `Accept` / `Decline` buttons. Decline returns `The human declined; nothing was tapped` and the agent said so. Opus 5.5 asks in chat before tapping "Place order" unless the user's prompt approves the order, in 3 of 3 trials each way; the guard prompt appears either way once it taps.
+
 **Reopen if.** Real use shows labels missed often enough to extend the list, or false prompts often enough to narrow it (the table of labels is `crates/cli/src/daemon/guard.rs` tests), or Claude Code starts showing an image or rich preview in elicitation.
 
 

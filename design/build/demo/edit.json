@@ -1,0 +1,4 @@
+{"scenes":[
+{"name":"s1","run":"/private/tmp/claude-501/demo/s1a","start":0.4,"end":367.8,"speed":15,"freeze":2.0,"tail":3.0,"badge":"15x","captions":[[2.5,"Reads the screen as text",2.6],[190.0,"Picks the best-rated place",2.6],[340.0,"Stops at checkout",5.0]]},
+{"name":"s2","run":"/private/tmp/claude-501/demo/s2d","start":0.0,"end":14.4,"speed":1,"freeze":0,"tail":0,"badge":"REAL TIME","captions":[[7.6,"phonedriver asks you before it pays",5.2]]}],
+"card":3.4,"fade":0.4,"crf":22}

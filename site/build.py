@@ -485,17 +485,13 @@ def install_box():
 
 
 def build_home():
-    demo = '<video controls preload="none" width="960" height="660" poster="/assets/demo-poster.jpg"><source src="/assets/demo.mp4" type="video/mp4"></video><figcaption class="small">%s</figcaption>' % esc(D.DEMO_CAPTION)
+    demo = '<video controls preload="none" width="1280" height="720" poster="/assets/demo-poster.jpg"><source src="/assets/demo.mp4" type="video/mp4"></video><figcaption class="small">%s</figcaption>' % esc(D.DEMO_CAPTION)
     rows = ""
     for r in D.COMPARE_TABLE[1:]:
         rows += "<tr><th scope=\"row\">%s</th>%s</tr>" % (esc(r[0]), "".join('<td data-label="%s">%s</td>' % (esc(D.COMPARE_TABLE[0][i + 1]), mdlite.inline(c)) for i, c in enumerate(r[1:])))
     head = "".join('<th scope="col">%s</th>' % esc(c) for c in D.COMPARE_TABLE[0])
-    guard_sample = """<figure class="form"><figcaption class="lab">Illustration of the approval form (D27)</figcaption>
-<p class="ft">Approve a tap in <b>com.example.food</b>?</p>
-<p>Button: <code>Place order · $34.10</code></p>
-<p>On screen: <code>Total $34.10</code> <code>Deliver to 12 Elm St</code></p>
-<p class="choices"><span>Allow</span><span>Allow for this session</span><span>Decline</span></p>
-<p class="small">Allow runs the tap in the same tool call and the reply says <code>approved by the human</code>. Decline taps nothing.</p></figure>"""
+    guard_sample = """<figure class="form"><video controls preload="none" width="1280" height="720" poster="/assets/guard-poster.jpg"><source src="/assets/guard.mp4" type="video/mp4"></video>
+<figcaption class="small">The real prompt, recorded at real speed: Claude Code taps Place order, phonedriver stops the tap and Claude Code asks. Claude Code shows the app, the button and the first lines from the screen, a choice (Allow, or Allow for this session behind the arrow) and Accept or Decline. Here the human picks Decline and nothing is tapped.</figcaption></figure>"""
     body = f"""<div class="wrap hero">
 <div class="hcol">
 <p class="lab">@e1 PHONEDRIVER</p>
@@ -552,7 +548,7 @@ app com.android.settings (Settings) · keyboard hidden · settled in 212ms
     faq = {"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [
         {"@type": "Question", "name": q, "acceptedAnswer": {"@type": "Answer", "text": plain(a)}} for q, a in D.FAQ]}
     video = {"@context": "https://schema.org", "@type": "VideoObject", "name": "Claude Code orders food on an Android emulator with phonedriver",
-             "description": D.DEMO_CAPTION, "thumbnailUrl": url("/assets/demo-poster.jpg"), "uploadDate": TODAY, "contentUrl": url("/assets/demo.mp4"), "duration": "PT39S", "width": 960, "height": 660}
+             "description": D.DEMO_CAPTION, "thumbnailUrl": url("/assets/demo-poster.jpg"), "uploadDate": TODAY, "contentUrl": url("/assets/demo.mp4"), "duration": "PT46S", "width": 1280, "height": 720}
     site = {"@context": "https://schema.org", "@type": "WebSite", "name": "phonedriver", "url": url("/"), "inLanguage": "en"}
     layout("/", "phonedriver: let an AI agent control an Android or iOS phone", D.HOME_DESC, body, "WebPage", None, sw + [site, video, faq], og="/assets/hero-social.png")
     FULL.insert(0, ("/", "phonedriver", "# phonedriver\n\n" + D.DEFINITION + "\n\n" + "\n\n".join("## %s\n\n%s" % (q, plain(a)) for q, a in D.FAQ) + "\n"))
