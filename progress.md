@@ -811,3 +811,19 @@ Evidence:
   - `an_element_that_changes_in_several_ways_is_one_line_with_what_it_shows_now` failed first with exactly the iOS output.
   - `a_new_screen_after_an_action_leaves_the_settle_time_to_the_action_line` failed first.
 - `cargo test --workspace --no-fail-fast`: 646 passed, 0 failed.
+
+## 2026-11-08: real-phone token fixes (Honor X8, Android 13)
+
+The fixes come from the first run on a physical Android phone, a Honor X8 (TFY-LX2), on the MagicOS launcher, Settings and Google search.
+- **Bidi controls are stripped** where `raw.rs` reads each string (`non_empty`): U+200E, U+200F, U+202A to U+202E and U+2066 to U+2069.
+  - The launcher's weather widget printed `"‪6degrees celsius‬"`. Its `@e17 text` lines held only marks and came out as empty `text` lines.
+  - Test: `bidi_marks_are_not_part_of_a_label`. The empty-text case is `a_text_with_nothing_to_say_is_not_listed`.
+- **A hint the label already holds is not printed** (`render::shown_hint`, shared with the diff).
+  - The rule: the hint is dropped when the label holds all the hint's words, in order, case and punctuation ignored.
+  - Google search rows printed `"Recent search brightness control." "brightness control"` on every row.
+  - Values are not dropped: a field's text always prints. Test: `a_field_value_the_label_contains_is_still_printed`.
+  - Test: `a_hint_whose_words_the_label_already_holds_is_not_printed`.
+- **A list whose collection info says 0 rows prints no count.** Settings printed `@e69 list 0 rows` above 9 rows. Test: `a_list_without_a_row_count_does_not_say_zero_rows`.
+- Each test above failed before its change.
+- `cargo test --workspace --no-fail-fast`: 651 passed, 0 failed. Clippy is clean.
+- Open, not reproduced: just after the user unlocked the phone, `launch`, `scroll` and `tap` answered "The device is locked" within 43 to 81 ms. Earlier, while the lock screen was up, a `launch` answered `ok launched Settings` and listed the lock screen. `Keyguard.locked()` calls `IWindowManager.isKeyguardLocked`. Testing it means locking the phone, which only the user can undo, so it waits for the user.
