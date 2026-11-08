@@ -14,8 +14,8 @@ use rmcp::model::{
     CallToolRequestParams, CallToolResult, ClientCapabilities, ClientConfig, ElicitRequestParams,
     ElicitResult, ElicitationAction, Implementation, ProtocolVersion,
 };
-use rmcp::service::{RequestContext, RunningService};
-use rmcp::{ClientHandler, RoleClient, ServiceExt};
+use rmcp::service::{ClientLifecycleMode, RequestContext, RunningService};
+use rmcp::{ClientHandler, ClientServiceExt, RoleClient, ServiceExt};
 use serde_json::{Value, json};
 
 #[path = "support/guard_rig.rs"]
@@ -317,12 +317,19 @@ async fn mcp_asking(
         let _ = running.waiting().await;
     });
     let asked = Asked::default();
+    let lifecycle = if version >= ProtocolVersion::V_2026_07_28 {
+        ClientLifecycleMode::Discover {
+            preferred_versions: vec![version.clone()],
+        }
+    } else {
+        ClientLifecycleMode::Initialize
+    };
     let client = Human {
         version,
         answer,
         asked: asked.clone(),
     }
-    .serve(client_io)
+    .serve_with_lifecycle(client_io, lifecycle)
     .await
     .unwrap();
     Mcp2 { rig, client, asked }

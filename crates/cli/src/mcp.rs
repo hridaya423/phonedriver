@@ -31,7 +31,15 @@ pub struct Mcp {
     device: Option<String>,
     client: Arc<Mutex<Option<Client>>>,
     ask: Vec<Category>,
-    held_batch: Arc<Mutex<Option<(String, usize)>>>,
+    held: Arc<Mutex<Option<Held>>>,
+}
+
+/// The question a 2026-07-28 call returned: the call it belongs to, the batch step it holds and what it asked.
+/// A retry's answer counts only for the call that was asked.
+struct Held {
+    key: String,
+    step: usize,
+    asked: String,
 }
 
 #[derive(Deserialize, JsonSchema)]
@@ -361,7 +369,7 @@ impl Mcp {
             device: None,
             client: Arc::default(),
             ask: Vec::new(),
-            held_batch: Arc::default(),
+            held: Arc::default(),
         }
     }
 
@@ -435,6 +443,7 @@ impl Mcp {
     async fn guarded(
         &self,
         channel: Channel<'_>,
+        key: String,
         device: Option<String>,
         verb: impl Fn() -> Verb,
         secret: Option<String>,
@@ -448,10 +457,14 @@ impl Mcp {
             answer: Some(reply),
             ..
         } = &channel
+            && !autonomous
         {
+            let Some(held) = self.take_held(&key).await else {
+                return Outcome::Done(dismissed(None));
+            };
             match decision(reply) {
-                Decision::Declined => return Outcome::Done(declined()),
-                Decision::Dismissed => return Outcome::Done(dismissed(None)),
+                Decision::Declined => return Outcome::Done(declined_for(&held.asked)),
+                Decision::Dismissed => return Outcome::Done(dismissed(Some(&held.asked))),
                 Decision::Once => globals.approval = Some(Approval::Once),
                 Decision::Session => globals.approval = Some(Approval::Session),
             }
@@ -472,7 +485,14 @@ impl Mcp {
                 can_ask: true,
                 answer: None,
             } => match question(&prompt) {
-                Ok(q) => return Outcome::Ask(q),
+                Ok(q) => {
+                    *self.held.lock().await = Some(Held {
+                        key,
+                        step: 0,
+                        asked,
+                    });
+                    return Outcome::Ask(q);
+                }
                 Err(why) => return Outcome::Done(cannot_ask(&asked, &why)),
             },
             Channel::Peer(peer)
@@ -514,7 +534,7 @@ impl Mcp {
         steps: Vec<serde_json::Value>,
         timeout: Option<u64>,
     ) -> Outcome {
-        let key = json!([&device, &steps, timeout]).to_string();
+        let key = json!(["batch", &device, &steps, timeout]).to_string();
         let mut globals = self.globals(device);
         globals.timeout = timeout;
         let mut from = 0;
@@ -523,17 +543,16 @@ impl Mcp {
             ..
         } = &channel
         {
-            let held = self.held_batch.lock().await.take();
-            let Some((_, step)) = held.filter(|(k, _)| *k == key) else {
+            let Some(held) = self.take_held(&key).await else {
                 return Outcome::Done(dismissed(None));
             };
             match decision(reply) {
-                Decision::Declined => return Outcome::Done(declined()),
-                Decision::Dismissed => return Outcome::Done(dismissed(None)),
+                Decision::Declined => return Outcome::Done(declined_for(&held.asked)),
+                Decision::Dismissed => return Outcome::Done(dismissed(Some(&held.asked))),
                 Decision::Once => globals.approval = Some(Approval::Once),
                 Decision::Session => globals.approval = Some(Approval::Session),
             }
-            from = step;
+            from = held.step;
         }
         loop {
             let rest = steps[from..].to_vec();
@@ -559,7 +578,11 @@ impl Mcp {
                     answer: _,
                 } => match question(&prompt) {
                     Ok(q) => {
-                        *self.held_batch.lock().await = Some((key, held));
+                        *self.held.lock().await = Some(Held {
+                            key,
+                            step: held,
+                            asked,
+                        });
                         return Outcome::Ask(q);
                     }
                     Err(why) => return Outcome::Done(cannot_ask(&asked, &why)),
@@ -585,6 +608,16 @@ impl Mcp {
                 Decision::Session => globals.approval = Some(Approval::Session),
             }
             from = held;
+        }
+    }
+
+    /// The open question, if `key` is the call it was asked for; another call's answer leaves it open.
+    async fn take_held(&self, key: &str) -> Option<Held> {
+        let mut slot = self.held.lock().await;
+        if slot.as_ref().is_some_and(|h| h.key == key) {
+            slot.take()
+        } else {
+            None
         }
     }
 
@@ -616,6 +649,7 @@ impl Mcp {
             .as_ref()
             .and_then(|r| r.get(APPROVAL_KEY));
         let channel = Channel::Mrtr { can_ask, answer };
+        let key = json!([&request.name, &args]).to_string();
         let invalid = |e: serde_json::Error| rmcp::ErrorData::invalid_params(e.to_string(), None);
         let outcome = if request.name == "batch" {
             let a: BatchArgs = serde_json::from_value(args).map_err(invalid)?;
@@ -629,14 +663,14 @@ impl Mcp {
         } else if request.name == "tap" {
             let a: TapArgs = serde_json::from_value(args).map_err(invalid)?;
             let (device, autonomous) = (a.device.clone(), a.autonomous.unwrap_or(false));
-            self.guarded(channel, device, || a.clone().verb(), None, autonomous)
+            self.guarded(channel, key, device, || a.clone().verb(), None, autonomous)
                 .await
         } else {
             let a: TypeArgs = serde_json::from_value(args).map_err(invalid)?;
             let secret = a.secret.unwrap_or(false);
             let (device, autonomous) = (a.device.clone(), a.autonomous.unwrap_or(false));
             let text = secret.then(|| a.text.clone());
-            self.guarded(channel, device, || a.type_verb(), text, autonomous)
+            self.guarded(channel, key, device, || a.type_verb(), text, autonomous)
                 .await
         };
         Ok(match outcome {
@@ -793,12 +827,6 @@ fn decision(reply: &serde_json::Value) -> Decision {
         Some(ALLOW_SESSION) => Decision::Session,
         _ => Decision::Once,
     }
-}
-
-fn declined() -> CallToolResult {
-    text_result(
-        "The human declined; nothing was tapped. Stop, or ask the user what to do instead.".into(),
-    )
 }
 
 fn declined_for(asked: &str) -> CallToolResult {
@@ -1032,6 +1060,7 @@ impl Mcp {
         let outcome = self
             .guarded(
                 Channel::Peer(&peer),
+                String::new(),
                 device,
                 || a.clone().verb(),
                 None,
@@ -1063,6 +1092,7 @@ impl Mcp {
         let outcome = self
             .guarded(
                 Channel::Peer(&peer),
+                String::new(),
                 device,
                 || a.type_verb(),
                 text,

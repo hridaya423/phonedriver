@@ -573,3 +573,20 @@ The pre-existing 8:30 and 9:00 alarms were left alone.
   - **F3.** The `mrtr::` half of `tests/guard.rs` ran the 2025-11-25 path: `.serve(..)` negotiates the old handshake whatever `get_info` names. With `ClientLifecycleMode::Discover`, 34 of 36 pass; 2 fail on text only (a decline or dismissal on a retry omits the button label and category). `guard_property.rs` uses Discover.
 - Not covered: label classification in other languages and screens, concurrent calls, `PHONEDRIVER_GUARD=off`, the CLI path, taps by other routes (`shell input`, deep links), a real Claude Code client. Details in the skill.
 - Deeper run: `PROPTEST_CASES=60 cargo test -p phonedriver --test guard_property` -> 3 passed in 201 s; retry property 264 sequences, 1332 calls, 579 fresh questions, 203 exact resumes, 343 answers with no question open, 156 refused.
+
+## 2026-11-08: approval guard F1/F2/F3 fixed (verify-approval-guard findings)
+
+What changed:
+- `mcp.rs` keeps one open 2026-07-28 question (`Held`: key, batch step, question text) for `tap`, `type` and `batch`. The key is the tool name and its arguments.
+- A retry's answer counts only when its key matches the open question. Any other answer is dismissed, and nothing is tapped (F1).
+- The key is compared before the question is taken, so a stray answer leaves another call's question open (F2).
+- A decline or a dismissal on a retry now quotes the held question (F3 message gap).
+- An `autonomous: true` call ignores a stray answer.
+- `tests/guard.rs` now starts its 2026-07-28 client with the Discover handshake, so its `mrtr::` half really runs that protocol (F3).
+- The F1/F2 tests and the tap/type retry property no longer carry `#[ignore]`.
+
+Evidence:
+- `cargo test -p phonedriver --test guard`: 36 passed, on the real 2026-07-28 handshake. With the Discover handshake and before the fix, 2 failed on the decline text.
+- `PROPTEST_CASES=60 cargo test -p phonedriver --test guard_property`: 7 passed, in 243.84 s.
+- `cargo test --workspace`: 585 passed, 0 failed.
+- `cargo clippy --workspace --all-targets -- -D warnings`: clean.
