@@ -306,7 +306,12 @@ async fn agent_checks(id: &str) -> Vec<Check> {
         Err(e) => return vec![cannot_reach_daemon(format!("agent {id}"), &e)],
     };
     let started = Instant::now();
-    let reply = client.call("health", json!({"device": id})).await;
+    let mut params = json!({"device": id});
+    crate::commands::put_display(
+        &mut params,
+        crate::commands::display_mode(&std::env::var("PHONEDRIVER_DISPLAY").unwrap_or_default()),
+    );
+    let reply = client.call("health", params).await;
     let _ = client.call("release", json!({"device": id})).await;
     match reply {
         Ok(r) => {
@@ -325,6 +330,14 @@ async fn agent_checks(id: &str) -> Vec<Check> {
                     "connected, the screen tree reads",
                 ),
             ];
+            if let Some(display) = r["hidden_display"].as_u64() {
+                checks.push(Check::ok(
+                    format!("display {id}"),
+                    format!(
+                        "hidden mode: working on virtual display {display}, not the phone's screen"
+                    ),
+                ));
+            }
             checks.push(match r["frames_ms"].as_u64() {
                 Some(ms) => Check::ok(format!("video {id}"), format!("a frame arrived after {ms} ms")),
                 None => Check::bad(

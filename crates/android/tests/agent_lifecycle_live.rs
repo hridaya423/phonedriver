@@ -86,7 +86,9 @@ async fn start_connects_both_streams_and_a_stale_agent_is_killed() {
         "the stale agent should be running first"
     );
 
-    let conn = Agent::start(&adb, &serial).await.unwrap();
+    let conn = Agent::start(&adb, &serial, phonedriver_core::device::DisplayMode::Main)
+        .await
+        .unwrap();
     assert!(conn.hello.api >= 26);
     assert!(conn.hello.display.w > 0 && conn.hello.density > 0.5);
     let procs = agent_processes(&adb, &serial).await;
@@ -104,7 +106,9 @@ async fn start_connects_both_streams_and_a_stale_agent_is_killed() {
 async fn closing_the_shell_stream_ends_the_agent_within_a_second_and_a_half() {
     let _g = raw::exclusive().await;
     let (adb, serial) = (support::adb(), support::serial());
-    let conn = Agent::start(&adb, &serial).await.unwrap();
+    let conn = Agent::start(&adb, &serial, phonedriver_core::device::DisplayMode::Main)
+        .await
+        .unwrap();
     assert!(!agent_processes(&adb, &serial).await.is_empty());
     drop(conn);
     let gone = wait_until_gone(&adb, &serial, Duration::from_millis(2500)).await;
@@ -116,7 +120,9 @@ async fn closing_the_shell_stream_ends_the_agent_within_a_second_and_a_half() {
 async fn an_agent_nobody_connects_to_exits_after_ten_seconds() {
     let _g = raw::exclusive().await;
     let (adb, serial) = (support::adb(), support::serial());
-    let launched = agent::launch(&adb, &serial).await.unwrap();
+    let launched = agent::launch(&adb, &serial, phonedriver_core::device::DisplayMode::Main)
+        .await
+        .unwrap();
     let started = Instant::now();
     tokio::time::sleep(Duration::from_secs(8)).await;
     assert!(
@@ -137,7 +143,9 @@ async fn an_agent_nobody_connects_to_exits_after_ten_seconds() {
 async fn a_connection_without_the_token_is_dropped() {
     let _g = raw::exclusive().await;
     let (adb, serial) = (support::adb(), support::serial());
-    let launched = agent::launch(&adb, &serial).await.unwrap();
+    let launched = agent::launch(&adb, &serial, phonedriver_core::device::DisplayMode::Main)
+        .await
+        .unwrap();
     let mut s = adb.open_abstract(&serial, &launched.name).await.unwrap();
     s.write_all(b"C").await.unwrap();
     raw::write_frame(
@@ -164,7 +172,7 @@ async fn another_ui_automation_client_is_reported_as_a_conflict() {
         .await
         .unwrap();
     tokio::time::sleep(Duration::from_millis(1500)).await;
-    let result = Agent::start(&adb, &serial).await;
+    let result = Agent::start(&adb, &serial, phonedriver_core::device::DisplayMode::Main).await;
     drop(holder.close_stdin().await);
     drop(holder);
     match result {

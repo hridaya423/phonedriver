@@ -125,6 +125,18 @@ pub fn reply_error(op: Op, error: &str) -> Error {
             reason: "keystroke mode has no key for this character; use paste mode",
         };
     }
+    if error.contains("the hidden display has no power button") {
+        return Error::Unsupported {
+            op,
+            reason: "the hidden display has no power button, so the phone's own screen is left as it is",
+        };
+    }
+    if error.contains("the hidden display has no notification shade") {
+        return Error::Unsupported {
+            op,
+            reason: "the hidden display has no notification shade",
+        };
+    }
     Error::Transport {
         detail: format!("the agent could not run {}: {error}", op.name()),
     }
@@ -140,6 +152,23 @@ mod tests {
 
     const SETTINGS: &str =
         include_str!("../../core/tests/fixtures/android/real_settings_main.json");
+
+    #[test]
+    fn what_the_hidden_display_lacks_is_unsupported_not_a_broken_connection() {
+        let lock = reply_error(
+            Op::Button,
+            "java.lang.IllegalStateException: the hidden display has no power button; the phone's own screen is left as it is",
+        );
+        assert!(
+            matches!(lock, Error::Unsupported { op: Op::Button, .. }),
+            "{lock:?}"
+        );
+        let shade = reply_error(
+            Op::Button,
+            "java.lang.IllegalStateException: the hidden display has no notification shade",
+        );
+        assert!(matches!(shade, Error::Unsupported { .. }), "{shade:?}");
+    }
 
     #[test]
     fn raw_tree_converts_pixels_to_points_and_keeps_roles_and_flags() {

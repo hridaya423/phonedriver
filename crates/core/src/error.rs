@@ -182,6 +182,7 @@ pub enum Op {
     Ocr,
     App,
     Shell,
+    Display,
 }
 
 impl Op {
@@ -201,6 +202,7 @@ impl Op {
             Op::Ocr => "ocr",
             Op::App => "app",
             Op::Shell => "shell",
+            Op::Display => "display",
         }
     }
 }
@@ -529,6 +531,9 @@ impl Error {
             }
             Error::Unsupported { op: Op::Key, .. } => {
                 "Use `phonedriver press enter` or tap the field's Done button to end editing.".into()
+            }
+            Error::Unsupported { op: Op::Display, .. } => {
+                "Leave out `--display hidden` (and unset `PHONEDRIVER_DISPLAY`) to work on the phone's own screen.".into()
             }
             Error::Unsupported { op: Op::Ocr, .. } => {
                 "Use `phonedriver screenshot` to look at the screen instead.".into()

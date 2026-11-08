@@ -218,6 +218,9 @@ pub struct DeviceEntry {
     /// Seconds since the leasing session last called.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub lease_idle_s: Option<u64>,
+    /// The virtual display the live device works on, when it works on one.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub hidden_display: Option<u32>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -246,6 +249,8 @@ pub struct Common {
     pub device: Option<String>,
     #[serde(default)]
     pub share: bool,
+    #[serde(default)]
+    pub display: phonedriver_core::device::DisplayMode,
 }
 
 #[derive(Debug, Default, Deserialize)]

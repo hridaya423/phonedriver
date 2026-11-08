@@ -240,10 +240,25 @@ pub struct ScreenState {
     pub focused: bool,
 }
 
+/// Which screen an Android agent works on (decision D32).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DisplayMode {
+    /// The phone's own screen.
+    #[default]
+    Main,
+    /// A virtual display the human cannot see (Android 13 and later).
+    Hidden,
+}
+
 /// The seam between the domain and each platform (architecture 4.8).
 #[async_trait]
 pub trait Device: Send + Sync {
     fn info(&self) -> &DeviceInfo;
+    /// The id of the virtual display this device works on, when it works on one.
+    fn hidden_display(&self) -> Option<u32> {
+        None
+    }
     async fn tree(&self) -> Result<RawTree>;
     /// `None` when the device has no frame stream and settle polls screenshots.
     fn frames(&self) -> Option<watch::Receiver<FrameRef>>;

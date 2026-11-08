@@ -3,7 +3,7 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use phonedriver_core::device::Device;
+use phonedriver_core::device::{Device, DisplayMode};
 use phonedriver_core::error::Error;
 
 use super::{DeviceSource, Listed};
@@ -83,6 +83,16 @@ impl DeviceSource for Sources {
             .map(|(_, s)| s)
             .ok_or_else(|| Error::DeviceGone { id: id.to_string() })?;
         source.connect(id).await
+    }
+
+    async fn connect_on(&self, id: &str, display: DisplayMode) -> Result<Arc<dyn Device>, Error> {
+        let source = self
+            .0
+            .iter()
+            .find(|(prefix, _)| id.starts_with(prefix))
+            .map(|(_, s)| s)
+            .ok_or_else(|| Error::DeviceGone { id: id.to_string() })?;
+        source.connect_on(id, display).await
     }
 
     fn blocker(&self, id: &str) -> Option<&'static str> {

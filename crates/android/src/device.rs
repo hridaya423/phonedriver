@@ -3,8 +3,8 @@
 use async_trait::async_trait;
 use phonedriver_core::device::{
     App, AppId, AppOp, Button, Capabilities, ClipboardOp, Device, DeviceEvent, DeviceInfo,
-    FrameRef, Gesture, Image, ImageFormat, Key, Quality, Result, ScreenState, ShellReply,
-    ShellRequest, TextInput, Url,
+    DisplayMode, FrameRef, Gesture, Image, ImageFormat, Key, Quality, Result, ScreenState,
+    ShellReply, ShellRequest, TextInput, Url,
 };
 use phonedriver_core::error::{Error, Op};
 use phonedriver_core::geometry::{Rect, Size};
@@ -27,6 +27,7 @@ pub struct AndroidDevice {
     adb: Adb,
     serial: String,
     info: DeviceInfo,
+    hidden_display: Option<u32>,
     density: f32,
     control: Control,
     video: VideoStream,
@@ -40,14 +41,14 @@ impl AndroidDevice {
     /// once the first frame has been decoded (or after 2 s), so settle and screenshots have a picture from the start.
     /// `info().screen` is the size at connect time; a later rotation arrives as `DeviceEvent::DisplayChanged`.
     /// Dropping the device closes the agent's shell stream, which ends the agent within about a second.
-    pub async fn connect(adb: &Adb, serial: &str) -> Result<AndroidDevice> {
+    pub async fn connect(adb: &Adb, serial: &str, display: DisplayMode) -> Result<AndroidDevice> {
         let Agent {
             control,
             video,
             hello,
             log,
             launched,
-        } = Agent::start(adb, serial).await?;
+        } = Agent::start(adb, serial, display).await?;
         let density = hello.density;
         let id = format!("android:{serial}");
         let (events, _) = broadcast::channel(EVENT_BACKLOG);
@@ -69,6 +70,7 @@ impl AndroidDevice {
                 density,
                 capabilities: Capabilities::all(),
             },
+            hidden_display: hello.hidden_display,
             density,
             control: Control::new(id, control, density, events.clone()),
             video,
@@ -126,6 +128,10 @@ impl AndroidDevice {
 impl Device for AndroidDevice {
     fn info(&self) -> &DeviceInfo {
         &self.info
+    }
+
+    fn hidden_display(&self) -> Option<u32> {
+        self.hidden_display
     }
 
     async fn tree(&self) -> Result<RawTree> {

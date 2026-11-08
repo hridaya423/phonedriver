@@ -41,7 +41,7 @@ Progress: a client that sends `"progress": true` in `hello` may receive notifica
 
 `device` is omitted when exactly one device is connected or a default is set. Every device method also takes `session` (string, default `"default"`); refs, diff baselines and leases belong to the session, not to the socket connection (architecture section 5).
 
-`open` and `launch` are `act` kinds, not methods. `share?: boolean` is accepted by every device method (architecture 5, leases). Typed text and secrets: a `type` action's text is masked (`•••`) in `observation.text` when `secret` is true, and the trace records only its length.
+`open` and `launch` are `act` kinds, not methods. `share?: boolean` is accepted by every device method (architecture 5, leases). So is `display?: "main" | "hidden"` (default `main`; decision D32): a call in the other mode than the live connection reconnects the device in the requested one. `devices` entries and the `health` reply carry `hidden_display` (the virtual display's id) while the device works on one. Typed text and secrets: a `type` action's text is masked (`•••`) in `observation.text` when `secret` is true, and the trace records only its length.
 
 ```ts
 type Target = {ref: string} | {point: {x: number, y: number}} | {text: string, role?: Role}
@@ -140,6 +140,7 @@ Frames: `u32 big-endian length` + UTF-8 JSON. Requests carry `id`; replies echo 
 ```json
 → {"id":1,"op":"hello","version":"0.1.0","token":"<64 hex chars written to the agent's stdin at launch>"}
 ← {"id":1,"ok":true,"api":37,"model":"Pixel 9","density":2.625,"display":{"w":1080,"h":2400,"rotation":0}}
+(an agent started with the argument `hidden` adds "hidden_display":<id>; `display` is then that display's size)
 ```
 
 `hello` with the right token must be the first frame on the control stream. On the video stream, the frame after the `V` byte is `u32 length + {"token": "..."}`. A wrong or missing token closes the stream with no reply.

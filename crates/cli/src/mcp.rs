@@ -411,6 +411,9 @@ impl Mcp {
             timeout: None,
             expect_change: None,
             share: false,
+            display: crate::commands::display_mode(
+                &std::env::var("PHONEDRIVER_DISPLAY").unwrap_or_default(),
+            ),
             approval: None,
             ask: self.ask.clone(),
         }
@@ -990,6 +993,7 @@ impl Mcp {
                 if let Some(d) = &globals.device {
                     params["device"] = json!(d);
                 }
+                crate::commands::put_display(&mut params, globals.display);
                 let reply = client.call("screenshot", params).await?;
                 serde_json::from_value::<ScreenshotResult>(reply).map_err(|e| {
                     Failure::Local(format!("the daemon sent an unexpected reply: {e}"))

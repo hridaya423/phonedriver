@@ -26,8 +26,8 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use async_trait::async_trait;
-use phonedriver_core::device::{Capabilities, Device};
-use phonedriver_core::error::{DeviceSummary, Error};
+use phonedriver_core::device::{Capabilities, Device, DisplayMode};
+use phonedriver_core::error::{DeviceSummary, Error, Op};
 use serde_json::{Value, json};
 use tokio::io::split;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
@@ -67,6 +67,17 @@ pub struct Listed {
 pub trait DeviceSource: Send + Sync {
     async fn list(&self) -> Result<Vec<Listed>, Error>;
     async fn connect(&self, id: &str) -> Result<Arc<dyn Device>, Error>;
+
+    /// Connects working on `display`. Only sources that can host a virtual display say yes to `Hidden`.
+    async fn connect_on(&self, id: &str, display: DisplayMode) -> Result<Arc<dyn Device>, Error> {
+        match display {
+            DisplayMode::Main => self.connect(id).await,
+            DisplayMode::Hidden => Err(Error::Unsupported {
+                op: Op::Display,
+                reason: "a hidden display exists only on Android 13 and later",
+            }),
+        }
+    }
 
     /// The devices to look through when a request names `requested` (`None`: no device named). A source that
     /// owns several backends asks only the ones that can hold that device.
@@ -223,7 +234,9 @@ impl Daemon {
                     _ => Call::Wait(rpc::params(params)?),
                 };
                 let id = self.resolve(common.device.as_deref()).await?;
-                Ok(self.send(&id, session, common.share, call).await?)
+                Ok(self
+                    .send(&id, session, common.share, common.display, call)
+                    .await?)
             }
             _ => Err(RpcError::new(
                 rpc::METHOD_NOT_FOUND,
@@ -293,13 +306,21 @@ impl Daemon {
             .clone()
     }
 
-    async fn send(&self, id: &str, session: &str, share: bool, call: Call) -> Result<Value, Error> {
+    async fn send(
+        &self,
+        id: &str,
+        session: &str,
+        share: bool,
+        display: DisplayMode,
+        call: Call,
+    ) -> Result<Value, Error> {
         let (reply, rx) = oneshot::channel();
         let gone = || Error::DeviceGone { id: id.to_string() };
         self.actor(id)
             .send(Job {
                 session: session.to_string(),
                 share,
+                display,
                 call,
                 reply,
             })
@@ -319,11 +340,13 @@ impl Daemon {
                 .unwrap_or_else(|e| e.into_inner())
                 .contains_key(&l.id);
             let lease = if existing {
-                self.send(&l.id, "", false, Call::Leased).await?
+                self.send(&l.id, "", false, DisplayMode::Main, Call::Leased)
+                    .await?
             } else {
                 Value::Null
             };
             let leased_by = lease["session"].as_str().map(str::to_string);
+            let hidden_display = lease["hidden_display"].as_u64().map(|d| d as u32);
             let lease_idle_s = lease["idle_s"].as_u64();
             out.push(DeviceEntry {
                 id: l.id,
@@ -333,6 +356,7 @@ impl Daemon {
                 capabilities: l.capabilities,
                 leased_by,
                 lease_idle_s,
+                hidden_display,
             });
         }
         Ok(serde_json::to_value(out).unwrap_or(Value::Null))
@@ -442,7 +466,9 @@ impl Daemon {
             .cloned()
             .collect();
         for id in ids {
-            let _ = self.send(&id, session, false, Call::Release).await;
+            let _ = self
+                .send(&id, session, false, DisplayMode::Main, Call::Release)
+                .await;
         }
     }
 }

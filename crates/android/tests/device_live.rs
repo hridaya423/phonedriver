@@ -19,7 +19,9 @@ async fn connect() -> (AndroidDevice, String, tokio::sync::MutexGuard<'static, (
     let guard = raw::exclusive().await;
     let (adb, serial) = (support::adb(), support::serial());
     testbed::ensure_installed(&adb, &serial).await;
-    let device = AndroidDevice::connect(&adb, &serial).await.unwrap();
+    let device = AndroidDevice::connect(&adb, &serial, phonedriver_core::device::DisplayMode::Main)
+        .await
+        .unwrap();
     (device, serial, guard)
 }
 
@@ -277,4 +279,53 @@ async fn connect_returns_once_the_first_frame_has_arrived() {
         "no frame yet right after connect: {:?}",
         *frames.borrow()
     );
+}
+
+#[tokio::test]
+#[ignore = "needs PHONEDRIVER_TEST_DEVICE on Android 13 or later"]
+async fn the_testbed_on_the_hidden_display_gets_the_taps_and_is_a_task_of_that_display() {
+    let _g = raw::exclusive().await;
+    let (adb, serial) = (support::adb(), support::serial());
+    testbed::ensure_installed(&adb, &serial).await;
+    let device =
+        AndroidDevice::connect(&adb, &serial, phonedriver_core::device::DisplayMode::Hidden)
+            .await
+            .unwrap();
+    let id = device.hidden_display().expect("a hidden display id");
+    assert!(id > 0);
+    testbed::clear_log(&adb, &serial).await;
+    device
+        .launch(&AppId(testbed::PACKAGE.into()))
+        .await
+        .unwrap();
+    let button = wait_for_node(&device, Duration::from_secs(10), |n| {
+        n.label.as_deref() == Some("b1")
+    })
+    .await
+    .expect("button b1 on the hidden display's tree");
+    device
+        .gesture(tap_at(button.bounds.center()))
+        .await
+        .unwrap();
+    let log = testbed::wait_for_log(&adb, &serial, 3000, |l| {
+        l.iter().any(|e| e["ev"] == "tap" && e["id"] == "b1")
+    })
+    .await;
+    assert!(
+        log.iter().any(|e| e["ev"] == "tap" && e["id"] == "b1"),
+        "{log:?}"
+    );
+    let dump = adb
+        .shell(&serial, "dumpsys activity activities")
+        .await
+        .unwrap()
+        .stdout_text();
+    let on_display = dump
+        .split("RootTask id=")
+        .filter(|t| t.contains(&format!("displayId={id}")))
+        .any(|t| t.contains(testbed::PACKAGE));
+    assert!(on_display, "the testbed is not on display {id}");
+    let foreground = device.foreground().await.unwrap();
+    assert_eq!(foreground, Some(AppId(testbed::PACKAGE.into())));
+    drop(device);
 }
