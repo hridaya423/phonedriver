@@ -238,17 +238,17 @@ def device_frame(screen_w, screen_h, pad_x, pad_top, pad_bot):
 
 
 def layouts():
-    wide_term = demo_term.Term(26, 56, pad=14)
+    wide_term = demo_term.Term(25, 56, pad=12)
     tw, th = wide_term.size(19)
-    sw, sh = 262, 588
-    frame = device_frame(sw, sh, 10, 20, 20)
+    sw, sh = 308, 692
+    frame = device_frame(sw, sh, 8, 10, 10)
     short_term = demo_term.Term(31, 56, pad=8)
     sw2, sh2 = 372, 836
     frame2 = device_frame(sw2, sh2, 14, 26, 26)
     return {
-        "wide": dict(size=(1280, 720), term=wide_term, term_xy=(38, 28), phone=(sw, sh), frame=frame,
-                     frame_xy=(1280 - 30 - frame.size[0], 28 + (th - frame.size[1]) // 2), pad=(10, 20),
-                     caption_xy=(0, 672), caption_size=(1280, 48), caption_px=30, badge_px=22, badge_anchor=("right", 1280 - 30, 672 + 5),
+        "wide": dict(size=(1280, 720), term=wide_term, term_xy=(20, 24), phone=(sw, sh), frame=frame,
+                     frame_xy=(1280 - 20 - frame.size[0], (720 - frame.size[1]) // 2), pad=(8, 10),
+                     caption_xy=(20, 660), caption_size=(tw, 48), caption_px=28, badge_px=22, badge_anchor=("right", 20 + tw, 660 + 5),
                      rows=None, term_h=th, term_w=tw),
         "short": dict(size=(1080, 1920), term=short_term, term_xy=((1080 - short_term.size(10)[0]) // 2, 1030), phone=(sw2, sh2), frame=frame2,
                       frame_xy=((1080 - frame2.size[0]) // 2, 120), pad=(14, 26),
