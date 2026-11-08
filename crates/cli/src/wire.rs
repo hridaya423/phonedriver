@@ -441,3 +441,10 @@ pub struct BatchResult {
     /// What changed from where the agent last looked to the end of the last step that ran.
     pub observation: Observation,
 }
+
+/// Where the `device <id> · <model> · <os> · <size> · <orientation>` line is in a reply, if it has one.
+pub fn device_line_at(text: &str) -> Option<usize> {
+    text.lines()
+        .take(3)
+        .position(|l| l.starts_with("device ") && l.matches(" · ").count() >= 3)
+}

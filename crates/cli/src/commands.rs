@@ -706,7 +706,25 @@ async fn execute(
     g: &Globals,
 ) -> Result<String, Failure> {
     let mut client = Client::connect(session.to_string()).await?;
-    execute_with(&mut client, verb, secret, g).await
+    let out = execute_with(&mut client, verb, secret, g).await?;
+    if g.json {
+        return Ok(out);
+    }
+    Ok(without_repeated_device_line(&mut client, out).await)
+}
+
+/// A CLI call is its own process, so the daemon remembers per session which device line was last shown. The agent
+/// keeps every reply, so a line it already has is not printed again.
+async fn without_repeated_device_line(client: &mut Client, out: String) -> String {
+    let Some(at) = crate::wire::device_line_at(&out) else {
+        return out;
+    };
+    let mut lines: Vec<&str> = out.lines().collect();
+    if client.told(lines[at]).await.unwrap_or(false) {
+        lines.remove(at);
+        return lines.join("\n");
+    }
+    out
 }
 
 pub(crate) async fn execute_with(

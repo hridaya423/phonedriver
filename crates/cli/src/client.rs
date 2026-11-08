@@ -147,6 +147,12 @@ impl Client {
         }
     }
 
+    /// Records `line` as the device line this session was last shown and says whether it already was.
+    pub async fn told(&mut self, line: &str) -> Result<bool, Failure> {
+        let reply = self.call("told", json!({"line": line})).await?;
+        Ok(reply["same"].as_bool().unwrap_or(false))
+    }
+
     pub async fn call(&mut self, method: &str, mut params: Value) -> Result<Value, Failure> {
         params["session"] = Value::String(self.session.clone());
         Ok(self.call_raw(method, params).await?)
