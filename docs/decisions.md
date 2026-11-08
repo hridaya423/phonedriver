@@ -400,3 +400,21 @@ Secrets. The trace keeps the command text (an agent's command is what it did), b
 **Rejected.** A lock file on the host keyed by adb serial and server (misses a daemon on another machine, and a crashed daemon leaves a lock that needs a liveness check). Asking the owner over a socket (no common socket across machines). `flock` on the device (toybox on API 26 has none, and adbd closing the stream is what releases it, so it would be a second mechanism for what the agent process already is). Killing the owner after a grace period (the bug).
 
 **Limits.** The check and the write are two steps in one shell, so two daemons that start an agent in the same few milliseconds can both pass; the later `pkill` then ends the earlier agent and that daemon sees the old 143 error. An agent started by a phonedriver older than this change has no owner file and is still replaced, and an older daemon still kills a newer daemon's agent: the rule holds only between daemons that carry it. The owner file names a pid that may be dead when the owner crashed and adbd has not yet ended its agent; the host's 2 s grace covers adbd's usual second.
+
+## D35. Web text and its links print as one line, with each link inline as `[label @eN]`
+
+**Choice.** `Rendered::text` joins a run of consecutive sibling leaves inside a web view into one line when the run has at least two members and at least one is plain `text`. The members are text with no value and no state, and tappable links. The line is `@eN text "…"`, where `@eN` is the run's first plain text. Each link appears in place as `[label @eM]`. Every member keeps its ref, its element and its tap target. Only the printing changes, so `tap @eM`, diffs, `find` and text targets work as before.
+- A run longer than `MAX_TEXT` (200 characters) is cut between members, so truncation never hides a link.
+- A run with no plain text (a row of links only) keeps one line per link.
+- A non-tappable parent, such as a heading, whose children spell exactly its label takes the run into its own line: `heading "Welcome to [Wikipedia @e13]"`.
+- Spaces follow the page. A space is added between two pieces unless one side already has whitespace, or the next piece starts with `,.;:!?)`, or the last one ends with `(`.
+- `--interactive` and every line outside a web view are unchanged.
+
+**Why.** On a real phone, a Wikipedia main page was printed one line per inline run: `text "the "`, `button "free"`, `text " encyclopedia that "`. That is a ref, a role and quotes for every few words. Measured on the Honor X8 (golden `captured_honor_wikipedia_main`): 46 lines became 21, and 1,556 bytes became 1,245. The page also reads as prose, so the model sees the sentence that a link sits in.
+
+**Rejected.**
+- Dropping link text from runs: the model loses tap targets.
+- Listing links after the paragraph: each link name is printed twice.
+- Joining across different parents: paragraphs would merge into each other.
+
+**Limits.** Commas that a page puts in their own node are already dropped by the separator rule (`a5914b9`), so `[bachata @e32] [R&B @e33]` reads without its comma.

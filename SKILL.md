@@ -30,6 +30,7 @@ Several steps in a row (tap a field, type, press enter) go in one `batch`: one c
 - A ref (`@e4`) belongs to the last snapshot and stays with its element while it is on screen.
 - Text (`tap "Save"`) when you know the label and hold no ref. It matches a whole label, or whole words of a short one (not the middle of "Row 364" for "Row 3"). When several elements match, the error lists them: choose by ref or add `role`. A settings row and its switch often share a label (`button "Dark theme"` holds `switch "Dark theme"`): tap the switch's ref to toggle it.
 - A point (`tap 206,488`) only from a screenshot, in the screenshot's units.
+- On a web page, `[free @e15]` inside a text line is a link: `tap @e15`.
 - "is no longer on screen" means the screen changed: `snapshot`, then use the closest match the error names. "belongs to an earlier screen or another session": refs are per session, so `snapshot` first.
 
 ## System dialogs

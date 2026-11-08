@@ -188,25 +188,123 @@ impl Rendered {
                 inside && (!f.interactive || !self.elements[i].actions.is_empty())
             })
             .collect();
+        let plan = if f.interactive {
+            vec![Plan::Own; self.elements.len()]
+        } else {
+            self.inline_plan(&shown)
+        };
         let mut out = self.header_text();
-        let total = shown.iter().filter(|s| **s).count();
+        let lines: Vec<(usize, String)> = (0..self.elements.len())
+            .filter(|&i| shown[i])
+            .filter_map(|i| match &plan[i] {
+                Plan::Own => Some((i, self.line(&self.elements[i]))),
+                Plan::Line(l) => Some((i, l.clone())),
+                Plan::Skip => None,
+            })
+            .collect();
         let limit = f.max_lines.unwrap_or(usize::MAX);
-        for (i, e) in self
-            .elements
-            .iter()
-            .enumerate()
-            .filter(|(i, _)| shown[*i])
-            .take(limit)
-        {
-            let depth = self.ancestors(i).filter(|&a| shown[a]).count();
+        for (i, line) in lines.iter().take(limit) {
+            let depth = self.ancestors(*i).filter(|&a| shown[a]).count();
             out.push('\n');
             out.push_str(&"  ".repeat(depth));
-            out.push_str(&self.line(e));
+            out.push_str(line);
         }
-        if total > limit {
-            let _ = write!(out, "\n… {} more", total - limit);
+        if lines.len() > limit {
+            let _ = write!(out, "\n… {} more", lines.len() - limit);
         }
         Ok(out)
+    }
+
+    /// Text and a link inside a web view, as one piece of a line that runs them together (decision D35).
+    fn piece(&self, i: usize) -> Option<Piece> {
+        let e = &self.elements[i];
+        if !e.children.is_empty()
+            || e.source != Source::Tree
+            || self.under_keyboard(e)
+            || !state_words(e).is_empty()
+            || second_text(e).is_some()
+        {
+            return None;
+        }
+        let label = e.label.as_deref().filter(|l| !l.trim().is_empty())?;
+        if !self
+            .ancestors(i)
+            .any(|a| self.elements[a].role == Role::WebView)
+        {
+            return None;
+        }
+        if pressable(e) {
+            matches!(e.role, Role::Button | Role::Link | Role::Text | Role::Other)
+                .then(|| Piece::Link(label.to_string(), e.r#ref))
+        } else {
+            (e.role == Role::Text).then(|| Piece::Text(label.to_string(), e.r#ref))
+        }
+    }
+
+    /// Runs of sibling text and links in a web view become lines of their own; a heading whose children spell its
+    /// label takes them into its line.
+    fn inline_plan(&self, shown: &[bool]) -> Vec<Plan> {
+        let n = self.elements.len();
+        let mut plan = vec![Plan::Own; n];
+        let mut i = 0;
+        while i < n {
+            let run: Vec<(usize, Piece)> = (i..n)
+                .map_while(|j| {
+                    let same = self.parents[j] == self.parents[i];
+                    (shown[j] && same)
+                        .then(|| self.piece(j).map(|p| (j, p)))
+                        .flatten()
+                })
+                .collect();
+            if run.len() < 2 || !run.iter().any(|(_, p)| matches!(p, Piece::Text(..))) {
+                i += run.len().max(1);
+                continue;
+            }
+            let parent = self.parents[i];
+            let whole = parent.is_some_and(|p| {
+                let e = &self.elements[p];
+                shown[p]
+                    && !pressable(e)
+                    && e.children.len() == run.len()
+                    && e.label
+                        .as_deref()
+                        .is_some_and(|l| words_only(l) == words_only(&plain(&run)))
+            });
+            match parent.filter(|_| whole) {
+                Some(p) => {
+                    let e = &self.elements[p];
+                    let label = quote(e.label.as_deref().unwrap_or_default());
+                    plan[p] = Plan::Line(self.line(e).replacen(&label, &quote(&joined(&run)), 1));
+                    for (j, _) in &run {
+                        plan[*j] = Plan::Skip;
+                    }
+                }
+                None => {
+                    for chunk in chunks(&run) {
+                        let Some(head) = chunk.iter().find_map(|(_, p)| match p {
+                            Piece::Text(_, r) => Some(*r),
+                            Piece::Link(..) => None,
+                        }) else {
+                            continue;
+                        };
+                        let first = chunk[0].0;
+                        let mut line = format!("@{head} text {}", quote(&joined(chunk)));
+                        if chunk
+                            .iter()
+                            .any(|(_, p)| crate::inject::looks_like_instruction(p.text()))
+                        {
+                            line.push_str(" (ai-instruction)");
+                        }
+                        for (j, _) in chunk {
+                            plan[*j] = Plan::Skip;
+                        }
+                        plan[first] = Plan::Line(line);
+                    }
+                }
+            }
+            i += run.len();
+        }
+        plan
     }
 
     fn header_text(&self) -> String {
@@ -333,6 +431,84 @@ impl Rendered {
             many => TextMatch::Many(many.iter().map(|&i| self.elements[i].r#ref).collect()),
         }
     }
+}
+
+#[derive(Clone)]
+enum Plan {
+    Own,
+    Line(String),
+    Skip,
+}
+
+enum Piece {
+    Text(String, Ref),
+    Link(String, Ref),
+}
+
+impl Piece {
+    fn text(&self) -> &str {
+        match self {
+            Piece::Text(t, _) | Piece::Link(t, _) => t,
+        }
+    }
+
+    fn shown(&self) -> String {
+        match self {
+            Piece::Text(t, _) => t.clone(),
+            Piece::Link(t, r) => format!("[{} @{r}]", t.trim()),
+        }
+    }
+}
+
+fn join_to(out: &mut String, next: &str) {
+    let tight_after = out.ends_with(char::is_whitespace) || out.ends_with('(') || out.is_empty();
+    let tight_before = next.starts_with(char::is_whitespace)
+        || next.starts_with([',', '.', ';', ':', '!', '?', ')']);
+    if !tight_after && !tight_before {
+        out.push(' ');
+    }
+    out.push_str(next);
+}
+
+fn squeeze(s: &str) -> String {
+    s.split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
+fn joined(run: &[(usize, Piece)]) -> String {
+    let mut out = String::new();
+    for (_, p) in run {
+        join_to(&mut out, &p.shown());
+    }
+    squeeze(&out)
+}
+
+fn plain(run: &[(usize, Piece)]) -> String {
+    let mut out = String::new();
+    for (_, p) in run {
+        join_to(&mut out, p.text());
+    }
+    squeeze(&out)
+}
+
+fn words_only(s: &str) -> String {
+    squeeze(s).to_lowercase()
+}
+
+/// Cuts a run between pieces so no line passes `MAX_TEXT` characters and so loses no link to truncation.
+fn chunks(run: &[(usize, Piece)]) -> Vec<&[(usize, Piece)]> {
+    let mut out = Vec::new();
+    let (mut start, mut len) = (0, 0);
+    for (k, (_, p)) in run.iter().enumerate() {
+        let add = p.shown().chars().count() + 1;
+        if k > start && len + add > MAX_TEXT {
+            out.push(&run[start..k]);
+            start = k;
+            len = 0;
+        }
+        len += add;
+    }
+    out.push(&run[start..]);
+    out
 }
 
 fn pressable(e: &Element) -> bool {
@@ -599,6 +775,14 @@ mod tests {
         golden(
             "captured_settings_apps",
             include_str!("../tests/fixtures/android/settings_apps.json"),
+        );
+    }
+
+    #[test]
+    fn captured_honor_wikipedia_main() {
+        golden(
+            "captured_honor_wikipedia_main",
+            include_str!("../tests/fixtures/android/honor_wikipedia_main.json"),
         );
     }
 
@@ -1049,6 +1233,99 @@ mod tests {
             r#"{{"windows":[{{"id":1,"type":"application","bounds":[0,0,400,800]}}],"nodes":[{nodes}]}}"#
         );
         build_json(&json, 1.0).text(&Filters::default()).unwrap()
+    }
+
+    fn web(children: &str) -> String {
+        android_lines(&format!(
+            r#"{{"p":-1,"w":1,"cls":"android.webkit.WebView","b":[0,0,400,800],"f":"vVe"}},{children}"#
+        ))
+    }
+
+    fn text_node(t: &str, y: usize) -> String {
+        format!(
+            r#"{{"p":0,"w":1,"cls":"android.widget.TextView","text":"{t}","b":[0,{y},400,{}],"f":"vVe"}}"#,
+            y + 20
+        )
+    }
+
+    fn link_node(t: &str, y: usize) -> String {
+        format!(
+            r#"{{"p":0,"w":1,"cls":"android.view.View","text":"{t}","b":[0,{y},400,{}],"f":"vVe","a":["tap"]}}"#,
+            y + 20
+        )
+    }
+
+    #[test]
+    fn web_text_and_its_links_are_one_line_with_each_link_inline() {
+        let text = web(&[
+            text_node("the ", 0),
+            link_node("free", 20),
+            text_node(" encyclopedia that ", 40),
+            link_node("anyone can edit", 60),
+            link_node("265,650", 80),
+            text_node(" active editors", 100),
+        ]
+        .join(","));
+        assert!(
+            text.ends_with(
+                "\n  @e2 text \"the [free @e3] encyclopedia that [anyone can edit @e5] [265,650 @e6] active editors\""
+            ),
+            "{text}"
+        );
+    }
+
+    #[test]
+    fn punctuation_after_a_link_takes_no_space() {
+        let text = web(&[
+            link_node("Romeo Santos", 0),
+            text_node("(pictured)", 20),
+            text_node(", released", 40),
+        ]
+        .join(","));
+        assert!(
+            text.contains("\"[Romeo Santos @e2] (pictured), released\""),
+            "{text}"
+        );
+        assert!(text.contains("@e3 text"), "{text}");
+    }
+
+    #[test]
+    fn a_long_run_is_cut_between_pieces_so_every_link_keeps_its_ref() {
+        let long = "word ".repeat(30);
+        let text = web(&[
+            text_node(&long, 0),
+            link_node("first", 20),
+            text_node(&long, 40),
+            link_node("second", 60),
+        ]
+        .join(","));
+        assert!(text.contains("[first @e3]"), "{text}");
+        assert!(text.contains("[second @e5]"), "{text}");
+        assert!(!text.contains("chars)"), "{text}");
+    }
+
+    #[test]
+    fn text_outside_a_web_view_keeps_one_line_per_element() {
+        let text = android_lines(
+            &[
+                text_node("the ", 0).replace("\"p\":0", "\"p\":-1"),
+                link_node("free", 20).replace("\"p\":0", "\"p\":-1"),
+            ]
+            .join(","),
+        );
+        assert!(!text.contains('['), "{text}");
+    }
+
+    #[test]
+    fn a_heading_whose_children_spell_its_label_carries_its_links_inline() {
+        let text = web(&[
+            r#"{"p":0,"w":1,"cls":"android.view.View","text":"Welcome to Wikipedia","b":[0,0,400,40],"f":"vVeH"}"#.to_string(),
+            text_node("Welcome to ", 0).replace("\"p\":0", "\"p\":1"),
+            link_node("Wikipedia", 20).replace("\"p\":0", "\"p\":1"),
+        ]
+        .join(","));
+        assert!(text.contains("\"Welcome to [Wikipedia @e4]\""), "{text}");
+        assert!(!text.contains("text \"Welcome to \""), "{text}");
     }
 
     #[test]

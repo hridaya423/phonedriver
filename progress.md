@@ -827,3 +827,14 @@ The fixes come from the first run on a physical Android phone, a Honor X8 (TFY-L
 - Each test above failed before its change.
 - `cargo test --workspace --no-fail-fast`: 651 passed, 0 failed. Clippy is clean.
 - Open, not reproduced: just after the user unlocked the phone, `launch`, `scroll` and `tap` answered "The device is locked" within 43 to 81 ms. Earlier, while the lock screen was up, a `launch` answered `ok launched Settings` and listed the lock screen. `Keyguard.locked()` calls `IWindowManager.isKeyguardLocked`. Testing it means locking the phone, which only the user can undo, so it waits for the user.
+
+## 2026-11-08: web text prints as prose with links inline (D35)
+
+- Found while watching Claude Code (Sonnet 5.5) read the Wikipedia main page in Chrome on the Honor X8. Every inline run was its own line: `text "the "`, `button "free"`, `text " encyclopedia that "`.
+- Changed: `Rendered::text` and `inline_plan` in `crates/core/src/render.rs`. A run of sibling text and links in a web view is one `@eN text "…"` line, with each link as `[label @eM]`. A heading whose children spell its label takes them into its own line. Runs are cut between members at 200 characters. Refs, elements, diffs and targets are unchanged.
+- Golden `captured_honor_wikipedia_main`, a real capture from the phone (`honor_wikipedia_main.json`): 46 lines became 21, and 1,556 bytes became 1,245.
+- Tests:
+  - These failed before the change: `web_text_and_its_links_are_one_line_with_each_link_inline`, `punctuation_after_a_link_takes_no_space`, `a_long_run_is_cut_between_pieces_so_every_link_keeps_its_ref`, `a_heading_whose_children_spell_its_label_carries_its_links_inline`.
+  - `text_outside_a_web_view_keeps_one_line_per_element` passed before the change and still passes.
+- `cargo test --workspace --no-fail-fast`: 657 passed, 0 failed. Clippy is clean.
+- Fixture privacy: only the Wikipedia capture is committed. The launcher and Settings captures from the user's phone show their weather locations, Wi-Fi name and a partial email, so they stay out of the repository.
