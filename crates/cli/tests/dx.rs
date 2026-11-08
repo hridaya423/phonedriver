@@ -125,18 +125,48 @@ fn every_visible_flag_and_argument_has_a_description() {
 }
 
 #[test]
-fn global_options_are_left_out_of_the_help_of_commands_that_ignore_them() {
+fn a_command_s_help_lists_its_own_options_and_points_at_the_top_help_for_the_global_ones() {
     let home = tempfile::tempdir().unwrap();
     let help = |args: &[&str]| {
         let out = phonedriver(&home).args(args).assert().success();
         String::from_utf8(out.get_output().stdout.clone()).unwrap()
     };
-    assert!(!help(&["doctor", "--help"]).contains("--session"));
-    assert!(!help(&["daemon", "--help"]).contains("--timeout"));
-    let tap = help(&["tap", "--help"]);
-    assert!(tap.contains("--timeout") && tap.contains("--expect-change"));
-    assert!(!help(&["snapshot", "--help"]).contains("--expect-change"));
-    assert!(help(&["--help"]).contains("Exit codes:"));
+    for args in [
+        ["tap", "--help"],
+        ["scroll", "--help"],
+        ["snapshot", "--help"],
+        ["wait", "--help"],
+    ] {
+        let text = help(&args);
+        let (own, pointer) = text.rsplit_once("\n\n").unwrap();
+        assert!(pointer.contains("`phonedriver --help`"), "{text}");
+        for global in [
+            "--device",
+            "--session",
+            "--json",
+            "--no-settle",
+            "--timeout",
+            "--expect-change",
+            "--share",
+            "--display",
+            "Global options:",
+        ] {
+            assert!(!own.contains(global), "{args:?} lists {global}:\n{text}");
+        }
+        assert!(text.lines().count() < 20, "{text}");
+    }
+    assert!(help(&["tap", "--help"]).contains("--role"));
+    let top = help(&["--help"]);
+    assert!(top.contains("Exit codes:"));
+    for global in [
+        "--device",
+        "--session",
+        "--json",
+        "--timeout",
+        "--expect-change",
+    ] {
+        assert!(top.contains(global), "{top}");
+    }
 }
 
 #[test]
