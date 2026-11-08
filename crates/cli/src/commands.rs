@@ -108,7 +108,17 @@ const UNUSED_GLOBALS: &[(&str, &[&str])] = &[
             "share",
         ],
     ),
-    ("mcp", ALL_GLOBALS),
+    (
+        "mcp",
+        &[
+            "session",
+            "json",
+            "no_settle",
+            "timeout",
+            "expect_change",
+            "share",
+        ],
+    ),
     ("skill", ALL_GLOBALS),
     ("version", ALL_GLOBALS),
     ("ios", ALL_GLOBALS),
@@ -454,7 +464,7 @@ pub fn run(cli: Cli) -> ExitCode {
         Verb::Pair => crate::wireless::pair(),
         #[cfg(feature = "android")]
         Verb::Untether => crate::wireless::untether(cli.device.as_deref()),
-        Verb::Mcp => crate::mcp::run(),
+        Verb::Mcp => crate::mcp::run(cli.device),
         Verb::Skill => {
             print!("{}", include_str!("../../../SKILL.md"));
             ExitCode::SUCCESS
@@ -1413,6 +1423,18 @@ mod tests {
             long: None,
             autonomous,
         }
+    }
+
+    #[test]
+    fn the_mcp_server_takes_the_device_flag() {
+        use clap::FromArgMatches;
+        let cli = |args: &[&str]| {
+            Cli::from_arg_matches(&command().try_get_matches_from(args).unwrap()).unwrap()
+        };
+        let pinned = cli(&["phonedriver", "--device", "android:emulator-5554", "mcp"]);
+        assert_eq!(pinned.device.as_deref(), Some("android:emulator-5554"));
+        let after = cli(&["phonedriver", "mcp", "--device", "android:emulator-5556"]);
+        assert_eq!(after.device.as_deref(), Some("android:emulator-5556"));
     }
 
     #[test]

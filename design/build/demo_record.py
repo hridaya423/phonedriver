@@ -5,7 +5,7 @@ screenrecord stops at 180 s). tmux is polled every 40 ms and each change of the 
 fixed by pulling the notification shade open and shut before the clip starts (the frame it appears in is found in
 demo_compose.py). phonedriver runs on the machine that has the emulator and the MCP server is its stdio over ssh.
 Claude Code must run on the subscription: ANTHROPIC_API_KEY has to be unset.
-Usage: python3 demo_record.py <scene 1|2> <out dir> <prompt file> [--no-phone]
+Usage: python3 demo_record.py <scene 1|2|3> <out dir> <prompt file> [--no-phone]
 The system prompt is <prompt file with .system>, when it exists.
 Environment: PD_HOST (ssh host, win-ts), PD_BIN (phonedriver on it), PD_SERIAL (emulator-5554), PD_ADB (adb server
 address for the Mac side, tcp:127.0.0.1:5038 -> an ssh forward to the host's adb server), PD_REMOTE_ADB (that
@@ -52,7 +52,7 @@ def tmux(*args):
 
 
 def prepare_phone():
-    if SCENE == "1":
+    if SCENE in ("1", "3"):
         pd("apps", "clear", "Chrome")
         pd("open", "https://example.com")
         time.sleep(2)
@@ -70,7 +70,7 @@ def prepare_phone():
 
 def start_claude():
     tmux("kill-session", "-t", SESSION)
-    mcp = {"mcpServers": {"phonedriver": {"command": "ssh", "args": ["-T", HOST, f"ADB_SERVER_SOCKET={REMOTE_ADB} {BIN} --device {SERIAL} mcp"]}}}
+    mcp = {"mcpServers": {"phonedriver": {"command": "ssh", "args": ["-T", HOST, f"ADB_SERVER_SOCKET={REMOTE_ADB} PHONEDRIVER_DEVICE=android:{SERIAL} {BIN} --device {SERIAL} mcp"]}}}
     (OUT / "mcp.json").write_text(json.dumps(mcp))
     sh = OUT / "launch.sh"
     sh.write_text(
@@ -169,8 +169,8 @@ enter = time.time()
 tmux("send-keys", "-t", SESSION, "Enter")
 
 marks = {"paste": paste, "enter": enter, "flash": flash}
-if SCENE == "2":
-    s = wait_for(r"requests your input", 120)
+if SCENE in ("2", "3"):
+    s = wait_for(r"requests your input", int(os.environ.get("PD_MAX", "900")))
     marks["prompt_shown"] = time.time()
     time.sleep(float(os.environ.get("PD_READ", "2.5")))
     tmux("send-keys", "-t", SESSION, "Down")
@@ -203,7 +203,7 @@ if PHONE:
         adb("shell", "rm", "-f", s["device"])
 (OUT / "times.json").write_text(json.dumps({"scene": SCENE, "cols": COLS, "rows": ROWS, "marks": marks, "segments": segments}, indent=1))
 tmux("kill-session", "-t", SESSION)
-if SCENE == "1":
+if SCENE in ("1", "3"):
     pd("apps", "clear", "Chrome")
 pd("press", "home")
 pd("release")
