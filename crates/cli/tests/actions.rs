@@ -162,7 +162,10 @@ async fn find_lists_the_visible_rows_whose_text_contains_the_query() {
     );
     assert!(lines.iter().all(|l| l.contains(" cell \"Row 1")), "{out}");
     assert!(!lines.iter().any(|l| l.contains("\"Row 2\"")), "{out}");
-    assert_eq!(rig.ok(&["find", "zzzz"]).trim(), "no match");
+    assert_eq!(
+        rig.ok(&["find", "zzzz"]).trim(),
+        "no match on this screen; to look further, scroll with until: \"zzzz\""
+    );
 }
 
 async fn fresh_list(rig: &Rig) {

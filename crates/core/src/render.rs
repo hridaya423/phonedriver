@@ -378,6 +378,9 @@ impl Rendered {
             let _ = write!(s, " {v}");
         }
         for w in state_words(e) {
+            if w == "focused" && !e.role.is_text_entry() {
+                continue;
+            }
             s.push(' ');
             s.push_str(w);
         }
@@ -1326,6 +1329,27 @@ mod tests {
         .join(","));
         assert!(text.contains("\"Welcome to [Wikipedia @e4]\""), "{text}");
         assert!(!text.contains("text \"Welcome to \""), "{text}");
+    }
+
+    #[test]
+    fn a_group_inside_a_group_of_the_same_name_is_said_once() {
+        let text = android_lines(
+            r#"{"p":-1,"w":1,"cls":"android.widget.LinearLayout","desc":"Settings","b":[0,0,400,60],"f":"vVe"},
+            {"p":0,"w":1,"cls":"android.widget.FrameLayout","desc":"Settings","b":[0,0,400,60],"f":"vVe"},
+            {"p":-1,"w":1,"cls":"android.widget.Button","text":"Wi-Fi","b":[0,60,400,120],"f":"vVe","a":["tap"]}"#,
+        );
+        assert_eq!(text.matches("\"Settings\"").count(), 1, "{text}");
+    }
+
+    #[test]
+    fn only_a_text_field_says_it_is_focused() {
+        let text = android_lines(
+            r#"{"p":-1,"w":1,"cls":"androidx.recyclerview.widget.RecyclerView","b":[0,0,400,400],"f":"vVeSF","a":["scroll_down"]},
+            {"p":0,"w":1,"cls":"android.widget.Button","text":"Wi-Fi","b":[0,0,400,60],"f":"vVe","a":["tap"]},
+            {"p":-1,"w":1,"cls":"android.widget.EditText","text":"hi","b":[0,400,400,460],"f":"vVeF","a":["tap","set_text"]}"#,
+        );
+        assert!(text.contains("@e1 list scrollable↓\n"), "{text}");
+        assert!(text.contains("textbox \"hi\" focused"), "{text}");
     }
 
     #[test]

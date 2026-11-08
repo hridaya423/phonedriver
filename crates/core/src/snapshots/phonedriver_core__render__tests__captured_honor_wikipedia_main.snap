@@ -9,7 +9,7 @@ app com.android.settings (Settings) · keyboard hidden · settled in 212ms
   @e3 textbox "en.wikipedia.org/wiki/Main_Page" selected
   @e4 button "See 19 tabs"
   @e5 button "Customise and control Google Chrome"
-@e6 webview focused scrollable↓
+@e6 webview scrollable↓
   @e7 button collapsed
   @e8 button "Wikipedia"
   @e9 button "Search"

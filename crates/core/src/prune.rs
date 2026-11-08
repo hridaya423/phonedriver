@@ -273,6 +273,44 @@ pub fn prune(tree: &RawTree) -> Vec<Node> {
             absorbed: merged[i].clone(),
         });
     }
+    drop_echoes(out)
+}
+
+/// A leaf with no action that only repeats its parent's label (MagicOS Settings nests a toolbar named "Settings" in an
+/// app bar named "Settings") says nothing new.
+fn drop_echoes(nodes: Vec<Node>) -> Vec<Node> {
+    let mut has_child = vec![false; nodes.len()];
+    for n in &nodes {
+        if let Some(p) = n.parent {
+            has_child[p] = true;
+        }
+    }
+    let echo: Vec<bool> = nodes
+        .iter()
+        .enumerate()
+        .map(|(i, n)| {
+            !has_child[i]
+                && n.actions.is_empty()
+                && n.value.is_none()
+                && n.hint.is_none()
+                && n.label.is_some()
+                && n.parent
+                    .is_some_and(|p| nodes[p].label == n.label && nodes[p].actions.is_empty())
+        })
+        .collect();
+    if !echo.contains(&true) {
+        return nodes;
+    }
+    let mut index = vec![None; nodes.len()];
+    let mut out = Vec::with_capacity(nodes.len());
+    for (i, mut n) in nodes.into_iter().enumerate() {
+        if echo[i] {
+            continue;
+        }
+        n.parent = n.parent.and_then(|p| index[p]);
+        index[i] = Some(out.len());
+        out.push(n);
+    }
     out
 }
 
