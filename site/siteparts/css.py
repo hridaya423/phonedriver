@@ -82,6 +82,7 @@ tbody th{min-width:9.5em}
 .form{border:1px solid var(--t1);padding:18px 20px;margin:0;background:var(--panel)}
 .form p{margin:6px 0}.form .ft{font-size:20px;margin-bottom:12px}
 .form b{font-weight:400;background:var(--sel);padding:0 .2em}
+.form video{display:block;width:100%;height:auto}
 .choices{display:flex;gap:8px;flex-wrap:wrap;margin:16px 0!important}
 .choices span{border:1px solid var(--t1);padding:8px 14px;font:400 13px/1 var(--mono);text-transform:uppercase;letter-spacing:.05em}
 .choices span:first-child{background:var(--accent);border-color:var(--accent);color:#161512}

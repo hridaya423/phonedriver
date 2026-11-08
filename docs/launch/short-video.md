@@ -2,8 +2,7 @@
 
 Nothing here is posted. Source: the demo recording. Two states of it exist:
 
-- Today: `.github/assets/demo.mp4`, 960x660, 30 fps, 38.9 s, Claude Code (Sonnet 5.5) on the left, an Android 17 emulator on the right, Uber Eats, 10x sped up (the run took 6 min 7 s), the last 3 s at real speed. It ends on Uber's sign-in page, so no approval prompt is in it. The terminal still says `phone-use`. I extracted frames at 1, 8, 16, 24, 32 and 38 s and looked at them.
-- Coming: the re-recording with Opus 5.5 and an approval-prompt scene. [DEMO: file path, length, whether the prompt scene is Allow or Decline.] Re-time every cue below against it. The structure holds.
+- Recorded 2026-11-08: `.github/assets/demo.mp4` (1280x720, 46.3 s, Claude Code on Opus 5.5 beside an Android 17 emulator) and the vertical cut `.github/assets/demo-vertical.mp4` (1080x1920, 29.9 s, built by `design/build/demo_compose.py` from the raw recordings with `design/build/demo/edit-short.json`: the Uber Eats scene at 36x, the approval prompt at real speed, the end card). The prompt scene ends on Decline: Claude says "I didn't place the order ... declined at the permission prompt". The captions and the speed badge are burned in. Contact sheet of every second: `docs/launch/demo-contact-sheet.png`.
 
 Do not cut this from `demo.mp4`. The emulator is about 270 px wide in that file; at 1080x1920 it would be a 4x upscale and read as mush. Re-cut from the raw emulator `screenrecord` segments and a fresh terminal capture (`design/build/demo_compose.py` is the composer) at 1080x1920 H.264, 30 fps, AAC audio (silence is fine, a quiet track is better than none on TikTok).
 
@@ -26,7 +25,7 @@ Say "sped up 10x" on screen the first time the clock runs. The best comparable p
 | 2.0 to 6.0 | Cookie banner rejected, address set, search "Indian". Clock badge "10x speed" in the corner. | "On a real Android emulator. 10x speed." | "It drives the phone itself. Tap, type, scroll." |
 | 6.0 to 11.0 | Patiala Indian Grill and Bar, 4.8 stars, scroll the menu. | "It picked the best-rated place: 4.8 stars." | "It read the ratings and picked the best one." |
 | 11.0 to 15.0 | Butter Chicken $20.95 added, Garlic Naan $7.95 added, cart shows $28.90. | "Both items. $28.90." | none, let the cart sit for a beat |
-| 15.0 to 19.0 | [DEMO: approval-prompt scene] The agent taps Place order. The Claude Code form appears: the app, the button, the lines. Cursor on Allow. | "Then it hit Place order. And stopped." | "phonedriver asks me before it taps Pay." |
+| 15.0 to 19.0 | The agent taps Place order. The Claude Code form appears: the app, the button, the lines. Cursor on Allow. | "Then it hit Place order. And stopped." | "phonedriver asks me before it taps Pay." |
 | 19.0 to 22.0 | Allow, for this session, Decline: the three choices fill the frame. If the new recording ends on Decline, show "The human declined; nothing was tapped". | "Allow. Allow for session. Decline." | "I decide. Not the model." |
 | 22.0 to 26.0 | Cut to the hero chart: "Up to 98x faster than adb", the four bars. | "98x faster than adb at reading the screen." | "It also reads the screen 98 times faster than adb." |
 | 26.0 to 28.0 | End card: `phonedriver` wordmark, `phonedriver.dev`, "open source". | "phonedriver. Open source. Free." | "It's open source. Link in bio." |
