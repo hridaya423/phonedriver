@@ -1102,8 +1102,10 @@ pub(crate) async fn run_batch(
 ) -> Result<String, Failure> {
     let sent = steps.len();
     let mut p = json!({"steps": steps});
-    if guard_off(guard_env().as_deref()) || g.approval == Some(Approval::Autonomous) {
+    if guard_off(guard_env().as_deref()) {
         p["approval"] = json!(Approval::Autonomous);
+    } else if let Some(a) = g.approval {
+        p["approval"] = json!(a);
     }
     if !g.ask.is_empty() {
         p["ask"] = json!(g.ask);
@@ -1152,10 +1154,12 @@ fn show_batch(result: &Value, json: bool, sent: usize) -> Result<String, Failure
             text.push_str("\nscreen now, against what you last saw:\n");
             text.push_str(&r.observation.text);
         }
+        let mut data = f.error["data"].clone();
+        if let Some(o) = data.as_object_mut() {
+            o.insert("step".into(), json!(f.step));
+        }
         return Err(Failure::Rpc(crate::daemon::rpc::RpcError::new(
-            code,
-            text,
-            f.error["data"].clone(),
+            code, text, data,
         )));
     }
     if json {

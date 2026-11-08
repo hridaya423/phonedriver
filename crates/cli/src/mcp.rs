@@ -31,6 +31,7 @@ pub struct Mcp {
     device: Option<String>,
     client: Arc<Mutex<Option<Client>>>,
     ask: Vec<Category>,
+    held_batch: Arc<Mutex<Option<(String, usize)>>>,
 }
 
 #[derive(Deserialize, JsonSchema)]
@@ -360,6 +361,7 @@ impl Mcp {
             device: None,
             client: Arc::default(),
             ask: Vec::new(),
+            held_batch: Arc::default(),
         }
     }
 
@@ -500,6 +502,89 @@ impl Mcp {
         }
     }
 
+    /// A batch whose step needs the human's word is asked like a tap (decision D27). The steps before it have run;
+    /// after an approval the batch goes on from that step, and the approval covers that step only.
+    async fn guarded_batch(
+        &self,
+        channel: Channel<'_>,
+        device: Option<String>,
+        steps: Vec<serde_json::Value>,
+        timeout: Option<u64>,
+    ) -> Outcome {
+        let key = json!([&device, &steps, timeout]).to_string();
+        let mut globals = self.globals(device);
+        globals.timeout = timeout;
+        let mut from = 0;
+        if let Channel::Mrtr {
+            answer: Some(reply),
+            ..
+        } = &channel
+        {
+            let held = self.held_batch.lock().await.take();
+            let Some((_, step)) = held.filter(|(k, _)| *k == key) else {
+                return Outcome::Done(dismissed(None));
+            };
+            match decision(reply) {
+                Decision::Declined => return Outcome::Done(declined()),
+                Decision::Dismissed => return Outcome::Done(dismissed(None)),
+                Decision::Once => globals.approval = Some(Approval::Once),
+                Decision::Session => globals.approval = Some(Approval::Session),
+            }
+            from = step;
+        }
+        loop {
+            let rest = steps[from..].to_vec();
+            let result = self
+                .with_client(async |client| run_batch(client, rest, &globals).await)
+                .await;
+            globals.approval = None;
+            let Some((label, app, category, details)) =
+                result.as_ref().err().and_then(approval_needed)
+            else {
+                return Outcome::Done(Self::reply(result));
+            };
+            let held = result
+                .as_ref()
+                .err()
+                .and_then(held_step)
+                .map_or(from, |n| from + n - 1);
+            let asked = commitment(&label, app.as_deref(), category, &details);
+            let prompt = format!("Your agent wants to do this on your phone:\n{asked}\nAllow it?");
+            let reply = match &channel {
+                Channel::Mrtr {
+                    can_ask: true,
+                    answer: _,
+                } => match question(&prompt) {
+                    Ok(q) => {
+                        *self.held_batch.lock().await = Some((key, held));
+                        return Outcome::Ask(q);
+                    }
+                    Err(why) => return Outcome::Done(cannot_ask(&asked, &why)),
+                },
+                Channel::Peer(peer)
+                    if peer
+                        .supported_elicitation_modes()
+                        .contains(&ElicitationMode::Form) =>
+                {
+                    match Self::ask(peer, &prompt).await {
+                        Ok(r) => r,
+                        Err(why) => return Outcome::Done(cannot_ask(&asked, &why)),
+                    }
+                }
+                _ => {
+                    return Outcome::Done(cannot_ask(&asked, "this client cannot ask the human"));
+                }
+            };
+            match decision(&reply) {
+                Decision::Declined => return Outcome::Done(declined_for(&asked)),
+                Decision::Dismissed => return Outcome::Done(dismissed(Some(&asked))),
+                Decision::Once => globals.approval = Some(Approval::Once),
+                Decision::Session => globals.approval = Some(Approval::Session),
+            }
+            from = held;
+        }
+    }
+
     async fn ask(peer: &Peer<RoleServer>, prompt: &str) -> Result<serde_json::Value, String> {
         let reply = peer
             .create_elicitation(ElicitRequestParams::FormElicitationParams {
@@ -529,7 +614,16 @@ impl Mcp {
             .and_then(|r| r.get(APPROVAL_KEY));
         let channel = Channel::Mrtr { can_ask, answer };
         let invalid = |e: serde_json::Error| rmcp::ErrorData::invalid_params(e.to_string(), None);
-        let outcome = if request.name == "tap" {
+        let outcome = if request.name == "batch" {
+            let a: BatchArgs = serde_json::from_value(args).map_err(invalid)?;
+            match batch_steps(a.steps) {
+                Ok(steps) => {
+                    self.guarded_batch(channel, a.device, steps, a.timeout_ms)
+                        .await
+                }
+                Err(why) => Outcome::Done(bad(&why)),
+            }
+        } else if request.name == "tap" {
             let a: TapArgs = serde_json::from_value(args).map_err(invalid)?;
             let (device, autonomous) = (a.device.clone(), a.autonomous.unwrap_or(false));
             self.guarded(channel, device, || a.clone().verb(), None, autonomous)
@@ -571,6 +665,22 @@ impl Mcp {
     }
 }
 
+fn batch_steps(raw: Vec<serde_json::Value>) -> Result<Vec<serde_json::Value>, String> {
+    let mut steps = Vec::new();
+    for (i, step) in raw.into_iter().enumerate() {
+        let json = step_verb(step)
+            .and_then(|v| crate::commands::step_json(&v, None).map_err(|f| f.message()));
+        match json {
+            Ok(j) => steps.push(j),
+            Err(why) => return Err(format!("step {}: {why}", i + 1)),
+        }
+    }
+    if steps.is_empty() {
+        return Err("a batch needs at least one step".into());
+    }
+    Ok(steps)
+}
+
 const NEEDS_APPROVAL: i32 = -32019;
 
 /// The guard's refusal, when `f` is one: the button, the app, what kind of tap it is and the screen text around it.
@@ -591,6 +701,12 @@ fn approval_needed(f: &Failure) -> Option<(String, Option<String>, Category, Vec
         category,
         details,
     ))
+}
+
+/// The 1-based step of a batch that the guard held, from its refusal.
+fn held_step(f: &Failure) -> Option<usize> {
+    let Failure::Rpc(e) = f else { return None };
+    e.data["step"].as_u64().map(|n| n as usize)
 }
 
 fn commitment(label: &str, app: Option<&str>, category: Category, details: &[String]) -> String {
@@ -990,28 +1106,18 @@ impl Mcp {
     #[tool(
         description = "Run steps in order, one diff back; stops at the first failure. A step is {\"tool\":\"tap\",\"target\":\"@e3\"}: tap, type, swipe, scroll, press, launch or wait."
     )]
-    async fn batch(&self, Parameters(a): Parameters<BatchArgs>) -> CallToolResult {
-        let mut steps = Vec::new();
-        for (i, step) in a.steps.into_iter().enumerate() {
-            let json = step_verb(step)
-                .and_then(|v| crate::commands::step_json(&v, None).map_err(|f| f.message()));
-            match json {
-                Ok(j) => steps.push(j),
-                Err(why) => return bad(&format!("step {}: {why}", i + 1)),
-            }
-        }
-        if steps.is_empty() {
-            return bad("a batch needs at least one step");
-        }
-        let mut globals = self.globals(a.device);
-        globals.timeout = a.timeout_ms;
-        let result = self
-            .with_client(async |client| run_batch(client, steps, &globals).await)
-            .await;
-        match result {
-            Ok(text) => CallToolResult::success(vec![ContentBlock::text(success_text(text))]),
-            Err(f) => failure(&f),
-        }
+    async fn batch(
+        &self,
+        peer: Peer<RoleServer>,
+        Parameters(a): Parameters<BatchArgs>,
+    ) -> CallToolResult {
+        let steps = match batch_steps(a.steps) {
+            Ok(s) => s,
+            Err(why) => return bad(&why),
+        };
+        self.guarded_batch(Channel::Peer(&peer), a.device, steps, a.timeout_ms)
+            .await
+            .complete()
     }
 
     #[tool(description = "Wait for `settled`, a text or @ref to appear, or `gone:<text>`.")]
@@ -1038,7 +1144,7 @@ impl ServerHandler for Mcp {
         let mrtr = context
             .protocol_version()
             .is_some_and(|v| v >= ProtocolVersion::V_2026_07_28);
-        if mrtr && (request.name == "tap" || request.name == "type") {
+        if mrtr && matches!(request.name.as_ref(), "tap" | "type" | "batch") {
             return self.call_guarded(request, &context).await;
         }
         let call = rmcp::handler::server::tool::ToolCallContext::new(self, request, context);

@@ -446,6 +446,17 @@ async fn mcp_asking(
 }
 
 impl Mcp2 {
+    async fn batch(&self, steps: Vec<Value>) -> CallToolResult {
+        let args = json!({ "steps": steps });
+        self.client
+            .call_tool(
+                CallToolRequestParams::new("batch")
+                    .with_arguments(args.as_object().unwrap().clone()),
+            )
+            .await
+            .unwrap()
+    }
+
     async fn tap(&self, args: Value) -> CallToolResult {
         self.client
             .call_tool(
@@ -590,6 +601,39 @@ async fn autonomous_never_asks(v: ProtocolVersion) {
     assert!(m.asked.lock().unwrap().is_empty());
 }
 
+fn step(target: &str) -> Value {
+    json!({"tool": "tap", "target": target})
+}
+
+async fn a_held_step_in_a_batch_is_asked_and_the_batch_resumes_there(v: ProtocolVersion) {
+    let m = mcp(accept("allow"), v).await;
+    let r = m.batch(vec![step("Back"), step("Place order")]).await;
+    assert_ne!(r.is_error, Some(true), "{r:?}");
+    assert!(text(&r).contains("approved by the human"), "{}", text(&r));
+    assert_eq!(m.asked.lock().unwrap().len(), 1);
+    assert_eq!(m.rig.gestures(), 2, "the step before the held one ran once");
+}
+
+async fn declining_a_held_batch_step_stops_the_batch_there(v: ProtocolVersion) {
+    let m = mcp(Some((ElicitationAction::Decline, None)), v).await;
+    let r = m
+        .batch(vec![step("Back"), step("Place order"), step("Back")])
+        .await;
+    assert_ne!(r.is_error, Some(true), "{r:?}");
+    assert!(text(&r).contains("The human declined"), "{}", text(&r));
+    assert_eq!(m.rig.gestures(), 1);
+}
+
+async fn an_approval_in_a_batch_covers_only_the_step_it_was_asked_for(v: ProtocolVersion) {
+    let m = mcp(accept("allow"), v).await;
+    let r = m
+        .batch(vec![step("Place order"), step("Back"), step("Place order")])
+        .await;
+    assert_ne!(r.is_error, Some(true), "{r:?}");
+    assert_eq!(m.asked.lock().unwrap().len(), 2);
+    assert_eq!(m.rig.gestures(), 3);
+}
+
 macro_rules! on_both_protocols {
     ($($name:ident),*) => {
         mod legacy {
@@ -616,7 +660,10 @@ on_both_protocols!(
     a_dismissed_prompt_is_no_answer_and_names_the_way_forward,
     a_client_that_cannot_ask_gets_the_question_and_nothing_is_tapped,
     the_prompt_names_the_category_that_triggered_it,
-    autonomous_never_asks
+    autonomous_never_asks,
+    a_held_step_in_a_batch_is_asked_and_the_batch_resumes_there,
+    declining_a_held_batch_step_stops_the_batch_there,
+    an_approval_in_a_batch_covers_only_the_step_it_was_asked_for
 );
 
 #[allow(dead_code)]
