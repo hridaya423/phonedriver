@@ -32,6 +32,7 @@ async fn fixture_frames() -> (h264::CodecHeader, Vec<Frame>) {
                 }
             }
             Ok(WirePacket::Reconfigure(_)) => panic!("the fixture never changes size"),
+            Ok(WirePacket::Barrier(_)) => panic!("the fixture has no barrier"),
             Err(e) if e.kind() == std::io::ErrorKind::UnexpectedEof => break,
             Err(e) => panic!("{e}"),
         }
@@ -265,4 +266,33 @@ fn a_downscaled_frame_reports_its_change_in_screen_points() {
     ));
     let b = changed.changed_box.expect("a change");
     assert_eq!((b.x, b.y, b.w, b.h), (108.0, 240.0, 108.0, 240.0));
+}
+
+fn barrier_packet(id: u64) -> Vec<u8> {
+    let mut b = 0u64.to_be_bytes().to_vec();
+    b.push(4);
+    b.extend_from_slice(&8u32.to_be_bytes());
+    b.extend_from_slice(&id.to_be_bytes());
+    b
+}
+
+#[tokio::test]
+async fn a_barrier_passes_only_once_every_packet_before_it_is_decoded_and_shown() {
+    use tokio::io::AsyncWriteExt;
+    let (mut agent, host) = tokio::io::duplex(1 << 20);
+    let stream = VideoStream::spawn(host, FrameStore::new(DENSITY));
+    agent.write_all(FIXTURE).await.unwrap();
+    let id = stream.next_barrier();
+    assert!(!stream.wait_barrier(id, Duration::from_millis(200)).await);
+    agent.write_all(&barrier_packet(id)).await.unwrap();
+    assert!(stream.wait_barrier(id, Duration::from_secs(5)).await);
+    assert_eq!(stream.store.latest().unwrap().seq, 59);
+}
+
+#[tokio::test]
+async fn a_barrier_does_not_pass_for_a_stream_that_has_ended() {
+    let stream = VideoStream::spawn(FIXTURE, FrameStore::new(DENSITY));
+    stream.finished().await;
+    let id = stream.next_barrier();
+    assert!(!stream.wait_barrier(id, Duration::from_millis(200)).await);
 }

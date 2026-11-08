@@ -14,12 +14,16 @@ import com.genymobile.scrcpy.wrappers.SurfaceControl;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.concurrent.ConcurrentLinkedQueue;
 
 final class Video {
     private static final int[] MAX_SIZE_FALLBACK = {2560, 1920, 1600, 1280, 1024, 800};
     private static final int FOURCC_H264 = 0x68323634;
     private static final long DISPLAY_POLL_NS = 100_000_000L;
+    private static final int FLAG_BARRIER = 4;
+    private static final int OUTPUT_WAIT_US = 10_000;
     private static volatile boolean syncRequested;
+    private static final ConcurrentLinkedQueue<Long> barriers = new ConcurrentLinkedQueue<>();
 
     private final DataOutputStream out;
     private int maxSize;
@@ -31,6 +35,10 @@ final class Video {
 
     static void requestSyncFrame() {
         syncRequested = true;
+    }
+
+    static void requestBarrier(long id) {
+        barriers.add(id);
     }
 
     static int[] fit(int w, int h, int maxSize, int align) {
@@ -157,7 +165,21 @@ final class Video {
                 b.putInt(MediaCodec.PARAMETER_KEY_REQUEST_SYNC_FRAME, 0);
                 codec.setParameters(b);
             }
-            int id = codec.dequeueOutputBuffer(info, 50_000);
+            if (!barriers.isEmpty()) {
+                int ready;
+                while ((ready = codec.dequeueOutputBuffer(info, 0)) >= 0) {
+                    writeOutput(codec, ready, info);
+                }
+                Long barrier;
+                while ((barrier = barriers.poll()) != null) {
+                    out.writeLong(0);
+                    out.writeByte(FLAG_BARRIER);
+                    out.writeInt(8);
+                    out.writeLong(barrier);
+                    out.flush();
+                }
+            }
+            int id = codec.dequeueOutputBuffer(info, OUTPUT_WAIT_US);
             long now = System.nanoTime();
             if (displayId >= 0 && now - lastCheck > DISPLAY_POLL_NS) {
                 lastCheck = now;
@@ -172,28 +194,32 @@ final class Video {
             if (id < 0) {
                 continue;
             }
-            try {
-                if (info.size > 0) {
-                    ByteBuffer buf = codec.getOutputBuffer(id);
-                    byte[] data = new byte[info.size];
-                    buf.position(info.offset);
-                    buf.get(data, 0, info.size);
-                    int flags = 0;
-                    if ((info.flags & MediaCodec.BUFFER_FLAG_CODEC_CONFIG) != 0) {
-                        flags |= 1;
-                    }
-                    if ((info.flags & MediaCodec.BUFFER_FLAG_KEY_FRAME) != 0) {
-                        flags |= 2;
-                    }
-                    out.writeLong(info.presentationTimeUs);
-                    out.writeByte(flags);
-                    out.writeInt(data.length);
-                    out.write(data);
-                    out.flush();
+            writeOutput(codec, id, info);
+        }
+    }
+
+    private void writeOutput(MediaCodec codec, int id, MediaCodec.BufferInfo info) throws IOException {
+        try {
+            if (info.size > 0) {
+                ByteBuffer buf = codec.getOutputBuffer(id);
+                byte[] data = new byte[info.size];
+                buf.position(info.offset);
+                buf.get(data, 0, info.size);
+                int flags = 0;
+                if ((info.flags & MediaCodec.BUFFER_FLAG_CODEC_CONFIG) != 0) {
+                    flags |= 1;
                 }
-            } finally {
-                codec.releaseOutputBuffer(id, false);
+                if ((info.flags & MediaCodec.BUFFER_FLAG_KEY_FRAME) != 0) {
+                    flags |= 2;
+                }
+                out.writeLong(info.presentationTimeUs);
+                out.writeByte(flags);
+                out.writeInt(data.length);
+                out.write(data);
+                out.flush();
             }
+        } finally {
+            codec.releaseOutputBuffer(id, false);
         }
     }
 }
