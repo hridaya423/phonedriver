@@ -696,7 +696,7 @@ Evidence:
   - `PHONEDRIVER_HOME=B phonedriver --device android:emulator-5556 snapshot` -> `error: device android:emulator-5556 is driven by another phonedriver daemon (pid 14737 on Hridyas-MacBook-Pro.local)` / `hint: Stop that daemon (`kill 14737` on Hridyas-MacBook-Pro.local) or use another device, then retry.` in 3.7 s; the agent process (pid 31254) was unchanged before and after, and A's next `snapshot` answered from it.
   - `PHONEDRIVER_HOME=A phonedriver daemon stop`, then B's `snapshot` -> screen in 1.6 s, owner file now `pid=14807`.
 - Not covered: two daemons that start in the same few milliseconds can both pass the check (D34 Limits); a daemon from before this change still kills ours.
-- Not covered: two daemons that start in the same few milliseconds can both pass the check (D33 Limits); a daemon from before this change still kills ours.
+- Not covered: two daemons that start in the same few milliseconds can both pass the check (D34 Limits); a daemon from before this change still kills ours.
 
 ## AX/DX audit: a not-settled launch still carries the screen lines (2026-11-08)
 
@@ -723,3 +723,11 @@ Evidence:
 - Live on emulator-5556 (no other agent on it; `PHONEDRIVER_HOME=pdhome-5556`): Settings open, `phonedriver --device android:emulator-5556 screenshot` showed Settings (1:58); then `adb shell "pkill -f 'dev.phonedriver.agent.[M]ain'; input keyevent KEYCODE_HOME"` and at once `screenshot`: 1.9 s, the picture is the home screen with the clock at 1:59, from a new agent. With the barrier the dead agent cannot be mistaken for a live stream; before it the same call returned the Settings frame (probe above).
 - Cost: with the daemon built in debug mode and the tunnel's 500 to 800 ms `adb shell true` round trips, daemon-side `screenshot` p50 went from 203 ms (barrier call removed, n=20) to 280 ms (n=20): one control round trip plus the barrier's way back through the stream. Co-located and in a release build that is a local adb round trip and at most 10 ms of pump poll; the 30 ms budget was not re-measured there.
 - Not done: the barrier does not prove the encoder is producing frames (an encoder wedged on a changing screen still passes it, because the agent has nothing to write before the barrier); no timestamp check of frame age against the screen. iOS (CoreDevice stream, Simulator polling) is unchanged.
+
+## 2026-11-08: merge of the freshness, ownership and matching work
+
+- What changed:
+  - The ownership decision is D34, because the text-target rule had already taken D33.
+  - The test `a_barrier_passes_only_once_every_packet_before_it_is_decoded_and_shown` now waits up to 60 s, not 5 s, for the barrier.
+- Why: the test decodes 59 frames (1.6 MB) in a debug build. At load average 16 the barrier came back after 2.43 to 3.61 s over five runs. Two of five earlier runs went past 5 s.
+- Evidence: `cargo test --workspace` gives 627 passed, 0 failed.
