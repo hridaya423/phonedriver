@@ -98,12 +98,20 @@ final class Accessibility {
         cls.getMethod("clearCache").invoke(cls.getMethod("getInstance").invoke(null));
     }
 
+    private static List<AccessibilityWindowInfo> displayWindows() {
+        if (!Hidden.active()) {
+            return automation.getWindows();
+        }
+        List<AccessibilityWindowInfo> windows = automation.getWindowsOnAllDisplays().get(Hidden.displayId());
+        return windows == null ? java.util.Collections.emptyList() : windows;
+    }
+
     static List<AccessibilityWindowInfo> windows() {
-        List<AccessibilityWindowInfo> windows = automation.getWindows();
+        List<AccessibilityWindowInfo> windows = displayWindows();
         // spike A1: the first getWindows() right after connect can be empty for about 20 ms
-        for (int i = 0; windows.isEmpty() && i < FIRST_WINDOWS_RETRIES; i++) {
+        for (int i = 0; windows.isEmpty() && i < FIRST_WINDOWS_RETRIES && !Hidden.active(); i++) {
             SystemClock.sleep(20);
-            windows = automation.getWindows();
+            windows = displayWindows();
         }
         return windows;
     }
@@ -115,7 +123,17 @@ final class Accessibility {
 
     static AccessibilityNodeInfo focusedInput() throws Exception {
         clearCache();
-        return automation.findFocus(AccessibilityNodeInfo.FOCUS_INPUT);
+        if (!Hidden.active()) {
+            return automation.findFocus(AccessibilityNodeInfo.FOCUS_INPUT);
+        }
+        for (AccessibilityWindowInfo w : displayWindows()) {
+            AccessibilityNodeInfo root = w.getRoot();
+            AccessibilityNodeInfo focus = root == null ? null : root.findFocus(AccessibilityNodeInfo.FOCUS_INPUT);
+            if (focus != null) {
+                return focus;
+            }
+        }
+        return null;
     }
 
     // Task 3.1: for 50 to 300 ms after a navigation (Back from a second activity, API 37) getWindows() lists only the
@@ -128,7 +146,7 @@ final class Accessibility {
     // tried once per connection, because a hollow tree is also what a dark screen looks like.
     static JSONObject tree() throws Exception {
         clearCache();
-        DisplayInfo di = ServiceManager.getDisplayManager().getDisplayInfo(0);
+        DisplayInfo di = ServiceManager.getDisplayManager().getDisplayInfo(Hidden.displayId());
         screenW = di.getSize().getWidth();
         screenH = di.getSize().getHeight();
         JSONObject tree = read();
@@ -243,7 +261,7 @@ final class Accessibility {
     private static JSONObject read() {
         JSONArray windows = new JSONArray();
         JSONArray nodes = new JSONArray();
-        for (AccessibilityWindowInfo w : automation.getWindows()) {
+        for (AccessibilityWindowInfo w : displayWindows()) {
             Rect b = new Rect();
             w.getBoundsInScreen(b);
             if (isEdgeBar(w, b)) {

@@ -20,13 +20,17 @@ final class Input {
     private static final int FINISH = InputManager.INJECT_INPUT_EVENT_MODE_WAIT_FOR_FINISH;
 
     private static void inject(InputEvent e, int mode) {
-        InputManager.setDisplayId(e, 0);
+        InputManager.setDisplayId(e, Hidden.displayId());
         if (!ServiceManager.getInputManager().injectInputEvent(e, mode)) {
             throw new IllegalStateException("the system rejected an input event");
         }
     }
 
     static void key(int keycode, String action) {
+        if (Hidden.active() && (keycode == KeyEvent.KEYCODE_POWER || keycode == KeyEvent.KEYCODE_SLEEP
+                || keycode == KeyEvent.KEYCODE_WAKEUP)) {
+            throw new IllegalStateException("the hidden display has no power button; the phone's own screen is left as it is");
+        }
         long now = SystemClock.uptimeMillis();
         if (!"up".equals(action)) {
             inject(new KeyEvent(now, now, KeyEvent.ACTION_DOWN, keycode, 0), "down".equals(action) ? FINISH : ASYNC);
@@ -43,10 +47,16 @@ final class Input {
     }
 
     static void collapsePanels() {
+        if (Hidden.active()) {
+            return;
+        }
         ServiceManager.getStatusBarManager().collapsePanels();
     }
 
     static void expandNotifications() {
+        if (Hidden.active()) {
+            throw new IllegalStateException("the hidden display has no notification shade");
+        }
         ServiceManager.getStatusBarManager().expandNotificationsPanel();
     }
 
