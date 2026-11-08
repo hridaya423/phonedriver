@@ -590,3 +590,10 @@ Evidence:
 - `PROPTEST_CASES=60 cargo test -p phonedriver --test guard_property`: 7 passed, in 243.84 s.
 - `cargo test --workspace`: 585 passed, 0 failed.
 - `cargo clippy --workspace --all-targets -- -D warnings`: clean.
+
+## AX/DX audit: `doctor --device` probes only that device (2026-11-08)
+
+- Found: `phonedriver --device android:emulator-5558 doctor` deployed the agent on all three emulators of the shared adb server (20.3 s; lines for 5554 and 5556 with "6.1 s with deploy"). `--device` was parsed and dropped for `doctor`, as it was for `mcp` before 2026-11-08. I ran it that way once myself, so for a few seconds an agent started and was released on emulator-5554 and 5556 (afterwards `ps` shows no agent process on either; only the testbed app on 5554). This is the failure the `doctor-probes-every-device` note warns about.
+- Changed: `doctor::run(home, only)`; `wants(only, id)` accepts `android:X`, `sim:X`, `ios:X` or the part after the colon; Android, Simulator and physical iPhone checks keep only the named device; a named `android:` id adb does not list is a `fail` line naming what adb lists. A failing agent line no longer says "fix: Run `phonedriver doctor`" (it is doctor); it points to `daemon.log`. `docs/reference.md` says what doctor does without `--device`.
+- Tests first (red: 2 failed, output listed `android:emulator-5554` lines for `--device android:emulator-5556`): `doctor_probes_only_the_device_it_is_given` (full id and bare serial), `doctor_names_a_device_it_was_given_that_adb_does_not_list`, and an added assertion in `doctor_says_which_step_failed_when_the_agent_cannot_start`. After: `cargo test -p phonedriver --test cli`: 18 passed. clippy `--tests` clean.
+- Live: `phonedriver --device android:emulator-5558 doctor`: 4 Android lines for 5558 only, no simulator warning, 6.8 s total against 20.3 s.

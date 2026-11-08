@@ -335,8 +335,49 @@ async fn doctor_says_which_step_failed_when_the_agent_cannot_start() {
         .find(|l| l.contains("agent android:emulator-5554"))
         .expect(&out);
     assert!(line.starts_with("fail"), "{out}");
+    assert!(!out.contains("fix: Run `phonedriver doctor`"), "{out}");
+    assert!(out.contains("daemon.log"), "{out}");
     assert!(!out.contains("video android:emulator-5554"), "{out}");
     assert_eq!(code, Some(1));
+}
+
+const TWO_DEVICES: &str = "emulator-5554          device product:sdk_gphone64_x86_64 model:Pixel_9 device:emu64xa transport_id:5\nemulator-5556          device product:sdk_gphone64_x86_64 model:Pixel_8 device:emu64xa transport_id:6\n";
+
+#[tokio::test(flavor = "multi_thread")]
+async fn doctor_probes_only_the_device_it_is_given() {
+    let env = Env::new(TWO_DEVICES).await;
+    for given in ["android:emulator-5556", "emulator-5556"] {
+        let out = env
+            .cmd()
+            .args(["--device", given, "doctor"])
+            .output()
+            .unwrap();
+        let out = String::from_utf8(out.stdout).unwrap();
+        assert!(
+            out.contains("agent android:emulator-5556"),
+            "{given}: {out}"
+        );
+        assert!(!out.contains("emulator-5554"), "{given}: {out}");
+    }
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn doctor_names_a_device_it_was_given_that_adb_does_not_list() {
+    let env = Env::new(TWO_DEVICES).await;
+    let out = env
+        .cmd()
+        .args(["--device", "android:emulator-9999", "doctor"])
+        .output()
+        .unwrap();
+    let text = String::from_utf8(out.stdout).unwrap();
+    let line = text
+        .lines()
+        .find(|l| l.contains("android:emulator-9999"))
+        .expect(&text);
+    assert!(line.starts_with("fail"), "{text}");
+    assert!(text.contains("emulator-5554, emulator-5556"), "{text}");
+    assert!(!text.contains("agent android:emulator-5554"), "{text}");
+    assert_eq!(out.status.code(), Some(1));
 }
 
 #[tokio::test(flavor = "multi_thread")]
