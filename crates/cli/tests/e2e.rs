@@ -129,7 +129,7 @@ async fn a_secret_from_stdin_types_by_length_and_leaves_no_trace() {
 
 #[tokio::test]
 #[ignore = "needs PHONEDRIVER_TEST_DEVICE"]
-async fn typing_into_a_password_field_without_the_flag_still_leaves_no_trace() {
+async fn typing_plain_text_into_a_password_field_is_refused_and_nothing_is_typed() {
     let rig = Rig::new().await;
     rig.tab("text").await;
     let els = elements(&rig);
@@ -137,17 +137,17 @@ async fn typing_into_a_password_field_without_the_flag_still_leaves_no_trace() {
         .as_str()
         .unwrap()
         .to_string();
-    let out = rig.ok(&["type", "hunter2", "--into", &format!("@{field}")]);
-    assert!(!out.contains("hunter2"), "{out}");
-    let log = testbed::wait_for_log(&rig.adb, &rig.serial, 3000, |l| {
-        l.iter().any(|e| e["field"] == "password" && e["len"] == 7)
-    })
-    .await;
+    let out = rig.cli(&["type", "hunter2", "--into", &format!("@{field}")]);
+    assert_eq!(out.status.code(), Some(1));
+    let stderr = String::from_utf8_lossy(&out.stderr);
     assert!(
-        log.iter()
-            .any(|e| e["field"] == "password" && e["len"] == 7),
-        "{log:?}"
+        stderr.contains("password") && stderr.contains("--secret"),
+        "{stderr}"
     );
+    assert!(!stderr.contains("hunter2"), "{stderr}");
+    tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+    let log = testbed::read_log(&rig.adb, &rig.serial).await;
+    assert!(log.iter().all(|e| e["field"] != "password"), "{log:?}");
     nothing_under_the_home_mentions(&rig, "hunter2");
 }
 

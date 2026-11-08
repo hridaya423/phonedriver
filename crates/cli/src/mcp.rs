@@ -734,6 +734,10 @@ fn for_mcp(hint: &str) -> String {
         ),
         ("`--mode keys`", "`mode` `keys`"),
         ("`--within <list ref>`", "`in` with the list's ref"),
+        (
+            "`--secret` (the text on stdin or in PHONEDRIVER_SECRET)",
+            "`secret: true`",
+        ),
         ("`--device <id>`", "`device`"),
         ("`--timeout`", "`timeout_ms`"),
         ("`--max`", "`max`"),
@@ -1153,6 +1157,10 @@ mod tests {
             (
                 "Use `--mode paste` or `--mode keys`; `set` works only where the device can set field values.",
                 "Use `mode` `paste` or `keys`; `set` works only where the device can set field values.",
+            ),
+            (
+                "then type it on its own with `--secret` (the text on stdin or in PHONEDRIVER_SECRET); a batch cannot carry secret text.",
+                "then type it on its own with `secret: true`; a batch cannot carry secret text.",
             ),
             (
                 "Pass `--device <id>` with one of: a, b.",

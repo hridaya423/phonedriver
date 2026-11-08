@@ -297,7 +297,7 @@ claude mcp list    # expect: phonedriver ... Connected</code></pre>
 <h2 id="when-claude-code-asks-you-something">When Claude Code asks you something</h2>
 <p>A tap on a button that spends money or cannot be undone (<code>Place order</code>, <code>Pay</code>, <code>Delete account</code>) is held until you answer. Claude Code shows the question with the app, the button and the amounts on screen. See <a href="/docs/approval-guard/">the approval guard</a>. In headless <code>claude -p</code> nobody can answer, so the tap is declined.</p>
 <h2 id="secrets">Secrets</h2>
-<p>Text typed with <code>secret: true</code> over MCP never reaches logs, traces or replies.</p>
+<p>Text typed with <code>secret: true</code> over MCP never reaches logs, traces or replies. Plain <code>type</code> into a password field or a one-time code field is refused, and the error tells the agent to get the text from you and pass it with <code>secret</code>.</p>
 <div class="pnav"><a class="pn" href="/docs/install/"><span class="lab">Previous</span>Install</a><a class="pn next" href="/docs/cursor-and-mcp-clients/"><span class="lab">Next</span>Cursor and other clients</a></div>
 </article></div>
 </main>

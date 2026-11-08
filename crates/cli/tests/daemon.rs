@@ -853,7 +853,7 @@ async fn a_field_that_kept_its_old_text_is_reported_with_what_it_shows_and_a_hin
 }
 
 #[tokio::test(start_paused = true)]
-async fn typing_into_a_password_field_is_secret_without_the_flag_and_verified_by_length() {
+async fn typing_a_secret_into_a_password_field_is_verified_by_length() {
     let (source, fake) = FakeSource::with(vec![
         field_tree("", true),
         field_tree("", true),
@@ -861,7 +861,7 @@ async fn typing_into_a_password_field_is_secret_without_the_flag_and_verified_by
     ]);
     let (d, home) = daemon(source);
     ok(&d, "default", "snapshot", json!({})).await;
-    let r = ok(&d, "default", "act", type_params("hunter2", false)).await;
+    let r = ok(&d, "default", "act", type_params("hunter2", true)).await;
     assert_eq!(r["verified"], true, "{r}");
     assert_eq!(
         fake.calls()[1],
@@ -871,6 +871,185 @@ async fn typing_into_a_password_field_is_secret_without_the_flag_and_verified_by
     );
     assert!(!r.to_string().contains("hunter2"), "{r}");
     assert!(!trace_text(home.path()).contains("hunter2"));
+}
+
+#[tokio::test(start_paused = true)]
+async fn plain_text_is_refused_in_a_password_field_and_nothing_is_typed() {
+    let (source, fake) = FakeSource::with(vec![field_tree("", true)]);
+    let (d, home) = daemon(source);
+    ok(&d, "default", "snapshot", json!({})).await;
+    let e = err(&d, "default", "act", type_params("hunter2", false)).await;
+    assert_eq!(e.code, -32020, "{e:?}");
+    assert_eq!(e.data["code_name"], "secret_field");
+    assert!(e.message.contains("password"), "{}", e.message);
+    assert!(e.message.contains("--secret"), "{}", e.message);
+    assert!(e.message.contains("secret"), "{}", e.message);
+    assert!(!e.to_json().to_string().contains("hunter2"));
+    assert!(!trace_text(home.path()).contains("hunter2"));
+    assert!(
+        !fake
+            .calls()
+            .iter()
+            .any(|c| matches!(c, Call::Text(_) | Call::Gesture(_))),
+        "{:?}",
+        fake.calls()
+    );
+}
+
+#[tokio::test(start_paused = true)]
+async fn plain_text_is_refused_in_the_focused_password_field_and_clearing_it_is_not() {
+    let (source, fake) = FakeSource::with(vec![field_tree("", true)]);
+    let (d, _home) = daemon(source);
+    ok(&d, "default", "snapshot", json!({})).await;
+    let e = err(
+        &d,
+        "default",
+        "act",
+        json!({"action": {"kind": "type", "text": "hunter2"}}),
+    )
+    .await;
+    assert_eq!(e.code, -32020, "{e:?}");
+    ok(
+        &d,
+        "default",
+        "act",
+        json!({"action": {"kind": "type", "text": "", "into": {"ref": "e1"}}, "settle": false}),
+    )
+    .await;
+    assert!(
+        fake.calls()
+            .iter()
+            .all(|c| !matches!(c, Call::Text(phonedriver_core::device::TextInput::Paste(_)))),
+        "{:?}",
+        fake.calls()
+    );
+}
+
+fn coded_field(label: Option<&str>, hint: Option<&str>, id: Option<&str>) -> RawTree {
+    let node = json!({
+        "p": 0, "w": 1, "cls": "android.widget.EditText", "text": "", "desc": label, "hint": hint, "id": id,
+        "b": [0, 100, 360, 160], "f": "vVeEF", "a": ["tap", "set_text"],
+    });
+    let json = json!({
+        "windows": [{"id": 1, "type": "application", "package": "com.example", "bounds": [0, 0, 360, 800]}],
+        "nodes": [
+            {"p": -1, "w": 1, "cls": "android.widget.FrameLayout", "b": [0, 0, 360, 800], "f": "vVe"},
+            node,
+        ],
+    });
+    RawTree::from_android_json(&json.to_string(), Scale { density: 1.0 }).unwrap()
+}
+
+type FieldNames = (
+    Option<&'static str>,
+    Option<&'static str>,
+    Option<&'static str>,
+);
+
+const CODE_FIELDS: &[FieldNames] = &[
+    (Some("Verification code"), None, None),
+    (None, Some("Enter OTP"), None),
+    (None, None, Some("com.shop:id/otp_input")),
+    (None, None, Some("com.shop:id/verification_code")),
+    (Some("One-time password"), None, None),
+    (Some("SMS code"), None, None),
+    (None, Some("2FA code"), None),
+    (None, Some("Code"), None),
+    (Some("Código de verificación"), None, None),
+    (Some("Code de vérification"), None, None),
+    (None, Some("Bestätigungscode"), None),
+    (None, Some("Codice di verifica"), None),
+    (Some("验证码"), None, None),
+    (None, Some("请输入验证码"), None),
+    (Some("認証コード"), None, None),
+    (None, Some("인증번호 6자리"), None),
+    (Some("ओटीपी"), None, None),
+];
+
+const PLAIN_FIELDS: &[FieldNames] = &[
+    (Some("Promo code"), None, None),
+    (None, Some("Zip code"), None),
+    (None, Some("Postal code"), None),
+    (Some("Coupon code"), None, None),
+    (Some("Country code"), None, None),
+    (None, Some("Discount code"), None),
+    (None, Some("Referral code"), None),
+    (None, Some("Invite code"), None),
+    (Some("Barcode"), None, None),
+    (Some("Search"), None, None),
+    (None, Some("Your name"), None),
+    (None, None, Some("com.shop:id/promo_code")),
+    (Some("优惠码"), None, None),
+];
+
+#[tokio::test(start_paused = true)]
+async fn plain_text_is_refused_in_a_one_time_code_field_but_a_secret_goes_in() {
+    for (label, hint, id) in CODE_FIELDS {
+        let (source, fake) = FakeSource::with(vec![
+            coded_field(*label, *hint, *id),
+            coded_field(*label, *hint, *id),
+        ]);
+        let (d, _home) = daemon(source);
+        ok(&d, "default", "snapshot", json!({})).await;
+        let e = err(&d, "default", "act", type_params("493021", false)).await;
+        assert_eq!(e.code, -32020, "{label:?} {hint:?} {id:?}: {e:?}");
+        assert!(e.message.contains("one-time code"), "{}", e.message);
+        assert!(!e.to_json().to_string().contains("493021"));
+        assert!(fake.calls().is_empty(), "{:?}", fake.calls());
+        ok(&d, "default", "act", type_params("493021", true)).await;
+        assert!(
+            fake.calls().iter().any(|c| matches!(
+                c,
+                Call::Text(phonedriver_core::device::TextInput::PasteSecret(_))
+            )),
+            "{:?}",
+            fake.calls()
+        );
+    }
+}
+
+#[tokio::test(start_paused = true)]
+async fn plain_text_still_goes_into_fields_that_only_mention_a_code() {
+    for (label, hint, id) in PLAIN_FIELDS {
+        let (source, fake) = FakeSource::with(vec![
+            coded_field(*label, *hint, *id),
+            coded_field(*label, *hint, *id),
+        ]);
+        let (d, _home) = daemon(source);
+        ok(&d, "default", "snapshot", json!({})).await;
+        ok(&d, "default", "act", type_params("SAVE10", false)).await;
+        assert!(
+            fake.calls()
+                .iter()
+                .any(|c| matches!(c, Call::Text(phonedriver_core::device::TextInput::Paste(_)))),
+            "{label:?} {hint:?} {id:?}: {:?}",
+            fake.calls()
+        );
+    }
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_batch_refuses_plain_text_for_a_password_field_and_says_what_to_do() {
+    let (source, fake) = FakeSource::with(vec![field_tree("", true)]);
+    let (d, _home) = daemon(source);
+    ok(&d, "default", "snapshot", json!({})).await;
+    let r = ok(
+        &d,
+        "default",
+        "batch",
+        json!({"steps": [{"kind": "type", "text": "hunter2", "into": {"ref": "e1"}}]}),
+    )
+    .await;
+    assert_eq!(r["failed"]["error"]["code"], -32020, "{r}");
+    assert!(
+        r["failed"]["error"]["message"]
+            .as_str()
+            .unwrap()
+            .contains("--secret"),
+        "{r}"
+    );
+    assert!(!r.to_string().contains("hunter2"), "{r}");
+    assert!(fake.calls().is_empty(), "{:?}", fake.calls());
 }
 
 #[tokio::test(start_paused = true)]
@@ -981,7 +1160,7 @@ async fn type_without_into_finds_the_focused_field_in_the_last_observation_inste
         &d,
         "default",
         "act",
-        json!({"action": {"kind": "type", "text": "hunter2"}, "settle": false}),
+        json!({"action": {"kind": "type", "text": "hunter2", "secret": true}, "settle": false}),
     )
     .await;
     assert_eq!(r["ok"], true);

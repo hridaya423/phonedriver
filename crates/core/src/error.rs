@@ -91,6 +91,23 @@ impl Category {
     }
 }
 
+/// Why a field is filled only with secret text (decision D30).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SecretKind {
+    Password,
+    Code,
+}
+
+impl SecretKind {
+    pub fn what(self) -> &'static str {
+        match self {
+            SecretKind::Password => "a password field",
+            SecretKind::Code => "a one-time code field",
+        }
+    }
+}
+
 /// Why a search by scrolling stopped without finding its target.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -311,6 +328,16 @@ pub enum Error {
         /// Visible text near the button that says what is being bought or done.
         details: Vec<String>,
     },
+    #[error(
+        "@{} is {}: plain text is not typed into it. Ask the user for the text, then use `--secret` (MCP: the `secret` input) so it is masked and never logged",
+        r#ref,
+        kind.what()
+    )]
+    SecretField {
+        #[serde(rename = "ref")]
+        r#ref: Ref,
+        kind: SecretKind,
+    },
     #[error("no app named \"{query}\"")]
     NoApp {
         query: String,
@@ -422,6 +449,7 @@ impl Error {
             Error::NoApp { .. } => -32017,
             Error::UnknownKey { .. } => -32018,
             Error::NeedsApproval { .. } => -32019,
+            Error::SecretField { .. } => -32020,
         }
     }
 
@@ -468,6 +496,7 @@ impl Error {
             Error::UnknownKey { valid, .. } => {
                 format!("Use one of these keys: {}.", valid.join("; "))
             }
+            Error::SecretField { .. } => "Ask the user for the text unless they already gave it for this task, then type it on its own with `--secret` (the text on stdin or in PHONEDRIVER_SECRET); a batch cannot carry secret text.".into(),
             Error::NeedsApproval { .. } => "Ask the user in chat whether to tap it; tap again with `--autonomous` only when they say yes or have granted full autonomy.".into(),
             Error::NoApp { similar, .. } if !similar.is_empty() => {
                 format!("Use one of these installed apps: {}.", similar.join("; "))
@@ -672,6 +701,14 @@ mod tests {
                 app: Some("Testbed".into()),
                 details: vec!["Total $12.00".into()],
             },
+            Error::SecretField {
+                r#ref: Ref(3),
+                kind: SecretKind::Password,
+            },
+            Error::SecretField {
+                r#ref: Ref(4),
+                kind: SecretKind::Code,
+            },
             Error::NotReached {
                 query: "Safari".into(),
                 scrolls: 3,
@@ -725,6 +762,7 @@ mod tests {
             Error::NoApp { .. } => (-32017, "no_app"),
             Error::UnknownKey { .. } => (-32018, "unknown_key"),
             Error::NeedsApproval { .. } => (-32019, "needs_approval"),
+            Error::SecretField { .. } => (-32020, "secret_field"),
         }
     }
 

@@ -27,6 +27,10 @@ Payments and deleting an account are always asked about. Three more kinds of tap
 
 For example, `PHONEDRIVER_ASK=send,delete`. The labels are read in the same eleven languages. The prompt names the kind of tap that triggered it (`Category: send`). A name that is not on the list stops the server or command at start with exit code 2, so a typo cannot leave a kind unguarded. `Allow for this session` covers the kind it was given for, not the others. `PHONEDRIVER_GUARD=off` and `autonomous: true` skip these questions too.
 
+## Password and code fields
+
+The guard has one more rule about text. `type` with plain text into a password field, or into a text field whose label, hint or id names a one-time code (`Verification code`, `OTP`, `验证码`, `認証コード`, `인증번호` and the like), is refused with `is a password field` or `is a one-time code field`, and nothing is typed. The error tells the agent to get the text from you and pass it with `secret` (`type --secret` on the CLI, with the text on stdin). Text typed that way is masked and never reaches logs, traces or replies. Clearing such a field is not refused. A plain `Promo code` or `Zip code` field is not affected. phonedriver reads no input type or autofill hint from the phone, only the words, so a code field with no such words is not caught.
+
 ## What you see
 
 Over MCP, a client that supports elicitation shows one form that names the app and the button and lists up to eight lines of visible text with an amount or a word like total, deliver, address, item or quantity. The answers are:

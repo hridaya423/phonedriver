@@ -65,7 +65,7 @@ pub fn app_name(now: &Rendered) -> Option<String> {
 
 const MAX_WORDS: usize = 9;
 
-fn tokens(text: &str) -> Vec<String> {
+pub(crate) fn tokens(text: &str) -> Vec<String> {
     let lower: String = text
         .to_lowercase()
         .chars()
@@ -93,7 +93,7 @@ fn is_devanagari(c: char) -> bool {
     ('\u{0900}'..='\u{097F}').contains(&c) && !matches!(c, '।' | '॥')
 }
 
-fn is_cjk(c: char) -> bool {
+pub(crate) fn is_cjk(c: char) -> bool {
     matches!(
         c,
         '\u{1100}'..='\u{11FF}'

@@ -80,6 +80,8 @@ You choose Allow, Allow for this session, or Decline. If you want an agent to ru
 
 The check reads button labels in English, Spanish, Portuguese, French, German, Italian, Dutch, Japanese, Chinese (Simplified), Korean and Hindi. It does not catch a payment button that is only an icon, or one labeled in another language. By default it asks about payments and deleting an account. To be asked about more, set `PHONEDRIVER_ASK` to any of `send` (Send, Reply, Post, Share), `delete` (Delete, Remove, Clear all) and `install` (Install, Uninstall), for example `PHONEDRIVER_ASK=send,delete`. The prompt says which kind of tap it is.
 
+The model can't type plain text into a password field or a one-time code field. It gets an error that tells it to use `secret`, which keeps the text out of logs and traces.
+
 ## Real jobs
 
 I tested phonedriver on nine jobs done in apps' own screens. They included setting Chrome's search engine, cropping a photo, pinning and archiving Messages threads, finding the app that keeps the phone awake, and testing a sign-up flow for planted bugs. Each job ran twice with Claude Sonnet 5.5. A script checked the phone's own data afterwards, not the model's report. All 18 runs passed. This is my own test set, published with every run: [the jobs and the checks](docs/bench/jobs.md).
