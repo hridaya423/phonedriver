@@ -328,3 +328,15 @@ Secrets. The trace keeps the command text (an agent's command is what it did), b
 
 **Reopen if.** Claude Desktop users need double-click install (then a `node`-type `.mcpb` around the same launcher), or the launcher's `tar` dependency fails for real users (then `unix-archive = ".tar.gz"`).
 
+## D30. Cable-free Android setup is `pair` (QR) and `untether` (opt-in); both talk to adb's server, neither is tested on a physical phone yet
+
+**Choice.** `phonedriver pair` shows the QR code Android Studio shows (`WIFI:T:ADB;S:<name>;P:<password>;;`, a random `phonedriver-XXXXXX` name and a random 12-character password), polls the adb server's `host:mdns:services` for the `_adb-tls-pairing` service with that instance name, sends `host:pair:<password>:<ip:port>`, then waits for the `_adb-tls-connect` service of the same IP and connects (`host:connect:`), or takes the transport adb already auto-connected. `phonedriver untether` reads the phone's IPv4 addresses (`ip -o -4 addr show`), sends `tcpip:5555`, and connects to the first address that answers. Both use the adb server protocol through `Adb` like the rest of the Android crate, so `ADB_SERVER_SOCKET` works. `untether` is never run by another command and always prints that adb then listens on every network the phone joins until it reboots.
+
+**Why.** Manual pairing needs two commands and two addresses typed from the phone; the QR needs one scan, and the service name in the QR is how the right phone is found among several on the network. Using the phone away from the home Wi-Fi (Tailscale) needs classic `tcpip` mode, because wireless debugging only works on the Wi-Fi it was switched on for.
+
+**Limits.** Not run against a physical phone: the emulator's guest network is NATed, so it cannot advertise mDNS to the host. Proven so far: the parsers against `adb`'s source formats (`client/transport_mdns.cpp`, `services.cpp`) and a real `ip -o -4 addr show`, the protocol calls against a fake adb server and against a real server for the failure paths, `tcpip` on an emulator. The success reply of `host:pair` and whether adb auto-connects before `pair` returns are read from adb's source, not observed. adb's mDNS must work (`host:mdns:check`); routers that block mDNS fall back to the pairing code (`docs/reference.md`). The QR is black on white by ANSI colour on a terminal; piped output is plain half-blocks.
+
+**Rejected.** Shelling out to `adb pair` / `adb connect` (a second code path next to the protocol client, with output to parse and no `ADB_SERVER_SOCKET` handling of our own). A Tailscale integration: only the address list is labelled; setting up the tailnet is the user's. Running `tcpip` as part of `pair`: it widens exposure and must be a separate, named step. Embedding an mDNS responder in phonedriver: adb already resolves mDNS, and a second one would fight it for the port.
+
+**Reopen if.** A real phone shows `pair` returning before the connect service appears with a different serial format than the code expects, or Android removes `tcpip` mode.
+

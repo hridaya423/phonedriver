@@ -24,7 +24,7 @@ use crate::wire::{
     ShellResult, VERSION,
 };
 
-const USAGE: &str = "usage: phonedriver <command>\n\nrun `phonedriver --help` for the options and exit codes\n\ncommands:\n  devices\n  snapshot\n  screenshot\n  find\n  launch\n  open\n  apps\n  swipe\n  drag\n  pinch\n  scroll\n  gesture\n  tap\n  type\n  clear\n  clipboard\n  shell\n  press\n  wait\n  batch\n  release\n  daemon\n  doctor\n  ios\n  mcp\n  skill\n  version";
+const USAGE: &str = "usage: phonedriver <command>\n\nrun `phonedriver --help` for the options and exit codes\n\ncommands:\n  devices\n  snapshot\n  screenshot\n  find\n  launch\n  open\n  apps\n  swipe\n  drag\n  pinch\n  scroll\n  gesture\n  tap\n  type\n  clear\n  clipboard\n  shell\n  press\n  wait\n  batch\n  release\n  daemon\n  doctor\n  pair\n  untether\n  ios\n  mcp\n  skill\n  version";
 
 const AFTER_HELP: &str = "Examples:
   phonedriver devices
@@ -96,6 +96,18 @@ const UNUSED_GLOBALS: &[(&str, &[&str])] = &[
     ("release", &["no_settle", "timeout", "expect_change"]),
     ("daemon", ALL_GLOBALS),
     ("doctor", ALL_GLOBALS),
+    ("pair", ALL_GLOBALS),
+    (
+        "untether",
+        &[
+            "session",
+            "json",
+            "no_settle",
+            "timeout",
+            "expect_change",
+            "share",
+        ],
+    ),
     ("mcp", ALL_GLOBALS),
     ("skill", ALL_GLOBALS),
     ("version", ALL_GLOBALS),
@@ -380,6 +392,16 @@ pub(crate) enum Verb {
     },
     /// Check adb, Android devices and their agent, Xcode, booted simulators and their runners, wired iPhones, and the daemon socket; each line says ok, warn or fail, with a fix.
     Doctor,
+    /// Pair an Android 11+ phone over Wi-Fi with a QR code.
+    ///
+    /// Shows a QR code. On the phone open Developer options > Wireless debugging > Pair device with QR code and scan it; the phone is paired and connected. Needs adb's mDNS and the phone on the same Wi-Fi; otherwise pair with the code (see docs/reference.md). Not yet tested on a physical phone.
+    #[cfg(feature = "android")]
+    Pair,
+    /// Make an Android phone reachable over any network, such as Tailscale.
+    ///
+    /// Runs `adb tcpip 5555` on the phone (USB or Wi-Fi), lists its addresses by interface and connects to the first that answers. adb then listens on every network the phone joins until it reboots, so use it only on networks you trust or with Tailscale; `adb usb` or a reboot turns it off. Not yet tested on a physical phone.
+    #[cfg(feature = "android")]
+    Untether,
     /// Serve the tools over MCP on stdio.
     Mcp,
     /// Print SKILL.md, the instructions an agent reads before it uses phonedriver.
@@ -428,6 +450,10 @@ pub fn run(cli: Cli) -> ExitCode {
             full: trace_full,
             screens: trace_screens,
         }),
+        #[cfg(feature = "android")]
+        Verb::Pair => crate::wireless::pair(),
+        #[cfg(feature = "android")]
+        Verb::Untether => crate::wireless::untether(cli.device.as_deref()),
         Verb::Mcp => crate::mcp::run(),
         Verb::Skill => {
             print!("{}", include_str!("../../../SKILL.md"));
@@ -836,6 +862,8 @@ pub(crate) async fn execute_with(
                 "released".into()
             })
         }
+        #[cfg(feature = "android")]
+        Verb::Pair | Verb::Untether => Ok(String::new()),
         Verb::Daemon { .. }
         | Verb::Doctor
         | Verb::Ios { .. }

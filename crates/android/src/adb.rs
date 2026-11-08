@@ -187,6 +187,61 @@ impl Adb {
         Ok(parse_devices(&self.host_query("host:devices-l").await?))
     }
 
+    /// `mdns daemon version [...]` when the server resolves mDNS, an error when it does not.
+    pub async fn mdns_check(&self) -> Result<String> {
+        self.host_query("host:mdns:check").await
+    }
+
+    /// The server's mDNS listing, one `<instance>\t<service>\t<ip>:<port>` line per service.
+    pub async fn mdns_services(&self) -> Result<String> {
+        self.host_query("host:mdns:services").await
+    }
+
+    /// `adb pair`: the success line, or an error carrying the server's reason.
+    pub async fn pair(&self, addr: &str, code: &str) -> Result<String> {
+        let mut s = self.connect().await?;
+        self.request(&mut s, &format!("host:pair:{code}:{addr}"))
+            .await?;
+        let mut status = [0u8; 4];
+        s.read_exact(&mut status)
+            .await
+            .map_err(|e| transport(format!("adb closed the connection during pairing: {e}")))?;
+        if &status == b"FAIL" {
+            let message = self.read_hex_prefixed(&mut s).await?;
+            return Err(transport(format!(
+                "adb pair {addr} failed: {}",
+                String::from_utf8_lossy(&message)
+            )));
+        }
+        let mut rest =
+            vec![
+                0u8;
+                usize::from_str_radix(std::str::from_utf8(&status).unwrap_or(""), 16)
+                    .map_err(|_| transport(format!("adb answered pairing with {status:?}")))?
+            ];
+        s.read_exact(&mut rest)
+            .await
+            .map_err(|e| transport(format!("adb closed the connection during pairing: {e}")))?;
+        Ok(String::from_utf8_lossy(&rest).into_owned())
+    }
+
+    /// `adb connect`: `connected to ...` or `already connected to ...`, or the reason it failed (as an `Ok` line, as adb reports it).
+    pub async fn connect_device(&self, addr: &str) -> Result<String> {
+        self.host_query(&format!("host:connect:{addr}")).await
+    }
+
+    /// `adb tcpip`: the device restarts adbd listening on `port`. The device's own answer is returned.
+    pub async fn tcpip(&self, serial: &str, port: u16) -> Result<String> {
+        let mut s = self
+            .transport_stream(serial, &format!("tcpip:{port}"))
+            .await?;
+        let mut answer = Vec::new();
+        s.read_to_end(&mut answer)
+            .await
+            .map_err(|e| transport(format!("tcpip on {serial} failed: {e}")))?;
+        Ok(String::from_utf8_lossy(&answer).into_owned())
+    }
+
     /// `Android 8.0 (API 26)`, from the device's build properties.
     pub async fn os_label(&self, serial: &str) -> Result<String> {
         let out = self
