@@ -46,6 +46,9 @@ pub struct FakeDevice {
     shell: Mutex<ShellReply>,
     on_text: Mutex<Option<TextHook>>,
     hidden: Option<u32>,
+    shot: Mutex<Option<Image>>,
+    shot_failures: Mutex<Vec<Error>>,
+    order: Mutex<Vec<&'static str>>,
 }
 
 type TextHook = Box<dyn Fn(&TextInput) -> Option<Vec<RawTree>> + Send + Sync>;
@@ -81,7 +84,27 @@ impl FakeDevice {
             shell: Mutex::new(ShellReply::default()),
             on_text: Mutex::new(None),
             hidden: None,
+            shot: Mutex::new(None),
+            shot_failures: Mutex::new(Vec::new()),
+            order: Mutex::new(Vec::new()),
         }
+    }
+
+    /// The same device with a screen it can capture: `screenshot()` returns `image`.
+    pub fn with_screenshot(mut self, image: Image) -> FakeDevice {
+        self.info.capabilities |= Capabilities::SCREENSHOT;
+        *lock(&self.shot) = Some(image);
+        self
+    }
+
+    /// The next `screenshot()` calls fail with these errors, in order, before one succeeds.
+    pub fn fail_screenshots(&self, errors: Vec<Error>) {
+        *lock(&self.shot_failures) = errors.into_iter().rev().collect();
+    }
+
+    /// `"tree"` and `"screenshot"` in the order the device was asked, to tell what a screenshot was taken after.
+    pub fn order(&self) -> Vec<&'static str> {
+        lock(&self.order).clone()
     }
 
     /// After a `text` call for which `f` returns trees, `tree()` returns those in order, then keeps the last: a field
@@ -173,6 +196,7 @@ impl Device for FakeDevice {
     }
 
     async fn tree(&self) -> Result<RawTree> {
+        lock(&self.order).push("tree");
         self.tree_reads
             .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
         let mut trees = lock(&self.trees);
@@ -190,7 +214,11 @@ impl Device for FakeDevice {
     }
 
     async fn screenshot(&self, _q: Quality) -> Result<Image> {
-        Err(Error::Unsupported {
+        lock(&self.order).push("screenshot");
+        if let Some(e) = lock(&self.shot_failures).pop() {
+            return Err(e);
+        }
+        lock(&self.shot).clone().ok_or(Error::Unsupported {
             op: Op::Screenshot,
             reason: "FakeDevice has no pixels",
         })

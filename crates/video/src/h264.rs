@@ -9,6 +9,7 @@ use crate::frame_store::Frame;
 
 const FOURCC_H264: &[u8; 4] = b"h264";
 const MAX_PACKET: usize = 64 << 20;
+const FLAG_BARRIER: u8 = 4;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CodecHeader {
@@ -29,6 +30,8 @@ pub enum WirePacket {
     Access(AccessUnit),
     /// The display changed size or rotation; a new config packet and keyframe follow.
     Reconfigure(CodecHeader),
+    /// Written by the agent between packets when the host asks (`video_barrier`): every packet before it is already read.
+    Barrier(u64),
 }
 
 pub async fn read_header<R: AsyncRead + Unpin>(r: &mut R) -> io::Result<CodecHeader> {
@@ -54,6 +57,11 @@ pub async fn read_packet<R: AsyncRead + Unpin>(r: &mut R) -> io::Result<WirePack
     let len = u32::from_be_bytes([h[9], h[10], h[11], h[12]]) as usize;
     if pts_us == u64::MAX && len == 0 {
         return Ok(WirePacket::Reconfigure(read_header(r).await?));
+    }
+    if flags & FLAG_BARRIER != 0 && len == 8 {
+        let mut id = [0u8; 8];
+        r.read_exact(&mut id).await?;
+        return Ok(WirePacket::Barrier(u64::from_be_bytes(id)));
     }
     if len > MAX_PACKET {
         return Err(io::Error::new(

@@ -1920,6 +1920,58 @@ async fn a_launch_that_never_settles_still_answers_with_the_screen_lines_once_th
     assert!(text.contains("\"Calculator\""), "{r}");
 }
 
+fn fake_png() -> phonedriver_core::device::Image {
+    let (w, h) = (360usize, 800usize);
+    let frame = phonedriver_video::frame_store::Frame::from_i420(
+        w as u32,
+        h as u32,
+        vec![128; w * h],
+        vec![128; w * h / 4],
+        vec![128; w * h / 4],
+    );
+    phonedriver_core::device::Image {
+        width: w as u32,
+        height: h as u32,
+        format: phonedriver_core::device::ImageFormat::Png,
+        bytes: phonedriver_video::image::encode_png(&frame, 1.0).unwrap(),
+    }
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_screenshot_with_marks_is_taken_after_the_tree_it_is_marked_with() {
+    let (source, fake) =
+        FakeSource::of(FakeDevice::new(vec![tree(&["One"])]).with_screenshot(fake_png()));
+    let (d, _home) = daemon(source);
+    ok(&d, "default", "screenshot", json!({"marks": true})).await;
+    assert_eq!(fake.order(), ["tree", "screenshot"]);
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_screenshot_whose_stream_was_gone_reconnects_once_and_answers() {
+    let (source, fake) =
+        FakeSource::of(FakeDevice::new(vec![tree(&["One"])]).with_screenshot(fake_png()));
+    fake.fail_screenshots(vec![Error::DeviceGone {
+        id: "fake:1".into(),
+    }]);
+    let (d, _home) = daemon(source);
+    let r = ok(&d, "default", "screenshot", json!({})).await;
+    assert_eq!(r["width"], 360, "{r}");
+    assert_eq!(fake.order(), ["screenshot", "screenshot"]);
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_screenshot_that_is_gone_twice_is_an_error() {
+    let (source, fake) =
+        FakeSource::of(FakeDevice::new(vec![tree(&["One"])]).with_screenshot(fake_png()));
+    let gone = || Error::DeviceGone {
+        id: "fake:1".into(),
+    };
+    fake.fail_screenshots(vec![gone(), gone()]);
+    let (d, _home) = daemon(source);
+    let e = err(&d, "default", "screenshot", json!({})).await;
+    assert_eq!(e.code, -32003, "{e:?}");
+}
+
 fn tree_of(package: &str, labels: &[&str]) -> RawTree {
     let mut nodes = vec![
         r#"{"p":-1,"w":1,"cls":"android.widget.FrameLayout","b":[0,0,360,800],"f":"vVe"}"#

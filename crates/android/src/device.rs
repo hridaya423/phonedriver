@@ -21,6 +21,8 @@ use crate::control::Control;
 use crate::map;
 
 const FIRST_FRAME_WAIT: std::time::Duration = std::time::Duration::from_secs(2);
+/// A screenshot proves the stream is current within this: one control round trip and the barrier's way back.
+const BARRIER_WAIT: std::time::Duration = std::time::Duration::from_millis(1500);
 const EVENT_BACKLOG: usize = 64;
 
 pub struct AndroidDevice {
@@ -160,6 +162,10 @@ impl Device for AndroidDevice {
                 id: self.info.id.clone(),
             });
         }
+        caught_up(&self.video, &self.info.id, BARRIER_WAIT, |id| {
+            self.simple(Op::Screenshot, json!({"op": "video_barrier", "id": id}))
+        })
+        .await?;
         let frame = store.latest().ok_or_else(|| Error::Transport {
             detail: "no video frame".into(),
         })?;
@@ -418,6 +424,124 @@ fn permission_name(name: &str) -> Result<String> {
         Err(Error::Transport {
             detail: format!("{name:?} is not a permission name"),
         })
+    }
+}
+
+/// Asks the agent to write barrier `id` into the video stream and waits for it to arrive, so the frame a screenshot
+/// serves is the newest the agent has produced. Observed on API 26 through an adb tunnel: after the agent was
+/// killed (which is what a second daemon does), neither socket reported it for 5 to 21 s, the stream looked open,
+/// a screenshot answered with the last frame and tree reads hung. A barrier that does not come back means the
+/// device is gone as far as this connection is concerned, so the caller reconnects.
+async fn caught_up<F>(
+    video: &VideoStream,
+    device: &str,
+    limit: std::time::Duration,
+    ask: impl FnOnce(u64) -> F,
+) -> Result<()>
+where
+    F: std::future::Future<Output = Result<Value>>,
+{
+    let id = video.next_barrier();
+    let reached = tokio::time::timeout(limit, async {
+        ask(id).await?;
+        Ok::<bool, Error>(video.wait_barrier(id, limit).await)
+    })
+    .await;
+    match reached {
+        Ok(Ok(true)) => Ok(()),
+        Ok(Err(e)) => Err(e),
+        Ok(Ok(false)) | Err(_) => Err(Error::DeviceGone { id: device.into() }),
+    }
+}
+
+#[cfg(test)]
+mod barrier_tests {
+    use std::time::Duration;
+
+    use phonedriver_core::error::Error;
+    use phonedriver_video::frame_store::FrameStore;
+    use phonedriver_video::stream::VideoStream;
+    use serde_json::json;
+    use tokio::io::{AsyncWriteExt, DuplexStream};
+
+    use super::caught_up;
+
+    const LIMIT: Duration = Duration::from_millis(300);
+
+    fn open_stream() -> (DuplexStream, VideoStream) {
+        let (agent, host) = tokio::io::duplex(1 << 16);
+        (agent, VideoStream::spawn(host, FrameStore::new(2.0)))
+    }
+
+    fn barrier_packet(id: u64) -> Vec<u8> {
+        let mut b = 0u64.to_be_bytes().to_vec();
+        b.push(4);
+        b.extend_from_slice(&8u32.to_be_bytes());
+        b.extend_from_slice(&id.to_be_bytes());
+        b
+    }
+
+    fn header() -> Vec<u8> {
+        let mut h = b"h264".to_vec();
+        h.extend_from_slice(&64u32.to_be_bytes());
+        h.extend_from_slice(&64u32.to_be_bytes());
+        h
+    }
+
+    #[tokio::test]
+    async fn an_agent_that_never_answers_is_gone_not_a_source_of_the_last_frame() {
+        let (_agent, video) = open_stream();
+        let e = caught_up(&video, "android:x", LIMIT, |_| std::future::pending())
+            .await
+            .unwrap_err();
+        assert_eq!(
+            e,
+            Error::DeviceGone {
+                id: "android:x".into()
+            }
+        );
+    }
+
+    #[tokio::test]
+    async fn an_agent_that_answers_but_whose_stream_delivers_nothing_is_gone() {
+        let (_agent, video) = open_stream();
+        let e = caught_up(&video, "android:x", LIMIT, |_| async { Ok(json!({})) })
+            .await
+            .unwrap_err();
+        assert_eq!(
+            e,
+            Error::DeviceGone {
+                id: "android:x".into()
+            }
+        );
+    }
+
+    #[tokio::test]
+    async fn a_barrier_that_comes_back_through_the_stream_lets_the_screenshot_through() {
+        let (mut agent, video) = open_stream();
+        agent.write_all(&header()).await.unwrap();
+        agent.write_all(&barrier_packet(1)).await.unwrap();
+        caught_up(&video, "android:x", LIMIT, |_| async { Ok(json!({})) })
+            .await
+            .unwrap();
+    }
+
+    #[tokio::test]
+    async fn an_error_from_the_agent_is_the_error() {
+        let (_agent, video) = open_stream();
+        let e = caught_up(&video, "android:x", LIMIT, |_| async {
+            Err(Error::Transport {
+                detail: "boom".into(),
+            })
+        })
+        .await
+        .unwrap_err();
+        assert_eq!(
+            e,
+            Error::Transport {
+                detail: "boom".into()
+            }
+        );
     }
 }
 

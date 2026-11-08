@@ -728,10 +728,23 @@ impl Actor {
             "this device has no screen capture",
         )?;
         let device = self.device()?;
-        let mut image = device.screenshot(Quality(100)).await?;
+        let now = if p.marks {
+            Some(self.fresh(s).await?)
+        } else {
+            None
+        };
+        let mut image = match device.screenshot(Quality(100)).await {
+            Err(Error::DeviceGone { .. }) => {
+                let display = self.live.as_ref().map(|l| l.display);
+                self.live = None;
+                self.ensure_live(display.unwrap_or(DisplayMode::Main))
+                    .await?;
+                self.device()?.screenshot(Quality(100)).await?
+            }
+            shot => shot?,
+        };
         let mut marked = None;
-        if p.marks {
-            let now = self.fresh(s).await?;
+        if let Some(now) = now {
             let marks: Vec<phonedriver_video::marks::Mark> = now
                 .elements
                 .iter()

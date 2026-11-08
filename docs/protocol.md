@@ -163,6 +163,7 @@ Frames: `u32 big-endian length` + UTF-8 JSON. Requests carry `id`; replies echo 
 | `state` | none | `{screen_on, locked, secure_keyguard, ime_visible, foreground}` |
 | `power` | none | `{screen_on, locked, secure_keyguard, focused}` (`focused`: an accessibility window has input focus); cheap, read before every action |
 | `sync_frame` | none | `{}`; next video frame is a keyframe |
+| `video_barrier` | `id` (u64) | `{}`; the agent takes every frame already encoded, then writes a barrier packet with `id` into the video stream (below) |
 | `wake` | none | `{}` |
 
 `RawNode` (flat; tree order is preorder). Empty and false fields are omitted to keep the payload small.
@@ -211,6 +212,8 @@ Then frames:
 `u64 pts_us | u8 flags (bit0 config, bit1 keyframe) | u32 length | bytes (Annex-B)`.
 
 On display change the agent sends a new codec header preceded by a frame with `pts_us = u64::MAX` and length 0.
+
+A barrier packet answers `video_barrier`: `pts_us = 0`, `flags` bit2 set, length 8, and the request's `id` as a big-endian `u64`. The host reads packets in order, so when it has decoded the barrier every frame the agent wrote before it has been shown.
 
 ## 3. Daemon ↔ PhonedriverRunner
 

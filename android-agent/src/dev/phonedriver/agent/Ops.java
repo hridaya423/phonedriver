@@ -45,6 +45,9 @@ final class Ops {
             case "sync_frame":
                 Video.requestSyncFrame();
                 return r;
+            case "video_barrier":
+                Video.requestBarrier(q.getLong("id"));
+                return r;
             case "wake":
                 if (!Hidden.active()) {
                     Accessibility.allowKick();
