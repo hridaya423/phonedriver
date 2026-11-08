@@ -67,6 +67,8 @@ const LOADING_WAIT: Duration = Duration::from_secs(4);
 const CONTENT_WAIT: Duration = Duration::from_secs(2);
 /// Chrome exposes a web field's new text to accessibility up to a second after the page shows it (Domino's checkout,
 /// keys typed in a batch, API 37 emulator).
+/// How long an opened link may take to put its page in the tree before the reply goes out with what is there.
+const PAGE_WAIT: Duration = Duration::from_secs(5);
 const WEB_TEXT_WAIT: Duration = Duration::from_millis(1500);
 const WEB_VIEW_WAIT: Duration = Duration::from_secs(10);
 const LEAVE_WAIT: Duration = Duration::from_millis(2500);
@@ -1630,6 +1632,10 @@ impl Actor {
                 let started = self.begin_action();
                 device.open_url(&Url(url.clone()), target.as_ref()).await?;
                 self.until_app_content(leaving.as_ref()).await?;
+                let waited = Instant::now();
+                while waited.elapsed() < PAGE_WAIT && device.tree().await?.web_view_pending() {
+                    tokio::time::sleep(TREE_STEP).await;
+                }
                 self.cold_until = Some(self.now() + COLD_APP_WINDOW);
                 let summary = format!("opened {url}");
                 self.finish(s, p.settle, cfg, started, summary, None, None, None)

@@ -2164,6 +2164,40 @@ async fn launching_an_unknown_app_says_no_app_and_lists_apps_that_share_a_word()
     assert!(!hint.contains("snapshot"), "{hint}");
 }
 
+fn chrome_tree(page: Option<&str>) -> RawTree {
+    let content = match page {
+        Some(text) => format!(
+            r#"{{"p":1,"w":1,"cls":"android.webkit.WebView","b":[0,100,360,800],"f":"vVe"}},
+            {{"p":2,"w":1,"cls":"android.widget.TextView","text":"{text}","b":[0,120,360,160],"f":"vVe"}}"#
+        ),
+        None => r#"{"p":1,"w":1,"cls":"android.widget.FrameLayout","desc":"Web View","b":[0,100,360,800],"f":"vVeF"}"#.to_string(),
+    };
+    let json = format!(
+        r#"{{"windows":[{{"id":1,"type":"application","package":"com.android.chrome","bounds":[0,0,360,800]}}],"nodes":[
+        {{"p":-1,"w":1,"cls":"android.widget.FrameLayout","b":[0,0,360,800],"f":"vVe"}},
+        {{"p":0,"w":1,"cls":"android.widget.FrameLayout","b":[0,0,360,800],"f":"vVe"}},
+        {content}]}}"#
+    );
+    RawTree::from_android_json(&json, Scale { density: 1.0 }).unwrap()
+}
+
+#[tokio::test(start_paused = true)]
+async fn an_opened_page_is_in_the_reply_not_chromes_empty_web_view() {
+    let mut trees: Vec<RawTree> = (0..12).map(|_| chrome_tree(None)).collect();
+    trees.extend((0..4).map(|_| chrome_tree(Some("Android is a mobile operating system"))));
+    let (source, _fake) = FakeSource::with(trees);
+    let (d, _home) = daemon(source);
+    let r = ok(
+        &d,
+        "default",
+        "act",
+        act_with(json!({"kind": "open", "url": "https://en.wikipedia.org/wiki/Android"})),
+    )
+    .await;
+    let text = r["observation"]["text"].as_str().unwrap();
+    assert!(text.contains("Android is a mobile operating system"), "{r}");
+}
+
 #[tokio::test(start_paused = true)]
 async fn open_hands_the_url_to_the_device() {
     let (source, fake) = installed();
