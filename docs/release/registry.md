@@ -27,7 +27,7 @@ The npm launcher is the shortest install: `claude mcp add phonedriver -- npx -y 
 
 An `.mcpb` bundle is not added:
 
-- It cannot choose by CPU. macOS arm64 and x64 would each need their own bundle, and the registry entry would list several packages for one server. A fat bundle with both binaries (and Linux and Windows) would be about 17 MB of binaries per download. (Archive sizes: the aarch64 macOS `.tar.xz` is 3.3 MB; the other four are not built yet.)
+- It cannot choose by CPU. macOS arm64 and x64 would each need their own bundle, and the registry entry would list several packages for one server. A fat bundle with both binaries (and Linux and Windows) would be about 17 MB of binaries per download. (Archive sizes: the aarch64 macOS `.tar.gz` is 3.3 MB; the other four are not built yet.)
 - The unsigned binary inside a bundle would meet the user's client in the way the client decides, and we cannot test Claude Desktop installs here.
 - The bundle would need a second release asset, a hash in `server.json` that changes with every build, and a version-bump step per release. The npm route has none of that.
 - Claude's own directory no longer takes local `.mcpb` servers (`docs/launch/directories.md`).
@@ -47,7 +47,7 @@ Revisit if Claude Desktop users ask for double-click install. Then ship one `nod
 
 1. Maps `process.platform` and `process.arch` to a cargo-dist target: `aarch64-apple-darwin`, `x86_64-apple-darwin`, `x86_64-unknown-linux-gnu`, `aarch64-unknown-linux-gnu`, `x86_64-pc-windows-msvc`. Anything else exits with a message and a link to the other installs.
 2. If `<cache>/<version>/<target>/phonedriver[.exe]` exists, runs it. No network.
-3. Otherwise downloads `phonedriver-<target>.tar.xz` (`.zip` on Windows) and `.sha256` from `https://github.com/hridaya423/phonedriver/releases/download/v<version>/`, checks the SHA-256, unpacks with the system `tar`, moves the binary into the cache and runs it. Its progress line goes to stderr, because stdout is the MCP stream. The package version is the release version, so the launcher and binary always match.
+3. Otherwise downloads `phonedriver-<target>.tar.gz` (`.zip` on Windows) and `.sha256` from `https://github.com/hridaya423/phonedriver/releases/download/v<version>/`, checks the SHA-256, unpacks with the system `tar`, moves the binary into the cache and runs it. Its progress line goes to stderr, because stdout is the MCP stream. The package version is the release version, so the launcher and binary always match.
 4. Passes arguments, stdin, stdout, signals and the exit code through.
 
 No postinstall script: nothing runs at `npm install` time, and the download waits for the first real use. The only outbound request is the download from GitHub Releases (D9 holds: no telemetry, no other host). The checksum is fetched from the same release, so it catches corruption and truncated downloads, not a compromised release; that is the same trust the shell installer has.
@@ -60,6 +60,6 @@ The launcher fetches with Node, which does not set the `com.apple.quarantine` at
 
 ## Known limits
 
-- Unix archives are `.tar.xz`; Node has no xz reader, so the launcher needs `tar` with xz support (macOS always; Linux almost always; Windows 10 and later has `tar` for the `.zip`). A minimal container without `xz` fails with the tar error in the message. Setting `unix-archive = ".tar.gz"` in `dist-workspace.toml` would remove the need, at the cost of larger archives and a `dist generate`; not done, because the failure has not been observed.
+- Unix archives are `.tar.gz` (`unix-archive = ".tar.gz"` in `dist-workspace.toml`), so the launcher needs only a `tar` with gzip, which every macOS, Linux and Windows 10+ system has. This was switched from cargo-dist's default `.tar.xz` because minimal Linux containers often lack `xz`.
 - Linux is glibc only (the cargo-dist target). Alpine (musl) is not supported.
 - The Windows `.zip` path and the Linux archives were not run: only the macOS arm64 archive was built and served.

@@ -40,7 +40,7 @@ Verify (when the run is green):
 gh release view v0.1.0 --json assets --jq '.assets[].name'
 ```
 
-The list must include `phonedriver-aarch64-apple-darwin.tar.xz`, `phonedriver-x86_64-apple-darwin.tar.xz`, `phonedriver-x86_64-unknown-linux-gnu.tar.xz`, `phonedriver-aarch64-unknown-linux-gnu.tar.xz`, `phonedriver-x86_64-pc-windows-msvc.zip`, each with a `.sha256`, plus the two installer scripts. Then:
+The list must include `phonedriver-aarch64-apple-darwin.tar.gz`, `phonedriver-x86_64-apple-darwin.tar.gz`, `phonedriver-x86_64-unknown-linux-gnu.tar.gz`, `phonedriver-aarch64-unknown-linux-gnu.tar.gz`, `phonedriver-x86_64-pc-windows-msvc.zip`, each with a `.sha256`, plus the two installer scripts. Then:
 
 ```sh
 curl --proto '=https' --tlsv1.2 -LsSf https://github.com/hridaya423/phonedriver/releases/latest/download/phonedriver-installer.sh | sh

@@ -38,7 +38,7 @@ function cacheRoot(env, platform) {
 }
 
 function archiveName(target) {
-  return `phonedriver-${target}.${target.includes("windows") ? "zip" : "tar.xz"}`;
+  return `phonedriver-${target}.${target.includes("windows") ? "zip" : "tar.gz"}`;
 }
 
 async function fetchBytes(url) {
