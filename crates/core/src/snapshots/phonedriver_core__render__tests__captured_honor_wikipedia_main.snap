@@ -1,0 +1,22 @@
+---
+source: crates/core/src/render.rs
+expression: text
+---
+device android:emulator-5554 · Pixel 9 · Android 17 · 360x800pt · portrait
+app com.android.settings (Settings) · keyboard hidden · settled in 212ms
+@e1 button
+  @e2 button "Open the homepage"
+  @e3 textbox "en.wikipedia.org/wiki/Main_Page" selected
+  @e4 button "See 19 tabs"
+  @e5 button "Customise and control Google Chrome"
+@e6 webview focused scrollable↓
+  @e7 button collapsed
+  @e8 button "Wikipedia"
+  @e9 button "Search"
+  @e10 button collapsed
+  @e11 heading "Welcome to [Wikipedia @e13]"
+  @e14 text "the [free @e15] encyclopedia that [anyone can edit @e17] [265,650 @e18] active editors [7,261,328 @e20] articles in [English @e22]"
+  @e23 heading "From today's featured article"
+  @e25 text "[Romeo Santos @e24] Romeo Santos [Fórmula, Vol. 1 @e26] is the debut studio album of [Romeo Santos @e28] (pictured), released on November 8, 2011. It experiments with [bachata @e32] [R&B @e33]"
+  @e34 text "and [flamenco @e35] music genres. In the U.S., the album peaked at number one on the [Billboard Top Latin @e37] and [Tropical Albums @e39]"
+  @e40 text "charts, and was the best-selling Latin album of 2012. It was certified three times platinum (Latin field) by the"
