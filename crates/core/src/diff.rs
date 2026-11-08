@@ -6,6 +6,9 @@ use crate::render::{Rendered, quote, shown_value, state_words};
 /// Above this share of changed refs the agent is on a new screen and gets a full snapshot.
 const NEW_SCREEN_SHARE: f32 = 0.6;
 
+/// A screen that came back is told as a diff against the one it replaced when at most this share of its lines differ.
+const BACK_SHARE: f32 = 0.25;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Field {
     Label,
@@ -20,6 +23,8 @@ pub enum Field {
 pub enum Change {
     Added(Ref),
     Removed(Ref),
+    /// The screen the agent was shown before the one it was last shown is on screen again.
+    Uncovered,
     Changed {
         r#ref: Ref,
         field: Field,
@@ -60,6 +65,25 @@ fn covered(under: bool) -> String {
 
 fn opt(s: Option<String>) -> String {
     s.map_or_else(|| "(none)".into(), |s| quote(&s))
+}
+
+/// `diff`, except that when `next` is a new screen but is almost `below`, the screen `prev` had replaced (a dialog or a
+/// menu closed), the answer is a diff against `below` that says so.
+pub fn diff_below(prev: &Rendered, next: &Rendered, below: Option<&Rendered>) -> DiffOrFull {
+    let plain = diff(prev, next);
+    let (DiffOrFull::Full, Some(below)) = (&plain, below) else {
+        return plain;
+    };
+    match diff(below, next) {
+        DiffOrFull::Diff(changes)
+            if changes.len() as f32 <= next.elements.len() as f32 * BACK_SHARE =>
+        {
+            let mut all = vec![Change::Uncovered];
+            all.extend(changes);
+            DiffOrFull::Diff(all)
+        }
+        _ => plain,
+    }
 }
 
 pub fn diff(prev: &Rendered, next: &Rendered) -> DiffOrFull {
@@ -139,6 +163,14 @@ impl DiffOrFull {
                     removing = true;
                     continue;
                 }
+                Change::Uncovered => lines.push(
+                    if changes.len() == 1 {
+                        "back to the screen from before, unchanged"
+                    } else {
+                        "back to the screen from before, except:"
+                    }
+                    .into(),
+                ),
                 Change::Added(r) => {
                     if let Some(e) = next.index_of(*r).map(|i| &next.elements[i]) {
                         lines.push(format!("+ {}", next.line(e)));
@@ -424,6 +456,48 @@ mod tests {
             diff(&clear, &covered).text(&covered),
             "~ @e1 @e2 @e3 @e4 @e5 @e6 @e7 @e8 @e9 @e10 @e11 @e12 (none) → under-keyboard"
         );
+    }
+
+    const TEN: [&str; 10] = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J"];
+
+    #[test]
+    fn closing_a_dialog_that_replaced_the_screen_says_the_screen_is_back_instead_of_printing_it_again()
+     {
+        let mut t = RefTable::default();
+        let a = screen(&mut t, &buttons(&TEN));
+        let dialog = screen(&mut t, &buttons(&["OK", "Cancel"]));
+        let back = screen(&mut t, &buttons(&TEN));
+        assert_eq!(diff(&dialog, &back), DiffOrFull::Full);
+        let d = diff_below(&dialog, &back, Some(&a));
+        assert_eq!(d.text(&back), "back to the screen from before, unchanged");
+    }
+
+    #[test]
+    fn a_screen_that_came_back_with_a_few_changes_lists_them() {
+        let mut t = RefTable::default();
+        let a = screen(&mut t, &buttons(&TEN));
+        let dialog = screen(&mut t, &buttons(&["OK", "Cancel"]));
+        let mut later = TEN;
+        later[9] = "K";
+        let back = screen(&mut t, &buttons(&later));
+        assert_eq!(
+            diff_below(&dialog, &back, Some(&a)).text(&back),
+            "back to the screen from before, except:\n- @e10\n+ @e13 button \"K\""
+        );
+    }
+
+    #[test]
+    fn a_different_screen_after_a_dialog_is_new_and_so_is_any_screen_with_nothing_below() {
+        let mut t = RefTable::default();
+        let a = screen(&mut t, &buttons(&TEN));
+        let dialog = screen(&mut t, &buttons(&["OK", "Cancel"]));
+        let other = screen(
+            &mut t,
+            &buttons(&["P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y"]),
+        );
+        assert_eq!(diff_below(&dialog, &other, Some(&a)), DiffOrFull::Full);
+        let back = screen(&mut t, &buttons(&TEN));
+        assert_eq!(diff_below(&dialog, &back, None), DiffOrFull::Full);
     }
 
     #[test]
