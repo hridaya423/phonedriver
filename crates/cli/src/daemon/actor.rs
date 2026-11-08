@@ -984,8 +984,7 @@ impl Actor {
             max_lines: p.max_lines,
         };
         let text = if p.diff && s.last.is_some() {
-            let prev = s.last.as_ref().ok_or_else(unreachable_state)?;
-            match diff(prev, &rendered) {
+            match s.diff_for_reply(&rendered).ok_or_else(unreachable_state)? {
                 DiffOrFull::Diff(changes) => {
                     (Kind::Diff, DiffOrFull::Diff(changes).text(&rendered))
                 }
@@ -2267,7 +2266,7 @@ impl Actor {
             Some(Verdict::Failed(u)) => Some(u),
             _ => None,
         };
-        let (kind, mut text) = match s.last.as_ref().map(|prev| diff(prev, &rendered)) {
+        let (kind, mut text) = match s.diff_for_reply(&rendered) {
             Some(DiffOrFull::Diff(changes)) => {
                 (Kind::Diff, DiffOrFull::Diff(changes).text(&rendered))
             }
@@ -2639,6 +2638,7 @@ fn moved_beyond(s: &Session, now: &Rendered, field: Option<Ref>) -> bool {
     };
     changes.iter().any(|c| {
         let r = match c {
+            Change::Uncovered => return true,
             Change::Added(r) | Change::Removed(r) => *r,
             Change::Changed {
                 field: Field::Covered,

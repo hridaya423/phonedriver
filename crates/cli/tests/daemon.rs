@@ -2851,6 +2851,48 @@ async fn hiding_the_keyboard_says_which_elements_are_no_longer_under_it() {
     );
 }
 
+fn dialog_tree() -> RawTree {
+    let json = r#"{"windows":[{"id":2,"type":"application","package":"com.example","bounds":[0,300,360,500]}],"nodes":[
+        {"p":-1,"w":2,"cls":"android.widget.FrameLayout","b":[0,300,360,500],"f":"vVe"},
+        {"p":0,"w":2,"cls":"android.widget.TextView","text":"Force stop?","b":[0,300,360,340],"f":"vVe"},
+        {"p":0,"w":2,"cls":"android.widget.Button","text":"Cancel","b":[0,400,180,460],"f":"vVe","a":["tap"]},
+        {"p":0,"w":2,"cls":"android.widget.Button","text":"OK","b":[180,400,360,460],"f":"vVe","a":["tap"]}]}"#;
+    RawTree::from_android_json(json, Scale { density: 1.0 }).unwrap()
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_dialog_that_closes_is_told_as_the_screen_being_back_not_as_a_new_screen() {
+    let screen = || {
+        tree(&[
+            "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight",
+        ])
+    };
+    let mut trees = vec![screen()];
+    trees.extend((0..4).map(|_| dialog_tree()));
+    trees.extend((0..4).map(|_| screen()));
+    let (source, fake) = FakeSource::with(trees);
+    let (d, _home) = daemon(source);
+    ok(&d, "default", "snapshot", json!({})).await;
+    let pusher = tokio::spawn({
+        let fake = fake.clone();
+        async move {
+            for seq in 1..=2 {
+                tokio::time::sleep(Duration::from_millis(100)).await;
+                fake.push_frame(big_frame(seq));
+                tokio::time::sleep(Duration::from_secs(3)).await;
+            }
+        }
+    });
+    let open = ok(&d, "default", "act", tap_point(10.0, 10.0)).await;
+    let shown = open["observation"]["text"].as_str().unwrap();
+    assert!(shown.contains("Force stop?"), "{shown}");
+    let close = ok(&d, "default", "act", tap_point(10.0, 10.0)).await;
+    pusher.abort();
+    let text = close["observation"]["text"].as_str().unwrap();
+    assert_eq!(close["observation"]["kind"], "diff", "{close}");
+    assert_eq!(text, "back to the screen from before, unchanged", "{text}");
+}
+
 #[tokio::test(start_paused = true)]
 async fn press_hide_keyboard_with_no_keyboard_sends_nothing_because_back_would_leave_the_screen() {
     let (source, fake) = FakeSource::with(vec![ime_tree(false)]);

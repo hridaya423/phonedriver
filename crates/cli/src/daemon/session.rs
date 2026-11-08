@@ -1,6 +1,7 @@
 //! What one named session remembers about one device: its refs and the last screen it was shown.
 
-use phonedriver_core::element::{Element, Role};
+use phonedriver_core::diff::{Change, DiffOrFull, diff_below};
+use phonedriver_core::element::{Element, Ref, Role};
 use phonedriver_core::error::{Category, Direction, Error};
 use phonedriver_core::geometry::Point;
 use phonedriver_core::refs::RefTable;
@@ -9,10 +10,21 @@ use phonedriver_core::similar::{SUGGEST_WITHIN, normalized_distance};
 
 use crate::wire::{PointJson, Target};
 
+/// The screen a new one replaced, kept while the agent is still shown that new one (`covering` is its refs).
+struct Below {
+    covering: Vec<Ref>,
+    screen: Rendered,
+}
+
+fn refs_of(r: &Rendered) -> Vec<Ref> {
+    r.elements.iter().map(|e| e.r#ref).collect()
+}
+
 #[derive(Default)]
 pub struct Session {
     pub refs: RefTable,
     pub last: Option<Rendered>,
+    below: Option<Below>,
     /// The last snapshot merged text from pixels, so target resolution does too.
     pub ocr: bool,
     /// The categories of guarded tap the human allowed for the rest of this session; it ends with the daemon.
@@ -31,6 +43,37 @@ pub struct Resolved {
 }
 
 impl Session {
+    /// What `now` changed since the screen the agent was last shown. A dialog or menu is a window of its own whose
+    /// tree has none of the screen under it, so when it closes the screen is back as a new one: say so instead.
+    pub fn diff_for_reply(&mut self, now: &Rendered) -> Option<DiffOrFull> {
+        let prev = self.last.as_ref()?;
+        let below = self
+            .below
+            .as_ref()
+            .filter(|b| b.covering == refs_of(prev))
+            .map(|b| &b.screen);
+        let had_below = below.is_some();
+        let reply = diff_below(prev, now, below);
+        match &reply {
+            DiffOrFull::Full => {
+                self.below = Some(Below {
+                    covering: refs_of(now),
+                    screen: prev.clone(),
+                });
+            }
+            DiffOrFull::Diff(changes) if matches!(changes.first(), Some(Change::Uncovered)) => {
+                self.below = None;
+            }
+            DiffOrFull::Diff(_) if had_below => {
+                if let Some(b) = self.below.as_mut() {
+                    b.covering = refs_of(now);
+                }
+            }
+            DiffOrFull::Diff(_) => {}
+        }
+        Some(reply)
+    }
+
     /// Finds where a target is on `now`. A ref the screen no longer has fails with the closest current element.
     pub fn resolve(&self, target: &Target, now: &Rendered) -> Result<Resolved, Error> {
         match target {
