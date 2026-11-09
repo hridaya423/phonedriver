@@ -1538,7 +1538,89 @@ async fn scroll_until_text_already_on_screen_twice_stops_at_the_first_without_sc
     .await;
     let summary = r["summary"].as_str().unwrap();
     assert!(summary.contains("\"Row 1\""), "{summary}");
+    assert!(summary.contains("already on screen"), "{summary}");
+    assert_eq!(r["settled"], false, "no settle ran, so no 'no change' hint: {r}");
     assert!(fake.calls().is_empty());
+}
+
+fn page_under_a_toolbar(rows: &[&str]) -> RawTree {
+    let mut nodes = vec![
+        r#"{"p":-1,"w":1,"cls":"android.widget.FrameLayout","b":[0,0,360,800],"f":"vVe"}"#.to_string(),
+        r#"{"p":0,"w":1,"cls":"android.widget.EditText","hint":"Search Google or type URL","b":[56,30,300,90],"f":"vVe","a":["tap","set_text"]}"#.to_string(),
+        r#"{"p":0,"w":1,"cls":"androidx.recyclerview.widget.RecyclerView","b":[0,100,360,700],"f":"vVeS","a":["scroll_down","scroll_up"]}"#.to_string(),
+    ];
+    for (i, l) in rows.iter().enumerate() {
+        let top = 100 + 50 * i as i32;
+        nodes.push(format!(
+            r#"{{"p":2,"w":1,"cls":"android.widget.Button","text":"{l}","b":[0,{top},360,{}],"f":"vVe","a":["tap"]}}"#,
+            top + 50
+        ));
+    }
+    let json = format!(
+        r#"{{"windows":[{{"id":1,"type":"application","package":"com.example","bounds":[0,0,360,800]}}],"nodes":[{}]}}"#,
+        nodes.join(",")
+    );
+    RawTree::from_android_json(&json, Scale { density: 1.0 }).unwrap()
+}
+
+fn page_without_its_toolbar(rows: &[&str]) -> RawTree {
+    let mut nodes = vec![
+        r#"{"p":-1,"w":1,"cls":"android.widget.FrameLayout","b":[0,0,360,800],"f":"vVe"}"#.to_string(),
+        r#"{"p":0,"w":1,"cls":"androidx.recyclerview.widget.RecyclerView","b":[0,0,360,700],"f":"vVeS","a":["scroll_down","scroll_up"]}"#.to_string(),
+    ];
+    for (i, l) in rows.iter().enumerate() {
+        let top = 100 + 50 * i as i32;
+        nodes.push(format!(
+            r#"{{"p":1,"w":1,"cls":"android.widget.Button","text":"{l}","b":[0,{top},360,{}],"f":"vVe","a":["tap"]}}"#,
+            top + 50
+        ));
+    }
+    let json = format!(
+        r#"{{"windows":[{{"id":1,"type":"application","package":"com.example","bounds":[0,0,360,800]}}],"nodes":[{}]}}"#,
+        nodes.join(",")
+    );
+    RawTree::from_android_json(&json, Scale { density: 1.0 }).unwrap()
+}
+
+#[tokio::test(start_paused = true)]
+async fn scroll_until_ignores_a_toolbar_that_slides_back_over_the_page() {
+    let (source, fake) = FakeSource::with(vec![
+        page_without_its_toolbar(&["of chips", "made by Qualcomm"]),
+        page_under_a_toolbar(&["Snapdragon is a suite", "of chips"]),
+        page_under_a_toolbar(&["Wikipedia", "Search"]),
+    ]);
+    let (d, _home) = daemon(source);
+    let r = ok(
+        &d,
+        "default",
+        "act",
+        scroll(json!({"direction": "up", "until": {"text": "Search"}})),
+    )
+    .await;
+    let summary = r["summary"].as_str().unwrap();
+    assert!(summary.contains("2 times"), "{summary}");
+    assert!(summary.ends_with("\"Search\""), "{summary}");
+    assert_eq!(fake.calls().len(), 2);
+}
+
+#[tokio::test(start_paused = true)]
+async fn scroll_until_looks_inside_what_it_scrolls_not_at_a_toolbar_above_it() {
+    let (source, fake) = FakeSource::with(vec![
+        page_under_a_toolbar(&["Snapdragon is a suite", "of chips"]),
+        page_under_a_toolbar(&["Wikipedia", "Search"]),
+    ]);
+    let (d, _home) = daemon(source);
+    let r = ok(
+        &d,
+        "default",
+        "act",
+        scroll(json!({"direction": "up", "until": {"text": "Search"}})),
+    )
+    .await;
+    let summary = r["summary"].as_str().unwrap();
+    assert!(summary.contains("1 time"), "{summary}");
+    assert!(summary.ends_with("\"Search\""), "{summary}");
+    assert_eq!(fake.calls().len(), 1);
 }
 
 #[tokio::test(start_paused = true)]

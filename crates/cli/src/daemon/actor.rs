@@ -2015,13 +2015,14 @@ impl Actor {
     ) -> Result<ActionResult, Error> {
         let device = self.device()?;
         let mut now = self.fresh(s).await?;
-        let area = match &within {
-            Some(t) => s
-                .resolve(t, &now)?
-                .element
-                .map_or_else(|| self.screen_rect(), |e| e.bounds),
-            None => scroll_container(&now, direction).unwrap_or_else(|| self.screen_rect()),
+        let holder = match &within {
+            Some(t) => s.resolve(t, &now)?.element,
+            None => scroll_container(&now, direction).cloned(),
         };
+        let area = holder
+            .as_ref()
+            .map_or_else(|| self.screen_rect(), |e| e.bounds);
+        let holder = holder.map(|e| e.r#ref);
         let Some(until) = until else {
             let started = self.begin_action();
             device.gesture(gesture::scroll(area, direction)).await?;
@@ -2037,15 +2038,19 @@ impl Actor {
         let may_fling = device.info().capabilities.contains(Capabilities::FRAMES);
         let max = max.unwrap_or_else(|| default_scroll_limit(&until, &now, direction));
         loop {
-            match s.seek(&until, &now) {
+            match s.seek(&until, &now, holder) {
                 Ok(found) if found.covered.is_none() || idle >= 2 => {
                     let line = found.line.unwrap_or_default();
-                    let summary = format!(
-                        "scrolled {} {} to {}",
-                        direction.name(),
-                        plural(gestures.into(), "time"),
-                        short(&line)
-                    );
+                    let summary = if gestures == 0 {
+                        format!("already on screen, no scroll: {}", short(&line))
+                    } else {
+                        format!(
+                            "scrolled {} {} to {}",
+                            direction.name(),
+                            plural(gestures.into(), "time"),
+                            short(&line)
+                        )
+                    };
                     let st = match last {
                         Some(State::Done {
                             settled,
@@ -2059,7 +2064,7 @@ impl Actor {
                             elapsed,
                         },
                         _ => State::Done {
-                            settled: true,
+                            settled: false,
                             changed: false,
                             still_changing: None,
                             elapsed: Duration::ZERO,
@@ -2483,7 +2488,7 @@ impl Actor {
             reads += 1;
             let rendered = self.build(s, &tree, None);
             let found = matches!(
-                s.seek(target, &rendered),
+                s.seek(target, &rendered, None),
                 Ok(_) | Err(Error::Ambiguous { .. })
             );
             if found == present {
@@ -2727,7 +2732,7 @@ fn last_label(now: &Rendered, area: Rect, direction: Direction) -> Option<String
 }
 
 /// The largest element that scrolls along the axis of `direction`.
-fn scroll_container(now: &Rendered, direction: Direction) -> Option<Rect> {
+fn scroll_container(now: &Rendered, direction: Direction) -> Option<&Element> {
     let axis = match direction {
         Direction::Up | Direction::Down => Actions::SCROLL_UP | Actions::SCROLL_DOWN,
         Direction::Left | Direction::Right => Actions::SCROLL_LEFT | Actions::SCROLL_RIGHT,
@@ -2736,7 +2741,6 @@ fn scroll_container(now: &Rendered, direction: Direction) -> Option<Rect> {
         .iter()
         .filter(|e| e.actions.intersects(axis))
         .max_by(|a, b| a.bounds.area().total_cmp(&b.bounds.area()))
-        .map(|e| e.bounds)
 }
 
 /// The reply to an input sent with `settle: false`: delivered, nothing observed.
