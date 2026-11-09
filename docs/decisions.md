@@ -396,6 +396,10 @@ Secrets. The trace keeps the command text (an agent's command is what it did), b
 - `tap` and `type --into` keep the cap.
 - Tests: `a_search_finds_a_word_inside_a_long_sentence`, `a_search_that_matches_twice_stops_at_the_first` and `a_search_keeps_word_boundaries`.
 
+**Amended 2026-11-09: a capped match wins, and the first screen takes no sentence.** `Session::seek` now tries the capped step 3 first and uses the uncapped one only when the capped one finds nothing. `scroll --until` allows the uncapped step only after its first gesture.
+- Why: in agent run a10, Google's consent page showed the sentence "If you choose to 'Reject all', we will not use cookies…" with the "Reject all" button below the screen. `scroll --until "Reject all"` answered `already on screen, no scroll` with the sentence. The agent's `tap "Reject all"` then failed, and it needed another scroll and a tap by ref. The agent already had that screen, so a sentence on it is not what it asked to scroll to. The t5 case still works, because Wikipedia's sentence was below the screen and is found after a gesture.
+- Tests: `a_search_does_not_stop_at_a_sentence_that_a_tap_on_the_same_text_would_not_take`, `scroll_until_does_not_stop_at_a_sentence_already_on_the_first_screen`. Live on the same page: `scrolled down 1 time to @e41 "Reject all"`.
+
 **Rejected.** Share of characters (a long word "Save" in "Save and continue" falls below any share that also rejects the sentence); keeping any substring as a last resort (it is what stops "Row 3" at "Row 364").
 ## D34. One daemon owns a device's agent; a second daemon fails fast and names the first
 

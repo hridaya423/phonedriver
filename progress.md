@@ -1391,3 +1391,11 @@ Safari's Hacker News printed five lines per story. The `<time>` element's title 
 
 - New trimmed fixture `ios/safari_hn.json`, with the usernames replaced. Test `a_web_group_that_only_holds_one_link_does_not_split_the_line_the_link_is_part_of` failed before the change (the row was split) and passes after it. The core tests pass 198 plus 5, and no golden changed.
 - Live on the Simulator after a redeploy: 66 lines and 3716 bytes before, 36 lines and 2935 bytes after (−21%). A row now reads `… 196 points by [ocd @e28] [2 hours ago @e29] | [hide @e31] | [122 comments @e33] 2.`
+
+## 2026-11-09: `scroll --until` prefers a control to a sentence that names it
+
+Run a10 (Android: find the build number in Settings, then search Google for it in Chrome) took 10 calls in 37 s. Three calls were lost on Google's cookie page. `scroll --until "Reject all"` stopped at once on the sentence "If you choose to 'Reject all', we will not use cookies…", because searches have had no word cap since the D33 amendment of 2026-11-08. The button was still below the screen, so the agent's `tap "Reject all"` failed. `Session::seek` now tries the capped match first. `scroll --until` takes an uncapped sentence match only after its first gesture, so a sentence already on the starting screen does not stop it. D33 has a second amendment.
+
+- Unit test `a_search_does_not_stop_at_a_sentence_that_a_tap_on_the_same_text_would_not_take` and daemon test `scroll_until_does_not_stop_at_a_sentence_already_on_the_first_screen`. With the old behavior the daemon test failed with `already on screen, no scroll: @e2 "If you choose to 'Reject all'…"`; it passes now. The `a_search_finds_a_word_inside_a_long_sentence` case (run t5) still passes. Lib tests pass 81 of 81, and daemon tests 151 of 151.
+- Live on the same page: `ok scrolled down 1 time to @e41 "Reject all"`.
+- Seen in passing: on Chrome's first-run screen, `tap "Stay signed out"` answered `no change after 503ms`, but the next screen came up a moment later. Left open.

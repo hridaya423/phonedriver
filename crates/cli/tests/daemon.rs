@@ -1697,6 +1697,29 @@ async fn told_says_whether_the_session_was_last_shown_the_same_device_line() {
 }
 
 #[tokio::test(start_paused = true)]
+async fn scroll_until_does_not_stop_at_a_sentence_already_on_the_first_screen() {
+    let sentence = "If you choose to 'Reject all', we will not use cookies for these purposes.";
+    let (source, fake) = FakeSource::with(vec![
+        list_tree(&[sentence, "Accept all"]),
+        list_tree(&[sentence, "Accept all", "Reject all"]),
+    ]);
+    let (d, _home) = daemon(source);
+    let r = ok(
+        &d,
+        "default",
+        "act",
+        scroll(json!({"until": {"text": "Reject all"}})),
+    )
+    .await;
+    let summary = r["summary"].as_str().unwrap();
+    assert!(
+        summary.contains("1 time") && summary.ends_with("\"Reject all\""),
+        "{summary}"
+    );
+    assert_eq!(fake.calls().len(), 1);
+}
+
+#[tokio::test(start_paused = true)]
 async fn scroll_until_row_3_does_not_stop_at_row_364() {
     let (source, fake) = FakeSource::with(vec![
         list_tree(&["Row 0", "Row 1"]),
