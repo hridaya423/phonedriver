@@ -1285,9 +1285,11 @@ impl Actor {
         let mut last_len = 0;
         let mut equal_reads = 0;
         // Observed on the iOS Simulator: Settings adds a Toolbar group 300 ms to 1 s after its first frame, which
-        // made the first refs stale at once, so a polled device must read the same count three times in a row.
+        // made the first refs stale at once, so a polled device must read the same count three times in a row. A
+        // device with frames settles on them after this wait and reads again until two reads agree, so one read that
+        // shows the app is enough here; a second matching read cost about 200 ms per launch on the emulator.
         let needed = if device.info().capabilities.contains(Capabilities::FRAMES) {
-            1
+            0
         } else {
             3
         };

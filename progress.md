@@ -1419,3 +1419,10 @@ Run a11 (Android: start a 2 min 30 s timer in Clock) took 4 calls in 21 s. But `
 
 - Tests `a_progress_bar_that_shows_an_amount_is_not_loading_and_a_spinner_is` (raw) and `a_progress_bar_that_shows_an_amount_does_not_say_loading` (render) failed before the change and pass after it. The daemon tests for progress bars still pass (`…waits_for_the_page_up_to_four_seconds`, `…costs_at_most_four_seconds…`). Core tests: 200 passed. CLI tests: no failures.
 - Live: Clock launches now take 2065, 1641 and 2080 ms in all, with `stabilize` at about 300 ms, against 5.7 to 6.6 s before.
+
+## 2026-11-09: a launch on a device with frames needs one read that shows the app
+
+`app_content` took about 1 s on every warm switch between Settings and Clock. A log of each pass through the loop showed why. Each pass costs 200 to 470 ms (a tree read through the tunnel, the screen state, then 100 ms of sleep). The new app was in front by the second read (`back=true` at 873 ms), but the loop waited one more read to see the node count repeat (`stable=true` at 1080 ms). On a device with frames, settle then waits for quiet frames, and `stabilize` reads again until two reads agree. So the extra read only repeated their work. A device with frames now needs one read that shows the app in front. A polled device (iOS) still needs three equal reads.
+
+- Live, three Settings and Clock round trips: `app_content` 804 to 942 ms against about 1050 to 1100, and a whole launch 1366 to 1579 ms against 1504 to 2006. Each reply shows the new app's own elements.
+- Daemon tests: 152 passed. Android live: e2e 10 of 10. In the full suites, `actions` passed 34 of 35 and `states` 7 of 8. The two that failed (`a_shown_keyboard_marks…`, `a_changed_wm_size…`) open testbed tabs with `am start` and never reach this code. Each passed when run alone.
