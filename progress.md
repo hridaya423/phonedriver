@@ -1492,3 +1492,11 @@ In run a14 (Android: Do Not Disturb from quick settings, using the UI only), the
 - The change is reverted and nothing is committed for it. Open: read small web checkboxes reliably, then revisit.
 - Also seen: with the PC under load from a second emulator booting, two `screenshot` files were several seconds stale (keyboard still shown after `hid the keyboard`), while `adb screencap` showed the true screen. Not reproduced without the load.
 - The adb server on the PC died each time the ssh session that had started it closed. It now runs detached (`Start-Process adb.exe -L tcp:5037 nodaemon server`).
+
+## 2026-11-09: a password field's refusal no longer tells an agent to ask for a test password
+
+- Found by the benchmark rerun (pass p6, qa-signup, the only failure of nine). The agent typed made-up passwords into the sign-up form, got `@e44 is a password field: plain text is not typed into it. Ask the user for the text, then use --secret …`, and stopped: "I need passwords to test further, and I won't invent them without your say-so." Nobody answers in a headless run, so the job failed. The 7 November runs predate the refusal (D31, 8 November).
+- The message now says to use `secret`, to ask the user first for their own password or code, and that a test value the agent makes up needs no asking. The hint starts with `Use`. The MCP `type` description says `secret` is for any password or code. `SKILL.md` and D31 say the same.
+- Test: `a_password_field_refusal_tells_an_agent_that_a_made_up_test_value_needs_no_asking` (failed first on the old text). A first, longer `type` description failed `the_tool_list_every_turn_re_reads_fits_a_budget…`, so it was cut to fewer words than before.
+- Builds and tests now run on the Mac mini (`~/pd-build`, synced with rsync), at the user's request: the MacBook restarted twice under load today.
+- On the mini, `cargo test --workspace --no-fail-fast`: 734 passed, 6 failed before the description was shortened. One was the budget test above. Four were `guard_property` with "Too many open files"; they pass with `ulimit -n 8192` (7 passed). One is `no_device_exits_4_with_the_message_then_the_hint`, which fails on the mini because three simulators are connected there. After the fix: `mcp` 30 passed, `guard_property` 7 passed, clippy and `cargo fmt --check` clean.

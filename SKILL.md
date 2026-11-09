@@ -64,7 +64,7 @@ Each error has a hint that names the next step; follow it.
 
 ## Safety
 
-- Passwords, codes and payment details go in only when the user gave them for this task, with `secret`. Plain `type` into a password field or a one-time code field is refused (`is a password field`): get the text from the user and pass it with `secret`.
+- The user's own passwords, codes and payment details go in only when the user gave them for this task, with `secret`. Plain `type` into a password field or a one-time code field is refused (`is a password field`): pass the text with `secret`. A test value you make up for a sign-up form needs no asking.
 - Confirming a purchase, payment or delete, and sending a message, post, email or call, need the user's word for this task, in the words the user approved.
 - A tap that spends money or cannot be undone is approved by the human, not by you. `Needs the human's approval` means nothing was tapped (the human may have asked to be asked about sends, deletes and installs too, so it can appear on a `Send` or `Delete` tap): ask the user, and call again with `autonomous: true` (CLI `--autonomous`) only if they say yes or their instructions grant full autonomy. `The human declined`: stop.
 - Change only the settings the task names.

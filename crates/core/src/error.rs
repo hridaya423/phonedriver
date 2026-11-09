@@ -343,7 +343,7 @@ pub enum Error {
         details: Vec<String>,
     },
     #[error(
-        "@{} is {}: plain text is not typed into it. Ask the user for the text, then use `--secret` (MCP: the `secret` input) so it is masked and never logged",
+        "@{} is {}: plain text is not typed into it. Use `--secret` (MCP: the `secret` input) so the text is masked and never logged. For the user's own password or code, ask the user first; a test value you make up needs no asking",
         r#ref,
         kind.what()
     )]
@@ -544,7 +544,7 @@ impl Error {
             Error::UnknownKey { valid, .. } => {
                 format!("Use one of these keys: {}.", valid.join("; "))
             }
-            Error::SecretField { .. } => "Ask the user for the text unless they already gave it for this task, then type it on its own with `--secret` (the text on stdin or in PHONEDRIVER_SECRET); a batch cannot carry secret text.".into(),
+            Error::SecretField { .. } => "Use `--secret` on its own call (the text on stdin or in PHONEDRIVER_SECRET; MCP: `type` with `secret`); a batch cannot carry secret text.".into(),
             Error::NeedsApproval { .. } => "Ask the user in chat whether to tap it; tap again with `--autonomous` only when they say yes or have granted full autonomy.".into(),
             Error::NoApp { similar, .. } if !similar.is_empty() => {
                 format!("Use one of these installed apps: {}.", similar.join("; "))
@@ -649,6 +649,21 @@ mod tests {
     use serde_json::{Value, json};
 
     use super::*;
+
+    #[test]
+    fn a_password_field_refusal_tells_an_agent_that_a_made_up_test_value_needs_no_asking() {
+        let e = Error::SecretField {
+            r#ref: Ref(44),
+            kind: SecretKind::Password,
+        };
+        let text = format!("{e} {}", e.hint());
+        assert!(text.contains("`secret`"), "{text}");
+        assert!(
+            text.contains("test value you make up needs no asking"),
+            "{text}"
+        );
+        assert!(!text.starts_with("Ask"), "{text}");
+    }
 
     #[test]
     fn a_scroll_count_of_one_is_singular() {

@@ -1111,7 +1111,7 @@ impl Mcp {
 
     #[tool(
         name = "type",
-        description = "Put text in a field (replaces its content) and report what it shows; empty text clears. `secret` for a password or code the user gave."
+        description = "Put text in a field (replaces its content) and report what it shows; empty text clears. `secret` for any password or code."
     )]
     async fn r#type(
         &self,
