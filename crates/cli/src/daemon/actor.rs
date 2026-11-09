@@ -135,6 +135,7 @@ pub fn spawn(id: String, source: Arc<dyn DeviceSource>, home: PathBuf) -> mpsc::
         sessions: HashMap::new(),
         base: Instant::now(),
         recent: None,
+        change_seen: false,
         unobserved: None,
         cold_until: None,
         awake: None,
@@ -232,6 +233,7 @@ struct Actor {
     base: Instant,
     /// The latest input that would have delayed a settle, or the moment the device connected: quiet counts from there, so a snapshot of an already quiet screen does not wait.
     recent: Option<(Duration, Input)>,
+    change_seen: bool,
     /// When an action was last delivered without waiting for its effects.
     unobserved: Option<Duration>,
     /// Until when the app a launch started may still be too busy to react within the usual first-change window.
@@ -898,6 +900,9 @@ impl Actor {
         {
             det.feed(input, t);
         }
+        if std::mem::take(&mut self.change_seen) {
+            det.feed(Input::WindowChanged, started.max(self.now()));
+        }
         let device = if probe { self.device().ok() } else { None };
         let mut reads: Vec<Read> = Vec::new();
         let mut inflight: Option<Inflight> = None;
@@ -1083,6 +1088,9 @@ impl Actor {
             let now = self.fresh(s).await?;
             let state = now.index_of(r).map(|i| now.elements[i].state);
             if state.is_none_or(|st| st.contains(ElementState::CHECKED) != was) {
+                // Observed on the iOS Simulator: the settle that follows compares against the tree read here, saw no
+                // first change, and waited its whole window (2,006 ms within 30 s of an `open`, 500 ms later).
+                self.change_seen = true;
                 break;
             }
         }

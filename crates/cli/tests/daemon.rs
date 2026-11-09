@@ -851,6 +851,35 @@ fn small_web_field_tree(value: &str, zoomed: bool) -> RawTree {
     RawTree::from_android_json(&json, Scale { density: 1.0 }).unwrap()
 }
 
+fn web_radio_tree(on: bool) -> RawTree {
+    let checked = if on { "C" } else { "" };
+    let json = format!(
+        r#"{{"windows":[{{"id":1,"type":"application","package":"com.apple.mobilesafari","bounds":[0,0,360,800]}}],"nodes":[
+        {{"p":-1,"w":1,"cls":"android.widget.FrameLayout","b":[0,0,360,800],"f":"vVe"}},
+        {{"p":0,"w":1,"cls":"android.webkit.WebView","text":"Order","b":[0,0,360,800],"f":"vVe"}},
+        {{"p":1,"w":1,"cls":"android.widget.RadioButton","text":"Medium","b":[20,100,120,130],"f":"vVec{checked}","a":["tap"]}}]}}"#
+    );
+    RawTree::from_android_json(&json, Scale { density: 1.0 }).unwrap()
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_web_radio_seen_to_flip_on_a_polled_device_does_not_wait_again_for_a_first_change() {
+    let (source, fake) = FakeSource::polled(vec![web_radio_tree(false)]);
+    let (d, _home) = daemon(source);
+    ok(&d, "default", "snapshot", json!({})).await;
+    fake.on_gesture(|_| Some(vec![web_radio_tree(true)]));
+    let before = tokio::time::Instant::now();
+    let params = json!({"action": {"kind": "tap", "target": {"text": "Medium"}}});
+    let r = ok(&d, "default", "act", params).await;
+    let text = r["observation"]["text"].as_str().unwrap();
+    assert!(text.contains("off → on"), "{r}");
+    assert!(
+        before.elapsed() < Duration::from_millis(500),
+        "{:?}",
+        before.elapsed()
+    );
+}
+
 #[tokio::test(start_paused = true)]
 async fn a_page_that_zooms_in_on_a_field_it_focuses_is_zoomed_back_out_after_typing() {
     let (source, fake) = FakeSource::with(vec![small_web_field_tree("", false)]);
