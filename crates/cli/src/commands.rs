@@ -287,6 +287,9 @@ pub(crate) enum Verb {
         /// `simctl privacy` services (Simulator). A physical device only takes this for apps phonedriver installed.
         #[arg(long, value_delimiter = ',')]
         grant: Vec<String>,
+        /// Stop the app first, so it opens on its first screen instead of where it was left.
+        #[arg(long)]
+        restart: bool,
     },
     /// Open a web link or deep link in the app that handles it.
     Open {
@@ -1090,8 +1093,12 @@ pub(crate) fn step_json(verb: &Verb, secret: Option<&str>) -> Result<Value, Fail
             }
             a
         }
-        Verb::Launch { app, grant } => {
-            json!({"kind": "launch", "app": app, "grant": grant})
+        Verb::Launch {
+            app,
+            grant,
+            restart,
+        } => {
+            json!({"kind": "launch", "app": app, "grant": grant, "restart": restart})
         }
         Verb::Open { url, app } => json!({"kind": "open", "url": url, "app": app}),
         Verb::Type {

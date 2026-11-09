@@ -1650,7 +1650,11 @@ impl Actor {
                 self.finish(s, p.settle, cfg, started, summary, None, None, None)
                     .await
             }
-            Action::Launch { app, grant } => {
+            Action::Launch {
+                app,
+                grant,
+                restart,
+            } => {
                 self.need(
                     Capabilities::LAUNCH,
                     Op::Launch,
@@ -1677,14 +1681,20 @@ impl Actor {
                     .or(Config::launch().expect_change);
                 let leaving = device.foreground().await?.filter(|f| *f != found.id);
                 let started = self.begin_action();
+                if restart {
+                    // `simctl terminate` exits 3 ("found nothing to terminate") when the app is not running, and
+                    // such an app opens on its first screen anyway.
+                    let _ = device.app_op(AppOp::Stop, &found.id).await;
+                }
                 device.launch(&found.id).await?;
                 self.until_app_content(leaving.as_ref()).await?;
                 self.cold_until = Some(self.now() + COLD_APP_WINDOW);
                 s.last = None;
+                let verb = if restart { "restarted" } else { "launched" };
                 let summary = if grant.is_empty() {
-                    format!("launched {}", found.name)
+                    format!("{verb} {}", found.name)
                 } else {
-                    format!("launched {} (granted {})", found.name, grant.join(", "))
+                    format!("{verb} {} (granted {})", found.name, grant.join(", "))
                 };
                 self.finish(s, p.settle, cfg, started, summary, None, None, None)
                     .await
