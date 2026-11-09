@@ -1453,3 +1453,14 @@ In run a14 (Android: Do Not Disturb from quick settings, using the UI only), the
 - a12 (Android: free storage and the top-level folders in Files) took 14 calls. The emulator's Files app shows no free space anywhere: the tree of the roots drawer has no "free" text. So the agent's answer, that it could not find it, was correct. Open finding: the reply to the first tap on the storage root listed folders only up to "Documents" (`settled in 738ms`), with an unlabeled `@e25 button` among them. The agent's next scroll then went past Download through Ringtones without seeing them. Four warm repeats each listed all folders, so this was a cold listing still loading after settle. Grid items cut off at the bottom of the screen print as unlabeled `button` lines, because their name is off screen.
 - a13 (Do Not Disturb on and off) took 3 `shell` calls and was correct.
 - a14 (the same, with the UI only) took 10 calls. It led to the `point_off_screen` change above. Quick-settings tiles print as a `button "Modes" "Off"` holding a `switch "Modes. " off`. The switch's label keeps the trailing ". " of its content description, and the Do Not Disturb tile repeats its state in its label (`switch "Do Not Disturb. On" on`). This is cosmetic, so I left it. The first `press back` folded the panel to the notification shade, as Android does, and a second one closed it.
+
+## 2026-11-09: a screen whose content is still invisible counts as loading
+
+- Seen: after `pm clear com.android.chrome`, `launch Chrome` answered with one line, `@e1 list 2 columns scrollable→`. A snapshot a second later listed the first-run title and both buttons.
+- Cause, from a saved tree: the title and buttons were in the tree with flags `ve`, not `vVe`. Chrome fades them in, and Android calls them not visible to the user until then. Before that, Chrome shows a spinner for 1 to 2 s.
+- `RawTree::loading` is now also true when the tree holds texts or buttons and none is visible to the user. The launch wait (`until_app_content`) needs one visible text, value or tappable node.
+- Tests: `a_launch_waits_while_the_app_has_drawn_nothing_to_read_or_tap` (daemon, failed first with the one-line reply) and `a_screen_whose_texts_and_buttons_are_all_still_invisible_is_loading` (core, written with the code, not seen red).
+- `a_launch_that_never_settles_…` now connects before its launch. In paused test time the connect and the launch had the same timestamp, which a real first call never has.
+- Live, emulator-5554, three cold launches after `pm clear`: each reply lists "Make Chrome your own", "Add account to device" and "Stay signed out" (`settled in 3318ms`, `3929ms`, `3007ms`). `tap "Stay signed out"` then answered `settled in 290ms · new screen` with the notifications page.
+- The earlier `no change after 503ms` on this screen did not come back in two tries. It is not proven fixed.
+- `cargo test --workspace --no-fail-fast`: no failures.

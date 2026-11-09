@@ -2382,6 +2382,39 @@ async fn a_launch_that_is_the_first_call_on_a_polled_device_settles_without_wait
 }
 
 #[tokio::test(start_paused = true)]
+async fn a_launch_waits_while_the_app_has_drawn_nothing_to_read_or_tap() {
+    let empty = || {
+        RawTree::from_android_json(
+            r#"{"windows":[{"id":1,"type":"application","package":"com.android.chrome","bounds":[0,0,360,800]}],"nodes":[
+            {"p":-1,"w":1,"cls":"android.widget.FrameLayout","b":[0,0,360,800],"f":"vVe"},
+            {"p":0,"w":1,"cls":"androidx.recyclerview.widget.RecyclerView","b":[0,0,360,800],"f":"vVeS","a":["scroll_fwd"],"coll":{"rows":1,"cols":2}},
+            {"p":1,"w":1,"cls":"android.widget.Button","text":"Stay signed out","b":[0,100,360,160],"f":"ve","a":["tap"]}]}"#,
+            Scale { density: 1.0 },
+        )
+        .unwrap()
+    };
+    let (source, fake) = FakeSource::with(vec![
+        empty(),
+        empty(),
+        empty(),
+        empty(),
+        empty(),
+        tree_of("com.android.chrome", &["Stay signed out"]),
+    ]);
+    fake.install(&[("com.android.chrome", "Chrome")]);
+    let (d, _home) = daemon(source);
+    let r = ok(
+        &d,
+        "default",
+        "act",
+        act_with(json!({"kind": "launch", "app": "Chrome"})),
+    )
+    .await;
+    let text = r["observation"]["text"].as_str().unwrap();
+    assert!(text.contains("Stay signed out"), "{r}");
+}
+
+#[tokio::test(start_paused = true)]
 async fn a_launch_whose_app_is_not_in_front_afterwards_says_which_app_is() {
     let (source, fake) = installed();
     fake.launch(&AppId("com.launcher".into())).await.unwrap();
@@ -2510,6 +2543,8 @@ async fn a_launch_that_never_settles_still_answers_with_the_screen_lines_once_th
     ]);
     fake.install(&[("com.android.calculator2", "Calculator")]);
     let (d, _home) = daemon(source);
+    ok(&d, "default", "apps", json!({})).await;
+    tokio::time::sleep(Duration::from_millis(1)).await;
     let busy = fake.clone();
     tokio::spawn(async move {
         for seq in 1..400 {
