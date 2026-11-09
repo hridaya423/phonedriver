@@ -29,7 +29,12 @@ pub struct Session {
     pub ocr: bool,
     /// The categories of guarded tap the human allowed for the rest of this session; it ends with the daemon.
     pub guard_allowed: Vec<Category>,
+    /// Text fields the agent was shown that later screens dropped, newest last, with the ref they had.
+    gone: Vec<Element>,
 }
+
+/// How many dropped text fields a session remembers.
+const GONE_FIELDS: usize = 32;
 
 pub struct Resolved {
     pub at: Point,
@@ -43,6 +48,32 @@ pub struct Resolved {
 }
 
 impl Session {
+    /// Replaces the screen the agent was last shown, remembering the text fields it drops. A keyboard that opens
+    /// shrinks a form's list, and the fields below it leave the tree while the agent still holds their refs.
+    pub fn set_last(&mut self, next: Option<Rendered>) {
+        match (&self.last, &next) {
+            (Some(prev), Some(now)) if prev.header.app == now.header.app => {
+                let dropped = prev
+                    .elements
+                    .iter()
+                    .filter(|e| e.role.is_text_entry() && e.label.is_some())
+                    .filter(|e| now.index_of(e.r#ref).is_none())
+                    .cloned();
+                self.gone.retain(|g| now.index_of(g.r#ref).is_none());
+                self.gone.extend(dropped);
+                let over = self.gone.len().saturating_sub(GONE_FIELDS);
+                self.gone.drain(..over);
+            }
+            _ => self.gone.clear(),
+        }
+        self.last = next;
+    }
+
+    /// The text field `r` named before a later screen dropped it.
+    pub fn gone_field(&self, r: Ref) -> Option<&Element> {
+        self.gone.iter().rev().find(|e| e.r#ref == r)
+    }
+
     /// What `now` changed since the screen the agent was last shown. A dialog or menu is a window of its own whose
     /// tree has none of the screen under it, so when it closes the screen is back as a new one: say so instead.
     pub fn diff_for_reply(&mut self, now: &Rendered) -> Option<DiffOrFull> {
