@@ -921,7 +921,6 @@ impl Actor {
                     None => {
                         cfg.expect_change
                             .is_some_and(|w| w >= FIRST_READ_MIN_WINDOW)
-                            && self.shown().is_some()
                             && now >= started + FIRST_READ
                             && now >= probed_at + FIRST_READ
                     }
@@ -942,7 +941,9 @@ impl Actor {
                     if let Ok(tree) = read {
                         if det.last_significant().is_none() {
                             probed_at = self.now();
-                            if self.shown().is_some_and(|shown| shown != tree) {
+                            // A first call (a launch right after connecting) has no screen to compare against, and
+                            // a polled device has no frames, so the read itself is the change.
+                            if self.shown().is_none_or(|shown| shown != tree) {
                                 det.feed(Input::WindowChanged, probed_at);
                             }
                         } else {
@@ -1660,7 +1661,9 @@ impl Actor {
                     Op::Launch,
                     "this device cannot launch apps",
                 )?;
+                let t = Instant::now();
                 let installed = device.apps().await?;
+                self.lap("apps", t);
                 let found = find_app(&installed, &app)?;
                 if !grant.is_empty() {
                     if self.physical() {
@@ -1679,15 +1682,23 @@ impl Actor {
                     .expect_change_ms
                     .map(Duration::from_millis)
                     .or(Config::launch().expect_change);
+                let t = Instant::now();
                 let leaving = device.foreground().await?.filter(|f| *f != found.id);
+                self.lap("foreground", t);
                 let started = self.begin_action();
                 if restart {
+                    let t = Instant::now();
                     // `simctl terminate` exits 3 ("found nothing to terminate") when the app is not running, and
                     // such an app opens on its first screen anyway.
                     let _ = device.app_op(AppOp::Stop, &found.id).await;
+                    self.lap("stop", t);
                 }
+                let t = Instant::now();
                 device.launch(&found.id).await?;
+                self.lap("launch", t);
+                let t = Instant::now();
                 self.until_app_content(leaving.as_ref()).await?;
+                self.lap("app_content", t);
                 self.cold_until = Some(self.now() + COLD_APP_WINDOW);
                 s.last = None;
                 let verb = if restart { "restarted" } else { "launched" };

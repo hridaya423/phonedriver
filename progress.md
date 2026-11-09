@@ -1157,3 +1157,13 @@ The fixes come from the first run on a physical Android phone, a Honor X8 (TFY-L
 - `Session::seek` (used by `scroll --until` and `wait`) and `Session::find` also try each `|`-separated text; the first match on screen wins. A literal match still counts. `sorted_distance` does not fling a sorted list for an alternation. `tap` is unchanged. The `until`, `find` and `wait` docs say `A|B`.
 - Tests: `session::tests::a_search_for_either_of_two_texts_stops_at_the_first_on_screen` (red before) and `actor::tests::a_search_for_either_of_two_names_does_not_fling_through_a_sorted_list` (red with the guard removed).
 - `cargo test --workspace --no-fail-fast`: all pass except the 6 `tests/ocr.rs` Vision failures. Clippy: 0 warnings.
+
+## 2026-11-09: a launch as the first call on a polled device settles at once
+
+- Several runs began with `launched … · settled in 300xms`. Reproduced on the mini: after a daemon restart, `launch Settings` as the first call settled in 3,000 ms. The same launch after a `snapshot` took 510 ms, and a first-call `tap` took 503 ms.
+- Cause: on a polled device (iOS Runner tier, no frames), the settle sees a change only by reading the tree and comparing it with the screen last shown. With nothing shown yet, it never read, so a launch waited out its 3 s expect-change window.
+- `settle_probing` now takes its first read when nothing has been shown, and counts that read as the change.
+- Launch now laps `apps`, `foreground`, `stop`, `launch` and `app_content` in the trace. A warm `launch Calendar --restart` breaks down as: apps 110 ms, stop 100 ms, launch (simctl plus waiting for the foreground) 1,080 ms, app content 630–1,300 ms, settle 260–430 ms.
+- Test: `a_launch_that_is_the_first_call_on_a_polled_device_settles_without_waiting_out_its_window` (settle_ms 3000 before the change).
+- Live, with a fresh daemon each time: the first `launch Settings` settled in 508 and 405 ms (was 3,000), with a wall time of 4.0 and 3.5 s (was 7.9; the runner connect is about 2.2 s of it).
+- `cargo test --workspace --no-fail-fast`: 701 passed, 0 failed. Clippy: 0 warnings.
