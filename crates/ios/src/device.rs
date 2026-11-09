@@ -488,7 +488,10 @@ impl Device for IosDevice {
     async fn open_url(&self, url: &Url, _app: Option<&AppId>) -> Result<Option<AppId>> {
         self.input(Op::OpenUrl, json!({"op": "open_url", "url": url.0}))
             .await?;
-        Ok(map::url_handler(&url.0, matches!(self.host, Host::Simulator)))
+        Ok(map::url_handler(
+            &url.0,
+            matches!(self.host, Host::Simulator),
+        ))
     }
 
     async fn text(&self, t: TextInput) -> Result<()> {

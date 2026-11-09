@@ -1384,3 +1384,10 @@ The iOS Simulator had the same 2.5 s wait (`app_content` 2608 and 2641 ms with S
 - Live on the mini after a redeploy: `app_content` is now 687 to 1484 ms, and an `open` takes 2.3 to 3.0 s in all, against 3.7 to 5.0 s before.
 - `target/debug/deps` held 146,546 files and began to lose `.rmeta` files mid-build (`extern location for … does not exist`). `cargo clean --profile dev` failed with `No such file or directory`, so I removed `target/debug` and rebuilt.
 - My two `Monitor` loops never ended, because `pgrep -f "cargo test -q --workspace"` matched their own command lines. I stopped them.
+
+## 2026-11-09: Safari's story rows print as one line
+
+Safari's Hacker News printed five lines per story. The `<time>` element's title made a group, `group "2026-11-09T16:00:45"`, around its one link (`link "2 hours ago"`). That split the row's run of text and links into two lines, and printed the timestamp too. `fold_wrappers` now folds a group in a web view that is not pressable and has no value, hint or collection, when its only child is a labeled link with no children.
+
+- New trimmed fixture `ios/safari_hn.json`, with the usernames replaced. Test `a_web_group_that_only_holds_one_link_does_not_split_the_line_the_link_is_part_of` failed before the change (the row was split) and passes after it. The core tests pass 198 plus 5, and no golden changed.
+- Live on the Simulator after a redeploy: 66 lines and 3716 bytes before, 36 lines and 2935 bytes after (−21%). A row now reads `… 196 points by [ocd @e28] [2 hours ago @e29] | [hide @e31] | [122 comments @e33] 2.`
