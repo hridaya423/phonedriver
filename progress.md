@@ -1426,3 +1426,10 @@ Run a11 (Android: start a 2 min 30 s timer in Clock) took 4 calls in 21 s. But `
 
 - Live, three Settings and Clock round trips: `app_content` 804 to 942 ms against about 1050 to 1100, and a whole launch 1366 to 1579 ms against 1504 to 2006. Each reply shows the new app's own elements.
 - Daemon tests: 152 passed. Android live: e2e 10 of 10. In the full suites, `actions` passed 34 of 35 and `states` 7 of 8. The two that failed (`a_shown_keyboard_marks…`, `a_changed_wm_size…`) open testbed tabs with `am start` and never reach this code. Each passed when run alone.
+
+## 2026-11-09: a text inside a field that repeats what the field holds is dropped
+
+Run i20 (iOS: search Wikipedia from its own search box) took 6 calls in 23 s. Every reply after `type` printed the typed text twice: `~ @e46 textbox "Search Wikipedia" … → "Grace Hopper"` and `+ @e59 text "Grace Hopper"`. Safari puts the text typed into a page's field in a `StaticText` child, and that child carries the same text as its value (`sd`). `drop_echoes` dropped a leaf that repeats its parent's label. It now also drops one that repeats a text field's value, when the leaf's own value is empty or the same as its label.
+
+- Test `a_text_inside_a_field_that_repeats_what_the_field_holds_is_dropped`. My first version gave the child no value, so it passed while the live reply still printed the copy. The saved tree showed the child's `sd`. The test now has it, failed, and passes after the change. Core tests: 201 passed. CLI tests: no failures.
+- Live on the Simulator: `type "Ada Lovelace"` gives `~ @e46 textbox "Search Wikipedia" "Search Wikipedia" → "Ada Lovelace"`, with no text line after it.

@@ -374,7 +374,8 @@ fn web_forms(mut nodes: Vec<Node>) -> Vec<Node> {
 }
 
 /// A leaf with no action that only repeats its parent's label (MagicOS Settings nests a toolbar named "Settings" in an
-/// app bar named "Settings") says nothing new.
+/// app bar named "Settings") says nothing new, and neither does a text inside a field that repeats what the field holds
+/// (Safari puts the text typed into a page's search field in a text of its own).
 fn drop_echoes(nodes: Vec<Node>) -> Vec<Node> {
     let mut has_child = vec![false; nodes.len()];
     for n in &nodes {
@@ -388,11 +389,14 @@ fn drop_echoes(nodes: Vec<Node>) -> Vec<Node> {
         .map(|(i, n)| {
             !has_child[i]
                 && n.actions.is_empty()
-                && n.value.is_none()
+                && (n.value.is_none() || n.value == n.label)
                 && n.hint.is_none()
                 && n.label.is_some()
-                && n.parent
-                    .is_some_and(|p| nodes[p].label == n.label && nodes[p].actions.is_empty())
+                && n.parent.is_some_and(|p| {
+                    let parent = &nodes[p];
+                    (parent.label == n.label && parent.actions.is_empty())
+                        || (parent.role.is_text_entry() && parent.value == n.label)
+                })
         })
         .collect();
     remove(nodes, &echo)
@@ -1251,6 +1255,22 @@ mod tests {
             "{nodes:#?}"
         );
         assert_eq!(nodes[1].value.as_deref(), Some("8 pages"));
+    }
+
+    #[test]
+    fn a_text_inside_a_field_that_repeats_what_the_field_holds_is_dropped() {
+        let json = r#"{"app":{"bundle_id":"com.apple.mobilesafari","pid":1},"nodes":[
+            {"p":-1,"cls":"XCUIElementTypeOther","text":"form","b":[0,62,402,812],"f":"vVe"},
+            {"p":0,"cls":"XCUIElementTypeSearchField","text":"Search Wikipedia","sd":"Grace Hopper","b":[0,100,400,140],"f":"vVeEF","a":["tap"]},
+            {"p":1,"cls":"XCUIElementTypeStaticText","text":"Grace Hopper","sd":"Grace Hopper","b":[10,105,200,135],"f":"vVeF"},
+            {"p":0,"cls":"XCUIElementTypeStaticText","text":"Grace Hopper","b":[0,200,400,240],"f":"vVe"}
+        ]}"#;
+        let nodes = prune(&RawTree::from_ios_json(json).unwrap());
+        let texts = nodes.iter().filter(|n| n.role == Role::Text).count();
+        assert_eq!(
+            texts, 1,
+            "only the copy outside the field stays: {nodes:#?}"
+        );
     }
 
     #[test]
