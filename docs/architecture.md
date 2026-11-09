@@ -471,7 +471,7 @@ How the less obvious verbs work per platform:
 | Verb | Android | iOS CoreDevice | iOS Runner / Simulator |
 |---|---|---|---|
 | `press notifications` | StatusBarManager `expandNotificationsPanel` (scrcpy wrapper) | swipe down from the top-left edge | same swipe via runner |
-| `open <url>` | ActivityManager VIEW intent | runner `XCUIDevice.shared.system.open` if installed, else `Unsupported` | runner on device and Simulator (`simctl openurl` asks "Open in …?" for custom schemes) |
+| `open <url>` | ActivityManager VIEW intent carrying `Browser.EXTRA_APPLICATION_ID` `dev.phonedriver`, so a browser reuses one tab for every `open` instead of adding a tab each time | runner `XCUIDevice.shared.system.open` if installed, else `Unsupported` | runner on device and Simulator (`simctl openurl` asks "Open in …?" for custom schemes) |
 | `press back` | `KEYCODE_BACK` | nav-bar back button, else left-edge swipe; `via` says which | same; with the keyboard shown, `back` hides it first, as Android does |
 | `press hide-keyboard` | no-op when the keyboard is hidden (`back` would leave the screen), else `KEYCODE_BACK` | n/a | a "Hide keyboard" key if the keyboard has one, else an upward drag from just above the keyboard (forms that dismiss on drag: Contacts, Settings; a drag down dismissed Contacts' New Contact sheet and lost the draft in the first live try); if the keyboard is still there the call fails `Unsupported` and says to `press enter` or tap Done (the testbed's Plain field keeps its keyboard on a drag) |
 

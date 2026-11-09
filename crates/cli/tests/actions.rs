@@ -840,3 +840,22 @@ async fn snapshot_within_a_ref_renders_only_that_subtree() {
         "{within}"
     );
 }
+
+#[tokio::test]
+#[ignore = "needs PHONEDRIVER_TEST_DEVICE"]
+async fn opening_pages_one_after_another_reuses_one_browser_tab() {
+    let rig = Rig::new().await;
+    let tabs = |t: &str| {
+        t.split("See ")
+            .nth(1)
+            .and_then(|r| r.split(' ').next())
+            .map(str::to_string)
+    };
+    rig.ok(&["open", "https://example.com"]);
+    let first = tabs(&rig.ok(&["snapshot"]));
+    rig.ok(&["open", "https://example.org"]);
+    rig.ok(&["open", "https://example.net"]);
+    let after = tabs(&rig.ok(&["snapshot"]));
+    assert!(first.is_some(), "no tab count on screen");
+    assert_eq!(first, after);
+}

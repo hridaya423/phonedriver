@@ -1300,3 +1300,9 @@ Rerun a5b (the Android form) took 22 calls and 49 s, against 16 calls and 52 s i
 - Live on the emulator: `phonedriver find "radio|checkbox"` lists the seven radios and checkboxes with their states.
 - `cargo test --workspace --no-fail-fast`: only `ocr` fails (Apple Vision, as before).
 - Open: on Android a page Chrome zoomed for a field stays zoomed after the keyboard hides.
+
+## 2026-11-09: `open` reuses one browser tab
+
+The emulator's Chrome had reached 14, then 19 tabs, one per `open`, because a VIEW intent without a sender opens a new tab. On a person's phone that litters their browser. The agent's VIEW intent now carries `Browser.EXTRA_APPLICATION_ID` `dev.phonedriver`. Chrome then reuses the tab it opened for that id, and leaves the user's tabs alone. By hand with `am start`: three opens with the extra added one tab in total, and an open without it added another.
+
+- Live test `opening_pages_one_after_another_reuses_one_browser_tab` (open example.com, read "See N tabs", open .org and .net, read it again) failed with 17 against 19 before, and passes now. `open_a_deep_link_shows_that_row_and_a_web_link_shows_the_page` passes too, so links into apps still work.
