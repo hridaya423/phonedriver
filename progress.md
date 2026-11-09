@@ -1263,3 +1263,11 @@ The same keyboard case with a text target, `type "555 0100" --into "Phone (Mobil
 - Test: `type_into_the_text_of_a_field_the_keyboard_pushed_out_scrolls_it_back_too` failed with `not_found` before, and passes now. It covers lowercase `phone (mobile)`, and `Fax` still failing.
 - Live, editing a contact on the emulator: `type Tess --into "First name"` (the keyboard opens), then `type "555 0100" --into "Phone (Mobile)"` gives `ok scrolled down 1 time to "Phone (Mobile)", then typed 8 chars into @e49 · verified`. The edit was discarded, and the throwaway "Test" contact was deleted.
 - `cargo test -q --workspace`: no failures outside `tests/ocr.rs` (Apple Vision is down). Clippy is clean.
+
+## 2026-11-09: `no_app` lists the installed apps when the device has few
+
+Agent run i14 (iOS Simulator: a Groceries note in Notes) correctly reported that Notes is not installed, in 6 calls. One of them was `apps`, which the agent called because the hint said to. When no installed app is similar and at most 40 are installed, the error now carries `installed`, every app's name, sorted, and the hint names them: `Use one of the installed apps if one does the job: AssistiveTouch, …, Reminders, Safari, Settings, …`. Above 40 apps, or when some are similar, nothing changes.
+
+- Test: `launching_an_app_a_short_list_lacks_names_every_installed_app` failed with `Use \`phonedriver apps\` to list the installed apps.`, and passes now. The error catalog has the new hint.
+- `cargo test -q --workspace --no-fail-fast`: 47 of 48 test targets pass, and `ocr` fails (Apple Vision). Earlier runs this evening stopped at `ocr` without `--no-fail-fast`, so this run is also the check for the commits before it.
+- Live on the Simulator: `phonedriver launch Notes` gives the hint with 39 names, the same list `apps` prints.
