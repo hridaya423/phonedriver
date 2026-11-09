@@ -1281,3 +1281,12 @@ Agent run a5 (Android Chrome, the httpbin pizza form, not submitted) took 16 cal
 - Live on Android: tap Medium, Bacon and Mushroom, then `type "Ring twice" --into "Delivery instructions:"` gives `ok typed 10 chars into @e27 · verified · settled in 2417ms` with no radio or checkbox lines. A snapshot shows Medium, Bacon and Mushroom on.
 - Live on iOS: `type "Grace" --into "Customer name:"` still gives `…, then zoomed the page back out · verified`.
 - `cargo test -q --workspace --no-fail-fast`: no failures. Clippy is clean.
+
+## 2026-11-09: Android web pastes stop waiting a full second; a push removes older agent jars
+
+The Android agent restores the clipboard after a paste once the field shows the change, with a 1000 ms limit. In a web page the focused input node is Chrome's page container (`android.widget.FrameLayout`, seen with temporary logging) or a WebView, and its text never changes, so every web paste waited the full 1000 ms. `TextInput.paste` now finds the focused editable node inside a focus node that is not editable itself, once before the paste. It then polls only that node with `refresh()`. Native fields are unchanged.
+
+- Live, on the emulator's httpbin form: the agent waited 95 and 121 ms instead of 1005 ms (logcat). The trace's `text` lap went from 1033–1148 ms to 186–261 ms, and on a Wikipedia article it was 303 ms. Each `type` reply went from about 2.9–3.0 s to 1.5–2.5 s. Every field verified.
+- Live suites on `emulator-5554`: `actions` 34 passed, `e2e` 10 passed, `coverage` web tests 5 passed.
+- `deploy` now deletes other `phonedriver-agent-*.jar` files after it pushes a new one. A running agent keeps the jar it opened. The emulator held 52 jars from earlier builds. `deploy_pushes_once_with_mode_0444` now plants an older jar and checks that only the pushed one is left: 1 passed live.
+- `cargo test -q --workspace --no-fail-fast`: no failures. Clippy is clean.

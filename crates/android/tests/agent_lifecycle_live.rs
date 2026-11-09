@@ -43,8 +43,21 @@ async fn deploy_pushes_once_with_mode_0444() {
     adb.shell(&serial, &format!("rm -f {}", first.path))
         .await
         .unwrap();
+    let older = "/data/local/tmp/phonedriver-agent-00000000.jar";
+    adb.shell(&serial, &format!("echo old > {older}"))
+        .await
+        .unwrap();
     let pushed = agent::deploy(&adb, &serial).await.unwrap();
     assert!(pushed.pushed, "{pushed:?}");
+    let left = adb
+        .shell(&serial, "ls /data/local/tmp/ | grep phonedriver-agent-")
+        .await
+        .unwrap();
+    assert_eq!(
+        left.stdout_text().trim(),
+        pushed.path.trim_start_matches("/data/local/tmp/"),
+        "a push leaves only its own jar"
+    );
     assert!(
         pushed
             .path

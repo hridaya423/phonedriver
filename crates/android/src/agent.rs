@@ -134,6 +134,14 @@ pub async fn deploy(adb: &Adb, serial: &str) -> Result<Deployed> {
             String::from_utf8_lossy(&moved.stderr)
         )));
     }
+    // Every version left its jar behind (an emulator here held 52), and a running agent keeps the jar it opened.
+    adb.shell(
+        serial,
+        &format!(
+            "for f in /data/local/tmp/phonedriver-agent-*.jar; do [ \"$f\" = {path} ] || rm -f \"$f\"; done"
+        ),
+    )
+    .await?;
     Ok(Deployed { path, pushed: true })
 }
 
