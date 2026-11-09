@@ -1375,3 +1375,12 @@ Every `open` took about 3 s to settle on the emulator, even example.com: `settle
 
 - Test `a_link_opened_in_the_browser_already_in_front_does_not_wait_for_the_browser_to_leave` uses a fake whose URL handler is the app in front. With the old filter it took 2.85 s and failed; with the fix it passes. The fake's page changes after the open, as a real page does, because a page that stays the same makes settle wait for `expect_change` instead.
 - Live, in Chrome already in front: `settled in 1839ms`, `1078ms`, `1496ms`, against 2.9 to 3.1 s before. `app_content` is now 0.7 to 1.2 s, which is the page loading. Opening from Settings still takes 3.2 s, because Chrome has to come to the front.
+
+## 2026-11-09: `open` on the Simulator with Safari in front, and a corrupt debug target
+
+The iOS Simulator had the same 2.5 s wait (`app_content` 2608 and 2641 ms with Safari in front), because the runner cannot report which app handles a link. On the Simulator an http or https link always opens in Safari: no other browser can be installed there from the App Store. The new function `ios::map::url_handler(url, simulator)` names `com.apple.mobilesafari` for those links on the Simulator and names none otherwise. A physical iPhone may have another default browser, so it keeps the old wait.
+
+- Test `a_web_link_on_the_simulator_opens_in_safari_and_nothing_else_is_known`: red before (the function did not exist), green after. The `phonedriver-ios` unit tests pass, 52 of 52.
+- Live on the mini after a redeploy: `app_content` is now 687 to 1484 ms, and an `open` takes 2.3 to 3.0 s in all, against 3.7 to 5.0 s before.
+- `target/debug/deps` held 146,546 files and began to lose `.rmeta` files mid-build (`extern location for … does not exist`). `cargo clean --profile dev` failed with `No such file or directory`, so I removed `target/debug` and rebuilt.
+- My two `Monitor` loops never ended, because `pgrep -f "cargo test -q --workspace"` matched their own command lines. I stopped them.
