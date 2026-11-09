@@ -448,6 +448,11 @@ impl Device for IosDevice {
                     .await?;
                 Ok(Some("hide-key"))
             }
+            Some(map::HidePlan::Done(at)) => {
+                self.gesture(phonedriver_core::gesture::tap(at, 1, None))
+                    .await?;
+                Ok(Some("done"))
+            }
             Some(map::HidePlan::Drag(g)) => {
                 self.gesture(g).await?;
                 Ok(Some("drag"))
