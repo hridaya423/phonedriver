@@ -132,6 +132,12 @@ impl FakeDevice {
         self
     }
 
+    /// The same device under another id, as an Android device is `android:<serial>`.
+    pub fn with_id(mut self, id: &str) -> FakeDevice {
+        self.info.id = id.into();
+        self
+    }
+
     /// The same device without some capabilities, as the polled iOS tier lacks `FRAMES`.
     pub fn lacking(mut self, caps: Capabilities) -> FakeDevice {
         self.info.capabilities -= caps;

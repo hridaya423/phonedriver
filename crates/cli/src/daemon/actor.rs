@@ -998,7 +998,7 @@ impl Actor {
                 Err(_) => {}
             }
         }
-        self.read_checkboxes(&mut rendered).await?;
+        self.read_checkboxes(&mut rendered, s.last.as_ref()).await?;
         let filters = Filters {
             interactive: p.interactive,
             within: p.within,
@@ -1057,7 +1057,7 @@ impl Actor {
         if s.ocr {
             self.merge_pixels(s, &mut rendered).await?;
         }
-        self.read_checkboxes(&mut rendered).await?;
+        self.read_checkboxes(&mut rendered, s.last.as_ref()).await?;
         Ok(rendered)
     }
 
@@ -1077,7 +1077,38 @@ impl Actor {
     }
 
     /// A web checkbox or radio says neither checkable nor checked in the tree, so its state is read from the screenshot.
-    async fn read_checkboxes(&self, rendered: &mut Rendered) -> Result<(), Error> {
+    async fn read_checkboxes(
+        &self,
+        rendered: &mut Rendered,
+        prev: Option<&Rendered>,
+    ) -> Result<(), Error> {
+        let screen = self.screen_rect();
+        let keyboard = rendered.header.keyboard;
+        let unread: Vec<usize> = rendered
+            .elements
+            .iter()
+            .enumerate()
+            .filter(|(_, e)| {
+                matches!(e.role, Role::Checkbox | Role::Radio)
+                    && !e.state.contains(ElementState::CHECKABLE)
+                    && !checkbox::readable(e.bounds, screen, keyboard)
+                    && rendered.in_web_view(e.r#ref)
+            })
+            .map(|(i, _)| i)
+            .collect();
+        for i in unread {
+            let known = prev
+                .and_then(|p| {
+                    p.index_of(rendered.elements[i].r#ref)
+                        .map(|j| p.elements[j].state)
+                })
+                .filter(|st| st.contains(ElementState::CHECKABLE));
+            if let Some(st) = known {
+                let state = &mut rendered.elements[i].state;
+                state.insert(ElementState::CHECKABLE);
+                state.set(ElementState::CHECKED, st.contains(ElementState::CHECKED));
+            }
+        }
         let boxes: Vec<usize> = rendered
             .elements
             .iter()
@@ -1087,6 +1118,7 @@ impl Actor {
                     && !e.state.contains(ElementState::CHECKABLE)
                     && e.bounds.w > 0.0
                     && e.bounds.h > 0.0
+                    && checkbox::readable(e.bounds, screen, keyboard)
                     && rendered.in_web_view(e.r#ref)
             })
             .map(|(i, _)| i)
@@ -1996,9 +2028,14 @@ impl Actor {
                         .as_ref()
                         .is_some_and(|f| s.last.as_ref().is_some_and(|l| l.in_web_view(f.r#ref)));
                     if in_page && let Some(f) = self.follow_focus(s, field.as_ref()).await? {
-                        zoomed = field.as_ref().is_some_and(|before| {
-                            before.r#ref == f.r#ref && f.bounds.w > before.bounds.w * PAGE_ZOOMED
-                        });
+                        // Chrome on Android zooms too, but reports where elements are and zooms back in on the
+                        // field while the keyboard is up, so a pinch there cost about half a second and did not hold.
+                        let android = device.info().id.starts_with("android:");
+                        zoomed = !android
+                            && field.as_ref().is_some_and(|before| {
+                                before.r#ref == f.r#ref
+                                    && f.bounds.w > before.bounds.w * PAGE_ZOOMED
+                            });
                         held = f.value.clone().filter(|v| !v.is_empty());
                         wipe = replace && held.is_some() && mode != TypeMode::Set;
                         field = Some(f);
@@ -2514,7 +2551,7 @@ impl Actor {
             let tree = self.device()?.tree().await?;
             rendered = self.build(s, &tree, None);
         }
-        self.read_checkboxes(&mut rendered).await?;
+        self.read_checkboxes(&mut rendered, s.last.as_ref()).await?;
         let judge = |s: &Session, rendered: &Rendered| {
             verify
                 .as_ref()
@@ -2533,7 +2570,7 @@ impl Actor {
             tokio::time::sleep(TREE_STEP).await;
             let tree = self.device()?.tree().await?;
             rendered = self.build(s, &tree, None);
-            self.read_checkboxes(&mut rendered).await?;
+            self.read_checkboxes(&mut rendered, s.last.as_ref()).await?;
             verdict = judge(s, &rendered);
         }
         // Contacts names a new phone field "Phone (Mobile)" and, once it holds text, "Phone": a new ref.
@@ -2862,7 +2899,7 @@ impl Actor {
         }
         let tree = self.device()?.tree().await?;
         let mut rendered = self.build(s, &tree, Some(settle_line(st)));
-        self.read_checkboxes(&mut rendered).await?;
+        self.read_checkboxes(&mut rendered, s.last.as_ref()).await?;
         let text = rendered.text(&Filters::default()).unwrap_or_default();
         let ms = match st {
             State::Done { elapsed, .. } => elapsed.as_millis() as u32,

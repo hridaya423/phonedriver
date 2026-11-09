@@ -860,6 +860,29 @@ async fn a_page_that_zooms_in_on_a_field_it_focuses_is_zoomed_back_out_after_typ
 }
 
 #[tokio::test(start_paused = true)]
+async fn chrome_on_android_zooms_in_on_a_field_and_is_not_pinched_back_out() {
+    let (source, fake) = FakeSource::of(
+        FakeDevice::new(vec![small_web_field_tree("", false)]).with_id("android:emulator-5554"),
+    );
+    let (d, _home) = daemon(source);
+    ok(&d, "default", "snapshot", json!({})).await;
+    fake.on_gesture(|g| (g.fingers.len() == 1).then(|| vec![small_web_field_tree("", true)]));
+    fake.on_text(|_| Some(vec![small_web_field_tree("Test Pilot", true)]));
+    let params =
+        json!({"action": {"kind": "type", "text": "Test Pilot", "into": {"text": "Name"}}});
+    let r = ok(&d, "default", "act", params).await;
+    assert!(!r["summary"].as_str().unwrap().contains("zoomed"), "{r}");
+    assert!(
+        !fake
+            .calls()
+            .iter()
+            .any(|c| matches!(c, Call::Gesture(g) if g.fingers.len() == 2)),
+        "{:?}",
+        fake.calls()
+    );
+}
+
+#[tokio::test(start_paused = true)]
 async fn a_page_that_does_not_zoom_is_not_pinched() {
     let (source, fake) = FakeSource::with(vec![small_web_field_tree("", false)]);
     fake.on_text(|_| Some(vec![small_web_field_tree("Test Pilot", false)]));
