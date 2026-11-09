@@ -1073,3 +1073,10 @@ The fixes come from the first run on a physical Android phone, a Honor X8 (TFY-L
 - `show_shell` now drops that hint line from the screen part of the reply.
 - Test: `commands::tests::a_shell_command_that_leaves_the_screen_alone_gets_no_missed_tap_hint`. Red with the filter disabled, green with it.
 - `cargo test --workspace --no-fail-fast`: 681 passed, 6 failed. The 6 are `tests/ocr.rs` (`Apple Vision could not read this screenshot`), the same macOS Vision environment failure as before.
+
+## 2026-11-09: a closed keyboard is one line in a diff
+
+- Agent run i7 (Files: new folder, rename) passed in 8 phone calls and 27 s. Each `type --submit` reply listed every element the keyboard had covered: `~ @e28 @e11 @e12 @e13 @e14 under-keyboard → (none)`. Once the keyboard is gone, nothing can be under it, so the refs carry nothing.
+- `DiffOrFull::text` now prints `keyboard hidden` in place of those lines when the new screen has no keyboard. The case where the keyboard opens still lists the refs it covers.
+- Tests: `diff::tests::a_keyboard_that_goes_away_is_one_short_line_and…` (red before the change) and `hiding_the_keyboard_says_so_in_one_line_instead_of_listing_what_it_covered`.
+- `cargo test --workspace --no-fail-fast`: 687 passed, 0 failed (the OCR tests passed this run). Clippy: 0 warnings.

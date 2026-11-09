@@ -3243,7 +3243,7 @@ async fn press_hide_keyboard_hides_a_shown_keyboard_and_says_how() {
 }
 
 #[tokio::test(start_paused = true)]
-async fn hiding_the_keyboard_says_which_elements_are_no_longer_under_it() {
+async fn hiding_the_keyboard_says_so_in_one_line_instead_of_listing_what_it_covered() {
     let hidden = {
         let json = r#"{"windows":[
             {"id":1,"type":"application","package":"com.example","bounds":[0,0,360,800]}],
@@ -3260,7 +3260,7 @@ async fn hiding_the_keyboard_says_which_elements_are_no_longer_under_it() {
     let r = ok(&d, "default", "act", press_key("hide-keyboard")).await;
     let text = r["observation"]["text"].as_str().unwrap();
     assert!(
-        text.lines().any(|l| l == "~ @e3 under-keyboard → (none)"),
+        text.lines().any(|l| l == "keyboard hidden") && !text.contains("under-keyboard"),
         "{text}"
     );
 }
