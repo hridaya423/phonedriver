@@ -1290,3 +1290,13 @@ The Android agent restores the clipboard after a paste once the field shows the 
 - Live suites on `emulator-5554`: `actions` 34 passed, `e2e` 10 passed, `coverage` web tests 5 passed.
 - `deploy` now deletes other `phonedriver-agent-*.jar` files after it pushes a new one. A running agent keeps the jar it opened. The emulator held 52 jars from earlier builds. `deploy_pushes_once_with_mode_0444` now plants an older jar and checks that only the pushed one is left: 1 passed live.
 - `cargo test -q --workspace --no-fail-fast`: no failures. Clippy is clean.
+
+## 2026-11-09: `find` takes a role word that no label holds
+
+Rerun a5b (the Android form) took 22 calls and 49 s, against 16 calls and 52 s in a5. There were no false checkbox flips, and each `type` settled in 1.1 to 1.7 s instead of about 2.9 s. The agent spent the extra calls checking its work. It wrote `snapshot find "radio|checkbox"` and got `no match`, then scrolled up and left (Chrome stays zoomed after the keyboard hides, now that Android is not pinched). `Session::find` now treats an alternative that no label or hint holds, and that is a role word, as that role. `find "Text"` on a screen with a "Text" tab still matches the label only.
+
+- Test: `find_with_a_role_word_no_label_holds_lists_that_role` failed (`[]`) before, and passes now.
+- I added a clause about role words to the `snapshot` tool description and then took it out, because `the_tool_list_every_turn_re_reads_fits_a_budget…` failed. The rule is in the architecture.
+- Live on the emulator: `phonedriver find "radio|checkbox"` lists the seven radios and checkboxes with their states.
+- `cargo test --workspace --no-fail-fast`: only `ocr` fails (Apple Vision, as before).
+- Open: on Android a page Chrome zoomed for a field stays zoomed after the keyboard hides.

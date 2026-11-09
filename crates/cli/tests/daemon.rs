@@ -1564,6 +1564,23 @@ async fn find_lists_the_elements_whose_text_contains_the_query_in_any_case() {
     assert_eq!(r.as_array().unwrap().len(), 2);
 }
 
+#[tokio::test(start_paused = true)]
+async fn find_with_a_role_word_no_label_holds_lists_that_role() {
+    let (source, _) = FakeSource::with(vec![field_tree("", false)]);
+    let (d, _home) = daemon(source);
+    let r = ok(&d, "default", "find", json!({"text": "radio|textbox"})).await;
+    let lines: Vec<&str> = r
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|l| l.as_str().unwrap())
+        .collect();
+    assert_eq!(lines.len(), 1, "{lines:?}");
+    assert!(lines[0].contains("textbox \"Field\""), "{lines:?}");
+    let r = ok(&d, "default", "find", json!({"text": "field"})).await;
+    assert_eq!(r.as_array().unwrap().len(), 1, "{r}");
+}
+
 fn list_tree(labels: &[&str]) -> RawTree {
     let mut nodes = vec![
         r#"{"p":-1,"w":1,"cls":"android.widget.FrameLayout","b":[0,0,360,800],"f":"vVe"}"#
