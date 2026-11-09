@@ -352,6 +352,16 @@ fn fold_wrappers(mut nodes: Vec<Node>) -> Vec<Node> {
         .collect();
     for i in 0..nodes.len() {
         let n = &nodes[i];
+        // iOS Contacts: button "Message" holds an unlabeled button that takes the name of its "Message" icon.
+        if let [c] = kids[i][..]
+            && !n.actions.is_empty()
+            && n.label.is_some()
+            && kids[c].is_empty()
+            && nodes[c].value.is_none()
+            && place(&nodes[c]) == place(n)
+        {
+            drop[c] = true;
+        }
         if n.actions.is_empty()
             && kids[i].is_empty()
             && n.value.is_none()
@@ -1020,6 +1030,22 @@ mod tests {
         assert_eq!(nodes.len(), 3, "{shown:?}");
         assert_eq!(nodes[1].role, Role::Button);
         assert_eq!(nodes[2].bounds.y, 200.0, "the same words elsewhere stay");
+    }
+
+    #[test]
+    fn a_button_holding_its_own_copy_is_one_button() {
+        let json = r#"{"app":{"bundle_id":"x","pid":1},"nodes":[
+            {"p":-1,"cls":"XCUIElementTypeOther","b":[16,433,386,515],"f":"vVe"},
+            {"p":0,"cls":"XCUIElementTypeButton","text":"Message","b":[55,442,119,506],"f":"vVe","a":["tap"]},
+            {"p":1,"cls":"XCUIElementTypeButton","b":[55,442,119,506],"f":"vVe","a":["tap"]},
+            {"p":2,"cls":"XCUIElementTypeImage","text":"Message","b":[55,442,119,506],"f":"vVe"},
+            {"p":0,"cls":"XCUIElementTypeButton","text":"Call","b":[131,442,195,506],"f":"vVe","a":["tap"]},
+            {"p":4,"cls":"XCUIElementTypeButton","b":[131,442,195,506],"f":"vVe","a":["tap"]},
+            {"p":5,"cls":"XCUIElementTypeImage","text":"Call","b":[131,442,195,506],"f":"vVe"}
+        ]}"#;
+        let nodes = prune(&RawTree::from_ios_json(json).unwrap());
+        let shown: Vec<_> = nodes.iter().filter_map(|n| n.label.clone()).collect();
+        assert_eq!(shown, ["Message", "Call"], "{nodes:#?}");
     }
 
     #[test]

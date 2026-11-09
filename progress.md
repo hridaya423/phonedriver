@@ -1033,3 +1033,17 @@ The fixes come from the first run on a physical Android phone, a Honor X8 (TFY-L
   - In the new-contact form with the keyboard up, both rows are now marked `under-keyboard`, and both taps are refused with `@e18 is under the keyboard` plus the hide-keyboard and scroll hint. Nothing was typed into the name field.
   - The draft was discarded.
 - `cargo test --workspace --no-fail-fast`: 683 passed, 0 failed. Clippy is clean.
+
+## 2026-11-09: a button holding its own copy is one line (iOS Contacts)
+
+- Seen on the contact card, iPhone 17 Simulator: `@e10 button "Message"` over `@e11 button "Message"`, and the same for "Call". The raw tree is button "Message", then an unlabeled tappable button with the same frame, then an image named "Message". The inner button takes the image's name.
+- Changed: `fold_wrappers` in `crates/core/src/prune.rs` drops a labeled control's only child when that child is childless, has no value, and has the same label and bounds.
+- Test: `a_button_holding_its_own_copy_is_one_button`, with the real node structure. It failed first with `["Message", "Message", "Call", "Call"]`.
+- Live check: the card now prints `@e10 button "Message"` and `@e11 button "Call"` under the `Video · Mail` cell, 2 lines fewer.
+
+## 2026-11-09: snapshot --save-fixture works against a remote daemon
+
+- Seen while capturing the contact card through the forwarded socket: `error: cannot write the fixture screenshot: No such file or directory`. The CLI copied the PNG from the daemon's path, which is on the Mac mini.
+- Changed: `save_fixture_files` in `crates/cli/src/commands.rs` asks for the screenshot `inline`, as `screenshot -o` does, and writes the bytes itself.
+- Live check: `snapshot --save-fixture contact_card --fixture-dir <scratch>` wrote `contact_card.json` (12,423 bytes) and `contact_card.png` (279,039 bytes) on the MacBook. No automated test, because this is the client half of the inline path that `screenshot_over_a_remote_socket_returns_the_image_without_reading_the_daemons_path` already covers.
+- `cargo test --workspace --no-fail-fast`: 684 passed, 0 failed. Clippy is clean.
