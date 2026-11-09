@@ -1119,3 +1119,10 @@ The fixes come from the first run on a physical Android phone, a Honor X8 (TFY-L
 - `Rendered::text` prints the `within` element's own label and value uncut, so `snapshot within=@e48` reads a long block without a screenshot. The `within` docs (MCP, CLI, architecture) say so.
 - Tests: `a_long_label_asked_for_by_ref_is_printed_whole` and `a_value_that_repeats_the_label_with_other_spacing_is_not_printed_twice` (both red before the change).
 - `cargo test --workspace --no-fail-fast`: 694 passed, 0 failed. Clippy: 0 warnings.
+
+## 2026-11-09: a row or link around a control with the same name prints as that control
+
+- Agent run i9 (Bold Text on, then off) passed in 11 turns. Its Display & Text Size screen printed `cell "On/Off Labels" "0"` around `switch "On/Off Labels" off`, and `link "What’s new…"` around a copy of itself.
+- `fold_wrappers` drops a tappable wrapper whose only child is a tappable control with the same label, when the wrapper's value and hint are absent or the same as the child's. A row with its own subtitle (Android Settings' "Dark theme") keeps it.
+- Test: `prune::tests::a_row_or_link_around_a_control_with_its_own_name_is_that_control` (red before the change).
+- `cargo test --workspace --no-fail-fast`: 689 passed, 6 failed. The 6 are `tests/ocr.rs`, the intermittent `Apple Vision could not read this screenshot`. They passed earlier today on unchanged OCR code. Clippy: 0 warnings.
