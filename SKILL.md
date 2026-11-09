@@ -19,7 +19,7 @@ Run a setting, intent or key with `shell`: one call returns the exit code, the o
 
 1. `snapshot` lists the screen as lines such as `@e4 button "Save"`.
 2. Act on a ref: `tap @e4`.
-3. Read the lines the action returns: what changed once the screen settled, or the whole new screen. Act from those lines; call `snapshot` when you need the whole screen again. `back to the screen from before` means a dialog closed: the lines and refs you had before it hold again, apart from the changes listed.
+3. Read the lines the action returns: what changed once the screen settled, or the whole new screen. Act from those lines; call `snapshot` when you need the whole screen again. `the screen before the last one is back` means the screen you were shown before the last one returned (a dialog closed, or you went back to a page you had just seen): its lines and refs hold again, apart from the changes listed.
 
 Actions already wait for the screen; use `wait` when something loads later (`wait "Row 640"`, `wait gone:"Loading"`).
 

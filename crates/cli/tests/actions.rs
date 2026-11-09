@@ -469,7 +469,7 @@ async fn press_back_on_the_second_screen_returns_to_the_first() {
     let r = rig.json(&["press", "back"]);
     let t = text(&r);
     assert!(
-        t.contains("Open second") || t == "back to the screen from before, unchanged",
+        t.contains("Open second") || t == "the screen before the last one is back, unchanged",
         "{r}"
     );
     let log = testbed::wait_for_log(&rig.adb, &rig.serial, 3000, |l| {

@@ -3650,7 +3650,10 @@ async fn a_dialog_that_closes_is_told_as_the_screen_being_back_not_as_a_new_scre
     pusher.abort();
     let text = close["observation"]["text"].as_str().unwrap();
     assert_eq!(close["observation"]["kind"], "diff", "{close}");
-    assert_eq!(text, "back to the screen from before, unchanged", "{text}");
+    assert_eq!(
+        text, "the screen before the last one is back, unchanged",
+        "{text}"
+    );
 }
 
 #[tokio::test(start_paused = true)]
