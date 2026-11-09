@@ -373,6 +373,11 @@ pub enum Error {
         /// The element is on screen but this one (a floating `Toolbar`) covers its center.
         covered_by: Option<String>,
     },
+    #[error("@{} is disabled", r#ref)]
+    Disabled {
+        #[serde(rename = "ref")]
+        r#ref: Ref,
+    },
     #[error("{} is not supported on this device: {reason}", op.name())]
     Unsupported { op: Op, reason: &'static str },
     #[error("the screen was still changing after {waited_ms} ms")]
@@ -455,6 +460,7 @@ impl Error {
             Error::NotFound { .. } => -32007,
             Error::Ambiguous { .. } => -32008,
             Error::OffScreen { .. } => -32009,
+            Error::Disabled { .. } => -32022,
             Error::Unsupported { .. } => -32011,
             Error::NotSettled { .. } => -32012,
             Error::Timeout { .. } => -32013,
@@ -548,6 +554,7 @@ impl Error {
                 "Scroll first: `phonedriver scroll {}` moves the element out from under the {name}.",
                 scroll_hint.name()
             ),
+            Error::Disabled { .. } => "Run `phonedriver snapshot` to see what the app wants first (a required field, a selection, a permission); it greys this out until then. Tap its `x,y` only if you are sure.".into(),
             Error::OffScreen { scroll_hint, .. } => {
                 format!("Scroll first: `phonedriver scroll {}`.", scroll_hint.name())
             }
@@ -727,6 +734,7 @@ mod tests {
                 behind_keyboard: true,
                 covered_by: None,
             },
+            Error::Disabled { r#ref: Ref(5) },
             Error::Unsupported {
                 op: Op::Clipboard,
                 reason: "the Simulator tier has no pasteboard service",
@@ -815,6 +823,7 @@ mod tests {
             Error::NotFound { .. } => (-32007, "not_found"),
             Error::Ambiguous { .. } => (-32008, "ambiguous"),
             Error::OffScreen { .. } => (-32009, "off_screen"),
+            Error::Disabled { .. } => (-32022, "disabled"),
             Error::Unsupported { .. } => (-32011, "unsupported"),
             Error::NotSettled { .. } => (-32012, "not_settled"),
             Error::Timeout { .. } => (-32013, "timeout"),

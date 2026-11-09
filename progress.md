@@ -1055,3 +1055,14 @@ The fixes come from the first run on a physical Android phone, a Honor X8 (TFY-L
 - Tests: `a_tap_on_a_button_under_the_keyboard_hides_the_keyboard_and_then_taps_it`: the keyboard goes when Back is pressed, and the tap lands at Send's new y, 330. Two tests whose keyboard never hides now expect the one `Back` press and no tap.
 - Live check, iPhone 17 Simulator: in a new contact with the keyboard up, `tap "add phone"` replied `ok hid the keyboard, then tapped @e59 "add phone" at 201,325 · settled in 1129ms` with `+ @e84 button "mobile"`. The draft was discarded.
 - `cargo test --workspace --no-fail-fast`: 679 passed and 6 OCR tests failed while other builds loaded the MacBook; `--test ocr` alone passed 7 of 7. Clippy is clean.
+
+## 2026-11-09: a tap on a disabled element fails at once
+
+- Seen in agent run i4 (Calendar on the Simulator, which has no calendar access): `tap @e5 "Add"` on a button marked `disabled` waited `no change after 2000ms` and printed the missed-tap hint. The agent then spent a snapshot and a screenshot to learn the button was grey.
+- Changed: the error `Disabled` (`-32022`, `disabled`) in `crates/core/src/error.rs`. Its hint says to look for what the app wants first: a field, a selection or a permission.
+  - The Tap branch returns it before sending anything when a ref or text target is not enabled.
+  - A tap at `x,y` is never refused.
+  - `docs/protocol.md` lists the code.
+- Test: `a_tap_on_a_disabled_button_fails_at_once_and_a_point_tap_still_goes`. It failed with the check switched off. `all_errors` has the new variant, and its hint starts with "Run".
+- Not a phonedriver problem, but noted: from about 09:00 the OCR tests fail on this MacBook, even when run alone (`--test ocr`: 1 passed, 6 failed). Apple Vision returns `TextRecognition.CRImageReaderError error 1` after about 27 s. The same tests passed alone earlier in the night (7 of 7 in 26 s). The OCR code did not change.
+- `cargo test --workspace --no-fail-fast`: everything outside `ocr` passes. Clippy is clean.

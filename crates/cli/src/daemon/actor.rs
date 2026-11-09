@@ -1414,6 +1414,13 @@ impl Actor {
                     self.lap("resolve", t);
                     r?
                 };
+                // Calendar's "Add" on a Simulator without calendar access: the tap waited 2 s for nothing.
+                if let Some(e) = found.as_ref().filter(|e| {
+                    !e.state.contains(ElementState::ENABLED)
+                        && !matches!(target, Target::Point { .. })
+                }) {
+                    return Err(Error::Disabled { r#ref: e.r#ref });
+                }
                 let mut hid = false;
                 let (at, element, found, covered) = match (under_keyboard, &found) {
                     (true, Some(e)) => {
