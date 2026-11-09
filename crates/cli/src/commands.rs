@@ -331,7 +331,7 @@ pub(crate) enum Verb {
         /// The element to scroll: `@ref` or text. The default is the largest scrollable one.
         #[arg(long, alias = "in")]
         within: Option<String>,
-        /// Keep scrolling until this text or `@ref` is on screen.
+        /// Keep scrolling until this text (`A|B` for either) or `@ref` is on screen.
         #[arg(long)]
         until: Option<String>,
         /// Give up after this many scrolls (the default is 30).
@@ -340,7 +340,7 @@ pub(crate) enum Verb {
     },
     /// List the elements whose text contains this text, in any case.
     Find {
-        /// The text to look for.
+        /// The text to look for; `A|B` finds either.
         text: String,
         /// Only elements with this role, such as `button` or `cell`.
         #[arg(long)]

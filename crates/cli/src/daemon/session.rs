@@ -87,11 +87,14 @@ impl Session {
         let Target::Text { text, role } = target else {
             return self.resolve(target, now);
         };
-        let refs = match find_text(now, text, *role, None) {
-            TextMatch::None => Vec::new(),
-            TextMatch::One { r#ref, .. } => vec![r#ref],
-            TextMatch::Many(refs) => refs,
-        };
+        let refs: Vec<_> = std::iter::once(text.as_str())
+            .chain(either(text))
+            .flat_map(|t| match find_text(now, t, *role, None) {
+                TextMatch::None => Vec::new(),
+                TextMatch::One { r#ref, .. } => vec![r#ref],
+                TextMatch::Many(refs) => refs,
+            })
+            .collect();
         let holder = within.and_then(|r| now.index_of(r));
         let inside = |i: usize| {
             holder
@@ -157,11 +160,19 @@ impl Session {
 
     /// The rendered lines of the elements whose label or hint contains `text`, in any case.
     pub fn find(&self, now: &Rendered, text: &str, role: Option<Role>) -> Vec<String> {
-        let q = text.to_lowercase();
+        let qs: Vec<String> = std::iter::once(text)
+            .chain(either(text))
+            .map(str::to_lowercase)
+            .collect();
         now.elements
             .iter()
             .filter(|e| role.is_none_or(|r| e.role == r))
-            .filter(|e| parts(e).any(|p| p.to_lowercase().contains(&q)))
+            .filter(|e| {
+                parts(e).any(|p| {
+                    let p = p.to_lowercase();
+                    qs.iter().any(|q| p.contains(q))
+                })
+            })
             .map(|e| now.line(e))
             .collect()
     }
@@ -216,6 +227,17 @@ fn element_at(now: &Rendered, i: usize) -> Resolved {
 
 /// How far in from the screen's left edge a web element that starts there is tapped.
 const WEB_LEFT_EDGE_TAP: f32 = 8.0;
+
+/// The texts of a search for `A|B`; agents write alternatives that way. Empty when there is no `|`.
+fn either(text: &str) -> Vec<&str> {
+    if !text.contains('|') {
+        return Vec::new();
+    }
+    text.split('|')
+        .map(str::trim)
+        .filter(|t| !t.is_empty())
+        .collect()
+}
 
 /// Points of free height that hold a line of text.
 const MIN_BAND: f32 = 12.0;
@@ -472,6 +494,25 @@ mod tests {
         Session::default()
             .seek(&text(target), &now, None)
             .map(|r| r.line.unwrap_or_default())
+    }
+
+    #[test]
+    fn a_search_for_either_of_two_texts_stops_at_the_first_on_screen() {
+        let labels = ["Battery", "Wi-Fi", "Airplane Mode"];
+        assert_eq!(
+            sought(&labels, "Airplane|Wi-Fi").unwrap(),
+            "@e2 button \"Wi-Fi\""
+        );
+        assert_eq!(
+            sought(&labels, "Bluetooth | battery").unwrap(),
+            "@e1 button \"Battery\""
+        );
+        assert!(sought(&labels, "Bluetooth|Cellular").is_err());
+        let found = Session::default().find(&screen(&labels), "airplane|wi-fi", None);
+        assert_eq!(
+            found,
+            ["@e2 button \"Wi-Fi\"", "@e3 button \"Airplane Mode\""]
+        );
     }
 
     #[test]

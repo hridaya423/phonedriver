@@ -202,6 +202,7 @@ struct ScrollArgs {
     direction: String,
     /// The list to scroll: an @ref. Default is the largest scrollable element.
     r#in: Option<String>,
+    /// A text, `A|B` for either, or an @ref.
     until: Option<String>,
     /// Give up after this many scrolls. Default 30.
     max: Option<u32>,
@@ -1023,7 +1024,7 @@ impl Mcp {
     }
 
     #[tool(
-        description = "The screen as lines like `@e4 button \"Save\"`; refs name elements for other tools. `find` lists matching lines. `under-keyboard` = hidden by the keyboard."
+        description = "The screen as lines like `@e4 button \"Save\"`; refs name elements for other tools. `find` lists matching lines (`A|B` for either). `under-keyboard` = hidden by the keyboard."
     )]
     async fn snapshot(&self, Parameters(a): Parameters<SnapshotArgs>) -> CallToolResult {
         if let Some(text) = a.find {
@@ -1188,7 +1189,7 @@ impl Mcp {
             .complete()
     }
 
-    #[tool(description = "Wait for `settled`, a text or @ref to appear, or `gone:<text>`.")]
+    #[tool(description = "Wait for `settled`, a text (`A|B` for either) or @ref to appear, or `gone:<text>`.")]
     async fn wait(&self, Parameters(a): Parameters<WaitArgs>) -> CallToolResult {
         let mut globals = self.globals(a.device);
         globals.timeout = a.timeout_ms;

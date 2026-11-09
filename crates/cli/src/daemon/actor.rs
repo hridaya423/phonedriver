@@ -2874,6 +2874,9 @@ fn sorted_distance(
     let Target::Text { text, .. } = until else {
         return None;
     };
+    if text.contains('|') {
+        return None;
+    }
     let list = now.index_of(holder?)?;
     let rows: Vec<String> = now
         .elements
@@ -3227,6 +3230,47 @@ mod tests {
                 system: false,
             })
             .collect()
+    }
+
+    #[test]
+    fn a_search_for_either_of_two_names_does_not_fling_through_a_sorted_list() {
+        use phonedriver_core::geometry::Scale;
+        use phonedriver_core::raw::RawTree;
+        use phonedriver_core::refs::RefTable;
+        use phonedriver_core::render::Header;
+        let rows: Vec<String> = ["Alpha", "Bravo", "Charlie", "Delta", "Echo"]
+            .iter()
+            .enumerate()
+            .map(|(i, l)| {
+                format!(
+                    r#"{{"p":0,"w":1,"cls":"android.widget.TextView","text":"{l}","b":[0,{},400,{}],"f":"vVe","a":["tap"]}}"#,
+                    i * 50,
+                    i * 50 + 40
+                )
+            })
+            .collect();
+        let json = format!(
+            r#"{{"windows":[{{"id":1,"type":"application","bounds":[0,0,400,800]}}],"nodes":[
+            {{"p":-1,"w":1,"cls":"androidx.recyclerview.widget.RecyclerView","b":[0,0,400,800],"f":"vVeS","a":["scroll_fwd"]}},{}]}}"#,
+            rows.join(",")
+        );
+        let tree = RawTree::from_android_json(&json, Scale { density: 1.0 }).unwrap();
+        let nodes = phonedriver_core::prune::prune(&tree);
+        let refs = RefTable::default().assign(&tree, &nodes);
+        let now = Rendered::build(nodes, &refs, Header::default());
+        let list = Some(now.elements[0].r#ref);
+        let text = |t: &str| Target::Text {
+            text: t.into(),
+            role: None,
+        };
+        assert_eq!(
+            sorted_distance(&text("Zulu"), &now, Direction::Down, list),
+            Some((false, true))
+        );
+        assert_eq!(
+            sorted_distance(&text("Zulu|Alpha"), &now, Direction::Down, list),
+            None
+        );
     }
 
     #[test]
