@@ -384,6 +384,14 @@ fn swipe(from: Point, to: Point, ms: u32) -> Gesture {
     }
 }
 
+/// Whether a failed tree read is an app that is still starting (kAXErrorServerNotFound) or going away: on the iOS 26.5
+/// Simulator, Photos crashed at every launch, and reads failed with kAXErrorCannotComplete until the home screen was in
+/// front again. Both pass once the screen has one app in front.
+pub fn app_not_readable_yet(e: &Error) -> bool {
+    matches!(e, Error::Transport { detail }
+        if detail.contains("kAXErrorServerNotFound") || detail.contains("kAXErrorCannotComplete"))
+}
+
 /// The app a link opens in, where it is certain: on the Simulator, http and https links open in Safari, because
 /// no other browser can be installed there from the App Store. A physical iPhone may have another default browser.
 pub fn url_handler(url: &str, simulator: bool) -> Option<AppId> {
@@ -444,6 +452,22 @@ mod tests {
 
     const TESTBED_MAIN: &str = include_str!("../../core/tests/fixtures/ios/testbed_main.json");
     const SCREEN: Size = Size { w: 402.0, h: 874.0 };
+
+    #[test]
+    fn a_read_of_an_app_that_starts_or_crashed_is_told_apart_from_a_lost_runner() {
+        let read = |detail: &str| Error::Transport {
+            detail: detail.into(),
+        };
+        assert!(app_not_readable_yet(&read(
+            "runner tree: Error getting main window kAXErrorCannotComplete"
+        )));
+        assert!(app_not_readable_yet(&read(
+            "runner tree: kAXErrorServerNotFound"
+        )));
+        assert!(!app_not_readable_yet(&read(
+            "the runner closed the connection"
+        )));
+    }
 
     #[test]
     fn a_web_link_on_the_simulator_opens_in_safari_and_nothing_else_is_known() {

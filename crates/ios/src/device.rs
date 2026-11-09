@@ -252,9 +252,7 @@ impl IosDevice {
                 .request(Op::Tree, json!({"op": "snapshot", "max_depth": max_depth}))
                 .await;
             match reply {
-                Err(Error::Transport { detail })
-                    if detail.contains("kAXErrorServerNotFound") && Instant::now() < deadline =>
-                {
+                Err(e) if map::app_not_readable_yet(&e) && Instant::now() < deadline => {
                     tokio::time::sleep(APP_START_RETRY).await
                 }
                 other => return other,

@@ -2359,6 +2359,28 @@ async fn a_launch_that_is_the_first_call_on_a_polled_device_settles_without_wait
 }
 
 #[tokio::test(start_paused = true)]
+async fn a_launch_whose_app_is_not_in_front_afterwards_says_which_app_is() {
+    let (source, fake) = installed();
+    fake.launch(&AppId("com.launcher".into())).await.unwrap();
+    fake.set_quits_at_launch(true);
+    let (d, _home) = daemon(source);
+    let r = ok(
+        &d,
+        "default",
+        "act",
+        act_with(json!({"kind": "launch", "app": "Calculator"})),
+    )
+    .await;
+    let summary = r["summary"].as_str().unwrap();
+    assert!(
+        summary.contains("Calculator is not in front")
+            && summary.contains("com.launcher")
+            && summary.contains("quit"),
+        "{summary}"
+    );
+}
+
+#[tokio::test(start_paused = true)]
 async fn a_launch_with_restart_stops_the_app_first_so_it_opens_on_its_first_screen() {
     let (source, fake) = installed();
     let (d, _home) = daemon(source);

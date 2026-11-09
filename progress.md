@@ -1401,3 +1401,12 @@ Run a10 (Android: find the build number in Settings, then search Google for it i
 - Seen in passing: on Chrome's first-run screen, `tap "Stay signed out"` answered `no change after 503ms`, but the next screen came up a moment later. Left open.
 
 Rerun a10b with the fix: the consent page cost 2 calls instead of 4 (`scroll --until "Reject all"` answered `scrolled down 1 time to @e23 "Reject all"`, then one tap). The run took 32.7 s against 37.1 s. It still took 10 calls, because the agent spent two `shell` calls and a `find` on the build number elsewhere.
+
+## 2026-11-09: a launch that does not reach the front says so, and an app that crashes while it is read no longer fails the launch
+
+In run i18 (iOS: count the photos in Photos), Photos crashed at every launch on this Simulator (ReportCrashService logged it, and `simctl launch` brings it up and loses it at once). `launch Photos` answered `ok launched Photos` with the home screen below it. The agent took that as a launch that had worked. It tapped the icon, took two screenshots, tapped again by coordinates, then tried `launch` with `restart`, which failed with `runner tree: Error getting main window kAXErrorCannotComplete`. That took 9 calls in 30 s, and the agent got no answer.
+
+- The launch summary now says when another app is in front afterwards: `launched Photos, but Photos is not in front (com.apple.springboard is): it may have quit at start`. Daemon test `a_launch_whose_app_is_not_in_front_afterwards_says_which_app_is` uses a new `FakeDevice::set_quits_at_launch`. It failed with `launched Calculator` and passes now.
+- The iOS runner's snapshot retried `kAXErrorServerNotFound` (an app that is starting), and now also retries `kAXErrorCannotComplete` (an app that is going away), within the same 5 s. The check is `map::app_not_readable_yet`, with test `a_read_of_an_app_that_starts_or_crashed_is_told_apart_from_a_lost_runner`. My first try retried only in `IosDevice::tree`. Live, `launch Photos` still failed after 1.2 s, because `foreground` and the other readers call `snapshot` directly, so the retry moved there.
+- Live on the mini, three times: `ok launched Photos, but Photos is not in front (com.apple.springboard is): it may have quit at start`, in 8.6 to 10.3 s. `launch Settings` still answers `ok launched Settings · settled in 481ms`.
+- `cargo test -q -p phonedriver --no-fail-fast` and the `phonedriver-ios` lib tests pass. Clippy is clean.
