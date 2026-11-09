@@ -186,6 +186,19 @@ async fn text_clipboard_keys_buttons_apps_and_events() {
         device.clipboard(ClipboardOp::Get).await.unwrap().as_deref(),
         Some("OLD-CLIP")
     );
+    let windows = adb
+        .shell(&serial, "dumpsys window windows")
+        .await
+        .unwrap()
+        .stdout_text();
+    let overlay = windows
+        .split("Window #")
+        .find(|w| w.contains("ClipboardOverlay}"))
+        .unwrap_or_default();
+    assert!(
+        !overlay.contains("isVisible=true"),
+        "the clipboard preview covers the bottom left of the screen and takes the next tap there: {overlay}"
+    );
 
     testbed::clear_log(&adb, &serial).await;
     device.key(Key::Backspace).await.unwrap();

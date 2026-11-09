@@ -1340,3 +1340,11 @@ In run i8f, `press hide-keyboard` in Safari failed with `this screen kept the ke
 ## 2026-11-09: iOS Safari form, measured after the web-form changes
 
 Rerun i8g (same task as i8f): 11 calls and 31 s, against 11 calls and 41 s for i8f. The answer was correct: Medium on, Bacon and Mushroom on, all text fields verified, not submitted. `press hide-keyboard` answered `ok hid the keyboard via done`, where i8f got an error, and the replies printed no label lines and no raw radio values.
+
+## 2026-11-09: the clipboard preview no longer takes taps after typing on Android
+
+In run a5c (Chrome, httpbin form), `tap @e20 "Mushroom" at 23,577` answered `no change after 3117ms`. The screenshot showed Mushroom unchecked, so the tap had really missed. I reproduced it every time: after typing into the three fields and hiding the keyboard, the first tap on Mushroom did nothing. This happened even 4 s later, and `adb shell input tap` missed in the same way. `dumpsys window windows` then listed a visible `ClipboardOverlay` window. Its touchable region was px (-20,1378)-(232,1572), which is 525 to 599 pt at the bottom left, and the tap fell inside it. Every paste sets the clipboard twice (our text, then the restored clip), and on API 33+ SystemUI shows its preview for each new clip. SystemUI skips the preview when a clip set by the shell carries `com.android.systemui.SUPPRESS_CLIPBOARD_OVERLAY`. `TextInput.quiet` now adds that extra to every clip the agent sets.
+
+- `device_live::text_clipboard_keys_buttons_apps_and_events` now asserts that no visible `ClipboardOverlay` window remains after a paste. Before the fix it failed with `the clipboard preview covers the bottom left of the screen…`; after the fix it passes.
+- Live: the same sequence (type into three fields, `press hide-keyboard`, tap Bacon, tap Mushroom) gives `~ @e51 checkbox "Mushroom" off → on`, and no overlay window is visible.
+- Android `actions` live suite: 35 passed. The `e2e` suite: 10 passed. Before the fix, the full `e2e` run failed once on `a_secure_screen_says_so…`, because the taps tab had not come to the front after 2 s; the test passed alone twice and in a full rerun.
