@@ -1399,3 +1399,5 @@ Run a10 (Android: find the build number in Settings, then search Google for it i
 - Unit test `a_search_does_not_stop_at_a_sentence_that_a_tap_on_the_same_text_would_not_take` and daemon test `scroll_until_does_not_stop_at_a_sentence_already_on_the_first_screen`. With the old behavior the daemon test failed with `already on screen, no scroll: @e2 "If you choose to 'Reject all'…"`; it passes now. The `a_search_finds_a_word_inside_a_long_sentence` case (run t5) still passes. Lib tests pass 81 of 81, and daemon tests 151 of 151.
 - Live on the same page: `ok scrolled down 1 time to @e41 "Reject all"`.
 - Seen in passing: on Chrome's first-run screen, `tap "Stay signed out"` answered `no change after 503ms`, but the next screen came up a moment later. Left open.
+
+Rerun a10b with the fix: the consent page cost 2 calls instead of 4 (`scroll --until "Reject all"` answered `scrolled down 1 time to @e23 "Reject all"`, then one tap). The run took 32.7 s against 37.1 s. It still took 10 calls, because the agent spent two `shell` calls and a `find` on the build number elsewhere.
