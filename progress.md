@@ -1194,3 +1194,12 @@ The fixes come from the first run on a physical Android phone, a Honor X8 (TFY-L
 - Test: `prune::tests::a_short_page_whose_web_views_carry_no_pages_still_keeps_one` (0 web views before the fix).
 - Live: httpbin shows `@e2 webview`, and `type "Live" --into "Customer name:"` says `then zoomed the page back out · verified`. The Ada Lovelace article still shows one `webview "8 pages" scrollable↓`.
 - `cargo test --workspace --no-fail-fast`: 704 passed, 0 failed. Clippy: 0 warnings.
+
+## 2026-11-09: a long text is printed once, and the reply says how to read it whole
+
+- In rerun i8e (11 turns, 32.6 s, correct answer) the httpbin JSON page still printed its text twice. iOS cuts a value at 512 characters and keeps the whole label (about 990), so the two never compared equal. The agent took a screenshot to read the cut text.
+- `second_text` also drops a value of 100 or more characters (spacing ignored) that only starts the label. Text fields are exempt: a field labeled "Search" holding "Sea" still shows "Sea".
+- When a full screen cuts any text, it ends with one line, `hint: \`phonedriver snapshot --within @eN\` prints @eN whole`, for the first cut element. MCP rewrites it to `` `snapshot` with `within` @eN ``.
+- Tests: `a_long_value_cut_short_by_the_platform_is_not_printed_beside_the_label_it_repeats` (red with the rule disabled), `long_labels_truncate` (now also requires the hint, and no hint under `within`), and a case in `hints_name_tools_and_arguments`.
+- Live, `open https://httpbin.org/get?x=1`: the JSON text prints once, followed by `hint: \`phonedriver snapshot --within @e3\` prints @e3 whole`. The whole reply is 709 bytes.
+- `cargo test --workspace --no-fail-fast`: 705 passed, 0 failed. Clippy: 0 warnings.

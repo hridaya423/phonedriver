@@ -248,6 +248,14 @@ impl Rendered {
         if lines.len() > limit {
             let _ = write!(out, "\n… {} more", lines.len() - limit);
         }
+        if let Some((i, _)) = lines
+            .iter()
+            .take(limit)
+            .find(|(i, line)| Some(*i) != root && line.contains(" chars)\""))
+        {
+            let r = self.elements[*i].r#ref;
+            let _ = write!(out, "\nhint: `phonedriver snapshot --within @{r}` prints @{r} whole");
+        }
         Ok(out)
     }
 
@@ -569,14 +577,28 @@ pub fn shown_value(e: &Element) -> Option<String> {
     (!redundant).then(|| v.to_string())
 }
 
+/// iOS cuts an element's value at 512 characters and keeps its whole label, so a long static text's value is the
+/// start of its label. A value this long that only starts the label repeats it.
+const CUT_VALUE: usize = 100;
+
 fn second_text(e: &Element, max: usize) -> Option<String> {
     let bare = |s: &str| -> String {
         s.chars()
             .filter(|c| !c.is_whitespace() && *c != '·')
             .collect()
     };
+    let repeats = |value: &str| {
+        let Some(label) = e.label.as_deref().map(bare) else {
+            return false;
+        };
+        let value = bare(value);
+        label == value
+            || (!e.role.is_text_entry()
+                && value.chars().count() >= CUT_VALUE
+                && label.starts_with(&value))
+    };
     match shown_value(e) {
-        Some(v) => Some(v).filter(|t| e.label.as_deref().map(bare) != Some(bare(t))),
+        Some(v) => Some(v).filter(|t| !repeats(t)),
         None => shown_hint(e),
     }
     .map(|t| quote_upto(&t, max))
@@ -1105,6 +1127,17 @@ mod tests {
             text.contains(&format!("@e1 text \"{}…(+100 chars)\"", "x".repeat(200))),
             "{text}"
         );
+        assert!(
+            text.ends_with("\nhint: `phonedriver snapshot --within @e1` prints @e1 whole"),
+            "{text}"
+        );
+        let whole = r
+            .text(&Filters {
+                within: Some(Ref(1)),
+                ..Filters::default()
+            })
+            .unwrap();
+        assert!(!whole.contains("hint:"), "{whole}");
     }
 
     #[test]
@@ -1146,6 +1179,27 @@ mod tests {
         };
         let text = r.text(&f).unwrap();
         assert!(text.contains(&format!("@e1 text \"{label}\"")), "{text}");
+    }
+
+    #[test]
+    fn a_long_value_cut_short_by_the_platform_is_not_printed_beside_the_label_it_repeats() {
+        let body = "{\\n  \\\"args\\\": {},\\n  \\\"headers\\\": {\\n    \\\"Accept\\\": \\\"text/html\\\"".repeat(8);
+        let cut: String = body.chars().take(240).collect();
+        let r = RawTree::from_ios_json(&format!(
+            r#"{{"app":{{"bundle_id":"x","pid":1}},"nodes":[
+            {{"p":-1,"cls":"XCUIElementTypeOther","b":[0,0,400,800],"f":"vVe"}},
+            {{"p":0,"cls":"XCUIElementTypeStaticText","text":"{body}","sd":"{cut}","b":[0,100,400,140],"f":"vVe"}},
+            {{"p":0,"cls":"XCUIElementTypeTextField","text":"Search","sd":"Sea","b":[0,200,400,240],"f":"vVeE","a":["tap"]}}]}}"#
+        ))
+        .unwrap();
+        let nodes = prune(&r);
+        let refs = RefTable::default().assign(&r, &nodes);
+        let text = Rendered::build(nodes, &refs, header())
+            .text(&Filters::default())
+            .unwrap();
+        let first = text.lines().find(|l| l.starts_with("@e1 ")).unwrap();
+        assert!(first.ends_with("chars)\""), "{text}");
+        assert!(text.contains("textbox \"Search\" \"Sea\""), "{text}");
     }
 
     #[test]
