@@ -923,6 +923,7 @@ fn for_mcp(hint: &str) -> String {
         ),
         ("`--device <id>`", "`device`"),
         ("`--timeout`", "`timeout_ms`"),
+        ("`--into`", "`into`"),
         ("`--max`", "`max`"),
         (
             "`phonedriver doctor` says what is missing",

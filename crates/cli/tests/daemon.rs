@@ -1376,6 +1376,37 @@ async fn type_without_into_finds_the_focused_field_in_the_last_observation_inste
 }
 
 #[tokio::test(start_paused = true)]
+async fn type_without_into_when_nothing_has_focus_types_nothing_and_names_the_fields() {
+    let unfocused = || {
+        let json = r#"{"windows":[{"id":1,"type":"application","package":"com.example","bounds":[0,0,360,800]}],"nodes":[
+        {"p":-1,"w":1,"cls":"android.widget.FrameLayout","b":[0,0,360,800],"f":"vVe"},
+        {"p":0,"w":1,"cls":"android.widget.EditText","desc":"Search","b":[0,100,360,160],"f":"vVeE","a":["tap","set_text"]}]}"#;
+        RawTree::from_android_json(json, Scale { density: 1.0 }).unwrap()
+    };
+    let (source, fake) = FakeSource::with(vec![unfocused(), unfocused()]);
+    let (d, _home) = daemon(source);
+    ok(&d, "default", "snapshot", json!({})).await;
+    let e = err(
+        &d,
+        "default",
+        "act",
+        json!({"action": {"kind": "type", "text": "Grace Hopper"}}),
+    )
+    .await;
+    assert_eq!(e.code, -32023, "{e:?}");
+    assert_eq!(e.data["code_name"], "not_focused");
+    assert!(e.message.contains("nothing was typed"), "{}", e.message);
+    let hint = e.data["hint"].as_str().unwrap_or_default();
+    assert!(hint.contains("--into"), "{e:?}");
+    assert!(hint.contains("textbox \"Search\""), "{e:?}");
+    assert!(
+        !fake.calls().iter().any(|c| matches!(c, Call::Text(_))),
+        "{:?}",
+        fake.calls()
+    );
+}
+
+#[tokio::test(start_paused = true)]
 async fn wait_settled_right_after_an_unobserved_action_waits_for_its_first_change() {
     let (source, fake) = FakeSource::with(vec![tree(&["One"])]);
     let (d, _home) = daemon(source);
