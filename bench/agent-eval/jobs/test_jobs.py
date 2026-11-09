@@ -2,6 +2,7 @@ import os
 import unittest
 from unittest import mock
 
+import compare
 import jobs
 
 GOOD_SIGNUP = """Bugs found:
@@ -135,6 +136,34 @@ class Checks(unittest.TestCase):
                     self.assertEqual(jobs.check_qa_signup(), [])
                 with mock.patch.object(jobs, "log_events", return_value=full[2:]):
                     self.assertEqual(len(jobs.check_qa_signup()), 2)
+
+
+class Compare(unittest.TestCase):
+    def runs(self, label, tokens):
+        return [
+            {"pass": f"{label}{i}", "harness": "phonedriver", "task": "relay-code", "success": True, "total_tokens": t, "tool_calls": 9, "wall_s": 38}
+            for i, t in enumerate(tokens)
+        ]
+
+    def test_a_change_inside_the_spread_of_the_runs_is_called_noise(self):
+        runs = self.runs("a", [70_000, 90_000]) + self.runs("b", [75_000, 80_000, 85_000])
+        (row,) = compare.rows(runs, ["a0", "a1"], ["b0", "b1", "b2"], "phonedriver")
+        self.assertEqual((row["base_tokens"], row["new_tokens"]), (80_000, 80_000))
+        self.assertEqual(row["tokens_verdict"], "noise")
+
+    def test_a_change_with_no_overlap_between_the_runs_is_called_lower_or_higher(self):
+        runs = self.runs("a", [70_000, 90_000]) + self.runs("b", [40_000, 50_000, 60_000])
+        (row,) = compare.rows(runs, ["a0", "a1"], ["b0", "b1", "b2"], "phonedriver")
+        self.assertEqual(row["tokens_verdict"], "lower")
+        self.assertEqual(row["tokens_change_pct"], -37.5)
+        (row,) = compare.rows(runs, ["b0", "b1", "b2"], ["a0", "a1"], "phonedriver")
+        self.assertEqual(row["tokens_verdict"], "higher")
+
+    def test_a_job_that_passed_before_and_fails_now_is_reported(self):
+        runs = self.runs("a", [70_000]) + self.runs("b", [70_000])
+        runs[1]["success"] = False
+        (row,) = compare.rows(runs, ["a0"], ["b0"], "phonedriver")
+        self.assertEqual((row["base_passed"], row["new_passed"]), ("1/1", "0/1"))
 
 
 class Seeds(unittest.TestCase):
