@@ -273,7 +273,31 @@ pub fn prune(tree: &RawTree) -> Vec<Node> {
             absorbed: merged[i].clone(),
         });
     }
-    web_forms(fold_wrappers(drop_echoes(out)))
+    web_link_names(web_forms(fold_wrappers(drop_echoes(out))))
+}
+
+/// Chrome names a link that has no text by its address: Hacker News's vote arrows read
+/// `vote?id=50427362&how=up&goto=news`. The path before the query names it as well in fewer tokens.
+fn web_link_names(mut nodes: Vec<Node>) -> Vec<Node> {
+    for i in 0..nodes.len() {
+        let in_web = std::iter::successors(nodes[i].parent, |&p| nodes[p].parent)
+            .any(|p| nodes[p].role == Role::WebView);
+        let n = &mut nodes[i];
+        if !in_web || !n.actions.contains(Actions::TAP) {
+            continue;
+        }
+        let Some((path, query)) = n.label.as_deref().and_then(|l| l.split_once('?')) else {
+            continue;
+        };
+        let address = !path.is_empty()
+            && query.contains('=')
+            && !path.contains(char::is_whitespace)
+            && !query.contains(char::is_whitespace);
+        if address {
+            n.label = Some(path.to_string());
+        }
+    }
+    nodes
 }
 
 /// Safari forms (run i8f): a radio button is a group whose value is "0" or "1" beside a text with its label, every

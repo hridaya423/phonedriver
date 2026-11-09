@@ -1,0 +1,15 @@
+---
+source: crates/core/src/render.rs
+expression: text
+---
+device android:emulator-5554 · Pixel 9 · Android 17 · 360x800pt · portrait
+app com.android.settings (Settings) · keyboard hidden · settled in 212ms
+@e1 webview "Hacker News" scrollable↓
+  @e2 cell "1."
+  @e3 button "vote"
+  @e4 cell "[Payments Canada announces launch of Canada's Real-Time Rail (RTR) payment system @e5] ([payments.ca @e7])"
+  @e9 cell "104 points by [user1 @e12] [1 hour ago @e13] [hide @e14] [70 comments @e15]"
+  @e16 cell "7."
+  @e17 group "s"
+  @e18 cell "[Y/N (YC S23) Is Hiring a Growth Lead to Distribute Superhuman A.I. Storytelling @e19] ([ycombinator.com @e21])"
+  @e23 cell "[24 minutes ago @e24] [hide @e25]"
