@@ -14,6 +14,7 @@ final class TextInput {
     private static final long RESTORE_WAIT_MS = 1000;
     private static final long POLL_MS = 10;
     private static final long FOCUS_WAIT_MS = 1500;
+    private static final int FIELD_SEARCH_NODES = 3000;
 
     private static ClipboardManager clipboard() {
         ClipboardManager cm = ServiceManager.getClipboardManager();
@@ -57,6 +58,36 @@ final class TextInput {
         }
     }
 
+    private static String current(AccessibilityNodeInfo field) throws Exception {
+        if (field == null) {
+            return textOf(Accessibility.focusedInput());
+        }
+        return field.refresh() ? textOf(field) : "";
+    }
+
+    // A WebView and Chrome's page container hold input focus for the page; the field itself is a focused, editable
+    // node inside them.
+    private static AccessibilityNodeInfo focusedEditableIn(AccessibilityNodeInfo focus) {
+        if (focus.isEditable()) {
+            return null;
+        }
+        java.util.ArrayDeque<AccessibilityNodeInfo> queue = new java.util.ArrayDeque<>();
+        queue.add(focus);
+        for (int seen = 0; !queue.isEmpty() && seen < FIELD_SEARCH_NODES; seen++) {
+            AccessibilityNodeInfo n = queue.poll();
+            if (n != focus && n.isFocused() && n.isEditable()) {
+                return n;
+            }
+            for (int i = 0; i < n.getChildCount(); i++) {
+                AccessibilityNodeInfo c = n.getChild(i);
+                if (c != null) {
+                    queue.add(c);
+                }
+            }
+        }
+        return null;
+    }
+
     private static String textOf(AccessibilityNodeInfo n) {
         CharSequence t = n == null ? null : n.getText();
         return t == null ? "" : t.toString();
@@ -75,7 +106,9 @@ final class TextInput {
     }
 
     private static void paste(String text, boolean sensitive) throws Exception {
-        String before = textOf(awaitFocusedInput());
+        AccessibilityNodeInfo focus = awaitFocusedInput();
+        AccessibilityNodeInfo field = focus == null ? null : focusedEditableIn(focus);
+        String before = textOf(field != null ? field : focus);
         ClipboardManager cm = clipboard();
         ClipData saved = cm.getClip();
         cm.setClip(clip(text, sensitive));
@@ -84,10 +117,11 @@ final class TextInput {
             // spike A4: WebView and some Compose fields read the clipboard after the key returns,
             // so restoring at once pastes the old clip. Wait for the field to change. A WebView field that was
             // just loaded on the emulator read the clipboard more than 200 ms late in 4 of 10 pastes and took the
-            // restored clip, so the limit is 1000 ms; the field text of a WebView is not exposed in time to end
-            // the wait early.
+            // restored clip, so the limit is 1000 ms. In a page the focused input node is the WebView or Chrome's
+            // page container, whose text never changes, so every web paste waited the whole 1000 ms; the page's own
+            // focused field is watched instead.
             long deadline = SystemClock.uptimeMillis() + RESTORE_WAIT_MS;
-            while (SystemClock.uptimeMillis() < deadline && textOf(Accessibility.focusedInput()).equals(before)) {
+            while (SystemClock.uptimeMillis() < deadline && current(field).equals(before)) {
                 SystemClock.sleep(POLL_MS);
             }
         } finally {
