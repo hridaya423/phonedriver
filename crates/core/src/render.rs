@@ -1537,6 +1537,19 @@ mod tests {
     }
 
     #[test]
+    fn a_row_named_with_its_text_says_that_text_once_though_their_spaces_differ() {
+        let text = android_lines(
+            r#"{"p":-1,"w":1,"cls":"android.view.View","desc":"Alarm Monday to Friday 8:30 AM Alarm is currently disabled. ","b":[0,0,400,100],"f":"vVe","a":["tap"]},
+            {"p":0,"w":1,"cls":"android.widget.TextView","text":"8:30\u200aAM","b":[0,0,200,50],"f":"vVe","a":["tap"]},
+            {"p":0,"w":1,"cls":"android.widget.TextView","text":"Alarm off","b":[100,50,200,100],"f":"vVe"},
+            {"p":0,"w":1,"cls":"android.widget.Switch","desc":"8:30 AM alarm","b":[300,0,400,100],"f":"vVe","a":["tap"]}"#,
+        );
+        assert!(!text.contains("text \"8:30 AM\""), "{text}");
+        assert!(text.contains("text \"Alarm off\""), "{text}");
+        assert!(text.contains("switch \"8:30 AM alarm\""), "{text}");
+    }
+
+    #[test]
     fn only_a_text_field_says_it_is_focused() {
         let text = android_lines(
             r#"{"p":-1,"w":1,"cls":"androidx.recyclerview.widget.RecyclerView","b":[0,0,400,400],"f":"vVeSF","a":["scroll_down"]},

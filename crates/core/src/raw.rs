@@ -289,7 +289,14 @@ fn non_empty(s: Option<String>) -> Option<String> {
 
 /// The Play Store names a result card with its fields on separate lines; a reply line holds them with ` · `, the
 /// separator hints already use. A field's text keeps its newlines: they are what `type` would have to reproduce.
+/// Android's Clock spaces "8:30 AM" with U+200A and iOS spaces times with U+202F; agents search with a plain space.
 fn one_line(s: String) -> String {
+    let odd_space = |c: char| c.is_whitespace() && !matches!(c, ' ' | '\n' | '\r');
+    let s = if s.contains(odd_space) {
+        s.replace(odd_space, " ")
+    } else {
+        s
+    };
     if !s.contains(['\n', '\r']) {
         return s;
     }
@@ -586,6 +593,17 @@ mod tests {
         let json = r#"{"windows":[],"nodes":[{"p":-1,"w":1,"cls":"android.widget.TextView","text":"\u202a6\u202cCelsius","desc":"\u200e\u2066","b":[0,0,1,1],"f":"vVe"}]}"#;
         let t = RawTree::from_android_json(json, Scale { density: 1.0 }).unwrap();
         assert_eq!(t.nodes[0].label.as_deref(), Some("6Celsius"));
+    }
+
+    #[test]
+    fn a_label_spaces_with_plain_spaces_and_a_field_keeps_its_own() {
+        let json = r#"{"windows":[],"nodes":[
+            {"p":-1,"w":1,"cls":"android.widget.TextView","text":"8:30\u200aAM\u00a0\u202fdaily","b":[0,0,1,1],"f":"vVe"},
+            {"p":-1,"w":1,"cls":"android.widget.EditText","text":"6:45\u202fPM ","b":[0,0,1,1],"f":"vVeE"}
+        ]}"#;
+        let t = RawTree::from_android_json(json, Scale { density: 1.0 }).unwrap();
+        assert_eq!(t.nodes[0].label.as_deref(), Some("8:30 AM  daily"));
+        assert_eq!(t.nodes[1].value.as_deref(), Some("6:45\u{202f}PM "));
     }
 
     #[test]

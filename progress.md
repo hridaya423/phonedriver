@@ -1216,3 +1216,11 @@ Ran the three live suites on win-pc `emulator-5554` (Pixel_API_37, `-gpu swangle
   - Deep link: Chrome showed its notifications sheet over an empty page once. It passed on rerun.
 - `cargo test -p phonedriver --test actions -- --ignored --test-threads=1` on the four tests: `4 passed; 0 failed`.
 - states: `8 passed; 0 failed`.
+
+## 2026-11-09: labels space with plain spaces
+
+Agent run a2 on the emulator: create a 6:45 AM "Gym" alarm in Clock through its screens. It took 20 calls and 50 s, and it worked. Each alarm row still printed its time as a separate `text "8:30 AM"`, although the absorb rule exists for that row. The saved fixture showed why: the TextView is `8:30 AM` (hair space), and the card's label has a plain space. `one_line` in `raw.rs` now turns every Unicode space in a label or hint into a plain space. Values are unchanged. Trimming trailing spaces was tried and reverted, because web text runs (`"the "` before a link) need them.
+
+- Tests: `a_label_spaces_with_plain_spaces_and_a_field_keeps_its_own`, `a_row_named_with_its_text_says_that_text_once_though_their_spaces_differ`. The goldens `real_settings_apps` and `captured_clock_alarms` changed only in their spaces (checked by script).
+- `cargo test -q --workspace`: no failures. Clippy is clean.
+- Live, on the emulator's Clock alarm list, `phonedriver snapshot` went from 762 to 593 bytes; each alarm is two lines, not three.

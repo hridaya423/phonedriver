@@ -1,5 +1,6 @@
 ---
 source: crates/core/src/render.rs
+assertion_line: 813
 expression: text
 ---
 device android:emulator-5554 · Pixel 9 · Android 17 · 360x800pt · portrait
@@ -9,11 +10,11 @@ app com.android.settings (Settings) · keyboard hidden · settled in 212ms
 @e3 button "TIMER"
 @e4 button "STOPWATCH"
 @e5 image "More options"
-@e6 button "8:30 AM Alarm"
+@e6 button "8:30 AM Alarm"
   @e7 switch off
   @e8 text "Monday, Tuesday, Wednesday, Thursday, Friday"
   @e9 button "Expand alarm"
-@e10 button "9:00 AM Alarm"
+@e10 button "9:00 AM Alarm"
   @e11 switch off
   @e12 text "Sunday, Saturday"
   @e13 button "Expand alarm"
