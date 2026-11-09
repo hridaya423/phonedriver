@@ -66,6 +66,9 @@ final class Apps {
 
     static String openUrl(String url, String pkg) {
         Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
+        // A browser opens each VIEW intent in a new tab (an emulator reached 19 Chrome tabs) unless the intent names
+        // the app that sent it; then it reuses that app's tab and leaves the user's tabs alone.
+        intent.putExtra(android.provider.Browser.EXTRA_APPLICATION_ID, "dev.phonedriver");
         if (pkg != null && !pkg.isEmpty()) {
             intent.setPackage(pkg);
         }
