@@ -1439,6 +1439,19 @@ mod tests {
         ))
     }
 
+    #[test]
+    fn a_web_label_that_names_the_field_beside_it_is_not_printed() {
+        let text = web(&[
+            text_node("Customer name: ", 100),
+            r#"{"p":0,"w":1,"cls":"android.widget.EditText","hint":"Customer name:","b":[100,100,300,130],"f":"vVeE","a":["tap","set_text"]}"#.to_string(),
+            text_node("Opening hours", 200),
+        ]
+        .join(","));
+        assert!(!text.contains("text \"Customer name: \""), "{text}");
+        assert!(text.contains("textbox \"Customer name:\""), "{text}");
+        assert!(text.contains("Opening hours"), "{text}");
+    }
+
     fn text_node(t: &str, y: usize) -> String {
         format!(
             r#"{{"p":0,"w":1,"cls":"android.widget.TextView","text":"{t}","b":[0,{y},400,{}],"f":"vVe"}}"#,

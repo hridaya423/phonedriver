@@ -1315,3 +1315,16 @@ Agent run a7 (Android: Chrome's storage and version, through Settings) took 6 ca
 - `cargo test -q --workspace --no-fail-fast`: no failures. Clippy is clean.
 - Live, three times `shell am start …` then `snapshot`: the screen came back each time (Settings resumed its open screen, so the empty moment did not recur).
 - Open: in the same run, a screenshot taken right after a tap that replied `settled in 1230ms · new screen` showed the page transition half done. By hand: the screenshot right after the reply is mid-transition, and one a second later is the new page. On this emulator (software GPU, software H.264 encoder at 1080x2424) the frames lag the a11y tree, so settle saw quiet frames of the old page. Not changed; it needs a measurement on a phone with a hardware encoder first.
+
+## 2026-11-09: web forms print each control once, and a Safari radio is a radio
+
+Rerun i8f (iOS Safari, the httpbin form) took 11 calls and 41 s, about where i8e stood, so there is no regression on iOS from the Android changes. Its replies showed three problems. Safari's radios printed as `group "Medium" "0"`. Every control had a `text` beside it that repeated its label. And `tap Medium` (tried by hand) failed as ambiguous between the group and its label. The saved tree (`crates/core/tests/fixtures/ios/safari_form.json`, with only the httpbin page and Safari's toolbar) shows the radio as an `XCUIElementTypeOther` with value `0`/`1` and no checkable flag, beside a `StaticText` with the same label. `prune::web_forms`, run after the folds:
+
+- makes such a group a radio with `on`/`off`;
+- drops a web text that repeats the label (or hint) of a sibling that is not text, link or heading, or its parent's label (a fieldset legend);
+- drops Safari's `… scroll bar, N pages` elements.
+
+- Tests: `a_safari_radio_is_a_radio_and_a_label_that_repeats_its_control_is_not_printed` (iOS fixture) and `a_web_label_that_names_the_field_beside_it_is_not_printed` (Chrome-shaped). Golden `captured_honor_wikipedia_main` changed: `[Romeo Santos @e24] Romeo Santos` lost its second `Romeo Santos`, the link's own child text, and `and` moved to the end of the line before. No word is lost. A first version also dropped a text beside a link of the same name, which could drop a word from running text, so links and headings are excluded.
+- Live: the Safari form went from 39 lines to 24, and `tap Medium` gives `~ @e9 radio "Medium" off → on`. The Chrome form went from 21 lines to 16.
+- `cargo test -q --workspace --no-fail-fast`: no failures. Clippy is clean.
+- The mini's disk was full (124 MiB free), so the binary upload failed. I removed `~/phone-use-work/target`, my own build directory there (2.2 GB). Nothing else was touched.

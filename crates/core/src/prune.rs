@@ -273,7 +273,76 @@ pub fn prune(tree: &RawTree) -> Vec<Node> {
             absorbed: merged[i].clone(),
         });
     }
-    fold_wrappers(drop_echoes(out))
+    web_forms(fold_wrappers(drop_echoes(out)))
+}
+
+/// Safari forms (run i8f): a radio button is a group whose value is "0" or "1" beside a text with its label, every
+/// control (a time input is a group) has a text beside it that repeats its label (the page's `<label>`), a fieldset's legend repeats the group's
+/// name, and the scroll bars are elements of their own. Chrome's labels repeat their field the same way.
+fn web_forms(mut nodes: Vec<Node>) -> Vec<Node> {
+    let key = |l: &str| l.trim().trim_end_matches(':').trim().to_lowercase();
+    let mut kids: Vec<Vec<usize>> = vec![Vec::new(); nodes.len() + 1];
+    for (i, n) in nodes.iter().enumerate() {
+        kids[n.parent.unwrap_or(nodes.len())].push(i);
+    }
+    let in_web = |nodes: &[Node], i: usize| {
+        std::iter::successors(nodes[i].parent, |&p| nodes[p].parent)
+            .any(|p| nodes[p].role == Role::WebView)
+    };
+    let siblings = |nodes: &[Node], i: usize| kids[nodes[i].parent.unwrap_or(nodes.len())].clone();
+    for i in 0..nodes.len() {
+        let n = &nodes[i];
+        let Some(label) = n.label.as_deref().map(key) else {
+            continue;
+        };
+        let radio = n.role == Role::Other
+            && matches!(n.value.as_deref(), Some("0" | "1"))
+            && in_web(&nodes, i)
+            && siblings(&nodes, i).iter().any(|&j| {
+                j != i
+                    && nodes[j].role == Role::Text
+                    && nodes[j].label.as_deref().map(key).as_deref() == Some(label.as_str())
+            });
+        if radio {
+            let on = nodes[i].value.as_deref() == Some("1");
+            let m = &mut nodes[i];
+            m.role = Role::Radio;
+            m.value = None;
+            m.state.insert(ElementState::CHECKABLE);
+            m.state.set(ElementState::CHECKED, on);
+        }
+    }
+    let drop: Vec<bool> = (0..nodes.len())
+        .map(|i| {
+            let n = &nodes[i];
+            let Some(label) = n.label.as_deref().map(key) else {
+                return false;
+            };
+            let scroll_bar = n.role == Role::Other
+                && n.actions.is_empty()
+                && label.contains(" scroll bar, ")
+                && (label.ends_with(" page") || label.ends_with(" pages"));
+            let echo = n.role == Role::Text
+                && n.actions.is_empty()
+                && kids[i].is_empty()
+                && in_web(&nodes, i)
+                && (n.parent.is_some_and(|p| {
+                    nodes[p].label.as_deref().map(key).as_deref() == Some(label.as_str())
+                }) || siblings(&nodes, i).iter().any(|&j| {
+                    j != i
+                        && !matches!(nodes[j].role, Role::Text | Role::Link | Role::Heading)
+                        && nodes[j]
+                            .label
+                            .as_deref()
+                            .or(nodes[j].hint.as_deref())
+                            .map(key)
+                            .as_deref()
+                            == Some(label.as_str())
+                }));
+            scroll_bar || echo
+        })
+        .collect();
+    remove(nodes, &drop)
 }
 
 /// A leaf with no action that only repeats its parent's label (MagicOS Settings nests a toolbar named "Settings" in an

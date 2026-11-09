@@ -87,3 +87,37 @@ fn golden_testbed_main() {
         rendered().text(&Filters::default()).unwrap()
     );
 }
+
+fn safari_form() -> String {
+    let tree = RawTree::from_ios_json(include_str!("fixtures/ios/safari_form.json")).unwrap();
+    let nodes = prune(&tree);
+    let refs = RefTable::default().assign(&tree, &nodes);
+    Rendered::build(nodes, &refs, header())
+        .text(&Filters::default())
+        .unwrap()
+}
+
+#[test]
+fn a_safari_radio_is_a_radio_and_a_label_that_repeats_its_control_is_not_printed() {
+    let text = safari_form();
+    assert!(text.contains("radio \"Small\" off"), "{text}");
+    assert!(text.contains("radio \"Medium\" off"), "{text}");
+    assert!(text.contains("switch \"Bacon\" on"), "{text}");
+    for echo in [
+        "Small",
+        "Medium",
+        "Bacon",
+        "Onion",
+        "Customer name:",
+        "Telephone:",
+        "Preferred delivery time:",
+    ] {
+        assert!(
+            !text.contains(&format!("text \"{echo}\"")),
+            "{echo} printed twice: {text}"
+        );
+    }
+    assert!(text.contains("textbox \"Customer name:\""), "{text}");
+    assert!(!text.contains("\"0\"") && !text.contains("\"1\""), "{text}");
+    assert!(!text.contains("scroll bar"), "{text}");
+}
