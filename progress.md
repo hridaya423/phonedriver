@@ -1475,3 +1475,12 @@ In run a14 (Android: Do Not Disturb from quick settings, using the UI only), the
 - Live, emulator-5554, same cold steps: 17 of 17 replies listed all 24 buttons (`settled in 278ms` to `1191ms`). Five more runs in the same loop failed on the adb connection, not on phonedriver: the adb server on the PC stopped answering while another emulator booted.
 - `cargo test --workspace --no-fail-fast`: one failure, `a_frame_of_412_by_915_takes_under_120_ms_at_the_median` (an OCR time limit), with the Mac at a load average above 70 from other sessions. To rerun when the machine is idle.
 - Grid items cut off at the bottom of the screen still print as unlabeled `button` lines. Open.
+
+## 2026-11-09: a web radio that was seen to flip does not wait again for a first change
+
+- Measured on the iOS Simulator (httpbin form in Safari, five radio taps right after `open`): each reply said `settled in 2002ms` to `2006ms`, and the daemon took 3,224 to 5,541 ms per tap. The note from earlier, "about 0.25 s longer", understated it.
+- Cause: `await_toggle` reads the tree until the radio flips. The settle that follows then compares against that tree, sees no first change, and waits its whole window: 2 s within 30 s of an `open` or `launch` (`COLD_CHANGE_WAIT`), 500 ms later.
+- `await_toggle` now sets `change_seen`, and the settle takes that as its first change.
+- Test: `a_web_radio_seen_to_flip_on_a_polled_device_does_not_wait_again_for_a_first_change` (failed first at 600 ms: 100 ms for the flip and the full 500 ms window).
+- Live, same five taps: `settled in 250ms` to `257ms`, daemon 1,071 to 1,436 ms per tap. The diffs are the same (`~ @e9 radio "Medium" off → on` and the radio that went off). `tap Bacon` (a switch in Safari) is unchanged at `settled in 480ms`.
+- `cargo test -p phonedriver --test daemon`: 156 passed. Clippy is clean.
