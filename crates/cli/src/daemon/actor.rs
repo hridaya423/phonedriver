@@ -2161,7 +2161,9 @@ impl Actor {
         max: Option<u32>,
     ) -> Result<ActionResult, Error> {
         let device = self.device()?;
+        let t = Instant::now();
         let mut now = self.fresh(s).await?;
+        self.lap("fresh", t);
         let holder = match &within {
             Some(t) => s.resolve(t, &now)?.element,
             None => scroll_container(&now, direction).cloned(),
@@ -2173,7 +2175,9 @@ impl Actor {
         let holder = holder.map(|e| e.r#ref);
         let Some(until) = until else {
             let started = self.begin_action();
+            let t = Instant::now();
             device.gesture(gesture::scroll(area, direction)).await?;
+            self.lap("gesture", t);
             let summary = format!("scrolled {}", direction.name());
             return self
                 .finish(s, settle, cfg, started, summary, None, None, None)
