@@ -1208,6 +1208,17 @@ impl Actor {
         target: &Target,
     ) -> Result<Resolved, Error> {
         if let Target::Point { point } = target {
+            let screen = self.screen_rect();
+            let inside = (screen.x..=screen.x + screen.w).contains(&point.x)
+                && (screen.y..=screen.y + screen.h).contains(&point.y);
+            if !inside {
+                return Err(Error::PointOffScreen {
+                    x: point.x,
+                    y: point.y,
+                    w: screen.w.round(),
+                    h: screen.h.round(),
+                });
+            }
             return Ok(Resolved {
                 at: Point {
                     x: point.x,

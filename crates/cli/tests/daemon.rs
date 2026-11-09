@@ -491,6 +491,29 @@ fn progress_tree(labels: &[&str]) -> RawTree {
 }
 
 #[tokio::test(start_paused = true)]
+async fn a_point_outside_the_screen_is_refused_with_the_screen_in_points_and_nothing_is_sent() {
+    let (source, fake) = FakeSource::with(vec![tree(&["One"])]);
+    let (d, _home) = daemon(source);
+    ok(&d, "default", "snapshot", json!({})).await;
+    let e = err(&d, "default", "act", tap_point(540.0, 1200.0)).await;
+    assert_eq!(e.data["code_name"], "point_off_screen", "{e:?}");
+    assert!(e.message.contains("540,1200"), "{}", e.message);
+    assert!(e.message.contains("360x800"), "{}", e.message);
+    let hint = e.data["hint"].as_str().unwrap_or_default();
+    assert!(hint.contains("points"), "{e:?}");
+    let drag = json!({"action": {"kind": "drag", "from": {"point": {"x": 100.0, "y": 5.0}},
+        "to": {"point": {"x": 100.0, "y": 1200.0}}}});
+    let e = err(&d, "default", "act", drag).await;
+    assert_eq!(e.data["code_name"], "point_off_screen", "{e:?}");
+    assert!(
+        !fake.calls().iter().any(|c| matches!(c, Call::Gesture(_))),
+        "{:?}",
+        fake.calls()
+    );
+    ok(&d, "default", "act", tap_point(360.0, 800.0)).await;
+}
+
+#[tokio::test(start_paused = true)]
 async fn an_action_replies_with_the_tree_that_stopped_changing_not_the_one_caught_mid_transition() {
     let (source, fake) = FakeSource::with(vec![
         tree(&["One", "Two"]),

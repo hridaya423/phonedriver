@@ -395,6 +395,8 @@ pub enum Error {
         /// The text fields on screen, as lines.
         fields: Vec<ElementLine>,
     },
+    #[error("{x},{y} is outside the screen, which is {w}x{h} points")]
+    PointOffScreen { x: f32, y: f32, w: f32, h: f32 },
     #[error("{}", not_reached(query, *scrolls, *end, last.as_deref()))]
     NotReached {
         query: String,
@@ -480,6 +482,7 @@ impl Error {
             Error::NeedsApproval { .. } => -32019,
             Error::SecretField { .. } => -32020,
             Error::NotFocused { .. } => -32023,
+            Error::PointOffScreen { .. } => -32024,
         }
     }
 
@@ -556,6 +559,9 @@ impl Error {
                 fields.join("; ")
             ),
             Error::NotFocused { .. } => "Tap the field first, or pass `--into` with its text.".into(),
+            Error::PointOffScreen { w, h, .. } => format!(
+                "Use points, not pixels: an `x,y` inside 0,0 to {w},{h}, or a ref from `phonedriver snapshot`."
+            ),
             Error::Ambiguous { matches, .. } if matches.iter().all(|m| m.starts_with('@')) => {
                 format!("Use a ref instead: {}", matches.join("; "))
             }
@@ -808,6 +814,12 @@ mod tests {
                 fields: vec!["@e40 textbox \"Search Wikipedia\"".into()],
             },
             Error::NotFocused { fields: vec![] },
+            Error::PointOffScreen {
+                x: 540.0,
+                y: 1200.0,
+                w: 411.0,
+                h: 923.0,
+            },
             Error::SecretField {
                 r#ref: Ref(3),
                 kind: SecretKind::Password,
@@ -873,6 +885,7 @@ mod tests {
             Error::NeedsApproval { .. } => (-32019, "needs_approval"),
             Error::SecretField { .. } => (-32020, "secret_field"),
             Error::NotFocused { .. } => (-32023, "not_focused"),
+            Error::PointOffScreen { .. } => (-32024, "point_off_screen"),
         }
     }
 
