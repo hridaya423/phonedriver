@@ -1352,3 +1352,10 @@ In run a5c (Chrome, httpbin form), `tap @e20 "Mushroom" at 23,577` answered `no 
 ## 2026-11-09: Android form rerun a5d, and one ref mix-up I could not reproduce
 
 Rerun a5d (same task as a5c): 21 calls in 49.7 s, against 24 calls in 54.5 s for a5c. The Mushroom tap landed on the first try, and the answer was correct and not submitted. One reply was wrong in a way that cost the agent a check: `type {"into": "@e30", "text": "Ring twice"}` answered `ok typed 10 chars into @e11` with `~ @e11 textbox "Ring twice" focused`. The text went into the textarea, but the textarea took the email field's ref, and the email field had just scrolled off the top. In the same diff, `Submit order` also lost its ref (`- @e31`, `+ @e63`) although its label did not change. So Chrome gave its nodes new source ids at that moment, and a new id can collide with an old one. I replayed the same calls with the CLI (fill, hide, taps, the time picker in text mode, Set, then type into the textarea), and the textarea kept its ref. The trace does not keep tree text, so I have no tree to test against. This is left open until it shows up with a saved fixture.
+
+## 2026-11-09: `tap` takes `ref` for `target`
+
+Run a8 (Android: the Android version, the build number, Chrome's version and its storage) took 9 calls in 26 s, and the answer was correct. Two of those calls were waste. The agent sent `tap {"ref": "@e27"}` before it had loaded the tap schema, got `unknown field \`ref\``, and then fetched the schema. Across the 50 saved runs, the same guess appears twice (i12 and a8), each time on `tap`, and no other unknown field appears. `TapArgs.target` now also takes `ref` (`#[serde(alias = "ref")]`). The schema still names only `target`, so the tool list does not grow.
+
+- Test `tap_takes_ref_as_another_name_for_target_and_the_schema_names_only_target` failed before the alias (`unknown field`) and passes after it. The `mcp` unit tests pass 6 of 6, and the `mcp` integration tests pass 30 of 30.
+- The same run's `shell` call ran `uiautomator dump`. The next snapshot still worked, so that command does not take our UiAutomation connection away.
