@@ -687,7 +687,8 @@ async fn after_a_paste_type_the_device_clipboard_is_what_it_was_before() {
 
 #[tokio::test]
 #[ignore = "needs PHONEDRIVER_TEST_DEVICE"]
-async fn a_shown_keyboard_marks_the_button_under_it_and_tapping_that_button_hides_the_keyboard_first() {
+async fn a_shown_keyboard_marks_the_button_under_it_and_tapping_that_button_hides_the_keyboard_first()
+ {
     let rig = Rig::new().await;
     rig.tab("text").await;
     let before = rig.ok(&["snapshot"]);
@@ -717,7 +718,10 @@ async fn a_shown_keyboard_marks_the_button_under_it_and_tapping_that_button_hide
     testbed::clear_log(&rig.adb, &rig.serial).await;
     let r = rig.json(&["tap", "Send"]);
     assert!(
-        r["summary"].as_str().unwrap().starts_with("hid the keyboard, then"),
+        r["summary"]
+            .as_str()
+            .unwrap()
+            .starts_with("hid the keyboard, then"),
         "{r}"
     );
     let log = testbed::wait_for_log(&rig.adb, &rig.serial, 3000, |l| {

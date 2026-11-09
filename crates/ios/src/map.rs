@@ -241,7 +241,11 @@ fn for_xctest(path: &[TimedPoint]) -> Vec<Value> {
                 continue;
             }
             wiggles += 1;
-            if wiggles % 2 == 1 { STILL_WIGGLE } else { -STILL_WIGGLE }
+            if wiggles % 2 == 1 {
+                STILL_WIGGLE
+            } else {
+                -STILL_WIGGLE
+            }
         } else {
             if i > 0 && !end && straight(i) {
                 continue;
@@ -677,7 +681,13 @@ mod tests {
             .collect();
         assert_eq!(
             sent,
-            [(660.0, 0), (240.0, 250), (240.5, 300), (239.5, 350), (240.5, 400)]
+            [
+                (660.0, 0),
+                (240.0, 250),
+                (240.5, 300),
+                (239.5, 350),
+                (240.5, 400)
+            ]
         );
         let at = Point { x: 200.0, y: 180.0 };
         let tap = Gesture {
