@@ -1359,3 +1359,12 @@ Run a8 (Android: the Android version, the build number, Chrome's version and its
 
 - Test `tap_takes_ref_as_another_name_for_target_and_the_schema_names_only_target` failed before the alias (`unknown field`) and passes after it. The `mcp` unit tests pass 6 of 6, and the `mcp` integration tests pass 30 of 30.
 - The same run's `shell` call ran `uiautomator dump`. The next snapshot still worked, so that command does not take our UiAutomation connection away.
+
+## 2026-11-09: web rows whose label spells their links print once, and links named by their address are shorter
+
+Run a9 (Android: the top 15 Hacker News stories with points) took 3 calls in 17 s. The reply printed each story's points row twice: `cell "104 points by ocd 1 hour ago | hide | 70 comments"` with a child `text "104 points by [ocd @e161] … [70 comments @e164]"`. Each vote arrow printed `button "vote?id=50427362&how=up&goto=news"`. A parent already takes the run of its children into its own line when the children spell its label (D35), but the label kept the `|` of separator texts that pruning had dropped, so the two never compared equal. A row made only of links (`24 minutes ago | hide`) never qualified, because a run needed a text piece. `words_only` now compares words without punctuation. A parent that spells a run of links alone also takes it, when the joined line fits `MAX_TEXT`. A new prune pass, `web_link_names`, cuts a tappable web label that is an address with a query (no spaces, `?`, `=`) to its path.
+
+- New trimmed fixture `hn_front_page.json`, with the username replaced. Golden `captured_hn_front_page` and test `a_web_link_named_by_its_address_is_named_by_its_path`. The latter failed before the pass and passes after it. No other golden changed.
+- `cargo test -q --workspace --no-fail-fast`: no failures.
+- Live, the first Hacker News screen: 95 lines and 5643 bytes before, 72 lines and 4054 bytes after (−28%). The nav bar became one line: `group "[Hacker News @e12] [new @e13] … [submit @e19]"`.
+- `open` reuses Chrome's tab, but Chrome opens a new tab when the reused tab holds text typed into a form (32 tabs before, 33 after, measured). That keeps typed data, so I documented it and changed no code.

@@ -303,7 +303,7 @@ impl Rendered {
                         .flatten()
                 })
                 .collect();
-            if run.len() < 2 || !run.iter().any(|(_, p)| matches!(p, Piece::Text(..))) {
+            if run.len() < 2 {
                 i += run.len().max(1);
                 continue;
             }
@@ -313,10 +313,15 @@ impl Rendered {
                 shown[p]
                     && !pressable(e)
                     && e.children.len() == run.len()
+                    && joined(&run).chars().count() <= MAX_TEXT
                     && e.label
                         .as_deref()
                         .is_some_and(|l| words_only(l) == words_only(&plain(&run)))
             });
+            if !whole && !run.iter().any(|(_, p)| matches!(p, Piece::Text(..))) {
+                i += run.len();
+                continue;
+            }
             match parent.filter(|_| whole) {
                 Some(p) => {
                     let e = &self.elements[p];
@@ -541,8 +546,13 @@ fn plain(run: &[(usize, Piece)]) -> String {
     squeeze(&out)
 }
 
+/// The words of a label, so a parent whose label puts `|` or `·` between its links still matches the links.
 fn words_only(s: &str) -> String {
-    squeeze(s).to_lowercase()
+    s.split(|c: char| !c.is_alphanumeric())
+        .filter(|w| !w.is_empty())
+        .collect::<Vec<_>>()
+        .join(" ")
+        .to_lowercase()
 }
 
 /// Cuts a run between pieces so no line passes `MAX_TEXT` characters and so loses no link to truncation.
@@ -858,6 +868,22 @@ mod tests {
             "captured_honor_wikipedia_main",
             include_str!("../tests/fixtures/android/honor_wikipedia_main.json"),
         );
+    }
+
+    #[test]
+    fn captured_hn_front_page() {
+        golden(
+            "captured_hn_front_page",
+            include_str!("../tests/fixtures/android/hn_front_page.json"),
+        );
+    }
+
+    #[test]
+    fn a_web_link_named_by_its_address_is_named_by_its_path() {
+        let text = captured(include_str!("../tests/fixtures/android/hn_front_page.json"))
+            .text(&Filters::default())
+            .unwrap();
+        assert!(text.contains("@e3 button \"vote\"\n"), "{text}");
     }
 
     #[test]
