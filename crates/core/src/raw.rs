@@ -185,7 +185,18 @@ enum Platform {
 impl RawTree {
     /// A progress indicator is visible, or a web view has no children yet.
     pub fn loading(&self) -> bool {
-        self.web_view_pending() || self.progress_visible()
+        self.web_view_pending() || self.progress_visible() || self.nothing_shown_yet()
+    }
+
+    /// The tree holds texts or buttons, and none of them is visible to the user yet. Chrome's first-run screen was in
+    /// this state for about a second after its spinner went (API 37 emulator): its title and buttons fade in.
+    fn nothing_shown_yet(&self) -> bool {
+        let mut content = self
+            .nodes
+            .iter()
+            .filter(|n| n.label.is_some() || n.value.is_some() || n.actions.contains(Actions::TAP))
+            .peekable();
+        content.peek().is_some() && content.all(|n| !n.flags.contains(NodeFlags::VISIBLE_TO_USER))
     }
 
     /// A web view has no children yet: its page has not reached the accessibility tree. Chrome shows an empty node
@@ -441,6 +452,23 @@ mod tests {
             !with(r#","range":{"cur":52,"max":100,"min":0,"type":"int"}"#),
             "the Clock timer's track"
         );
+    }
+
+    #[test]
+    fn a_screen_whose_texts_and_buttons_are_all_still_invisible_is_loading() {
+        let with = |flags: &str| {
+            let json = format!(
+                r#"{{"windows":[],"nodes":[
+                {{"p":-1,"w":1,"cls":"androidx.recyclerview.widget.RecyclerView","b":[0,0,360,800],"f":"vVeS","a":["scroll_fwd"]}},
+                {{"p":0,"w":1,"cls":"android.widget.TextView","text":"Make Chrome your own","b":[0,100,360,160],"f":"ve"}},
+                {{"p":0,"w":1,"cls":"android.widget.Button","text":"Stay signed out","b":[0,200,360,260],"f":"{flags}","a":["tap"]}}]}}"#
+            );
+            RawTree::from_android_json(&json, Scale { density: 1.0 })
+                .unwrap()
+                .loading()
+        };
+        assert!(with("ve"));
+        assert!(!with("vVe"), "one visible button is a screen to act on");
     }
 
     #[test]

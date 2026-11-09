@@ -18,7 +18,7 @@ use phonedriver_core::geometry::{Point, Rect, Size};
 use phonedriver_core::gesture;
 use phonedriver_core::ocr::{merge, tree_is_hollow};
 use phonedriver_core::prune::prune;
-use phonedriver_core::raw::RawTree;
+use phonedriver_core::raw::{NodeFlags, RawTree};
 use phonedriver_core::render::{
     AppLine, DeviceLine, Filters, Header, Orientation, Rendered, SettleLine, plural, quote,
 };
@@ -1318,13 +1318,18 @@ impl Actor {
                 .enumerate()
                 .any(|(i, n)| n.role == Role::WebView && tree.children(i).next().is_none());
             last_len = tree.nodes.len();
+            // Observed on the API 37 emulator: for about a second after a cold launch, Chrome's first-run screen had
+            // its texts and buttons in the tree but not yet visible, and the launch reply listed only an empty pager.
             let app_is_back = tree.nodes.iter().any(|n| {
-                tree.windows.iter().any(|w| {
-                    w.id == n.window
-                        && w.kind == "application"
-                        && (started.elapsed() > LEAVE_WAIT
-                            || leaving.is_none_or(|l| w.package.as_deref() != Some(l.0.as_str())))
-                })
+                n.flags.contains(NodeFlags::VISIBLE_TO_USER)
+                    && (n.label.is_some() || n.value.is_some() || n.actions.contains(Actions::TAP))
+                    && tree.windows.iter().any(|w| {
+                        w.id == n.window
+                            && w.kind == "application"
+                            && (started.elapsed() > LEAVE_WAIT
+                                || leaving
+                                    .is_none_or(|l| w.package.as_deref() != Some(l.0.as_str())))
+                    })
             });
             if app_is_back && stable && !page_pending && device.screen_state().await?.focused {
                 break;
@@ -3443,7 +3448,7 @@ mod tests {
     #[test]
     fn a_search_for_either_of_two_names_does_not_fling_through_a_sorted_list() {
         use phonedriver_core::geometry::Scale;
-        use phonedriver_core::raw::RawTree;
+        use phonedriver_core::raw::{NodeFlags, RawTree};
         use phonedriver_core::refs::RefTable;
         use phonedriver_core::render::Header;
         let rows: Vec<String> = ["Alpha", "Bravo", "Charlie", "Delta", "Echo"]
