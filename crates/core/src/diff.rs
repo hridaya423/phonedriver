@@ -234,6 +234,10 @@ impl DiffOrFull {
             removing = false;
         }
         for (from, to, refs) in covering {
+            if next.header.keyboard.is_none() {
+                lines.push("keyboard hidden".into());
+                continue;
+            }
             let refs: Vec<String> = refs.iter().map(|r| format!("@{r}")).collect();
             lines.push(format!("~ {} {from} → {to}", refs.join(" ")));
         }
@@ -522,7 +526,7 @@ mod tests {
     }
 
     #[test]
-    fn elements_that_stop_being_under_the_keyboard_are_one_line_and_so_are_those_that_start() {
+    fn a_keyboard_that_goes_away_is_one_short_line_and_the_elements_it_starts_to_cover_are_one_ref_line() {
         let mut t = RefTable::default();
         let labels = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L"];
         let nodes = buttons(&labels);
@@ -531,7 +535,7 @@ mod tests {
         let gone = diff(&covered, &clear);
         assert_eq!(
             gone.text(&clear),
-            "~ @e1 @e2 @e3 @e4 @e5 @e6 @e7 @e8 @e9 @e10 @e11 @e12 under-keyboard → (none)"
+            "keyboard hidden"
         );
         assert_eq!(
             diff(&clear, &covered).text(&covered),
