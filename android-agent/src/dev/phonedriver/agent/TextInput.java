@@ -31,6 +31,18 @@ final class TextInput {
             extras.putBoolean("android.content.extra.IS_SENSITIVE", true);
             c.getDescription().setExtras(extras);
         }
+        return quiet(c);
+    }
+
+    // SystemUI shows a clipboard preview over the bottom left of the screen for every new clip from Android 13, and
+    // that window takes the next tap there. It skips the preview when a clip set by the shell carries this extra.
+    private static ClipData quiet(ClipData c) {
+        if (Build.VERSION.SDK_INT >= 33) {
+            PersistableBundle extras = c.getDescription().getExtras();
+            extras = extras == null ? new PersistableBundle() : new PersistableBundle(extras);
+            extras.putBoolean("com.android.systemui.SUPPRESS_CLIPBOARD_OVERLAY", true);
+            c.getDescription().setExtras(extras);
+        }
         return c;
     }
 
@@ -125,7 +137,7 @@ final class TextInput {
                 SystemClock.sleep(POLL_MS);
             }
         } finally {
-            cm.setClip(saved != null ? saved : ClipData.newPlainText(null, ""));
+            cm.setClip(quiet(saved != null ? saved : ClipData.newPlainText(null, "")));
         }
     }
 
