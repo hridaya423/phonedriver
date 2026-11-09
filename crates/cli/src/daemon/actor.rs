@@ -2076,6 +2076,7 @@ impl Actor {
         let area = holder
             .as_ref()
             .map_or_else(|| self.screen_rect(), |e| e.bounds);
+        let area = above_keyboard(area, now.header.keyboard);
         let holder = holder.map(|e| e.r#ref);
         let Some(until) = until else {
             let started = self.begin_action();
@@ -2761,6 +2762,20 @@ fn numbered_distance(
     };
     Some((behind, rows, max - min + 1))
 }
+
+/// The part of a scroll area above the keyboard: a drag that starts on the keys moves nothing (iOS Contacts' new
+/// contact form, "no element changed"). The whole area when too little of it is left.
+fn above_keyboard(area: Rect, keyboard: Option<Rect>) -> Rect {
+    match keyboard {
+        Some(k) if k.y > area.y && k.y < area.y + area.h && k.y - area.y >= MIN_SCROLL_SPAN => Rect {
+            h: k.y - area.y,
+            ..area
+        },
+        _ => area,
+    }
+}
+
+const MIN_SCROLL_SPAN: f32 = 120.0;
 
 /// Where a name is against a list whose rows are in alphabetical order (Settings' list of apps): `(behind, far)`,
 /// far when its first letter is at least `FAR_LETTERS` past the nearest row's. `None` when the rows are not sorted

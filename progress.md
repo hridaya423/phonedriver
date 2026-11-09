@@ -1009,3 +1009,27 @@ The fixes come from the first run on a physical Android phone, a Honor X8 (TFY-L
   - `tap Keyboard`: new screen.
   - Then `press home`, `release` and `daemon stop`.
 - Not run: the iOS e2e suites, because the mini has 3.8 GB free and building there was ruled out.
+
+## 2026-11-09: iOS keyboard and toolbar: taps no longer land on keys, and bar buttons are not "under the Toolbar"
+
+- Setup: win-pc is offline, the Android phone is unplugged, and the MacBook has no iOS runtime (7.2 GB free). So the daemon runs on the Mac mini's iPhone 17 Simulator (iOS 26.5), and the MacBook's MCP server reaches it through `ssh -L /tmp/pd-mini.sock:…/daemon.sock`. Agent runs are `claude -p`, Sonnet 5.5, on the subscription.
+- Seen in agent runs i2 and i2b (Contacts, a new contact with a phone number; 23 and 18 calls):
+  - `tap "Insert add phone"` at 52,590 typed "W" into the name field, and `tap "add phone"` typed "T". Neither row was marked `under-keyboard`, because only a fully covered element was. The XCUI keyboard frame (y 583) also starts 17 pt below the glass panel iOS 26 draws, which starts at y 566 (measured on the screenshot).
+  - `scroll down` with the keyboard up replied `no element changed`, because the drag started at y 656, on the keys.
+  - `tap @e2` on the contact card's back button failed with `@e2 is under the Toolbar`, because iOS 26 puts a top "Toolbar" over the navigation bar.
+- Changed:
+  - `crates/ios/src/map.rs`: the keyboard window starts `KEYBOARD_GLASS` (18 pt) above the keys and runs to the bottom of the screen.
+  - `Rendered::under_keyboard`: an element is under the keyboard when less than 12 pt of it shows above it.
+  - `element_at`: a partly covered element is tapped in its visible part. A tap whose point is on the keyboard is refused as `behind_keyboard`.
+  - `scroll`: the area stops at the top of the keyboard (`above_keyboard`).
+  - `covered_by`: only an element inside a list or a scrollable element can be under a toolbar.
+- Tests:
+  - `a_row_the_keyboard_half_covers_is_tapped_above_the_keyboard_and_a_sliver_is_under_it`: it failed first, and the refusal part failed again with the old containment check put back.
+  - `a_scroll_with_the_keyboard_up_drags_above_the_keyboard`: it failed with the drag from y 656.
+  - `the_keyboard_window_covers_the_glass_panel_around_the_keys_down_to_the_screen_edge`.
+  - `tapping_a_row_whose_center_is_under_a_floating_toolbar_is_off_screen_with_a_scroll_hint` now also taps a back button under a top Toolbar. It failed with `@e1 is under the Toolbar`. Its covered row now sits in a list, as on the real Settings screen.
+- Live check on the Simulator, mini daemon at this build:
+  - `tap @e2` on the contact card: `ok tapped @e2 "Contacts"`.
+  - In the new-contact form with the keyboard up, both rows are now marked `under-keyboard`, and both taps are refused with `@e18 is under the keyboard` plus the hide-keyboard and scroll hint. Nothing was typed into the name field.
+  - The draft was discarded.
+- `cargo test --workspace --no-fail-fast`: 683 passed, 0 failed. Clippy is clean.

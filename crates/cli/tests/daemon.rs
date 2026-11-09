@@ -2629,6 +2629,72 @@ fn keyboard_tree() -> RawTree {
     RawTree::from_android_json(json, Scale { density: 1.0 }).unwrap()
 }
 
+fn half_covered_tree() -> RawTree {
+    let json = r#"{"windows":[
+        {"id":1,"type":"application","package":"com.example","bounds":[0,0,360,800]},
+        {"id":2,"type":"input_method","package":"com.google.ime","bounds":[0,500,360,800]}],
+      "nodes":[
+        {"p":-1,"w":1,"cls":"android.widget.FrameLayout","b":[0,0,360,800],"f":"vVe"},
+        {"p":0,"w":1,"cls":"androidx.recyclerview.widget.RecyclerView","b":[0,80,360,800],"f":"vVeS","a":["scroll_down","scroll_up"]},
+        {"p":1,"w":1,"cls":"android.widget.EditText","desc":"Last name","b":[0,100,360,160],"f":"vVeEF","a":["tap","set_text"]},
+        {"p":1,"w":1,"cls":"android.widget.Button","text":"add phone","b":[0,470,360,530],"f":"vVe","a":["tap"]},
+        {"p":1,"w":1,"cls":"android.widget.Button","text":"add email","b":[0,495,360,555],"f":"vVe","a":["tap"]},
+        {"p":-1,"w":2,"cls":"android.inputmethodservice.SoftInputWindow","b":[0,500,360,800],"f":"vVe"}]}"#;
+    RawTree::from_android_json(json, Scale { density: 1.0 }).unwrap()
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_row_the_keyboard_half_covers_is_tapped_above_the_keyboard_and_a_sliver_is_under_it() {
+    let (source, fake) = FakeSource::with(vec![half_covered_tree()]);
+    let (d, _home) = daemon(source);
+    let snap = ok(&d, "default", "snapshot", json!({})).await;
+    let text = snap["text"].as_str().unwrap();
+    let phone = text.lines().find(|l| l.contains("add phone")).unwrap();
+    assert!(!phone.contains("under-keyboard"), "{phone}");
+    let email = text.lines().find(|l| l.contains("add email")).unwrap();
+    assert!(email.ends_with("under-keyboard"), "{email}");
+    ok(
+        &d,
+        "default",
+        "act",
+        json!({"action": {"kind": "tap", "target": {"text": "add phone"}}, "settle": false}),
+    )
+    .await;
+    let Some(Call::Gesture(g)) = fake.calls().into_iter().next() else {
+        panic!("{:?}", fake.calls())
+    };
+    let y = g.fingers[0][0].at.y;
+    assert!((470.0..500.0).contains(&y), "the tap must land above the keyboard: {y}");
+    let e = err(
+        &d,
+        "default",
+        "act",
+        json!({"action": {"kind": "tap", "target": {"text": "add email"}}}),
+    )
+    .await;
+    assert_eq!(e.data["behind_keyboard"], true, "{e:?}");
+    assert_eq!(fake.calls().len(), 1, "{:?}", fake.calls());
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_scroll_with_the_keyboard_up_drags_above_the_keyboard() {
+    let (source, fake) = FakeSource::with(vec![half_covered_tree()]);
+    let (d, _home) = daemon(source);
+    ok(&d, "default", "snapshot", json!({})).await;
+    ok(
+        &d,
+        "default",
+        "act",
+        json!({"action": {"kind": "scroll", "direction": "down"}, "settle": false}),
+    )
+    .await;
+    let Some(Call::Gesture(g)) = fake.calls().into_iter().next() else {
+        panic!("{:?}", fake.calls())
+    };
+    let ys: Vec<f32> = g.fingers[0].iter().map(|p| p.at.y).collect();
+    assert!(ys.iter().all(|y| *y < 500.0), "{ys:?}");
+}
+
 #[tokio::test(start_paused = true)]
 async fn a_button_under_the_keyboard_is_marked_and_a_tap_on_it_fails_off_screen_with_a_way_out() {
     let (source, fake) = FakeSource::with(vec![keyboard_tree()]);
@@ -3016,10 +3082,13 @@ fn ime_tree(shown: bool) -> RawTree {
 fn covered_tree() -> RawTree {
     let json = r#"{"windows":[{"id":1,"type":"application","package":"com.example","bounds":[0,0,360,800]}],"nodes":[
         {"p":-1,"w":1,"cls":"android.widget.FrameLayout","b":[0,0,360,800],"f":"vVe"},
-        {"p":0,"w":1,"cls":"android.widget.Button","text":"Developer","b":[0,760,360,820],"f":"vVe","a":["tap"]},
-        {"p":0,"w":1,"cls":"android.widget.Button","text":"Privacy","b":[0,100,360,160],"f":"vVe","a":["tap"]},
+        {"p":0,"w":1,"cls":"androidx.recyclerview.widget.RecyclerView","b":[0,90,360,800],"f":"vVeS","a":["scroll_down"]},
+        {"p":1,"w":1,"cls":"android.widget.Button","text":"Developer","b":[0,760,360,820],"f":"vVe","a":["tap"]},
+        {"p":1,"w":1,"cls":"android.widget.Button","text":"Privacy","b":[0,100,360,160],"f":"vVe","a":["tap"]},
         {"p":0,"w":1,"cls":"androidx.appcompat.widget.Toolbar","desc":"Toolbar","b":[0,700,360,800],"f":"vVe"},
-        {"p":3,"w":1,"cls":"android.widget.EditText","text":"","desc":"Search","b":[10,720,350,780],"f":"vVeE","a":["tap","set_text"]}]}"#;
+        {"p":4,"w":1,"cls":"android.widget.EditText","text":"","desc":"Search","b":[10,720,350,780],"f":"vVeE","a":["tap","set_text"]},
+        {"p":0,"w":1,"cls":"android.widget.Button","text":"Back","b":[10,30,60,74],"f":"vVe","a":["tap"]},
+        {"p":0,"w":1,"cls":"androidx.appcompat.widget.Toolbar","desc":"Toolbar","b":[0,50,360,98],"f":"vVe"}]}"#;
     RawTree::from_android_json(json, Scale { density: 1.0 }).unwrap()
 }
 
@@ -3043,6 +3112,12 @@ async fn tapping_a_row_whose_center_is_under_a_floating_toolbar_is_off_screen_wi
         fake.calls().len(),
         2,
         "an element inside the toolbar is tappable"
+    );
+    ok(&d, "default", "act", tap_text("Back")).await;
+    assert_eq!(
+        fake.calls().len(),
+        3,
+        "a bar button outside any list is never under a toolbar (iOS 26 contact card)"
     );
 }
 

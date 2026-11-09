@@ -38,16 +38,27 @@ pub fn raw_tree(reply: &Value, screen: Size) -> Result<RawTree, Error> {
     });
     add_alerts(&mut tree, reply)?;
     if let Some(k) = tree.nodes.iter().find(|n| n.role == Role::Keyboard) {
+        let top = (k.bounds.y - KEYBOARD_GLASS).max(0.0);
         tree.windows.push(RawWindow {
             id: -1,
             kind: "input_method".into(),
             package: None,
             layer: 1,
-            bounds: k.bounds,
+            bounds: Rect {
+                x: k.bounds.x,
+                y: top,
+                w: k.bounds.w,
+                h: (screen.h - top).max(k.bounds.y + k.bounds.h - top),
+            },
         });
     }
     Ok(tree)
 }
+
+/// iOS 26 draws the keyboard on a glass panel that starts above the keys' frame and runs to the bottom of the screen
+/// (iPhone 17 Simulator, iOS 26.5: keys from y 583, panel from y 566). A row in that band shows through the glass
+/// but a tap there lands on the panel.
+const KEYBOARD_GLASS: f32 = 18.0;
 
 /// SpringBoard's alerts (permission prompts, "Allow Paste") come in `alerts`, one node list each, because the
 /// foreground app's snapshot does not hold them. Each becomes a window of kind `alert` in front of the app.
@@ -428,8 +439,20 @@ mod tests {
             .iter()
             .find(|w| w.kind == "input_method")
             .unwrap();
-        assert_eq!(kb.bounds.y, 574.0);
-        assert_eq!(kb.bounds.h, 300.0);
+        assert_eq!(kb.bounds.y, 574.0 - KEYBOARD_GLASS);
+        assert_eq!(kb.bounds.h, 300.0 + KEYBOARD_GLASS);
+    }
+
+    #[test]
+    fn the_keyboard_window_covers_the_glass_panel_around_the_keys_down_to_the_screen_edge() {
+        let reply = json!({"app": {"bundle_id": "x", "pid": 1}, "nodes": [
+            {"p": -1, "cls": "XCUIElementTypeApplication", "b": [0, 0, 402, 874], "f": "vVe"},
+            {"p": 0, "cls": "XCUIElementTypeKeyboard", "b": [0, 583, 402, 816], "f": "vVe"}
+        ]});
+        let tree = raw_tree(&reply, SCREEN).unwrap();
+        let kb = tree.windows.iter().find(|w| w.kind == "input_method").unwrap();
+        assert!(kb.bounds.y <= 566.0, "the panel is drawn from y 566: {:?}", kb.bounds);
+        assert_eq!(kb.bounds.y + kb.bounds.h, 874.0);
     }
 
     fn keyboard_reply() -> Value {
@@ -472,7 +495,7 @@ mod tests {
             .iter()
             .find(|w| w.kind == "input_method")
             .unwrap();
-        assert_eq!((kb.bounds.y, kb.bounds.h), (583.0, 233.0));
+        assert_eq!((kb.bounds.y, kb.bounds.h), (583.0 - KEYBOARD_GLASS, 874.0 - 583.0 + KEYBOARD_GLASS));
     }
 
     #[test]

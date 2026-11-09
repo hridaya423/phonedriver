@@ -189,12 +189,21 @@ impl Session {
 
 fn element_at(now: &Rendered, i: usize) -> Resolved {
     let e = &now.elements[i];
+    let mut at = free_point(now, i);
+    // iOS Contacts: the "add phone" row sat half under the keyboard, and taps at its center typed letters into the
+    // focused field.
+    if let Some(k) = now.header.keyboard.filter(|_| e.role != Role::Keyboard)
+        && at.y >= k.y
+        && !now.under_keyboard(e)
+    {
+        at.y = (e.bounds.y + k.y) / 2.0;
+    }
     Resolved {
-        at: free_point(now, i),
+        at,
         element: Some(e.clone()),
         line: Some(now.line(e)),
-        under_keyboard: e.role != Role::Keyboard
-            && now.header.keyboard.is_some_and(|k| k.contains(e.bounds)),
+        under_keyboard: now.under_keyboard(e)
+            || (e.role != Role::Keyboard && now.header.keyboard.is_some_and(|k| at.y >= k.y)),
         covered: now
             .covered_by(i)
             .map(|(bar, toward)| (bar.label.clone().unwrap_or_default(), toward)),
