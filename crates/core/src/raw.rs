@@ -185,7 +185,42 @@ enum Platform {
 impl RawTree {
     /// A progress indicator is visible, or a web view has no children yet.
     pub fn loading(&self) -> bool {
-        self.web_view_pending() || self.progress_visible() || self.nothing_shown_yet()
+        self.web_view_pending()
+            || self.progress_visible()
+            || self.nothing_shown_yet()
+            || self.list_filling()
+    }
+
+    /// A vertical list says it has more rows than it shows, and the space under its last row is empty. The Files
+    /// grid was in this state after a cold open of the storage root (API 37 emulator, 3 of 5 runs): 6 of 22 rows'
+    /// cards were in the tree, two reads 100 ms apart agreed, and the reply listed folders only up to "Documents".
+    fn list_filling(&self) -> bool {
+        self.nodes.iter().enumerate().any(|(i, list)| {
+            let Some(c) = list.collection else {
+                return false;
+            };
+            // A table on a web page (Hacker News: 92 rows) is not scrollable itself and lists 4 children.
+            if !list.flags.contains(NodeFlags::VISIBLE_TO_USER)
+                || !list.actions.contains(Actions::SCROLL_DOWN)
+                || c.rows < 2
+            {
+                return false;
+            }
+            let rows: Vec<Rect> = self
+                .children(i)
+                .map(|k| self.nodes[k].bounds)
+                .filter(|b| b.h > 0.0)
+                .collect();
+            let Some(last) = rows
+                .iter()
+                .max_by(|a, b| (a.y + a.h).total_cmp(&(b.y + b.h)))
+            else {
+                return false;
+            };
+            let shown = rows.len() as u32;
+            let gap = list.bounds.y + list.bounds.h - (last.y + last.h);
+            shown < c.rows * c.cols.max(1) && gap > 2.0 * last.h
+        })
     }
 
     /// The tree holds texts or buttons, and none of them is visible to the user yet. Chrome's first-run screen was in
@@ -469,6 +504,39 @@ mod tests {
         };
         assert!(with("ve"));
         assert!(!with("vVe"), "one visible button is a screen to act on");
+    }
+
+    #[test]
+    fn a_list_with_more_rows_than_it_shows_and_empty_space_below_them_is_loading() {
+        let with = |rows: u32, cards: u32| {
+            let mut nodes = vec![format!(
+                r#"{{"p":-1,"w":1,"cls":"android.widget.GridView","b":[0,142,1080,2424],"f":"vVeS","a":["scroll_fwd"],"coll":{{"rows":{rows},"cols":2}}}}"#
+            )];
+            for k in 0..cards {
+                let (x, y) = (64 + 487 * (k % 2), 689 + 149 * (k / 2));
+                nodes.push(format!(
+                    r#"{{"p":0,"w":1,"cls":"androidx.cardview.widget.CardView","b":[{x},{y},{},{}],"f":"vVe","a":["tap"]}}"#,
+                    x + 465,
+                    y + 127
+                ));
+            }
+            let json = format!(r#"{{"windows":[],"nodes":[{}]}}"#, nodes.join(","));
+            RawTree::from_android_json(&json, Scale { density: 1.0 })
+                .unwrap()
+                .loading()
+        };
+        assert!(
+            with(22, 6),
+            "6 cards of 44, and 1,310 px of nothing below them"
+        );
+        assert!(!with(22, 24), "the cards reach the bottom of the list");
+        assert!(!with(3, 6), "a short list that shows every row");
+        let table = RawTree::from_android_json(
+            include_str!("../tests/fixtures/android/hn_front_page.json"),
+            Scale { density: 2.625 },
+        )
+        .unwrap();
+        assert!(!table.loading(), "a web table");
     }
 
     #[test]

@@ -1464,3 +1464,14 @@ In run a14 (Android: Do Not Disturb from quick settings, using the UI only), the
 - Live, emulator-5554, three cold launches after `pm clear`: each reply lists "Make Chrome your own", "Add account to device" and "Stay signed out" (`settled in 3318ms`, `3929ms`, `3007ms`). `tap "Stay signed out"` then answered `settled in 290ms · new screen` with the notifications page.
 - The earlier `no change after 503ms` on this screen did not come back in two tries. It is not proven fixed.
 - `cargo test --workspace --no-fail-fast`: no failures.
+
+## 2026-11-09: a list that is still filling is not reported as settled
+
+- Reproduced the Files finding from run a12. After `pm clear` of Files and a stop of its storage providers, `tap "sdk_gphone64_x86_64"` in the roots drawer listed 5 or 6 of the 24 buttons in 3 of 5 runs (`settled in 288ms` to `688ms`). A snapshot 2 s later listed all 24.
+- Two causes, from the replies and a trace:
+  - The grid said 22 rows, held 6 cards, and had 1,310 px of nothing under them, and two reads 100 ms apart agreed. `RawTree::loading` is now true for a vertical scrollable list that says it has more rows than it shows and has more than twice its last row's height empty below it. A web table (Hacker News, 92 rows, not scrollable itself) is excluded; the committed fixture is in the test.
+  - With that rule alone, 1 run in 6 was still short: the trace showed `stabilize: 1245.9` ms, so the tree was still changing when the 1 s limit ended the wait. `stabilize` now waits up to `LOADING_WAIT` while each read holds more nodes than the one before.
+- Tests: `a_list_with_more_rows_than_it_shows_and_empty_space_below_them_is_loading` (core) and `a_list_that_keeps_growing_past_a_second_is_read_once_it_stops` (daemon, failed first with 7 of 17 rows).
+- Live, emulator-5554, same cold steps: 17 of 17 replies listed all 24 buttons (`settled in 278ms` to `1191ms`). Five more runs in the same loop failed on the adb connection, not on phonedriver: the adb server on the PC stopped answering while another emulator booted.
+- `cargo test --workspace --no-fail-fast`: one failure, `a_frame_of_412_by_915_takes_under_120_ms_at_the_median` (an OCR time limit), with the Mac at a load average above 70 from other sessions. To rerun when the machine is idle.
+- Grid items cut off at the bottom of the screen still print as unlabeled `button` lines. Open.
