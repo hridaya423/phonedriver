@@ -113,6 +113,11 @@ impl FakeDevice {
         *lock(&self.on_text) = Some(Box::new(f));
     }
 
+    /// `tree()` returns this from now on, as a screen that changes while the daemon waits.
+    pub fn set_tree(&self, tree: RawTree) {
+        *lock(&self.trees) = vec![tree];
+    }
+
     /// The same device working on virtual display `id`.
     pub fn on_hidden_display(mut self, id: u32) -> FakeDevice {
         self.hidden = Some(id);

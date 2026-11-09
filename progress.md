@@ -974,3 +974,11 @@ The fixes come from the first run on a physical Android phone, a Honor X8 (TFY-L
 - Test: `back_and_home_are_presses` checks the batch step JSON and that the help does not list them.
 - Live check on the Honor X8, release build: `phonedriver back` replied `ok pressed back · settled in 723ms · new screen`.
 - `cargo test --workspace --no-fail-fast`: 677 passed, 0 failed. Clippy is clean.
+
+## 2026-11-09: a tap whose ripple settles before the next page draws waits for the page
+
+- Seen in agent run t9 on the Honor X8 (YouTube's version through Settings, 8 calls, passed). `tap @e14 "Apps"` replied `settled in 331ms · no element changed`. MagicOS drew the button's ripple, went quiet past the 250 ms quiet window, and only then started the Apps page. The agent spent a `snapshot` to see it.
+- Changed: after a settled tap whose frames changed but whose elements did not, the Tap branch in `crates/cli/src/daemon/actor.rs` settles once more. It waits up to `LATE_PAGE_WAIT` (600 ms) for a first change. If one comes, the reply is that screen, and its settle time includes the first wait. If none comes, the first reply stands. A tap that really changes nothing in the tree (a web checkbox's look) now costs 600 ms more.
+- Test: `a_tap_whose_ripple_settles_before_the_next_page_draws_waits_for_the_page` sends a ripple frame at 30 ms and the new page at 700 ms. It failed first with `settle_ms: 280` and an empty diff. `FakeDevice::set_tree` is new test support for it.
+- Live check on the Honor X8, release build: three rounds of `launch Settings`, `scroll down --until Apps`, `tap Apps` replied `settled in 905ms`, `756ms` and `845ms`, each `· new screen`.
+- `cargo test --workspace --no-fail-fast`: 678 passed, 0 failed. Clippy is clean.

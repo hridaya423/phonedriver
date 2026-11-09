@@ -76,6 +76,8 @@ const LEAVE_WAIT: Duration = Duration::from_millis(2500);
 /// after more than 500 ms, so the reply said "no change" while the dialog was on its way, and the agent tapped again.
 const COLD_APP_WINDOW: Duration = Duration::from_secs(30);
 const COLD_CHANGE_WAIT: Duration = Duration::from_millis(2000);
+/// How long a tap whose frames changed but whose elements did not waits for a page that starts late.
+const LATE_PAGE_WAIT: Duration = Duration::from_millis(600);
 const MASK: &str = "•••";
 
 pub enum Call {
@@ -1464,8 +1466,41 @@ impl Actor {
                     self.await_toggle(s, e.r#ref, e.state.contains(ElementState::CHECKED))
                         .await?;
                 }
-                self.finish(s, p.settle, cfg, started, summary, None, None, None)
-                    .await
+                let r = self
+                    .finish(s, p.settle, cfg, started, summary.clone(), None, None, None)
+                    .await?;
+                let ripple_only = r.settled
+                    && r.changed
+                    && r.observation.kind == Kind::Diff
+                    && r.observation.text.is_empty();
+                if !p.settle || !ripple_only {
+                    return Ok(r);
+                }
+                // MagicOS Settings draws the button's ripple, goes quiet for longer than the quiet window, and only
+                // then starts the next page (Honor X8: "settled in 331ms · no element changed", then the page).
+                let again = self.now();
+                let late = Config {
+                    expect_change: Some(LATE_PAGE_WAIT),
+                    ..cfg
+                };
+                let (st, probe) = self.settle_probing(late, again, true).await;
+                match st {
+                    State::Done {
+                        settled,
+                        changed: true,
+                        still_changing,
+                        elapsed,
+                    } => {
+                        let st = State::Done {
+                            settled,
+                            changed: true,
+                            still_changing,
+                            elapsed: elapsed + Duration::from_millis(r.settle_ms.into()),
+                        };
+                        self.report(s, st, probe, summary, None, None, None).await
+                    }
+                    _ => Ok(r),
+                }
             }
             Action::Swipe {
                 direction,
