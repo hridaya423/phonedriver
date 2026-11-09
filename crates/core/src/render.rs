@@ -108,11 +108,26 @@ impl Rendered {
                 elements[p].children.push(i);
             }
         }
-        Rendered {
+        let mut rendered = Rendered {
             header,
             elements,
             parents,
+        };
+        // Safari on iOS: with no field being typed into, WebKit calls every field on the page focused.
+        let claims: Vec<usize> = (0..rendered.elements.len())
+            .filter(|&i| {
+                let e = &rendered.elements[i];
+                e.role.is_text_entry()
+                    && e.state.contains(ElementState::FOCUSED)
+                    && rendered.in_web_view(e.r#ref)
+            })
+            .collect();
+        if claims.len() > 1 {
+            for i in claims {
+                rendered.elements[i].state.remove(ElementState::FOCUSED);
+            }
         }
+        rendered
     }
 
     pub fn index_of(&self, r: Ref) -> Option<usize> {
@@ -1198,6 +1213,33 @@ mod tests {
         ));
         let text = r.text(&Filters::default()).unwrap();
         assert_eq!(text.matches("Display & Text Size").count(), 1, "{text}");
+    }
+
+    #[test]
+    fn web_fields_that_all_say_focused_are_shown_without_it_and_one_that_alone_does_keeps_it() {
+        let page = |focus: [bool; 3]| {
+            let f = |on: bool| if on { "vVeEF" } else { "vVeE" };
+            let json = format!(
+                r#"{{"app":{{"bundle_id":"com.apple.mobilesafari","pid":1}},"nodes":[
+                {{"p":-1,"cls":"XCUIElementTypeOther","b":[0,0,400,800],"f":"vVe"}},
+                {{"p":0,"cls":"XCUIElementTypeWebView","b":[0,0,400,800],"f":"vVe"}},
+                {{"p":1,"cls":"XCUIElementTypeTextField","text":"Name","b":[0,100,400,140],"f":"{}","a":["tap"]}},
+                {{"p":1,"cls":"XCUIElementTypeTextField","text":"Phone","b":[0,200,400,240],"f":"{}","a":["tap"]}},
+                {{"p":1,"cls":"XCUIElementTypeTextField","text":"Email","b":[0,300,400,340],"f":"{}","a":["tap"]}}]}}"#,
+                f(focus[0]),
+                f(focus[1]),
+                f(focus[2])
+            );
+            let tree = RawTree::from_ios_json(&json).unwrap();
+            let nodes = prune(&tree);
+            let refs = RefTable::default().assign(&tree, &nodes);
+            Rendered::build(nodes, &refs, header()).text(&Filters::default()).unwrap()
+        };
+        let all = page([true, true, true]);
+        assert!(!all.contains("focused"), "{all}");
+        let one = page([false, true, false]);
+        assert_eq!(one.matches("focused").count(), 1, "{one}");
+        assert!(one.contains("\"Phone\" focused"), "{one}");
     }
 
     #[test]
