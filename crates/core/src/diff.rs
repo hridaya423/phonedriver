@@ -222,6 +222,9 @@ impl DiffOrFull {
                         }
                         Field::Label => format!("{head} {from} → {to}"),
                         _ => match &e.label {
+                            Some(l) if *field == Field::Value && *from == quote(l) => {
+                                format!("{head} {from} → {to}")
+                            }
                             Some(l) => format!("{head} {} {from} → {to}", quote(l)),
                             None => format!("{head} {from} → {to}"),
                         },
@@ -416,6 +419,27 @@ mod tests {
         let kept: Vec<String> = buttons(&all).into_iter().skip(5).collect();
         let b = screen(&mut t, &kept);
         assert_eq!(diff(&a, &b).text(&b), "- @e1 @e2 @e3 @e4 @e5");
+    }
+
+    #[test]
+    fn a_value_that_was_the_fields_own_name_is_not_printed_twice() {
+        let mut t = RefTable::default();
+        let field = |text: &str| {
+            node(
+                1,
+                "field",
+                "android.widget.EditText",
+                &format!(
+                    r#""desc":"Search Wikipedia","text":"{text}","f":"vVeE","a":["set_text"]"#
+                ),
+            )
+        };
+        let a = screen(&mut t, &[field("Search Wikipedia")]);
+        let b = screen(&mut t, &[field("Ada Lovelace")]);
+        assert_eq!(
+            diff(&a, &b).text(&b),
+            "~ @e1 textbox \"Search Wikipedia\" → \"Ada Lovelace\""
+        );
     }
 
     #[test]
