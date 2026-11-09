@@ -2464,7 +2464,7 @@ impl Actor {
         s: &mut Session,
         st: State,
         probe: Option<Probe>,
-        summary: String,
+        mut summary: String,
         via: Option<&'static str>,
         verify: Option<Verify>,
         mask: Option<String>,
@@ -2526,6 +2526,13 @@ impl Actor {
             rendered = self.build(s, &tree, None);
             self.read_checkboxes(&mut rendered).await?;
             verdict = judge(s, &rendered);
+        }
+        // Contacts names a new phone field "Phone (Mobile)" and, once it holds text, "Phone": a new ref.
+        if let (Some(v), Some(Verdict::Landed)) = (&verify, &verdict)
+            && let Some(old) = v.field.filter(|r| rendered.index_of(*r).is_none())
+            && let Some(new) = v.view(&rendered).target
+        {
+            summary = summary.replace(&format!(" into @{old}"), &format!(" into @{new}"));
         }
         let verified = verdict.as_ref().and_then(Verdict::verified);
         let unverified = match verdict {

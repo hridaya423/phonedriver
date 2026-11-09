@@ -1240,3 +1240,10 @@ Agent run a4 (Contacts, add Katherine Johnson with a phone and email) took 15 ca
 - Test: `type_into_a_field_the_keyboard_pushed_out_of_the_list_scrolls_it_back_and_types_there` failed with `stale_ref` before, and passes now. It checks that the drag comes before the text, and that the reply shows the field.
 - `cargo test -q --workspace`: no failures (OCR passes again). Clippy is clean.
 - Live, in Contacts on the emulator: `tap "Create contact"`, then `type Ada --into @e23` (the keyboard opens, `- @e25 @e26 …`), then `type "555 0142" --into @e26` gives `ok scrolled down 1 time to "Phone (Mobile)", then typed 8 chars into @e33 · verified`, and the diff shows `+ @e38 textbox "Phone" "555 0142" focused`. One call where a4 needed four. The form was discarded.
+
+## 2026-11-09: a field that renames itself once typed into is named by its new ref
+
+In Contacts the new phone field is `textbox "Phone (Mobile)"`. Once it holds text it is `textbox "Phone"`, and a new label means a new ref. The summary said `typed 8 chars into @e33` while the same reply showed `+ @e38 textbox "Phone" "555 0142" focused`, so the summary named a ref that was already stale (a4 had the same with @e35 and @e40). When the text landed and the target ref is gone, the summary now names the field that verification read.
+
+- Test: `a_field_that_renames_itself_once_typed_into_is_named_by_its_new_ref`. Before the fix it got `typed 3 chars into @e1`, with `@e2 textbox "Phone" "555" focused` on screen. Now it gets `into @e2`.
+- `cargo test -q --workspace`: no failures outside `tests/ocr.rs`. Apple Vision is failing on this Mac again ("could not read this screenshot"). It passed in the run before this one.
