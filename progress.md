@@ -1484,3 +1484,11 @@ In run a14 (Android: Do Not Disturb from quick settings, using the UI only), the
 - Test: `a_web_radio_seen_to_flip_on_a_polled_device_does_not_wait_again_for_a_first_change` (failed first at 600 ms: 100 ms for the flip and the full 500 ms window).
 - Live, same five taps: `settled in 250ms` to `257ms`, daemon 1,071 to 1,436 ms per tap. The diffs are the same (`~ @e9 radio "Medium" off → on` and the radio that went off). `tap Bacon` (a switch in Safari) is unchanged at `settled in 480ms`.
 - `cargo test -p phonedriver --test daemon`: 156 passed. Clippy is clean.
+
+## 2026-11-09: Chrome stays zoomed after the keyboard hides: tried a pinch on `press hide-keyboard`, not kept
+
+- Tried: `type` remembers the web field Chrome zoomed in on, and `press hide-keyboard` pinches the page back out once the keyboard is gone. A daemon test passed, and live the reply said `hid the keyboard via back, then zoomed the page back out · settled in 724ms`. Two `adb screencap` pictures (looked at) show the httpbin form zoomed before and at its natural size after, so the pinch holds once the keyboard is hidden.
+- Not kept, because the natural size is worse for the agent on that page. The form has no viewport tag, so its radios and checkboxes are about 4 pt wide. `tap Large` then answered `no change after 4042ms` although the radio went on, and the next reply carried that change. Zoomed in, the same taps answer in 1 to 2 s with the right diff.
+- The change is reverted and nothing is committed for it. Open: read small web checkboxes reliably, then revisit.
+- Also seen: with the PC under load from a second emulator booting, two `screenshot` files were several seconds stale (keyboard still shown after `hid the keyboard`), while `adb screencap` showed the true screen. Not reproduced without the load.
+- The adb server on the PC died each time the ssh session that had started it closed. It now runs detached (`Start-Process adb.exe -L tcp:5037 nodaemon server`).
