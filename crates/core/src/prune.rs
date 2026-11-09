@@ -362,6 +362,19 @@ fn fold_wrappers(mut nodes: Vec<Node>) -> Vec<Node> {
         {
             drop[c] = true;
         }
+        // iOS Settings: cell "On/Off Labels" (value "0") around switch "On/Off Labels"; link around a copy of itself.
+        if let [c] = kids[i][..]
+            && !drop[c]
+            && tappable(n)
+            && tappable(&nodes[c])
+            && n.label.is_some()
+            && nodes[c].label == n.label
+            && (n.value.is_none() || nodes[c].value == n.value)
+            && (n.hint.is_none() || nodes[c].hint == n.hint)
+        {
+            drop[i] = true;
+            continue;
+        }
         if n.actions.is_empty()
             && kids[i].is_empty()
             && n.value.is_none()
@@ -1046,6 +1059,35 @@ mod tests {
         let nodes = prune(&RawTree::from_ios_json(json).unwrap());
         let shown: Vec<_> = nodes.iter().filter_map(|n| n.label.clone()).collect();
         assert_eq!(shown, ["Message", "Call"], "{nodes:#?}");
+    }
+
+    #[test]
+    fn a_row_or_link_around_a_control_with_its_own_name_is_that_control() {
+        let json = r#"{"app":{"bundle_id":"com.apple.Preferences","pid":1},"nodes":[
+            {"p":-1,"cls":"XCUIElementTypeTable","b":[0,0,402,874],"f":"vVeS","a":["scroll_down"]},
+            {"p":0,"cls":"XCUIElementTypeCell","text":"On/Off Labels","sd":"0","b":[20,292.67,382,344.67],"f":"vVe","a":["tap"]},
+            {"p":1,"cls":"XCUIElementTypeStaticText","text":"On/Off Labels","b":[36,308.67,141.33,329],"f":"vVe"},
+            {"p":1,"cls":"XCUIElementTypeSwitch","text":"On/Off Labels","sd":"0","b":[299,304.67,362,332.67],"f":"vVec","a":["tap"]},
+            {"p":0,"cls":"XCUIElementTypeLink","text":"What’s new","b":[35,349.67,367,383.67],"f":"vVe","a":["tap"]},
+            {"p":4,"cls":"XCUIElementTypeLink","text":"What’s new","b":[35,356.67,248.33,376.33],"f":"vVe","a":["tap"]},
+            {"p":0,"cls":"XCUIElementTypeCell","text":"Larger Text","b":[20,400,382,450],"f":"vVe","a":["tap"]},
+            {"p":6,"cls":"XCUIElementTypeButton","text":"Info","b":[340,410,370,440],"f":"vVe","a":["tap"]}
+        ]}"#;
+        let nodes = prune(&RawTree::from_ios_json(json).unwrap());
+        let shown: Vec<_> = nodes
+            .iter()
+            .filter_map(|n| n.label.clone().map(|l| (n.role, l)))
+            .collect();
+        assert_eq!(
+            shown,
+            [
+                (Role::Switch, "On/Off Labels".to_string()),
+                (Role::Link, "What’s new".to_string()),
+                (Role::Cell, "Larger Text".to_string()),
+                (Role::Button, "Info".to_string())
+            ],
+            "{nodes:#?}"
+        );
     }
 
     #[test]
