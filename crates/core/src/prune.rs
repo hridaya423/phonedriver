@@ -352,6 +352,24 @@ fn fold_wrappers(mut nodes: Vec<Node>) -> Vec<Node> {
         .collect();
     for i in 0..nodes.len() {
         let n = &nodes[i];
+        // Safari wraps its page in an unlabeled group and three web views; the one that scrolls carries the pages.
+        if let [c] = kids[i][..]
+            && n.actions.is_empty()
+            && bare(n)
+            && n.collection.is_none()
+        {
+            let in_page = std::iter::successors(n.parent, |&p| nodes[p].parent)
+                .any(|p| nodes[p].role == Role::WebView);
+            let wrapper = match n.role {
+                Role::WebView => nodes[c].role == Role::WebView || in_page,
+                Role::Other => true,
+                _ => false,
+            };
+            if wrapper {
+                drop[i] = true;
+                continue;
+            }
+        }
         // iOS Contacts: button "Message" holds an unlabeled button that takes the name of its "Message" icon.
         if let [c] = kids[i][..]
             && !n.actions.is_empty()
@@ -1088,6 +1106,37 @@ mod tests {
             ],
             "{nodes:#?}"
         );
+    }
+
+    #[test]
+    fn a_safari_page_keeps_one_webview_and_no_bare_wrappers_around_it() {
+        let json = r#"{"app":{"bundle_id":"com.apple.mobilesafari","pid":1},"nodes":[
+            {"p":-1,"cls":"XCUIElementTypeApplication","text":"Safari","b":[0,0,402,874],"f":"vVe"},
+            {"p":0,"cls":"XCUIElementTypeOther","b":[0,0,402,874],"f":"vVeS"},
+            {"p":1,"cls":"XCUIElementTypeWebView","id":"WebView","b":[0,0,402,874],"f":"vVe"},
+            {"p":2,"cls":"XCUIElementTypeWebView","sd":"8 pages","b":[0,0,402,874],"f":"vVeS","a":["scroll_down"]},
+            {"p":3,"cls":"XCUIElementTypeWebView","b":[0,0,402,874],"f":"vVe"},
+            {"p":4,"cls":"XCUIElementTypeOther","text":"Ada Lovelace - Wikipedia","b":[0,62,402,812],"f":"vVe"},
+            {"p":5,"cls":"XCUIElementTypeStaticText","text":"Augusta Ada King","b":[16,300,300,320],"f":"vVe"},
+            {"p":0,"cls":"XCUIElementTypeButton","text":"Back","b":[30,800,80,840],"f":"vVe","a":["tap"]}
+        ]}"#;
+        let nodes = prune(&RawTree::from_ios_json(json).unwrap());
+        let shown: Vec<_> = nodes
+            .iter()
+            .map(|n| (n.depth, n.role, n.label.clone().unwrap_or_default()))
+            .collect();
+        assert_eq!(
+            shown,
+            [
+                (0, Role::Other, "Safari".to_string()),
+                (1, Role::WebView, String::new()),
+                (2, Role::Other, "Ada Lovelace - Wikipedia".to_string()),
+                (3, Role::Text, "Augusta Ada King".to_string()),
+                (1, Role::Button, "Back".to_string())
+            ],
+            "{nodes:#?}"
+        );
+        assert_eq!(nodes[1].value.as_deref(), Some("8 pages"));
     }
 
     #[test]
