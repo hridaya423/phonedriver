@@ -2534,10 +2534,13 @@ impl Actor {
             wait = TREE_STEP;
             let next = self.device()?.tree().await?;
             let same = next == tree;
+            // Observed in Files on the API 37 emulator, 1 cold open of the storage root in 6: cards were still being
+            // added 1.2 s after the tap, and the reply listed 6 of 17. A clock or a counter changes without growing.
+            let growing = next.nodes.len() > tree.nodes.len();
             tree = next;
             let limit = if tree.web_view_pending() {
                 WEB_VIEW_WAIT
-            } else if tree.loading() {
+            } else if tree.loading() || growing {
                 LOADING_WAIT
             } else {
                 TREE_STABLE_WAIT
@@ -3448,7 +3451,7 @@ mod tests {
     #[test]
     fn a_search_for_either_of_two_names_does_not_fling_through_a_sorted_list() {
         use phonedriver_core::geometry::Scale;
-        use phonedriver_core::raw::{NodeFlags, RawTree};
+        use phonedriver_core::raw::RawTree;
         use phonedriver_core::refs::RefTable;
         use phonedriver_core::render::Header;
         let rows: Vec<String> = ["Alpha", "Bravo", "Charlie", "Delta", "Echo"]

@@ -2510,6 +2510,39 @@ async fn a_tap_whose_ripple_settles_before_the_next_page_draws_waits_for_the_pag
 }
 
 #[tokio::test(start_paused = true)]
+async fn a_list_that_keeps_growing_past_a_second_is_read_once_it_stops() {
+    let (source, fake) = FakeSource::with(vec![tree_of("com.files", &["Storage"])]);
+    let (d, _home) = daemon(source);
+    ok(&d, "default", "snapshot", json!({})).await;
+    fake.on_gesture(|_| {
+        let upto = |n: usize| {
+            let rows: String = (0..n)
+                .map(|i| {
+                    let top = 100 + 40 * i;
+                    format!(
+                        r#",{{"p":0,"w":1,"cls":"android.widget.Button","text":"Folder {i}","b":[0,{top},360,{}],"f":"vVe","a":["tap"]}}"#,
+                        top + 36
+                    )
+                })
+                .collect();
+            let json = format!(
+                r#"{{"windows":[{{"id":1,"type":"application","package":"com.files","bounds":[0,0,360,800]}}],"nodes":[{{"p":-1,"w":1,"cls":"android.widget.FrameLayout","b":[0,0,360,800],"f":"vVe"}}{rows}]}}"#
+            );
+            RawTree::from_android_json(&json, Scale { density: 1.0 }).unwrap()
+        };
+        Some((1..=17).map(upto).collect())
+    });
+    let late = fake.clone();
+    tokio::spawn(async move {
+        tokio::time::sleep(Duration::from_millis(30)).await;
+        late.push_frame(big_frame(1));
+    });
+    let r = ok(&d, "default", "act", tap_point(10.0, 120.0)).await;
+    let text = r["observation"]["text"].as_str().unwrap();
+    assert!(text.contains("Folder 16"), "{r}");
+}
+
+#[tokio::test(start_paused = true)]
 async fn a_tap_long_after_a_launch_still_reports_no_change_after_500_ms() {
     let (source, fake) = installed();
     let (d, _home) = daemon(source);
