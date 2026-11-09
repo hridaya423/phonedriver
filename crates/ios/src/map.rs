@@ -384,6 +384,14 @@ fn swipe(from: Point, to: Point, ms: u32) -> Gesture {
     }
 }
 
+/// The app a link opens in, where it is certain: on the Simulator, http and https links open in Safari, because
+/// no other browser can be installed there from the App Store. A physical iPhone may have another default browser.
+pub fn url_handler(url: &str, simulator: bool) -> Option<AppId> {
+    let scheme = url.split_once(':')?.0.to_ascii_lowercase();
+    (simulator && matches!(scheme.as_str(), "http" | "https"))
+        .then(|| AppId("com.apple.mobilesafari".into()))
+}
+
 /// iOS's interactive pop: a drag from the left edge to past the middle.
 pub fn back_swipe(screen: Size) -> Gesture {
     let y = screen.h / 2.0;
@@ -436,6 +444,16 @@ mod tests {
 
     const TESTBED_MAIN: &str = include_str!("../../core/tests/fixtures/ios/testbed_main.json");
     const SCREEN: Size = Size { w: 402.0, h: 874.0 };
+
+    #[test]
+    fn a_web_link_on_the_simulator_opens_in_safari_and_nothing_else_is_known() {
+        let safari = Some(AppId("com.apple.mobilesafari".into()));
+        assert_eq!(url_handler("https://example.com", true), safari);
+        assert_eq!(url_handler("HTTP://example.com/a?b=c", true), safari);
+        assert_eq!(url_handler("https://example.com", false), None);
+        assert_eq!(url_handler("maps://?q=cafe", true), None);
+        assert_eq!(url_handler("tel:123", true), None);
+    }
 
     #[test]
     fn the_screen_is_the_application_frame() {
