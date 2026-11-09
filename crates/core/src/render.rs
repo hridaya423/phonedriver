@@ -201,7 +201,8 @@ impl Rendered {
 
     pub fn loading(&self) -> bool {
         self.elements.iter().any(|e| {
-            e.role == Role::ProgressIndicator || (e.role == Role::WebView && e.children.is_empty())
+            (e.role == Role::ProgressIndicator && !e.state.contains(ElementState::DETERMINATE))
+                || (e.role == Role::WebView && e.children.is_empty())
         })
     }
 
@@ -884,6 +885,19 @@ mod tests {
             .text(&Filters::default())
             .unwrap();
         assert!(text.contains("@e3 button \"vote\"\n"), "{text}");
+    }
+
+    #[test]
+    fn a_progress_bar_that_shows_an_amount_does_not_say_loading() {
+        let bar = |range: &str| {
+            one(&format!(
+                r#"{{"p":-1,"w":1,"cls":"android.widget.ProgressBar","sd":"52%","b":[0,0,100,100],"f":"vVe"{range}}}"#
+            ))
+        };
+        let timer = bar(r#","range":{"cur":52,"max":100,"min":0,"type":"int"}"#);
+        assert!(!timer.loading());
+        assert!(!timer.text(&Filters::default()).unwrap().contains("loading"));
+        assert!(bar("").loading());
     }
 
     #[test]

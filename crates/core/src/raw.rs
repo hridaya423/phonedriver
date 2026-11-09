@@ -100,6 +100,13 @@ pub enum RangeKind {
     Percent,
 }
 
+impl RawNode {
+    /// Whether this node reports a range with room in it: a progress bar that shows an amount.
+    pub fn shows_amount(&self) -> bool {
+        self.range.is_some_and(|r| r.max > r.min)
+    }
+}
+
 impl Range {
     fn display(&self) -> String {
         match self.kind {
@@ -190,9 +197,13 @@ impl RawTree {
         })
     }
 
+    /// A progress indicator that reports a range shows an amount (the Clock timer's track, 52 of 100), not a page on
+    /// its way: Chrome's page bar and spinners report none, or an empty one.
     fn progress_visible(&self) -> bool {
         self.nodes.iter().any(|n| {
-            n.role == Role::ProgressIndicator && n.flags.contains(NodeFlags::VISIBLE_TO_USER)
+            n.role == Role::ProgressIndicator
+                && n.flags.contains(NodeFlags::VISIBLE_TO_USER)
+                && !n.shows_amount()
         })
     }
 
@@ -409,6 +420,27 @@ mod tests {
 
     fn settings() -> RawTree {
         RawTree::from_android_json(FIXTURE, Scale { density: 3.0 }).unwrap()
+    }
+
+    #[test]
+    fn a_progress_bar_that_shows_an_amount_is_not_loading_and_a_spinner_is() {
+        let with = |range: &str| {
+            let json = format!(
+                r#"{{"windows":[],"nodes":[{{"p":-1,"w":1,"cls":"android.widget.ProgressBar","b":[0,0,100,100],"f":"vVe"{range}}}]}}"#
+            );
+            RawTree::from_android_json(&json, Scale { density: 1.0 })
+                .unwrap()
+                .loading()
+        };
+        assert!(with(""), "Chrome's page bar has no range");
+        assert!(
+            with(r#","range":{"cur":0,"max":0,"min":0,"type":"float"}"#),
+            "a spinner"
+        );
+        assert!(
+            !with(r#","range":{"cur":52,"max":100,"min":0,"type":"int"}"#),
+            "the Clock timer's track"
+        );
     }
 
     #[test]

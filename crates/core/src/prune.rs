@@ -266,7 +266,11 @@ pub fn prune(tree: &RawTree) -> Vec<Node> {
             hint,
             id: node.resource_id.clone(),
             bounds,
-            state: state_of(node.flags),
+            state: if role == Role::ProgressIndicator && node.shows_amount() {
+                state_of(node.flags) | ElementState::DETERMINATE
+            } else {
+                state_of(node.flags)
+            },
             actions: node.actions,
             position: node.item,
             collection: node.collection,

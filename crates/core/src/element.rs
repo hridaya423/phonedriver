@@ -203,6 +203,8 @@ bitflags! {
         const EXPANDED = 1 << 5;
         const COLLAPSED = 1 << 6;
         const PASSWORD = 1 << 7;
+        /// A progress indicator that shows an amount (a timer's track), not work on its way.
+        const DETERMINATE = 1 << 8;
     }
 }
 

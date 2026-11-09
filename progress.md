@@ -1412,3 +1412,10 @@ In run i18 (iOS: count the photos in Photos), Photos crashed at every launch on 
 - `cargo test -q -p phonedriver --no-fail-fast` and the `phonedriver-ios` lib tests pass. Clippy is clean.
 
 Rerun i18b: 8 calls in 37 s, against 9 calls in 30 s. Both launches answered `… but Photos is not in front (com.apple.springboard is): it may have quit at start`. The answer was now right: "Photos won't stay open on the simulator". The first run blamed the connection. The agent still tapped the icon twice to make sure. That is its own choice, and phonedriver cannot make Photos stay open.
+
+## 2026-11-09: a timer's progress track is not a page that is loading
+
+Run a11 (Android: start a 2 min 30 s timer in Clock) took 4 calls in 21 s. But `launch Clock` took 4.9 s in all, while its reply said `settled in 3255ms`. The traces of later Clock launches showed `stabilize` at 4195 to 4468 ms: the whole 4 s `LOADING_WAIT`. The timer's track is an `android.widget.ProgressBar` with `range` `{cur 52, max 100}`, so the tree counted as loading for as long as a timer ran. Every Clock reply also said `loading` in its header. Chrome's page bar has no range (captured three times during a 4 s load), and the testbed's spinner has an empty one (`max 0`). A progress indicator whose range has room in it (`RawNode::shows_amount`) now gets the new state `DETERMINATE`, and neither the wait nor the header counts it.
+
+- Tests `a_progress_bar_that_shows_an_amount_is_not_loading_and_a_spinner_is` (raw) and `a_progress_bar_that_shows_an_amount_does_not_say_loading` (render) failed before the change and pass after it. The daemon tests for progress bars still pass (`…waits_for_the_page_up_to_four_seconds`, `…costs_at_most_four_seconds…`). Core tests: 200 passed. CLI tests: no failures.
+- Live: Clock launches now take 2065, 1641 and 2080 ms in all, with `stabilize` at about 300 ms, against 5.7 to 6.6 s before.
