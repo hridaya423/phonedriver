@@ -1752,16 +1752,6 @@ impl Actor {
                 append,
             } => {
                 let chosen = mode.is_some();
-                let mode = mode.unwrap_or(TypeMode::Paste);
-                let (cap, reason) = match mode {
-                    TypeMode::Paste => (Capabilities::TEXT_PASTE, "this device cannot paste"),
-                    TypeMode::Set => (
-                        Capabilities::TEXT_SET,
-                        "this device cannot set field values",
-                    ),
-                    TypeMode::Keys => (Capabilities::TEXT_KEYS, "this device cannot type keys"),
-                };
-                self.need(cap, Op::Text, reason)?;
                 let (field, tap_at): (Option<Element>, Option<Point>) = match &into {
                     Some(t) => {
                         let r = self.resolve_target(s, t).await?;
@@ -1795,6 +1785,34 @@ impl Actor {
                         None,
                     ),
                 };
+                // A paste in hidden mode still raises the system's clipboard toast on the phone's own screen ("Settings
+                // is accessing the clipboard", HONOR X8, Android 13), so a native field there is set instead. A web
+                // field keeps paste: set on a WebView falls back to select-all and paste over what it holds.
+                let hidden = self
+                    .live
+                    .as_ref()
+                    .is_some_and(|l| l.display == DisplayMode::Hidden);
+                let native = field.as_ref().is_some_and(|f| {
+                    f.actions.contains(Actions::EDIT)
+                        && !s.last.as_ref().is_some_and(|l| l.in_web_view(f.r#ref))
+                });
+                let can_set = device.info().capabilities.contains(Capabilities::TEXT_SET);
+                let masked = secret || field.as_ref().is_some_and(is_secure);
+                let whole = into.is_some() && !append;
+                let mode = mode.unwrap_or(if hidden && native && can_set && (whole || !masked) {
+                    TypeMode::Set
+                } else {
+                    TypeMode::Paste
+                });
+                let (cap, reason) = match mode {
+                    TypeMode::Paste => (Capabilities::TEXT_PASTE, "this device cannot paste"),
+                    TypeMode::Set => (
+                        Capabilities::TEXT_SET,
+                        "this device cannot set field values",
+                    ),
+                    TypeMode::Keys => (Capabilities::TEXT_KEYS, "this device cannot type keys"),
+                };
+                self.need(cap, Op::Text, reason)?;
                 if !secret
                     && !text.is_empty()
                     && let Some((f, kind)) = field
@@ -1819,7 +1837,6 @@ impl Actor {
                     .and_then(|f| f.value.clone())
                     .filter(|v| !v.is_empty());
                 let mut wipe = replace && held.is_some() && mode != TypeMode::Set;
-                let can_set = device.info().capabilities.contains(Capabilities::TEXT_SET);
                 let started = self.begin_action();
                 let mut field = field;
                 if let Some(at) = tap_at {
@@ -1840,6 +1857,7 @@ impl Actor {
                         field = Some(f);
                     }
                 }
+                let before = held.clone().unwrap_or_default();
                 if let Some(held) = held.filter(|_| wipe) {
                     let emptied = if can_set {
                         TextInput::SetValue(String::new())
@@ -1854,7 +1872,8 @@ impl Actor {
                 let input = match (mode, secure) {
                     (TypeMode::Paste, true) => TextInput::PasteSecret(text.clone()),
                     (TypeMode::Paste, false) => TextInput::Paste(text.clone()),
-                    (TypeMode::Set, _) => TextInput::SetValue(text.clone()),
+                    (TypeMode::Set, _) if replace => TextInput::SetValue(text.clone()),
+                    (TypeMode::Set, _) => TextInput::SetValue(format!("{before}{text}")),
                     (TypeMode::Keys, _) => TextInput::Keystrokes(text.clone()),
                 };
                 if !(replace && text.is_empty()) {
