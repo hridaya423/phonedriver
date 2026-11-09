@@ -1448,8 +1448,17 @@ async fn save_fixture_files(
     std::fs::create_dir_all(&dir)
         .and_then(|()| std::fs::write(dir.join(format!("{name}.json")), tree))
         .map_err(|e| Failure::Local(format!("cannot write the fixture: {e}")))?;
-    let shot: ScreenshotResult = decode(&client.call("screenshot", common.clone()).await?)?;
-    std::fs::copy(&shot.path, dir.join(format!("{name}.png")))
+    let mut params = common.clone();
+    params["inline"] = json!(true);
+    let shot: ScreenshotResult = decode(&client.call("screenshot", params).await?)?;
+    let bytes = match &shot.data_b64 {
+        Some(data) => base64::engine::general_purpose::STANDARD
+            .decode(data)
+            .map_err(|e| Failure::Local(format!("the daemon sent bad image data: {e}")))?,
+        None => std::fs::read(&shot.path)
+            .map_err(|e| Failure::Local(format!("cannot read the fixture screenshot: {e}")))?,
+    };
+    std::fs::write(dir.join(format!("{name}.png")), bytes)
         .map_err(|e| Failure::Local(format!("cannot write the fixture screenshot: {e}")))?;
     Ok(())
 }
