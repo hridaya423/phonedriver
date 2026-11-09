@@ -1066,3 +1066,10 @@ The fixes come from the first run on a physical Android phone, a Honor X8 (TFY-L
 - Test: `a_tap_on_a_disabled_button_fails_at_once_and_a_point_tap_still_goes`. It failed with the check switched off. `all_errors` has the new variant, and its hint starts with "Run".
 - Not a phonedriver problem, but noted: from about 09:00 the OCR tests fail on this MacBook, even when run alone (`--test ocr`: 1 passed, 6 failed). Apple Vision returns `TextRecognition.CRImageReaderError error 1` after about 27 s. The same tests passed alone earlier in the night (7 of 7 in 26 s). The OCR code did not change.
 - `cargo test --workspace --no-fail-fast`: everything outside `ocr` passes. Clippy is clean.
+
+## 2026-11-09: `shell` replies drop the missed-tap hint
+
+- Agent run i5 (iOS dark mode through `simctl ui appearance dark`) got `hint: nothing changed; the tap may have missed…` under a shell reply. A shell command taps nothing, so the hint sent the reader to a screenshot for no reason.
+- `show_shell` now drops that hint line from the screen part of the reply.
+- Test: `commands::tests::a_shell_command_that_leaves_the_screen_alone_gets_no_missed_tap_hint`. Red with the filter disabled, green with it.
+- `cargo test --workspace --no-fail-fast`: 681 passed, 6 failed. The 6 are `tests/ocr.rs` (`Apple Vision could not read this screenshot`), the same macOS Vision environment failure as before.
