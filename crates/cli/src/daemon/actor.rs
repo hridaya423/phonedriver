@@ -1783,12 +1783,18 @@ impl Actor {
                 };
                 let leaving = device.foreground().await?;
                 let started = self.begin_action();
-                device.open_url(&Url(url.clone()), target.as_ref()).await?;
+                let t = Instant::now();
+                let handler = device.open_url(&Url(url.clone()), target.as_ref()).await?;
+                self.lap("open_url", t);
+                let leaving = leaving.filter(|l| handler.as_ref() != Some(l));
+                let t = Instant::now();
                 self.until_app_content(leaving.as_ref()).await?;
+                self.lap("app_content", t);
                 let waited = Instant::now();
                 while waited.elapsed() < PAGE_WAIT && device.tree().await?.web_view_pending() {
                     tokio::time::sleep(TREE_STEP).await;
                 }
+                self.lap("page", waited);
                 self.cold_until = Some(self.now() + COLD_APP_WINDOW);
                 let summary = format!("opened {url}");
                 self.finish(s, p.settle, cfg, started, summary, None, None, None)

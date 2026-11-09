@@ -529,7 +529,7 @@ impl Device for CoreDevice {
             .map_err(lost)
     }
 
-    async fn open_url(&self, _url: &Url, _app: Option<&AppId>) -> Result<()> {
+    async fn open_url(&self, _url: &Url, _app: Option<&AppId>) -> Result<Option<AppId>> {
         Err(Error::Unsupported {
             op: Op::OpenUrl,
             reason: "the CoreDevice tier cannot open a link yet",

@@ -83,7 +83,7 @@ impl Device for Pixels {
     async fn button(&self, b: Button) -> Result<(), Error> {
         self.0.button(b).await
     }
-    async fn open_url(&self, u: &Url, app: Option<&AppId>) -> Result<(), Error> {
+    async fn open_url(&self, u: &Url, app: Option<&AppId>) -> Result<Option<AppId>, Error> {
         self.0.open_url(u, app).await
     }
     async fn text(&self, t: TextInput) -> Result<(), Error> {

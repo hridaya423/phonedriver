@@ -2112,7 +2112,7 @@ impl Device for AlphaList {
         &self,
         u: &phonedriver_core::device::Url,
         app: Option<&AppId>,
-    ) -> Result<(), Error> {
+    ) -> Result<Option<AppId>, Error> {
         self.inner.open_url(u, app).await
     }
     async fn text(&self, t: phonedriver_core::device::TextInput) -> Result<(), Error> {
@@ -2724,6 +2724,30 @@ async fn an_opened_page_is_in_the_reply_not_chromes_empty_web_view() {
     .await;
     let text = r["observation"]["text"].as_str().unwrap();
     assert!(text.contains("Android is a mobile operating system"), "{r}");
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_link_opened_in_the_browser_already_in_front_does_not_wait_for_the_browser_to_leave() {
+    let mut trees: Vec<RawTree> = (0..2)
+        .map(|_| chrome_tree(Some("Example Domain")))
+        .collect();
+    trees.extend((0..60).map(|_| chrome_tree(Some("Example Org"))));
+    let (source, fake) = FakeSource::with(trees);
+    let chrome = AppId("com.android.chrome".into());
+    fake.launch(&chrome).await.unwrap();
+    fake.set_url_handler(Some(chrome));
+    let (d, _home) = daemon(source);
+    ok(&d, "default", "snapshot", json!({})).await;
+    let started = tokio::time::Instant::now();
+    ok(
+        &d,
+        "default",
+        "act",
+        act_with(json!({"kind": "open", "url": "https://example.org"})),
+    )
+    .await;
+    let took = started.elapsed();
+    assert!(took < Duration::from_millis(1500), "{took:?}");
 }
 
 #[tokio::test(start_paused = true)]
@@ -3484,7 +3508,7 @@ impl Device for SlowPolled {
         &self,
         u: &phonedriver_core::device::Url,
         app: Option<&AppId>,
-    ) -> Result<(), Error> {
+    ) -> Result<Option<AppId>, Error> {
         self.inner.open_url(u, app).await
     }
     async fn text(&self, t: phonedriver_core::device::TextInput) -> Result<(), Error> {
