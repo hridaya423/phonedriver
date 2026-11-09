@@ -800,14 +800,25 @@ async fn a_web_page_that_calls_several_fields_focused_still_gets_the_text_in_the
         .unwrap()
         .trim_start_matches('@')
         .to_string();
-    let params = json!({"action": {"kind": "type", "text": "ring twice", "into": {"text": "Notes"}}});
+    let params =
+        json!({"action": {"kind": "type", "text": "ring twice", "into": {"text": "Notes"}}});
     let r = ok(&d, "default", "act", params).await;
-    assert!(r["summary"].as_str().unwrap().contains(&format!("into @{notes}")), "{r}");
+    assert!(
+        r["summary"]
+            .as_str()
+            .unwrap()
+            .contains(&format!("into @{notes}")),
+        "{r}"
+    );
     assert_eq!(r["verified"], true, "{r}");
 }
 
 fn small_web_field_tree(value: &str, zoomed: bool) -> RawTree {
-    let b = if zoomed { "[20,100,350,200]" } else { "[60,100,160,130]" };
+    let b = if zoomed {
+        "[20,100,350,200]"
+    } else {
+        "[60,100,160,130]"
+    };
     let json = format!(
         r#"{{"windows":[{{"id":1,"type":"application","package":"com.apple.mobilesafari","bounds":[0,0,360,800]}}],"nodes":[
         {{"p":-1,"w":1,"cls":"android.widget.FrameLayout","b":[0,0,360,800],"f":"vVe"}},
@@ -824,12 +835,22 @@ async fn a_page_that_zooms_in_on_a_field_it_focuses_is_zoomed_back_out_after_typ
     ok(&d, "default", "snapshot", json!({})).await;
     fake.on_gesture(|g| (g.fingers.len() == 1).then(|| vec![small_web_field_tree("", true)]));
     fake.on_text(|_| Some(vec![small_web_field_tree("Test Pilot", false)]));
-    let params = json!({"action": {"kind": "type", "text": "Test Pilot", "into": {"text": "Name"}}});
+    let params =
+        json!({"action": {"kind": "type", "text": "Test Pilot", "into": {"text": "Name"}}});
     let r = ok(&d, "default", "act", params).await;
     assert_eq!(r["verified"], true, "{r}");
-    assert!(r["summary"].as_str().unwrap().contains("zoomed the page back out"), "{r}");
+    assert!(
+        r["summary"]
+            .as_str()
+            .unwrap()
+            .contains("zoomed the page back out"),
+        "{r}"
+    );
     let calls = fake.calls();
-    let typed = calls.iter().position(|c| matches!(c, Call::Text(_))).unwrap();
+    let typed = calls
+        .iter()
+        .position(|c| matches!(c, Call::Text(_)))
+        .unwrap();
     assert!(
         calls[typed..]
             .iter()
@@ -844,7 +865,8 @@ async fn a_page_that_does_not_zoom_is_not_pinched() {
     fake.on_text(|_| Some(vec![small_web_field_tree("Test Pilot", false)]));
     let (d, _home) = daemon(source);
     ok(&d, "default", "snapshot", json!({})).await;
-    let params = json!({"action": {"kind": "type", "text": "Test Pilot", "into": {"text": "Name"}}});
+    let params =
+        json!({"action": {"kind": "type", "text": "Test Pilot", "into": {"text": "Name"}}});
     let r = ok(&d, "default", "act", params).await;
     assert!(!r["summary"].as_str().unwrap().contains("zoomed"), "{r}");
     assert!(
@@ -1620,7 +1642,10 @@ async fn scroll_until_text_already_on_screen_twice_stops_at_the_first_without_sc
     let summary = r["summary"].as_str().unwrap();
     assert!(summary.contains("\"Row 1\""), "{summary}");
     assert!(summary.contains("already on screen"), "{summary}");
-    assert_eq!(r["settled"], false, "no settle ran, so no 'no change' hint: {r}");
+    assert_eq!(
+        r["settled"], false,
+        "no settle ran, so no 'no change' hint: {r}"
+    );
     assert!(fake.calls().is_empty());
 }
 
@@ -1888,20 +1913,35 @@ async fn scroll_until_a_far_numbered_row_flings_on_a_device_with_a_frame_stream(
 
 #[tokio::test(start_paused = true)]
 async fn scroll_until_a_name_far_down_an_alphabetical_list_flings_and_a_near_one_drags() {
-    let apps = ["Activity Launcher", "Adobe Scan", "Airlearn", "Amazon Shopping", "Android Auto"];
+    let apps = [
+        "Activity Launcher",
+        "Adobe Scan",
+        "Airlearn",
+        "Amazon Shopping",
+        "Android Auto",
+    ];
     let first_gesture = |target: &'static str, rows: &'static [&'static str]| async move {
         let (source, fake) = FakeSource::with(vec![list_tree(rows)]);
         let (d, _home) = daemon(source);
         let _ = d
-            .call("default", "act", scroll(json!({"until": {"text": target}, "max": 1})))
+            .call(
+                "default",
+                "act",
+                scroll(json!({"until": {"text": target}, "max": 1})),
+            )
             .await;
         fake.calls().first().map(is_fling)
     };
     let sorted: &'static [&'static str] = Box::leak(Box::new(apps));
     assert_eq!(first_gesture("YouTube", sorted).await, Some(true));
     assert_eq!(first_gesture("Bluetooth", sorted).await, Some(false));
-    let mixed: &'static [&'static str] =
-        Box::leak(Box::new(["Wi-Fi", "Bluetooth", "Apps", "Battery", "Display"]));
+    let mixed: &'static [&'static str] = Box::leak(Box::new([
+        "Wi-Fi",
+        "Bluetooth",
+        "Apps",
+        "Battery",
+        "Display",
+    ]));
     assert_eq!(first_gesture("YouTube", mixed).await, Some(false));
 }
 
@@ -1958,7 +1998,11 @@ impl Device for AlphaList {
             let mut top = self.top.lock().unwrap();
             let before = *top;
             let last = self.rows.len() - 5;
-            *top = if b.at.y < a.at.y { (*top + rows).min(last) } else { top.saturating_sub(rows) };
+            *top = if b.at.y < a.at.y {
+                (*top + rows).min(last)
+            } else {
+                top.saturating_sub(rows)
+            };
             *top != before
         };
         if moved {
@@ -2010,10 +2054,25 @@ async fn scroll_until_a_name_missing_from_an_alphabetical_list_goes_on_one_way_t
             home: home.path().to_path_buf(),
         },
     );
-    let found = ok(&d, "default", "act", scroll(json!({"until": {"text": "Kkapp1"}}))).await;
-    assert!(found["summary"].as_str().unwrap().ends_with("\"Kkapp1\""), "{found}");
+    let found = ok(
+        &d,
+        "default",
+        "act",
+        scroll(json!({"until": {"text": "Kkapp1"}})),
+    )
+    .await;
+    assert!(
+        found["summary"].as_str().unwrap().ends_with("\"Kkapp1\""),
+        "{found}"
+    );
     *list.top.lock().unwrap() = 0;
-    let e = err(&d, "default", "act", scroll(json!({"until": {"text": "Gmail"}}))).await;
+    let e = err(
+        &d,
+        "default",
+        "act",
+        scroll(json!({"until": {"text": "Gmail"}})),
+    )
+    .await;
     assert!(e.message.contains("list ended"), "{e:?}");
 }
 
@@ -2192,7 +2251,8 @@ async fn the_first_taps_after_a_launch_wait_for_a_cold_app_that_reacts_after_900
 
 #[tokio::test(start_paused = true)]
 async fn a_tap_whose_ripple_settles_before_the_next_page_draws_waits_for_the_page() {
-    let (source, fake) = FakeSource::with(vec![tree_of("com.android.settings", &["Apps", "Battery"])]);
+    let (source, fake) =
+        FakeSource::with(vec![tree_of("com.android.settings", &["Apps", "Battery"])]);
     let (d, _home) = daemon(source);
     ok(&d, "default", "snapshot", json!({})).await;
     let late = fake.clone();
@@ -2200,7 +2260,10 @@ async fn a_tap_whose_ripple_settles_before_the_next_page_draws_waits_for_the_pag
         tokio::time::sleep(Duration::from_millis(30)).await;
         late.push_frame(big_frame(1));
         tokio::time::sleep(Duration::from_millis(670)).await;
-        late.set_tree(tree_of("com.android.settings", &["App launch", "Default apps"]));
+        late.set_tree(tree_of(
+            "com.android.settings",
+            &["App launch", "Default apps"],
+        ));
         late.push_frame(big_frame(2));
     });
     let r = ok(&d, "default", "act", tap_point(10.0, 120.0)).await;
@@ -2745,7 +2808,10 @@ async fn a_row_the_keyboard_half_covers_is_tapped_above_the_keyboard_and_a_slive
         panic!("{:?}", fake.calls())
     };
     let y = g.fingers[0][0].at.y;
-    assert!((470.0..500.0).contains(&y), "the tap must land above the keyboard: {y}");
+    assert!(
+        (470.0..500.0).contains(&y),
+        "the tap must land above the keyboard: {y}"
+    );
     let e = err(
         &d,
         "default",
@@ -2820,7 +2886,10 @@ async fn a_tap_on_a_button_under_the_keyboard_hides_the_keyboard_and_then_taps_i
     });
     let r = ok(&d, "default", "act", tap_text("Send")).await;
     assert!(
-        r["summary"].as_str().unwrap().starts_with("hid the keyboard, then tapped"),
+        r["summary"]
+            .as_str()
+            .unwrap()
+            .starts_with("hid the keyboard, then tapped"),
         "{r}"
     );
     let taps: Vec<f32> = fake
@@ -2831,7 +2900,11 @@ async fn a_tap_on_a_button_under_the_keyboard_hides_the_keyboard_and_then_taps_i
             _ => None,
         })
         .collect();
-    assert_eq!(taps, [330.0], "the tap goes where Send is once the keyboard is gone");
+    assert_eq!(
+        taps,
+        [330.0],
+        "the tap goes where Send is once the keyboard is gone"
+    );
 }
 
 #[tokio::test(start_paused = true)]

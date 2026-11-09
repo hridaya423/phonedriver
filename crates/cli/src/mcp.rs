@@ -121,7 +121,7 @@ struct SnapshotArgs {
     diff: Option<bool>,
     /// Print only elements that can be acted on.
     interactive: Option<bool>,
-    /// An @ref: print only that element and its children.
+    /// An @ref: print only that element, its text whole, and its children.
     within: Option<String>,
     /// Cut the output to this many lines.
     max_lines: Option<u32>,
