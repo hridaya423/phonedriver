@@ -933,3 +933,15 @@ The fixes come from the first run on a physical Android phone, a Honor X8 (TFY-L
   - `press back` acted on display 2. Display 0 still showed the Play Store.
   - `release`, then `daemon stop`: `dumpsys display` lists only Display 0.
 - Docs: the D32 limits, why and reopen-if text, and the README line that said the mode was tested on an emulator only.
+
+## 2026-11-09: scroll --until looks inside what it scrolls; a target already on screen says so
+
+- Seen in agent run t5b on the Honor X8 (Wikipedia search in Chrome; 10 calls and 57 s, down from 16 calls and 116 s in t5). `scroll up --until "Search"` replied `scrolled up 0 times to @e3 "en.wikipedia.org/wiki/…"`. It had matched the hint of Chrome's address bar, "Search Google or type URL", and the reply added the hint for a tap that missed. The agent fell back to screenshots and a tap by coordinates, though the page has `button "Search"`.
+- Changed:
+  - `Session::seek` takes the ref of the element the scroll moves. Only that element and what is inside it count. A first version checked the element's area, and failed live: Chrome hides its toolbar as the page scrolls down, and the toolbar slid back inside the area measured at the start.
+  - `scroll_container` returns the element, not its bounds.
+  - `wait` passes `None` and is unchanged.
+  - A target found before any scroll replies `already on screen, no scroll: <ref> "<label>"` with `settled: false`, so neither the "no change" phrase nor the missed-tap hint is printed.
+- Tests: `scroll_until_looks_inside_what_it_scrolls_not_at_a_toolbar_above_it` and `scroll_until_ignores_a_toolbar_that_slides_back_over_the_page` both failed with the containment check switched off. `scroll_until_text_already_on_screen_twice_stops_at_the_first_without_scrolling` now also checks the wording and `settled`, and it failed first.
+- Live check on the Honor X8, release build: after three `scroll down`s, `scroll up --until Search` replied `ok scrolled up 3 times to @e10 "Search"`. Run again, it replied `ok already on screen, no scroll: @e10 "Search"`.
+- `cargo test --workspace --no-fail-fast`: 675 passed, 0 failed. Clippy is clean.

@@ -74,28 +74,39 @@ impl Session {
         Some(reply)
     }
 
-    /// Finds where a target is on `now`. A ref the screen no longer has fails with the closest current element.
     /// `resolve` for a search (`scroll --until`, `wait`): a text may sit anywhere in a long sentence, and when it is
-    /// on screen more than once the first one ends the search.
-    pub fn seek(&self, target: &Target, now: &Rendered) -> Result<Resolved, Error> {
+    /// on screen more than once the first one ends the search. With `within`, only that element and what is inside it
+    /// count: a scroll looks in what it scrolls, not at a toolbar that slides back over it (Chrome's address bar, whose
+    /// hint is "Search Google or type URL").
+    pub fn seek(
+        &self,
+        target: &Target,
+        now: &Rendered,
+        within: Option<Ref>,
+    ) -> Result<Resolved, Error> {
         let Target::Text { text, role } = target else {
             return self.resolve(target, now);
         };
-        match find_text(now, text, *role, None) {
-            TextMatch::None => Err(not_found(now, text)),
-            TextMatch::One { r#ref, .. } => now
-                .index_of(r#ref)
-                .map(|i| element_at(now, i))
-                .ok_or_else(|| not_found(now, text)),
-            TextMatch::Many(refs) => refs
-                .iter()
-                .filter_map(|r| now.index_of(*r))
-                .min()
-                .map(|i| element_at(now, i))
-                .ok_or_else(|| not_found(now, text)),
-        }
+        let refs = match find_text(now, text, *role, None) {
+            TextMatch::None => Vec::new(),
+            TextMatch::One { r#ref, .. } => vec![r#ref],
+            TextMatch::Many(refs) => refs,
+        };
+        let holder = within.and_then(|r| now.index_of(r));
+        let inside = |i: usize| {
+            holder.is_none_or(|h| {
+                std::iter::successors(Some(i), |&j| now.parents[j]).any(|j| j == h)
+            })
+        };
+        refs.iter()
+            .filter_map(|r| now.index_of(*r))
+            .filter(|&i| inside(i))
+            .min()
+            .map(|i| element_at(now, i))
+            .ok_or_else(|| not_found(now, text))
     }
 
+    /// Finds where a target is on `now`. A ref the screen no longer has fails with the closest current element.
     pub fn resolve(&self, target: &Target, now: &Rendered) -> Result<Resolved, Error> {
         match target {
             Target::Point {
@@ -443,7 +454,7 @@ mod tests {
     fn sought(labels: &[&str], target: &str) -> Result<String, Error> {
         let now = screen(labels);
         Session::default()
-            .seek(&text(target), &now)
+            .seek(&text(target), &now, None)
             .map(|r| r.line.unwrap_or_default())
     }
 
