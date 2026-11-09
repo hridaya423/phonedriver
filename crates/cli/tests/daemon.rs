@@ -2904,6 +2904,82 @@ async fn a_row_the_keyboard_half_covers_is_tapped_above_the_keyboard_and_a_slive
     );
 }
 
+fn form_tree(keyboard: bool, phone_y: Option<f32>) -> RawTree {
+    let ime = if keyboard {
+        r#",{"id":2,"type":"input_method","package":"com.google.ime","bounds":[0,500,360,800]}"#
+    } else {
+        ""
+    };
+    let phone = phone_y.map_or(String::new(), |y| {
+        format!(
+            r#",{{"p":1,"w":1,"cls":"android.widget.EditText","desc":"Phone (Mobile)","b":[0,{y},360,{}],"f":"vVeE","a":["tap","set_text"]}}"#,
+            y + 60.0
+        )
+    });
+    let keys = if keyboard {
+        r#",{"p":-1,"w":2,"cls":"android.inputmethodservice.SoftInputWindow","b":[0,500,360,800],"f":"vVe"}"#
+    } else {
+        ""
+    };
+    let json = format!(
+        r#"{{"windows":[{{"id":1,"type":"application","package":"com.example","bounds":[0,0,360,800]}}{ime}],
+      "nodes":[
+        {{"p":-1,"w":1,"cls":"android.widget.FrameLayout","b":[0,0,360,800],"f":"vVe"}},
+        {{"p":0,"w":1,"cls":"androidx.recyclerview.widget.RecyclerView","b":[0,80,360,800],"f":"vVeS","a":["scroll_down","scroll_up"]}},
+        {{"p":1,"w":1,"cls":"android.widget.EditText","desc":"First name","b":[0,100,360,160],"f":"vVeE{}","a":["tap","set_text"]}}{phone}{keys}]}}"#,
+        if keyboard { "F" } else { "" }
+    );
+    RawTree::from_android_json(&json, Scale { density: 1.0 }).unwrap()
+}
+
+#[tokio::test(start_paused = true)]
+async fn type_into_a_field_the_keyboard_pushed_out_of_the_list_scrolls_it_back_and_types_there() {
+    let (source, fake) = FakeSource::with(vec![form_tree(false, Some(600.0))]);
+    let (d, _home) = daemon(source);
+    let snap = ok(&d, "default", "snapshot", json!({})).await;
+    let phone = snap["text"]
+        .as_str()
+        .unwrap()
+        .lines()
+        .find(|l| l.contains("\"Phone (Mobile)\""))
+        .and_then(|l| l.trim_start().split(' ').next())
+        .unwrap()
+        .trim_start_matches('@')
+        .to_string();
+    fake.set_tree(form_tree(true, None));
+    ok(&d, "default", "snapshot", json!({})).await;
+    fake.on_gesture(|g| {
+        let path = &g.fingers[0];
+        let moved = path.first()?.at.y - path.last()?.at.y;
+        (moved > 20.0).then(|| vec![form_tree(true, Some(300.0))])
+    });
+    let r = ok(
+        &d,
+        "default",
+        "act",
+        json!({"action": {"kind": "type", "text": "555 0199", "into": {"ref": phone}}}),
+    )
+    .await;
+    let summary = r["summary"].as_str().unwrap();
+    assert!(summary.contains("Phone (Mobile)"), "{r}");
+    assert!(summary.contains("scrolled"), "{r}");
+    let calls = fake.calls();
+    let drag = calls
+        .iter()
+        .position(|c| matches!(c, Call::Gesture(g) if g.fingers[0].len() > 2))
+        .unwrap_or_else(|| panic!("no drag: {calls:?}"));
+    let text = calls
+        .iter()
+        .position(|c| matches!(c, Call::Text(_)))
+        .unwrap_or_else(|| panic!("nothing typed: {calls:?}"));
+    assert!(drag < text, "{calls:?}");
+    let text = r["observation"]["text"].as_str().unwrap();
+    assert!(
+        text.contains("Phone (Mobile)"),
+        "the agent sees the field: {text}"
+    );
+}
+
 #[tokio::test(start_paused = true)]
 async fn a_scroll_with_the_keyboard_up_drags_above_the_keyboard() {
     let (source, fake) = FakeSource::with(vec![half_covered_tree()]);

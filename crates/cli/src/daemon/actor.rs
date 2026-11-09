@@ -20,7 +20,7 @@ use phonedriver_core::ocr::{merge, tree_is_hollow};
 use phonedriver_core::prune::prune;
 use phonedriver_core::raw::RawTree;
 use phonedriver_core::render::{
-    AppLine, DeviceLine, Filters, Header, Orientation, Rendered, SettleLine, plural,
+    AppLine, DeviceLine, Filters, Header, Orientation, Rendered, SettleLine, plural, quote,
 };
 use phonedriver_core::settle::{Config, Detector, Input, State};
 use phonedriver_core::similar::{SUGGEST_WITHIN, normalized_distance};
@@ -67,6 +67,9 @@ const PAGE_ZOOMED: f32 = 1.3;
 
 /// How many text fields a `not_focused` error names.
 const NOT_FOCUSED_FIELDS: usize = 5;
+
+/// How many drags `type` makes to bring back a field the keyboard pushed out of its list.
+const BRING_BACK_DRAGS: u32 = 4;
 
 const TREE_STABLE_WAIT: Duration = Duration::from_secs(1);
 const LOADING_WAIT: Duration = Duration::from_secs(4);
@@ -590,7 +593,7 @@ impl Actor {
         if op == AppOp::Uninstall {
             self.ledger(|l| l.retain(|a| *a != found.id.0));
         }
-        s.last = None;
+        s.set_last(None);
         let word = match op {
             AppOp::Stop => "stopped",
             AppOp::ClearData => "cleared the data of",
@@ -623,7 +626,8 @@ impl Actor {
             cfg.timeout = Duration::from_millis(t);
         }
         if settle && s.last.is_none() {
-            s.last = Some(self.fresh(s).await?);
+            let now = self.fresh(s).await?;
+            s.set_last(Some(now));
         }
         let limit = Duration::from_secs(p.time_limit_s.unwrap_or(30));
         let device = self.device()?;
@@ -1038,7 +1042,7 @@ impl Actor {
             elements: p.elements.then(|| rendered.elements.clone()),
             capture,
         };
-        s.last = Some(rendered);
+        s.set_last(Some(rendered));
         Ok(obs)
     }
 
@@ -1704,7 +1708,7 @@ impl Actor {
                 self.until_app_content(leaving.as_ref()).await?;
                 self.lap("app_content", t);
                 self.cold_until = Some(self.now() + COLD_APP_WINDOW);
-                s.last = None;
+                s.set_last(None);
                 let verb = if restart { "restarted" } else { "launched" };
                 let summary = if grant.is_empty() {
                     format!("{verb} {}", found.name)
@@ -1852,9 +1856,20 @@ impl Actor {
                 append,
             } => {
                 let chosen = mode.is_some();
+                let mut brought = String::new();
                 let (field, tap_at): (Option<Element>, Option<Point>) = match &into {
                     Some(t) => {
-                        let r = self.resolve_target(s, t).await?;
+                        let r = match self.resolve_target(s, t).await {
+                            Err(stale @ Error::StaleRef { r#ref, .. }) => {
+                                let Some(gone) = s.gone_field(r#ref).cloned() else {
+                                    return Err(stale);
+                                };
+                                let (r, said) = self.bring_back(s, cfg, &gone, stale).await?;
+                                brought = said;
+                                r
+                            }
+                            r => r?,
+                        };
                         let inner = r
                             .element
                             .as_ref()
@@ -2039,7 +2054,10 @@ impl Actor {
                     ""
                 };
                 let summary = approved_summary(
-                    format!("typed {}{label}{unzoomed}", plural(n as u64, "char")),
+                    format!(
+                        "{brought}typed {}{label}{unzoomed}",
+                        plural(n as u64, "char")
+                    ),
                     approved,
                 );
                 let expect = if replace {
@@ -2167,6 +2185,58 @@ impl Actor {
             y: 0.0,
             w: size.w,
             h: size.h,
+        }
+    }
+
+    /// Brings back a text field the agent was shown that a later screen dropped: a keyboard that opens shrinks a
+    /// form's list, and the fields below it leave the tree (Contacts, run a4). Drags the list toward where the field
+    /// was until exactly one field with its role and label shows, and says so for the summary.
+    async fn bring_back(
+        &mut self,
+        s: &mut Session,
+        cfg: Config,
+        gone: &Element,
+        stale: Error,
+    ) -> Result<(Resolved, String), Error> {
+        let device = self.device()?;
+        let mut now = self.fresh(s).await?;
+        let mut drags = 0u32;
+        let mut direction = Direction::Down;
+        loop {
+            let same: Vec<Ref> = now
+                .elements
+                .iter()
+                .filter(|e| e.role == gone.role && e.label == gone.label)
+                .map(|e| e.r#ref)
+                .collect();
+            if let [r] = same[..] {
+                let said = match drags {
+                    0 => String::new(),
+                    n => format!(
+                        "scrolled {} {} to {}, then ",
+                        direction.name(),
+                        plural(n.into(), "time"),
+                        quote(gone.label.as_deref().unwrap_or_default())
+                    ),
+                };
+                return Ok((s.resolve(&Target::Ref { r#ref: r }, &now)?, said));
+            }
+            let view = above_keyboard(self.screen_rect(), now.header.keyboard);
+            direction = if gone.bounds.center().y > view.y + view.h / 2.0 {
+                Direction::Down
+            } else {
+                Direction::Up
+            };
+            let Some(list) = scroll_container(&now, direction).filter(|_| drags < BRING_BACK_DRAGS)
+            else {
+                return Err(stale);
+            };
+            let area = above_keyboard(list.bounds, now.header.keyboard);
+            let started = self.begin_action();
+            device.gesture(gesture::scroll(area, direction)).await?;
+            drags += 1;
+            self.settle(cfg, started).await;
+            now = self.fresh(s).await?;
         }
     }
 
@@ -2498,7 +2568,7 @@ impl Actor {
             elements,
             capture: None,
         };
-        s.last = Some(rendered);
+        s.set_last(Some(rendered));
         self.lap("render", render);
         Ok(ActionResult {
             ok: true,
@@ -2589,7 +2659,7 @@ impl Actor {
                     elements: None,
                     capture: None,
                 };
-                s.last = Some(rendered);
+                s.set_last(Some(rendered));
                 ActionResult {
                     ok: true,
                     summary: String::new(),
@@ -2696,7 +2766,7 @@ impl Actor {
                     elements: None,
                     capture: None,
                 };
-                s.last = Some(rendered);
+                s.set_last(Some(rendered));
                 return Ok(ActionResult {
                     ok: true,
                     summary,
@@ -2794,7 +2864,7 @@ impl Actor {
             elements: None,
             capture: None,
         };
-        s.last = Some(rendered);
+        s.set_last(Some(rendered));
         Ok(ActionResult {
             ok: true,
             summary: "screen settled".into(),
