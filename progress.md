@@ -1167,3 +1167,11 @@ The fixes come from the first run on a physical Android phone, a Honor X8 (TFY-L
 - Test: `a_launch_that_is_the_first_call_on_a_polled_device_settles_without_waiting_out_its_window` (settle_ms 3000 before the change).
 - Live, with a fresh daemon each time: the first `launch Settings` settled in 508 and 405 ms (was 3,000), with a wall time of 4.0 and 3.5 s (was 7.9; the runner connect is about 2.2 s of it).
 - `cargo test --workspace --no-fail-fast`: 701 passed, 0 failed. Clippy: 0 warnings.
+
+## 2026-11-09: Safari pages lose their wrapper scaffolding
+
+- Every Safari reply began with `group "Safari" > group > webview > webview "8 pages" > webview > group "<title>"`. Each level indented every line below it by 2 more spaces: 402 of 2,059 bytes on the Ada Lovelace article were indent.
+- `fold_wrappers` drops an unlabeled, inert, valueless group with one child, and an unlabeled web view whose only child is a web view or that sits inside one. The web view that scrolls keeps its line.
+- Test: `prune::tests::a_safari_page_keeps_one_webview_and_no_bare_wrappers_around_it` (red before; the fixture copies the live structure from `snapshot --json`).
+- Live, the same `open https://en.wikipedia.org/wiki/Ada_Lovelace` from Settings: 2,059 bytes, 39 lines, 402 spaces of indent before; 1,754 bytes, 35 lines, 228 spaces after (−15%).
+- `cargo test --workspace --no-fail-fast`: 702 passed, 0 failed (Android and iOS goldens unchanged). Clippy: 0 warnings.
