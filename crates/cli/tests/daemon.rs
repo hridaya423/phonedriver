@@ -2981,6 +2981,45 @@ async fn type_into_a_field_the_keyboard_pushed_out_of_the_list_scrolls_it_back_a
 }
 
 #[tokio::test(start_paused = true)]
+async fn a_field_that_renames_itself_once_typed_into_is_named_by_its_new_ref() {
+    let field = |label: &str, value: &str, focused: bool| {
+        let json = format!(
+            r#"{{"windows":[{{"id":1,"type":"application","package":"com.example","bounds":[0,0,360,800]}}],"nodes":[
+            {{"p":-1,"w":1,"cls":"android.widget.FrameLayout","b":[0,0,360,800],"f":"vVe"}},
+            {{"p":0,"w":1,"cls":"android.widget.EditText","desc":"{label}","text":"{value}","b":[0,100,360,160],"f":"vVeE{}","a":["tap","set_text"]}}]}}"#,
+            if focused { "F" } else { "" }
+        );
+        RawTree::from_android_json(&json, Scale { density: 1.0 }).unwrap()
+    };
+    let (source, fake) = FakeSource::with(vec![field("Phone (Mobile)", "", false)]);
+    let (d, _home) = daemon(source);
+    ok(&d, "default", "snapshot", json!({})).await;
+    let after = field("Phone", "555", true);
+    fake.on_gesture(move |_| Some(vec![after.clone()]));
+    let r = ok(
+        &d,
+        "default",
+        "act",
+        json!({"action": {"kind": "type", "text": "555", "into": {"ref": "e1"}}}),
+    )
+    .await;
+    assert_eq!(r["verified"], true, "{r}");
+    let text = r["observation"]["text"].as_str().unwrap();
+    let new = text
+        .lines()
+        .find(|l| l.contains("textbox \"Phone\""))
+        .and_then(|l| l.split_whitespace().next())
+        .unwrap_or_else(|| panic!("{text}"));
+    assert!(
+        r["summary"]
+            .as_str()
+            .unwrap()
+            .ends_with(&format!("into {new}")),
+        "{r}"
+    );
+}
+
+#[tokio::test(start_paused = true)]
 async fn a_scroll_with_the_keyboard_up_drags_above_the_keyboard() {
     let (source, fake) = FakeSource::with(vec![half_covered_tree()]);
     let (d, _home) = daemon(source);
