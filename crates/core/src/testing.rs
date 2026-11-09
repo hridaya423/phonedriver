@@ -45,6 +45,7 @@ pub struct FakeDevice {
     frames: watch::Sender<FrameRef>,
     shell: Mutex<ShellReply>,
     on_text: Mutex<Option<TextHook>>,
+    on_gesture: Mutex<Option<GestureHook>>,
     hidden: Option<u32>,
     shot: Mutex<Option<Image>>,
     shot_failures: Mutex<Vec<Error>>,
@@ -52,6 +53,7 @@ pub struct FakeDevice {
 }
 
 type TextHook = Box<dyn Fn(&TextInput) -> Option<Vec<RawTree>> + Send + Sync>;
+type GestureHook = Box<dyn Fn(&Gesture) -> Option<Vec<RawTree>> + Send + Sync>;
 
 impl FakeDevice {
     /// `tree()` returns these in order, then keeps returning the last one.
@@ -83,6 +85,7 @@ impl FakeDevice {
             frames: watch::channel(FrameRef::default()).0,
             shell: Mutex::new(ShellReply::default()),
             on_text: Mutex::new(None),
+            on_gesture: Mutex::new(None),
             hidden: None,
             shot: Mutex::new(None),
             shot_failures: Mutex::new(Vec::new()),
@@ -111,6 +114,11 @@ impl FakeDevice {
     /// that ignores one kind of input, or shows the text a few reads late.
     pub fn on_text(&self, f: impl Fn(&TextInput) -> Option<Vec<RawTree>> + Send + Sync + 'static) {
         *lock(&self.on_text) = Some(Box::new(f));
+    }
+
+    /// After a `gesture` call for which `f` returns trees, `tree()` returns those in order, then keeps the last.
+    pub fn on_gesture(&self, f: impl Fn(&Gesture) -> Option<Vec<RawTree>> + Send + Sync + 'static) {
+        *lock(&self.on_gesture) = Some(Box::new(f));
     }
 
     /// `tree()` returns this from now on, as a screen that changes while the daemon waits.
@@ -239,6 +247,9 @@ impl Device for FakeDevice {
             if screen.locked && !screen.secure {
                 screen.locked = false;
             }
+        }
+        if let Some(trees) = lock(&self.on_gesture).as_ref().and_then(|f| f(&g)) {
+            *lock(&self.trees) = trees.into_iter().rev().collect();
         }
         self.record(Call::Gesture(g))
     }

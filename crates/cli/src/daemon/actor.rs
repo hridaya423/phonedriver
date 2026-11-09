@@ -60,6 +60,10 @@ const MAX_CHECKBOXES: usize = 16;
 const TREE_STEP: Duration = Duration::from_millis(100);
 const FOCUS_FOLLOW_WAIT: Duration = Duration::from_secs(5);
 const FOCUS_KEYBOARD_WAIT: Duration = Duration::from_millis(1200);
+
+/// A web field this many times wider after its focus tap means the page zoomed in on it. Safari on iOS does that for
+/// an input whose font is under 16 px, and WebKit then reports frames that taps miss.
+const PAGE_ZOOMED: f32 = 1.3;
 const TREE_STABLE_WAIT: Duration = Duration::from_secs(1);
 const LOADING_WAIT: Duration = Duration::from_secs(4);
 /// How long a reply waits for a tree that lists elements. A read right after an app starts can list none (observed
@@ -1907,6 +1911,7 @@ impl Actor {
                 let mut wipe = replace && held.is_some() && mode != TypeMode::Set;
                 let started = self.begin_action();
                 let mut field = field;
+                let mut zoomed = false;
                 if let Some(at) = tap_at {
                     let at = match (&field, wipe && !can_set) {
                         (Some(f), true) => Point {
@@ -1920,6 +1925,9 @@ impl Actor {
                         .as_ref()
                         .is_some_and(|f| s.last.as_ref().is_some_and(|l| l.in_web_view(f.r#ref)));
                     if in_page && let Some(f) = self.follow_focus(s, field.as_ref()).await? {
+                        zoomed = field.as_ref().is_some_and(|before| {
+                            before.r#ref == f.r#ref && f.bounds.w > before.bounds.w * PAGE_ZOOMED
+                        });
                         held = f.value.clone().filter(|v| !v.is_empty());
                         wipe = replace && held.is_some() && mode != TypeMode::Set;
                         field = Some(f);
@@ -1950,6 +1958,26 @@ impl Actor {
                     self.lap("text", t);
                     typed.map_err(|e| withhold(e, secure))?;
                 }
+                let unzoom = zoomed
+                    && device
+                        .info()
+                        .capabilities
+                        .contains(Capabilities::MULTI_TOUCH);
+                if unzoom {
+                    let screen = self.screen_rect();
+                    let above = s
+                        .last
+                        .as_ref()
+                        .and_then(|l| l.header.keyboard)
+                        .map_or(screen.center().y, |k| (screen.y + k.y) / 2.0);
+                    let center = Point {
+                        x: screen.center().x,
+                        y: above,
+                    };
+                    device
+                        .gesture(gesture::pinch(center, screen, false, 0.5))
+                        .await?;
+                }
                 if submit {
                     device.key(Key::Enter).await?;
                 }
@@ -1958,8 +1986,9 @@ impl Actor {
                     .as_ref()
                     .map(|f| format!(" into @{}", f.r#ref))
                     .unwrap_or_default();
+                let unzoomed = if unzoom { ", then zoomed the page back out" } else { "" };
                 let summary = approved_summary(
-                    format!("typed {}{label}", plural(n as u64, "char")),
+                    format!("typed {}{label}{unzoomed}", plural(n as u64, "char")),
                     approved,
                 );
                 let expect = if replace {
@@ -2039,7 +2068,7 @@ impl Actor {
     /// A page can answer a tap on its search box by building another field and focusing that one, a few hundred ms
     /// to a few seconds later (Wikipedia, where the old field is gone and the keyboard comes up with the new one).
     /// Text pasted before that goes to the old field. Reads the screen until the same field has been focused twice
-    /// in a row with the keyboard up, and returns it when it is not `field`.
+    /// in a row with the keyboard up, and returns that field as it now reads.
     async fn follow_focus(
         &mut self,
         s: &mut Session,
@@ -2047,7 +2076,7 @@ impl Actor {
     ) -> Result<Option<Element>, Error> {
         let started = Instant::now();
         let mut at = field.map(|f| f.r#ref);
-        let mut moved = None;
+        let mut held = None;
         let mut steady = 0;
         loop {
             tokio::time::sleep(TREE_STEP).await;
@@ -2069,10 +2098,13 @@ impl Actor {
                 .or(fields.first())
                 .copied();
             match focused {
-                Some(e) if Some(e.r#ref) == at => steady += 1,
+                Some(e) if Some(e.r#ref) == at => {
+                    held = Some((*e).clone());
+                    steady += 1;
+                }
                 Some(e) => {
                     at = Some(e.r#ref);
-                    moved = Some(e.clone());
+                    held = Some((*e).clone());
                     steady = 1;
                 }
                 None => steady = 0,
@@ -2080,7 +2112,7 @@ impl Actor {
             let waited = started.elapsed();
             let keyboard = now.header.keyboard.is_some() || waited >= FOCUS_KEYBOARD_WAIT;
             if (steady >= 2 && keyboard) || waited >= FOCUS_FOLLOW_WAIT {
-                return Ok(moved);
+                return Ok(held);
             }
         }
     }

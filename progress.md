@@ -1094,3 +1094,13 @@ The fixes come from the first run on a physical Android phone, a Honor X8 (TFY-L
 - `follow_focus` now prefers the field the tap aimed at when that field is among the focused ones.
 - Test: `a_web_page_that_calls_several_fields_focused_still_gets_the_text_in_the_field_asked_for`. Before the change it failed with the live symptom: `typed 10 chars into @e2`, `@e2 shows "Test Pilot"`.
 - `cargo test --workspace --no-fail-fast`: 689 passed, 0 failed. Clippy: 0 warnings.
+
+## 2026-11-09: `type` zooms a Safari page back out when the page zoomed in on the field
+
+- After the two earlier fixes, the rerun (i8b) still took 48 turns. The taps at x = 8 landed at first. Once the zoomed page panned, an element's visible part could be under 8 pt, so taps missed. A `scroll --until` on the 3.5× page ended on blank margin.
+- Live check with the CLI on the Simulator: `pinch in` with the keyboard up returned the page to scale 1. The name field went from 227 to 65 pt wide, and the keyboard and the typed text stayed.
+- `type` now compares the followed web field's width with its width before the focus tap. At 1.3 times or more, it pinches in, centered above the keyboard, after the text and before `--submit`. The summary ends with `then zoomed the page back out`.
+- `follow_focus` returns the focused field it settled on even when that field is the one tapped, so the caller sees its new bounds.
+- `FakeDevice::on_gesture` swaps the trees after a gesture, as `on_text` does, so a test can zoom the page on the focus tap.
+- Tests: `a_page_that_zooms_in_on_a_field_it_focuses_is_zoomed_back_out_after_typing` (red before the change) and `a_page_that_does_not_zoom_is_not_pinched`.
+- `cargo test --workspace --no-fail-fast`: 691 passed, 0 failed. Clippy: 0 warnings. `docs/architecture.md` (type, web pages) says what happens and why.
