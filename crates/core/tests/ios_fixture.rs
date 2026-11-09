@@ -121,3 +121,26 @@ fn a_safari_radio_is_a_radio_and_a_label_that_repeats_its_control_is_not_printed
     assert!(!text.contains("\"0\"") && !text.contains("\"1\""), "{text}");
     assert!(!text.contains("scroll bar"), "{text}");
 }
+
+fn render(json: &str) -> String {
+    let tree = RawTree::from_ios_json(json).unwrap();
+    let nodes = prune(&tree);
+    let refs = RefTable::default().assign(&tree, &nodes);
+    Rendered::build(nodes, &refs, header())
+        .text(&Filters::default())
+        .unwrap()
+}
+
+#[test]
+fn a_web_group_that_only_holds_one_link_does_not_split_the_line_the_link_is_part_of() {
+    let text = render(include_str!("fixtures/ios/safari_hn.json"));
+    assert!(!text.contains("2026-11-09T16:00:45"), "{text}");
+    let row = text
+        .lines()
+        .find(|l| l.contains("2 hours ago"))
+        .unwrap_or_default();
+    assert!(
+        row.contains("[user1 @") && row.contains("[122 comments @"),
+        "the row is split: {text}"
+    );
+}

@@ -463,6 +463,23 @@ fn fold_wrappers(mut nodes: Vec<Node>) -> Vec<Node> {
                 continue;
             }
         }
+        // Safari, Hacker News: a time's `title` names a group around its one link ("2026-11-09T16:00:45" around
+        // "2 hours ago"); the group split the row's line of text and links in two and printed the title besides.
+        if let [c] = kids[i][..]
+            && n.role == Role::Other
+            && n.actions.is_empty()
+            && n.value.is_none()
+            && n.hint.is_none()
+            && n.collection.is_none()
+            && tappable(&nodes[c])
+            && nodes[c].label.is_some()
+            && kids[c].is_empty()
+            && std::iter::successors(n.parent, |&p| nodes[p].parent)
+                .any(|p| nodes[p].role == Role::WebView)
+        {
+            drop[i] = true;
+            continue;
+        }
         // iOS Contacts: button "Message" holds an unlabeled button that takes the name of its "Message" icon.
         if let [c] = kids[i][..]
             && !n.actions.is_empty()
