@@ -2091,6 +2091,7 @@ impl Actor {
         let mut last = None;
         let may_fling = device.info().capabilities.contains(Capabilities::FRAMES);
         let max = max.unwrap_or_else(|| default_scroll_limit(&until, &now, direction));
+        let mut sorted = true;
         loop {
             match s.seek(&until, &now, holder) {
                 Ok(found) if found.covered.is_none() || idle >= 2 => {
@@ -2178,7 +2179,16 @@ impl Actor {
                     };
                     (dir, rows > 3 * span)
                 }
-                None => (direction, false),
+                None => match sorted_distance(&until, &now, direction, holder).filter(|_| sorted) {
+                    Some((behind, far)) if behind => (direction.opposite(), far),
+                    Some((_, far)) => (direction, far),
+                    None => {
+                        // The name falls between two rows on screen (or the rows are not in order): from here
+                        // the search goes one way, so a name the list lacks cannot send it back and forth.
+                        sorted = false;
+                        (direction, false)
+                    }
+                },
             };
             // A fling moves nothing on the iOS runner, so a device without a frame stream scrolls one drag at a time.
             let g = if far && may_fling {
@@ -2750,6 +2760,44 @@ fn numbered_distance(
         return None;
     };
     Some((behind, rows, max - min + 1))
+}
+
+/// Where a name is against a list whose rows are in alphabetical order (Settings' list of apps): `(behind, far)`,
+/// far when its first letter is at least `FAR_LETTERS` past the nearest row's. `None` when the rows are not sorted
+/// or the name falls between them.
+fn sorted_distance(
+    until: &Target,
+    now: &Rendered,
+    direction: Direction,
+    holder: Option<Ref>,
+) -> Option<(bool, bool)> {
+    const FAR_LETTERS: u32 = 3;
+    let Target::Text { text, .. } = until else {
+        return None;
+    };
+    let list = now.index_of(holder?)?;
+    let rows: Vec<String> = now
+        .elements
+        .iter()
+        .enumerate()
+        .filter(|(i, _)| now.parents[*i] == Some(list))
+        .filter_map(|(_, e)| e.label.as_deref().map(str::to_lowercase))
+        .collect();
+    if rows.len() < 4 || rows.windows(2).any(|w| w[0] > w[1]) {
+        return None;
+    }
+    let want = text.to_lowercase();
+    let (first, last) = (rows.first()?, rows.last()?);
+    let letter = |s: &str| s.chars().next().filter(char::is_ascii_lowercase).map(u32::from);
+    let forward = matches!(direction, Direction::Down | Direction::Right);
+    let (behind, gap) = if want > *last {
+        (!forward, letter(&want)?.checked_sub(letter(last)?)?)
+    } else if want < *first {
+        (forward, letter(first)?.checked_sub(letter(&want)?)?)
+    } else {
+        return None;
+    };
+    Some((behind, gap >= FAR_LETTERS))
 }
 
 /// Without `max`, 30 scrolls, or enough one-screen drags to cross the rows a numbered target is away.

@@ -982,3 +982,18 @@ The fixes come from the first run on a physical Android phone, a Honor X8 (TFY-L
 - Test: `a_tap_whose_ripple_settles_before_the_next_page_draws_waits_for_the_page` sends a ripple frame at 30 ms and the new page at 700 ms. It failed first with `settle_ms: 280` and an empty diff. `FakeDevice::set_tree` is new test support for it.
 - Live check on the Honor X8, release build: three rounds of `launch Settings`, `scroll down --until Apps`, `tap Apps` replied `settled in 905ms`, `756ms` and `845ms`, each `· new screen`.
 - `cargo test --workspace --no-fail-fast`: 678 passed, 0 failed. Clippy is clean.
+
+## 2026-11-09: scroll --until flings toward a name far down an alphabetical list
+
+- Seen in agent run t9: `scroll down --until "YouTube"` in Settings' list of apps took 23 drags. Numbered rows already fling when the target is far away; names in alphabetical order did not.
+- Changed: `sorted_distance` in `crates/cli/src/daemon/actor.rs`.
+  - It reads the rows directly inside the scrolled element. If there are at least 4, in order, it says whether the name is ahead or behind, and flings when its first letter is 3 or more letters away.
+  - The first time the name falls between two rows on screen, or the rows are out of order, the search goes on in the asked direction without steering. A name the list lacks then reaches the end once, instead of going back and forth. A word inside a label ("Music" in "YouTube Music") is still found further on.
+- Tests:
+  - `scroll_until_a_name_far_down_an_alphabetical_list_flings_and_a_near_one_drags`: a far name flings, a near name drags, and an unsorted list drags.
+  - `scroll_until_a_name_missing_from_an_alphabetical_list_goes_on_one_way_to_the_end` runs on a new `AlphaList` fake whose rows move with each gesture. The first version of the change failed it with `scrolled 30 times and "Gmail" is still not on screen`, the back-and-forth also seen on the phone.
+- Live check on the Honor X8, release build, Settings > Apps > Apps:
+  - `scroll down --until YouTube` from the top: `scrolled down 3 times`, 6.6 s, against 23 drags in t9.
+  - `scroll up --until "Adobe Scan"`: 3 times, 4.8 s.
+  - `scroll down --until Gmail`, an app this phone does not list: `scrolled 17 times and the list ended at "YouTube Music"; "Gmail" is not in it`, 16.8 s. Before the in-between rule, it failed after 30 scrolls and 25.4 s.
+- `cargo test --workspace --no-fail-fast`: 680 passed, 0 failed. Clippy is clean.
