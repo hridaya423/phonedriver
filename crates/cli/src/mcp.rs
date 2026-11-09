@@ -167,7 +167,7 @@ struct TypeArgs {
     text: String,
     /// @ref, `x,y` or text; default the focused field.
     into: Option<String>,
-    /// `paste` (default), `set` (Android: set the field's value) or `keys` (one key at a time, ASCII only on Android).
+    /// `paste` (default; on a hidden display, `set` for an app's own field), `set` (Android: set the field's value) or `keys` (one key at a time, ASCII only on Android).
     mode: Option<String>,
     /// Then press enter.
     submit: Option<bool>,
