@@ -44,10 +44,7 @@ fn is_secure(e: &Element) -> bool {
 }
 
 fn words(e: &Element) -> String {
-    let mut w = state_words(e);
-    if !e.role.is_text_entry() {
-        w.retain(|word| *word != "focused");
-    }
+    let w = state_words(e);
     if w.is_empty() {
         "(none)".into()
     } else {

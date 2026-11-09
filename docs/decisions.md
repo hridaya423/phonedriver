@@ -415,6 +415,7 @@ Secrets. The trace keeps the command text (an agent's command is what it did), b
 - A non-tappable parent, such as a heading, whose children spell exactly its label takes the run into its own line: `heading "Welcome to [Wikipedia @e13]"`.
 - Spaces follow the page. A space is added between two pieces unless one side already has whitespace, or the next piece starts with `,.;:!?)`, or the last one ends with `(`.
 - `--interactive` and every line outside a web view are unchanged.
+- Safari on iOS (2026-11-09): WebKit flags every node `focused` and gives each static text its label as a value. `state_words` prints `focused` only for text entry, and a value that repeats the label except for spacing is not a second text, so these nodes join runs as on Android. On the Ada Lovelace article's first screen, 54 lines and 2,473 chars became 39 lines and 2,071 bytes.
 
 **Why.** On a real phone, a Wikipedia main page was printed one line per inline run: `text "the "`, `button "free"`, `text " encyclopedia that "`. That is a ref, a role and quotes for every few words. Measured on the Honor X8 (golden `captured_honor_wikipedia_main`): 46 lines became 21, and 1,556 bytes became 1,245. The page also reads as prose, so the model sees the sentence that a link sits in.
 

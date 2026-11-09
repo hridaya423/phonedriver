@@ -1133,3 +1133,12 @@ The fixes come from the first run on a physical Android phone, a Honor X8 (TFY-L
 - The `DeviceBusy` hint now adds `or ask the user to run \`phonedriver release\`` for `default`, or `PHONEDRIVER_SESSION=<name> phonedriver release` for another CLI session. A lease held by an `mcp-` session (another agent) gets no command. MCP keeps the command as a terminal command (`ask the user to run phonedriver release in a terminal`), not a tool name.
 - Tests: `error::tests::a_device_a_cli_session_holds_names_the_command_that_frees_it_and_one_an_agent_holds_does_not` and a case in `mcp::tests::hints_name_tools_and_arguments` (both red before the change).
 - `cargo test --workspace --no-fail-fast`: all pass except the 6 `tests/ocr.rs` Vision failures (environment). Clippy: 0 warnings.
+
+## 2026-11-09: Safari paragraphs join into one line (D35 on iOS)
+
+- Agent run i10b (Ada Lovelace's first paragraph, word for word) passed in 4 turns and 13 s, but it read the paragraph from a screenshot. The snapshot split the paragraph into a line per text node and link, so D35's runs never formed on iOS.
+- Cause, from `snapshot --save-fixture`: WebKit sets `F` (focused) on every node, and `piece()` rejects any element with state words. The label-echo values were already handled by 47fdc68.
+- `state_words` prints `focused` only for text entry. The two callers that filtered it out themselves (`line`, diff `words`) no longer do.
+- Test: `render::tests::a_safari_paragraph_whose_every_node_says_focused_still_reads_as_one_line` (red before the change).
+- Live, the Ada Lovelace article's first screen after `open`: 54 lines and 2,473 chars before, 39 lines and 2,071 bytes after. The paragraph reads as prose with `[mathematician @e35]` inline. D35 records this.
+- `cargo test --workspace --no-fail-fast`: all pass except the 6 `tests/ocr.rs` Vision failures. Clippy: 0 warnings.

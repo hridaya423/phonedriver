@@ -418,9 +418,6 @@ impl Rendered {
             let _ = write!(s, " {v}");
         }
         for w in state_words(e) {
-            if w == "focused" && !e.role.is_text_entry() {
-                continue;
-            }
             s.push(' ');
             s.push_str(w);
         }
@@ -645,7 +642,7 @@ pub fn state_words(e: &Element) -> Vec<&'static str> {
     if !st.contains(ElementState::ENABLED) {
         w.push("disabled");
     }
-    if st.contains(ElementState::FOCUSED) {
+    if st.contains(ElementState::FOCUSED) && e.role.is_text_entry() {
         w.push("focused");
     }
     if st.contains(ElementState::SELECTED) {
@@ -1108,6 +1105,33 @@ mod tests {
             text.contains(&format!("@e1 text \"{}…(+100 chars)\"", "x".repeat(200))),
             "{text}"
         );
+    }
+
+    #[test]
+    fn a_safari_paragraph_whose_every_node_says_focused_still_reads_as_one_line() {
+        let r = RawTree::from_ios_json(
+            r#"{"app":{"bundle_id":"com.apple.mobilesafari","pid":1},"nodes":[
+            {"p":-1,"cls":"XCUIElementTypeOther","b":[0,0,402,874],"f":"vVe"},
+            {"p":0,"cls":"XCUIElementTypeWebView","b":[0,0,402,874],"f":"vVe"},
+            {"p":1,"cls":"XCUIElementTypeOther","b":[0,400,402,480],"f":"vVe"},
+            {"p":2,"cls":"XCUIElementTypeStaticText","text":", was an English","sd":", was an English ","b":[91,414,222,437],"f":"vVeF"},
+            {"p":2,"cls":"XCUIElementTypeLink","text":"mathematician","b":[221,414,340,437],"f":"vVeF","a":["tap"]},
+            {"p":4,"cls":"XCUIElementTypeStaticText","text":"mathematician","sd":"mathematician","b":[221,414,340,437],"f":"vVeF"},
+            {"p":2,"cls":"XCUIElementTypeStaticText","text":"and","sd":" and","b":[339,414,374,437],"f":"vVeF"},
+            {"p":2,"cls":"XCUIElementTypeLink","text":"writer","b":[16,442,63,465],"f":"vVeF","a":["tap"]},
+            {"p":7,"cls":"XCUIElementTypeStaticText","text":"writer","sd":"writer","b":[16,442,63,465],"f":"vVeF"}]}"#,
+        )
+        .unwrap();
+        let nodes = prune(&r);
+        let refs = RefTable::default().assign(&r, &nodes);
+        let text = Rendered::build(nodes, &refs, header())
+            .text(&Filters::default())
+            .unwrap();
+        assert!(
+            text.contains(r#"text ", was an English [mathematician @e"#),
+            "{text}"
+        );
+        assert!(!text.contains("focused"), "{text}");
     }
 
     #[test]
