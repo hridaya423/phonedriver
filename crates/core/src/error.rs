@@ -357,6 +357,9 @@ pub enum Error {
         query: String,
         /// Installed apps whose name shares a word with the query or is close to it, as `Name (id)`.
         similar: Vec<String>,
+        /// Every installed app's name, when none is similar and the device has few.
+        #[serde(skip_serializing_if = "Vec::is_empty")]
+        installed: Vec<String>,
     },
     #[error("{} elements match \"{query}\"", matches.len())]
     Ambiguous {
@@ -543,6 +546,10 @@ impl Error {
             Error::NoApp { similar, .. } if !similar.is_empty() => {
                 format!("Use one of these installed apps: {}.", similar.join("; "))
             }
+            Error::NoApp { installed, .. } if !installed.is_empty() => format!(
+                "Use one of the installed apps if one does the job: {}.",
+                installed.join(", ")
+            ),
             Error::NoApp { .. } => "Use `phonedriver apps` to list the installed apps.".into(),
             Error::NotFocused { fields } if !fields.is_empty() => format!(
                 "Pass `--into` with the field to type into: {}.",
@@ -775,10 +782,17 @@ mod tests {
             Error::NoApp {
                 query: "phonedriver testbed".into(),
                 similar: vec!["Testbed (dev.phonedriver.testbed)".into()],
+                installed: vec![],
             },
             Error::NoApp {
                 query: "Zork".into(),
                 similar: vec![],
+                installed: vec![],
+            },
+            Error::NoApp {
+                query: "Notes".into(),
+                similar: vec![],
+                installed: vec!["Reminders".into(), "Safari".into()],
             },
             Error::UnknownKey {
                 key: "bogus".into(),

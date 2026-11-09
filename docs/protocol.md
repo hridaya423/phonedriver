@@ -126,7 +126,7 @@ JSON-RPC `error` with `code` from the table, `message`, and `data: {code_name, h
 | -32021 | device_driven (another phonedriver daemon owns the device's agent; `data.id`, `data.pid`, `data.host`; decision D34) |
 | -32022 | disabled (a tap by ref or text names an element the app reports as disabled; nothing is sent; `data.ref`; a tap at `x,y` is never refused) |
 | -32015 | transport |
-| -32017 | no_app (`data.similar` lists installed apps that share a word with the name) |
+| -32017 | no_app (`data.similar` lists installed apps that share a word with the name; when none does and at most 40 apps are installed, `data.installed` lists every installed app by name) |
 | -32018 | unknown_key (`press` got a key it does not know; `data.valid` lists the keys) |
 | -32020 | secret_field (a `type` with plain text into a password field, or a text field whose label, hint or id names a one-time code, without `secret`; `data.ref`, `data.kind` `password` or `code`; decision D31) |
 | -32023 | not_focused (a `type` without `into` when the screen shows no focused text field and no keyboard; nothing is typed; `data.fields` lists up to five text fields on screen) |

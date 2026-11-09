@@ -2611,6 +2611,27 @@ async fn launching_an_unknown_app_says_no_app_and_lists_apps_that_share_a_word()
     assert!(!hint.contains("snapshot"), "{hint}");
 }
 
+#[tokio::test(start_paused = true)]
+async fn launching_an_app_a_short_list_lacks_names_every_installed_app() {
+    let (source, fake) = FakeSource::with(vec![tree(&["One"])]);
+    fake.install(&[
+        ("com.apple.reminders", "Reminders"),
+        ("com.apple.Preferences", "Settings"),
+        ("com.apple.mobilesafari", "Safari"),
+    ]);
+    let (d, _home) = daemon(source);
+    let e = err(
+        &d,
+        "default",
+        "act",
+        act_with(json!({"kind": "launch", "app": "Notes"})),
+    )
+    .await;
+    let hint = e.data["hint"].as_str().unwrap();
+    assert!(hint.contains("Reminders, Safari, Settings"), "{hint}");
+    assert!(!hint.contains("com.apple"), "{hint}");
+}
+
 fn chrome_tree(page: Option<&str>) -> RawTree {
     let content = match page {
         Some(text) => format!(

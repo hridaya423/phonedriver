@@ -68,6 +68,10 @@ const PAGE_ZOOMED: f32 = 1.3;
 /// How many text fields a `not_focused` error names.
 const NOT_FOCUSED_FIELDS: usize = 5;
 
+/// A `no_app` error lists every installed app when there are at most this many (a Simulator has about 25), so the
+/// agent need not call `apps` next.
+const NO_APP_LIST: usize = 40;
+
 /// How many drags `type` makes to bring back a field the keyboard pushed out of its list.
 const BRING_BACK_DRAGS: u32 = 4;
 
@@ -3201,6 +3205,12 @@ fn find_app<'a>(installed: &'a [App], query: &str) -> Result<&'a App, Error> {
         .filter(|(d, _)| *d <= SUGGEST_WITHIN)
         .collect();
     close.sort_by(|a, b| a.0.total_cmp(&b.0));
+    let mut installed: Vec<String> = if close.is_empty() && installed.len() <= NO_APP_LIST {
+        installed.iter().map(|a| a.name.clone()).collect()
+    } else {
+        Vec::new()
+    };
+    installed.sort_by_key(|n| n.to_lowercase());
     Err(Error::NoApp {
         query: query.to_string(),
         similar: close
@@ -3208,6 +3218,7 @@ fn find_app<'a>(installed: &'a [App], query: &str) -> Result<&'a App, Error> {
             .take(5)
             .map(|(_, a)| format!("{} ({})", a.name, a.id.0))
             .collect(),
+        installed,
     })
 }
 
