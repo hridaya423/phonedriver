@@ -1979,6 +1979,24 @@ async fn the_first_taps_after_a_launch_wait_for_a_cold_app_that_reacts_after_900
 }
 
 #[tokio::test(start_paused = true)]
+async fn a_tap_whose_ripple_settles_before_the_next_page_draws_waits_for_the_page() {
+    let (source, fake) = FakeSource::with(vec![tree_of("com.android.settings", &["Apps", "Battery"])]);
+    let (d, _home) = daemon(source);
+    ok(&d, "default", "snapshot", json!({})).await;
+    let late = fake.clone();
+    tokio::spawn(async move {
+        tokio::time::sleep(Duration::from_millis(30)).await;
+        late.push_frame(big_frame(1));
+        tokio::time::sleep(Duration::from_millis(670)).await;
+        late.set_tree(tree_of("com.android.settings", &["App launch", "Default apps"]));
+        late.push_frame(big_frame(2));
+    });
+    let r = ok(&d, "default", "act", tap_point(10.0, 120.0)).await;
+    let text = r["observation"]["text"].as_str().unwrap();
+    assert!(text.contains("Default apps"), "{r}");
+}
+
+#[tokio::test(start_paused = true)]
 async fn a_tap_long_after_a_launch_still_reports_no_change_after_500_ms() {
     let (source, fake) = installed();
     let (d, _home) = daemon(source);
