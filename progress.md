@@ -1306,3 +1306,12 @@ Rerun a5b (the Android form) took 22 calls and 49 s, against 16 calls and 52 s i
 The emulator's Chrome had reached 14, then 19 tabs, one per `open`, because a VIEW intent without a sender opens a new tab. On a person's phone that litters their browser. The agent's VIEW intent now carries `Browser.EXTRA_APPLICATION_ID` `dev.phonedriver`. Chrome then reuses the tab it opened for that id, and leaves the user's tabs alone. By hand with `am start`: three opens with the extra added one tab in total, and an open without it added another.
 
 - Live test `opening_pages_one_after_another_reuses_one_browser_tab` (open example.com, read "See N tabs", open .org and .net, read it again) failed with 17 against 19 before, and passes now. `open_a_deep_link_shows_that_row_and_a_web_link_shows_the_page` passes too, so links into apps still work.
+
+## 2026-11-09: a snapshot waits for a screen that lists nothing yet
+
+Agent run a7 (Android: Chrome's storage and version, through Settings) took 6 calls and was right. It started with `shell am start … APPLICATION_DETAILS_SETTINGS`, which answered `screen: no change after 252ms`, and the next `snapshot` printed a header with no app and no lines. That read fell between two activities, and the agent fell back to a screenshot. A settled `snapshot` now reads again every `TREE_STEP` for up to `CONTENT_WAIT` (2 s) while no node has a label or actions, as an action's reply already did.
+
+- Test: `a_snapshot_of_a_screen_still_empty_waits_for_its_elements` (empty for 300 ms, then a row) printed only the header before, and passes now.
+- `cargo test -q --workspace --no-fail-fast`: no failures. Clippy is clean.
+- Live, three times `shell am start …` then `snapshot`: the screen came back each time (Settings resumed its open screen, so the empty moment did not recur).
+- Open: in the same run, a screenshot taken right after a tap that replied `settled in 1230ms · new screen` showed the page transition half done. By hand: the screenshot right after the reply is mid-transition, and one a second later is the new page. On this emulator (software GPU, software H.264 encoder at 1080x2424) the frames lag the a11y tree, so settle saw quiet frames of the old page. Not changed; it needs a measurement on a phone with a hardware encoder first.

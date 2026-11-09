@@ -984,7 +984,20 @@ impl Actor {
             Some(st)
         };
         let t = Instant::now();
-        let tree = device.tree().await?;
+        let mut tree = device.tree().await?;
+        // Run a7: a snapshot right after `shell am start` read the screen between two activities and printed a
+        // header with no lines.
+        let empty_since = Instant::now();
+        while settle.is_some()
+            && !tree
+                .nodes
+                .iter()
+                .any(|n| n.label.is_some() || !n.actions.is_empty())
+            && empty_since.elapsed() < CONTENT_WAIT
+        {
+            tokio::time::sleep(TREE_STEP).await;
+            tree = device.tree().await?;
+        }
         self.lap("tree", t);
         let t = Instant::now();
         let line = settle.map(settle_line);

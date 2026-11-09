@@ -1581,6 +1581,26 @@ async fn find_with_a_role_word_no_label_holds_lists_that_role() {
     assert_eq!(r.as_array().unwrap().len(), 1, "{r}");
 }
 
+#[tokio::test(start_paused = true)]
+async fn a_snapshot_of_a_screen_still_empty_waits_for_its_elements() {
+    let empty = RawTree::from_android_json(
+        r#"{"windows":[{"id":1,"type":"application","package":"com.android.settings","bounds":[0,0,360,800]}],"nodes":[]}"#,
+        Scale { density: 1.0 },
+    )
+    .unwrap();
+    let (source, fake) = FakeSource::with(vec![empty]);
+    let (d, _home) = daemon(source);
+    tokio::spawn(async move {
+        tokio::time::sleep(Duration::from_millis(300)).await;
+        fake.set_tree(tree(&["Storage & cache"]));
+    });
+    let r = ok(&d, "default", "snapshot", json!({})).await;
+    assert!(
+        r["text"].as_str().unwrap().contains("Storage & cache"),
+        "{r}"
+    );
+}
+
 fn list_tree(labels: &[&str]) -> RawTree {
     let mut nodes = vec![
         r#"{"p":-1,"w":1,"cls":"android.widget.FrameLayout","b":[0,0,360,800],"f":"vVe"}"#
