@@ -19,6 +19,13 @@ fn unreadable() -> Error {
     }
 }
 
+/// A box can be read from the screenshot only when all of it is drawn there: Chrome zoomed in on a focused field
+/// reports the checkboxes past the left edge, and their pixels were read from whatever the edge showed.
+pub fn readable(b: Rect, screen: Rect, keyboard: Option<Rect>) -> bool {
+    let bottom = keyboard.map_or(screen.y + screen.h, |k| k.y);
+    b.x >= screen.x && b.y >= screen.y && b.x + b.w <= screen.x + screen.w && b.y + b.h <= bottom
+}
+
 /// For each box in pixels, whether most of its inside is a saturated color. `png` is a screenshot at one pixel per point.
 pub fn ticked(png: &[u8], boxes: &[Rect]) -> Result<Vec<bool>, Error> {
     let mut reader = png::Decoder::new(std::io::Cursor::new(png))
@@ -58,6 +65,33 @@ pub fn ticked(png: &[u8], boxes: &[Rect]) -> Result<Vec<bool>, Error> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn only_a_box_wholly_on_screen_and_above_the_keyboard_is_read() {
+        let screen = Rect {
+            x: 0.0,
+            y: 0.0,
+            w: 400.0,
+            h: 900.0,
+        };
+        let keyboard = Some(Rect {
+            x: 0.0,
+            y: 600.0,
+            w: 400.0,
+            h: 300.0,
+        });
+        let at = |x: f32, y: f32| Rect {
+            x,
+            y,
+            w: 17.0,
+            h: 17.0,
+        };
+        assert!(readable(at(10.0, 200.0), screen, keyboard));
+        assert!(!readable(at(-5.0, 200.0), screen, keyboard));
+        assert!(!readable(at(390.0, 200.0), screen, keyboard));
+        assert!(!readable(at(10.0, 590.0), screen, keyboard));
+        assert!(readable(at(10.0, 590.0), screen, None));
+    }
 
     fn screen(draw: impl Fn(usize, usize) -> [u8; 3]) -> Vec<u8> {
         let (w, h) = (80usize, 40usize);

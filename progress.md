@@ -1271,3 +1271,13 @@ Agent run i14 (iOS Simulator: a Groceries note in Notes) correctly reported that
 - Test: `launching_an_app_a_short_list_lacks_names_every_installed_app` failed with `Use \`phonedriver apps\` to list the installed apps.`, and passes now. The error catalog has the new hint.
 - `cargo test -q --workspace --no-fail-fast`: 47 of 48 test targets pass, and `ocr` fails (Apple Vision). Earlier runs this evening stopped at `ocr` without `--no-fail-fast`, so this run is also the check for the commits before it.
 - Live on the Simulator: `phonedriver launch Notes` gives the hint with 39 names, the same list `apps` prints.
+
+## 2026-11-09: web checkboxes are read only where they are drawn; Chrome is not pinched
+
+Agent run a5 (Android Chrome, the httpbin pizza form, not submitted) took 16 calls and 52 s, and the final form was right. The `type "Ring twice"` reply, though, said `Medium on → off`, `Large off → on`, `Bacon on → off` and `Mushroom on → off`. The agent spent calls doubting its taps and then checked with a screenshot. This reproduced on every try with the CLI. Chrome zooms in on the small field and the keyboard holds the zoom, so the checkboxes lie past the left edge. `read_checkboxes` then sampled clamped pixels at the edge. Each `type` here also pinched the page back out (the iOS Safari fix), which on Android did not hold (screenshot: still zoomed after `zoomed the page back out`) and cost time.
+
+- `checkbox::readable`: only a box drawn whole on screen and above the keyboard is read from the screenshot. Any other keeps the state the last observation gave its ref. Unit test `only_a_box_wholly_on_screen_and_above_the_keyboard_is_read`.
+- `type` does not pinch on an `android:` device. Test `chrome_on_android_zooms_in_on_a_field_and_is_not_pinched_back_out` fails with the gate removed and passes with it. `FakeDevice::with_id` is new for that test. A first try that keyed the pinch on a field at `x = 0` stopped the iOS pinch too (the zoomed Safari field sits at x≈160; only content past the edge reads x = 0), and the iOS screenshot showed the page still zoomed, so I replaced it.
+- Live on Android: tap Medium, Bacon and Mushroom, then `type "Ring twice" --into "Delivery instructions:"` gives `ok typed 10 chars into @e27 · verified · settled in 2417ms` with no radio or checkbox lines. A snapshot shows Medium, Bacon and Mushroom on.
+- Live on iOS: `type "Grace" --into "Customer name:"` still gives `…, then zoomed the page back out · verified`.
+- `cargo test -q --workspace --no-fail-fast`: no failures. Clippy is clean.
