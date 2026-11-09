@@ -406,6 +406,12 @@ pub(crate) enum Verb {
         /// The key or button.
         key: String,
     },
+    /// `press back`.
+    #[command(hide = true)]
+    Back,
+    /// `press home`.
+    #[command(hide = true)]
+    Home,
     /// Wait for `settled`, for a text or `@ref` to appear, or for `gone:<text>` (or `gone:@ref`) to leave the screen.
     Wait {
         /// `settled`, a text or `@ref` to appear, or `gone:<text>` (or `gone:@ref`) to leave.
@@ -860,7 +866,9 @@ pub(crate) async fn execute_with(
         | Verb::Open { .. }
         | Verb::Type { .. }
         | Verb::Clear { .. }
-        | Verb::Press { .. }) => {
+        | Verb::Press { .. }
+        | Verb::Back
+        | Verb::Home) => {
             let action = step_json(&verb, secret.as_deref())?;
             let r = client.call("act", act(action)).await?;
             show_action(&r, g.json)
@@ -1107,6 +1115,8 @@ pub(crate) fn step_json(verb: &Verb, secret: Option<&str>) -> Result<Value, Fail
         }
         Verb::Clear { target } => json!({"kind": "clear", "target": parse_target(target)}),
         Verb::Press { key } => json!({"kind": "press", "key": key}),
+        Verb::Back => json!({"kind": "press", "key": "back"}),
+        Verb::Home => json!({"kind": "press", "key": "home"}),
         Verb::Wait { condition } => {
             json!({"kind": "wait", "condition": wait_condition(condition)})
         }
@@ -1518,6 +1528,20 @@ mod tests {
             long: None,
             autonomous,
         }
+    }
+
+    #[test]
+    fn back_and_home_are_presses() {
+        assert_eq!(
+            parse_step_line("back").unwrap(),
+            json!({"kind": "press", "key": "back"})
+        );
+        assert_eq!(
+            parse_step_line("home").unwrap(),
+            json!({"kind": "press", "key": "home"})
+        );
+        let help = command().render_help().to_string();
+        assert!(!help.contains("\n  back"), "{help}");
     }
 
     #[test]

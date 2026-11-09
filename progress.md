@@ -966,3 +966,11 @@ The fixes come from the first run on a physical Android phone, a Honor X8 (TFY-L
 - Test: `typing_on_the_hidden_display_sets_the_field_so_the_phone_shows_no_clipboard_toast` in `crates/cli/tests/hidden_display.rs` covers hidden, main, `mode: paste` and a web field. It failed first with `Paste` where `SetValue("Hello world")` was expected.
 - Live check on the Honor X8, release build, hidden mode: `type "dark mode"` into Settings search replied `verified · settled in 274ms`; the paste took 915 ms. Two `adb screencap`s of the phone's own screen, taken right after, show Chrome with no toast. The hidden screen shows the three search results. The image is `phonedriver-launch/png/hidden-display-honor-x8.png`, outside the repo.
 - `cargo test --workspace --no-fail-fast`: 676 passed, 0 failed. Clippy is clean.
+
+## 2026-11-09: `phonedriver back` and `phonedriver home` are presses
+
+- Seen while driving the Honor X8 from the CLI: `phonedriver back` failed with `unrecognized subcommand 'back'` and clap suggested `batch`.
+- Changed: hidden `Back` and `Home` verbs in `crates/cli/src/commands.rs` send `press back` and `press home`. They work in `batch` steps too. They are hidden, so `--help` keeps its one `press` line.
+- Test: `back_and_home_are_presses` checks the batch step JSON and that the help does not list them.
+- Live check on the Honor X8, release build: `phonedriver back` replied `ok pressed back · settled in 723ms · new screen`.
+- `cargo test --workspace --no-fail-fast`: 677 passed, 0 failed. Clippy is clean.
