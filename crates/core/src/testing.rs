@@ -36,6 +36,7 @@ pub struct FakeDevice {
     calls: Mutex<Vec<Call>>,
     clipboard: Mutex<Option<String>>,
     foreground: Mutex<Option<AppId>>,
+    url_handler: Mutex<Option<AppId>>,
     screen: Mutex<ScreenState>,
     screen_reads: std::sync::atomic::AtomicUsize,
     tree_reads: std::sync::atomic::AtomicUsize,
@@ -71,6 +72,7 @@ impl FakeDevice {
             calls: Mutex::new(Vec::new()),
             clipboard: Mutex::new(None),
             foreground: Mutex::new(None),
+            url_handler: Mutex::new(None),
             screen_reads: Default::default(),
             tree_reads: Default::default(),
             screen: Mutex::new(ScreenState {
@@ -133,6 +135,11 @@ impl FakeDevice {
     }
 
     /// The same device under another id, as an Android device is `android:<serial>`.
+    /// The app `open_url` reports as handling a link that names no app.
+    pub fn set_url_handler(&self, app: Option<AppId>) {
+        *lock(&self.url_handler) = app;
+    }
+
     pub fn with_id(mut self, id: &str) -> FakeDevice {
         self.info.id = id.into();
         self
@@ -268,8 +275,9 @@ impl Device for FakeDevice {
         self.record(Call::Button(b))
     }
 
-    async fn open_url(&self, url: &Url, app: Option<&AppId>) -> Result<()> {
-        self.record(Call::OpenUrl(url.clone(), app.cloned()))
+    async fn open_url(&self, url: &Url, app: Option<&AppId>) -> Result<Option<AppId>> {
+        self.record(Call::OpenUrl(url.clone(), app.cloned()))?;
+        Ok(app.cloned().or_else(|| lock(&self.url_handler).clone()))
     }
 
     async fn text(&self, t: TextInput) -> Result<()> {

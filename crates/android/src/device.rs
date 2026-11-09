@@ -199,13 +199,14 @@ impl Device for AndroidDevice {
         }
     }
 
-    async fn open_url(&self, url: &Url, app: Option<&AppId>) -> Result<()> {
-        self.simple(
-            Op::OpenUrl,
-            json!({"op": "open_url", "url": url.0, "package": app.map(|a| a.0.as_str())}),
-        )
-        .await?;
-        Ok(())
+    async fn open_url(&self, url: &Url, app: Option<&AppId>) -> Result<Option<AppId>> {
+        let reply = self
+            .simple(
+                Op::OpenUrl,
+                json!({"op": "open_url", "url": url.0, "package": app.map(|a| a.0.as_str())}),
+            )
+            .await?;
+        Ok(reply["package"].as_str().map(|p| AppId(p.to_string())))
     }
 
     async fn text(&self, t: TextInput) -> Result<()> {

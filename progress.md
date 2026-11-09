@@ -1368,3 +1368,10 @@ Run a9 (Android: the top 15 Hacker News stories with points) took 3 calls in 17 
 - `cargo test -q --workspace --no-fail-fast`: no failures.
 - Live, the first Hacker News screen: 95 lines and 5643 bytes before, 72 lines and 4054 bytes after (−28%). The nav bar became one line: `group "[Hacker News @e12] [new @e13] … [submit @e19]"`.
 - `open` reuses Chrome's tab, but Chrome opens a new tab when the reused tab holds text typed into a form (32 tabs before, 33 after, measured). That keeps typed data, so I documented it and changed no code.
+
+## 2026-11-09: `open` in the browser already in front no longer waits 2.5 s for it to leave
+
+Every `open` took about 3 s to settle on the emulator, even example.com: `settled in 2881ms`, `3043ms`, `3125ms`, `3176ms`. The open path had no laps, so I added `open_url`, `app_content` and `page`. The trace then showed `app_content` at 2560 to 2800 ms on every call. `until_app_content` waits for a window of an app other than the one in front, for up to `LEAVE_WAIT` (2.5 s). When the URL opens in the browser that is already in front, no other app ever comes, so each call waited out the full 2.5 s. The agent already replied with the package that handles the link, and `AndroidDevice` dropped it. `Device::open_url` now returns `Option<AppId>`: Android gives the package, iOS and CoreDevice give `None` and behave as before. `open` no longer waits for the app in front to leave when that app handles the link.
+
+- Test `a_link_opened_in_the_browser_already_in_front_does_not_wait_for_the_browser_to_leave` uses a fake whose URL handler is the app in front. With the old filter it took 2.85 s and failed; with the fix it passes. The fake's page changes after the open, as a real page does, because a page that stays the same makes settle wait for `expect_change` instead.
+- Live, in Chrome already in front: `settled in 1839ms`, `1078ms`, `1496ms`, against 2.9 to 3.1 s before. `app_content` is now 0.7 to 1.2 s, which is the page loading. Opening from Settings still takes 3.2 s, because Chrome has to come to the front.
