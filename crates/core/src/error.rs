@@ -387,6 +387,11 @@ pub enum Error {
     },
     #[error("timed out after {waited_ms} ms waiting for {condition}")]
     Timeout { waited_ms: u32, condition: String },
+    #[error("no text field has focus and no keyboard is shown, so nothing was typed")]
+    NotFocused {
+        /// The text fields on screen, as lines.
+        fields: Vec<ElementLine>,
+    },
     #[error("{}", not_reached(query, *scrolls, *end, last.as_deref()))]
     NotReached {
         query: String,
@@ -471,6 +476,7 @@ impl Error {
             Error::UnknownKey { .. } => -32018,
             Error::NeedsApproval { .. } => -32019,
             Error::SecretField { .. } => -32020,
+            Error::NotFocused { .. } => -32023,
         }
     }
 
@@ -538,6 +544,11 @@ impl Error {
                 format!("Use one of these installed apps: {}.", similar.join("; "))
             }
             Error::NoApp { .. } => "Use `phonedriver apps` to list the installed apps.".into(),
+            Error::NotFocused { fields } if !fields.is_empty() => format!(
+                "Pass `--into` with the field to type into: {}.",
+                fields.join("; ")
+            ),
+            Error::NotFocused { .. } => "Tap the field first, or pass `--into` with its text.".into(),
             Error::Ambiguous { matches, .. } if matches.iter().all(|m| m.starts_with('@')) => {
                 format!("Use a ref instead: {}", matches.join("; "))
             }
@@ -779,6 +790,10 @@ mod tests {
                 app: Some("Testbed".into()),
                 details: vec!["Total $12.00".into()],
             },
+            Error::NotFocused {
+                fields: vec!["@e40 textbox \"Search Wikipedia\"".into()],
+            },
+            Error::NotFocused { fields: vec![] },
             Error::SecretField {
                 r#ref: Ref(3),
                 kind: SecretKind::Password,
@@ -843,6 +858,7 @@ mod tests {
             Error::UnknownKey { .. } => (-32018, "unknown_key"),
             Error::NeedsApproval { .. } => (-32019, "needs_approval"),
             Error::SecretField { .. } => (-32020, "secret_field"),
+            Error::NotFocused { .. } => (-32023, "not_focused"),
         }
     }
 

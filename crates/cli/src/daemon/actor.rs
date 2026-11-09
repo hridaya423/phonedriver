@@ -64,6 +64,10 @@ const FOCUS_KEYBOARD_WAIT: Duration = Duration::from_millis(1200);
 /// A web field this many times wider after its focus tap means the page zoomed in on it. Safari on iOS does that for
 /// an input whose font is under 16 px, and WebKit then reports frames that taps miss.
 const PAGE_ZOOMED: f32 = 1.3;
+
+/// How many text fields a `not_focused` error names.
+const NOT_FOCUSED_FIELDS: usize = 5;
+
 const TREE_STABLE_WAIT: Duration = Duration::from_secs(1);
 const LOADING_WAIT: Duration = Duration::from_secs(4);
 /// How long a reply waits for a tree that lists elements. A read right after an app starts can list none (observed
@@ -1868,18 +1872,37 @@ impl Actor {
                             None => (r.element, Some(r.at)),
                         }
                     }
-                    None => (
-                        s.last.as_ref().and_then(|last| {
-                            last.elements
+                    None => {
+                        let focused = |r: &Rendered| {
+                            r.elements
                                 .iter()
                                 .find(|e| {
                                     e.state.contains(ElementState::FOCUSED)
                                         && e.role.is_text_entry()
                                 })
                                 .cloned()
-                        }),
-                        None,
-                    ),
+                        };
+                        let known = s.last.as_ref().and_then(focused);
+                        if known.is_some() {
+                            (known, None)
+                        } else {
+                            // Chrome, a tap on Wikipedia's search icon while the page loaded: no field took focus,
+                            // and the text was pasted into nothing and reported as typed.
+                            let now = self.fresh(s).await?;
+                            if now.header.keyboard.is_none() && focused(&now).is_none() {
+                                return Err(Error::NotFocused {
+                                    fields: now
+                                        .elements
+                                        .iter()
+                                        .filter(|e| e.role.is_text_entry())
+                                        .take(NOT_FOCUSED_FIELDS)
+                                        .map(|e| now.line(e).trim_start().to_string())
+                                        .collect(),
+                                });
+                            }
+                            (focused(&now), None)
+                        }
+                    }
                 };
                 // A paste in hidden mode still raises the system's clipboard toast on the phone's own screen ("Settings
                 // is accessing the clipboard", HONOR X8, Android 13), so a native field there is set instead. A web

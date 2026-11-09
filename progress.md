@@ -1224,3 +1224,11 @@ Agent run a2 on the emulator: create a 6:45 AM "Gym" alarm in Clock through its 
 - Tests: `a_label_spaces_with_plain_spaces_and_a_field_keeps_its_own`, `a_row_named_with_its_text_says_that_text_once_though_their_spaces_differ`. The goldens `real_settings_apps` and `captured_clock_alarms` changed only in their spaces (checked by script).
 - `cargo test -q --workspace`: no failures. Clippy is clean.
 - Live, on the emulator's Clock alarm list, `phonedriver snapshot` went from 762 to 593 bytes; each alarm is two lines, not three.
+
+## 2026-11-09: `type` with nothing focused fails instead of pasting into nothing
+
+Agent run a3 (Chrome, Wikipedia search for Grace Hopper) took 8 calls and gave the right answer. Its first tap on the search icon came while the page was still loading, so no field took focus. `type "Grace Hopper" submit` then answered `ok typed 12 chars · no element changed`, and the agent needed a snapshot and a screenshot to see that nothing had happened. Now, when the last observation shows no focused text field, `type` without `into` reads the screen again. If that read also shows no focused text field and no keyboard, it fails with `not_focused` (-32023), types nothing, and names up to five text fields on screen (`Pass \`--into\` with the field to type into: @e4 textbox "…"`). The MCP server says `into`. When a keyboard is up, the text is still typed, so a field the tree does not mark focused keeps working.
+
+- Test: `type_without_into_when_nothing_has_focus_types_nothing_and_names_the_fields` failed before the change (it got `ok`, `typed 12 chars`), and passes now. The error catalog has both hint forms.
+- Live, on the emulator with Chrome on the Grace Hopper article: `phonedriver type "Grace Hopper"` gives exit 1, `error: no text field has focus and no keyboard is shown, so nothing was typed`, `hint: Pass \`--into\` with the field to type into: @e4 textbox "en.wikipedia.org/wiki/Grace_Hopper".` After `tap @e4`, `type "example.com"` gives `ok typed 11 chars into @e4 · verified`.
+- `cargo test -q --workspace`: no failures except `tests/ocr.rs` (6 of 7). Apple Vision answers "could not read this screenshot" with or without this change (checked with `git stash`), so the cause is this Mac's Vision service, not the code.
