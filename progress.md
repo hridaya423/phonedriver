@@ -1150,3 +1150,10 @@ The fixes come from the first run on a physical Android phone, a Honor X8 (TFY-L
 - Test: `a_launch_with_restart_stops_the_app_first_so_it_opens_on_its_first_screen` (red before the change).
 - Live on the iPhone 17 Simulator: `launch Settings` showed `button "General"` (inside General); `launch Settings --restart` showed the root list (`Apple Account…`, `General`). `launch Calendar --restart` twice in a row succeeded both times.
 - `cargo test --workspace --no-fail-fast`: all pass except the 6 `tests/ocr.rs` Vision failures. Clippy: 0 warnings.
+
+## 2026-11-09: `scroll --until`, `wait` and `find` take `A|B`
+
+- In agent run i12 (Settings, Airplane Mode and Wi-Fi), the agent wrote `find: "Airplane|Wi-Fi|Wi‑Fi"` and `scroll until: "Airplane|Wi-Fi"`. phonedriver read the `|` literally, so the reply was `no match`, which reads as "not on this screen". (The Simulator really has neither row, so the run's answer was right for the wrong reason.)
+- `Session::seek` (used by `scroll --until` and `wait`) and `Session::find` also try each `|`-separated text; the first match on screen wins. A literal match still counts. `sorted_distance` does not fling a sorted list for an alternation. `tap` is unchanged. The `until`, `find` and `wait` docs say `A|B`.
+- Tests: `session::tests::a_search_for_either_of_two_texts_stops_at_the_first_on_screen` (red before) and `actor::tests::a_search_for_either_of_two_names_does_not_fling_through_a_sorted_list` (red with the guard removed).
+- `cargo test --workspace --no-fail-fast`: all pass except the 6 `tests/ocr.rs` Vision failures. Clippy: 0 warnings.
