@@ -1247,3 +1247,11 @@ In Contacts the new phone field is `textbox "Phone (Mobile)"`. Once it holds tex
 
 - Test: `a_field_that_renames_itself_once_typed_into_is_named_by_its_new_ref`. Before the fix it got `typed 3 chars into @e1`, with `@e2 textbox "Phone" "555" focused` on screen. Now it gets `into @e2`.
 - `cargo test -q --workspace`: no failures outside `tests/ocr.rs`. Apple Vision is failing on this Mac again ("could not read this screenshot"). It passed in the run before this one.
+
+## 2026-11-09: "the screen before the last one is back" replaces "back to the screen from before"
+
+Rerun a4b (Contacts, Grace Hopper with a phone and email) took 12 calls and 36 s, down from 15 and 39 s in a4. The batch of three `type` calls brought the Phone field back by itself (`3. scrolled down 1 time to "Phone (Mobile)", then typed 8 chars into @e33 · verified`). While I reproduced a short reply after Save, I found a misleading line. List, then contact, then back, then the same contact again: the tap that opens the contact answered `back to the screen from before, unchanged`, and SKILL.md says that line means a dialog closed. The refs do hold, because it is the page the agent was just shown, so the behavior stays. Only the words change: `the screen before the last one is back, unchanged` / `…, except:`. Both SKILL.md and the architecture now describe it. The architecture's IME row also now says what a tap under the keyboard does since af59453: it hides the keyboard and taps.
+
+- Live, before the change: `tap "Grace Hopper"` after back answered `back to the screen from before, except: - @e85` while the contact page was open.
+- Test expectations changed first (diff.rs, daemon.rs, actions.rs). `cargo test -q -p phonedriver-core diff` then gave `2 failed`, and after the change the workspace shows no failures outside `tests/ocr.rs` (Apple Vision is down again).
+- The short reply after Save (seven lines, while the page went on to list Call, Message and the phone) did not reproduce when a contact is opened from the list. That is still open.

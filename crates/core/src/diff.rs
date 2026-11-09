@@ -176,9 +176,9 @@ impl DiffOrFull {
                 }
                 Change::Uncovered => lines.push(
                     if changes.len() == 1 {
-                        "back to the screen from before, unchanged"
+                        "the screen before the last one is back, unchanged"
                     } else {
-                        "back to the screen from before, except:"
+                        "the screen before the last one is back, except:"
                     }
                     .into(),
                 ),
@@ -549,7 +549,10 @@ mod tests {
         let back = screen(&mut t, &buttons(&TEN));
         assert_eq!(diff(&dialog, &back), DiffOrFull::Full);
         let d = diff_below(&dialog, &back, Some(&a));
-        assert_eq!(d.text(&back), "back to the screen from before, unchanged");
+        assert_eq!(
+            d.text(&back),
+            "the screen before the last one is back, unchanged"
+        );
     }
 
     #[test]
@@ -562,7 +565,7 @@ mod tests {
         let back = screen(&mut t, &buttons(&later));
         assert_eq!(
             diff_below(&dialog, &back, Some(&a)).text(&back),
-            "back to the screen from before, except:\n- @e10\n+ @e13 button \"K\""
+            "the screen before the last one is back, except:\n- @e10\n+ @e13 button \"K\""
         );
     }
 
