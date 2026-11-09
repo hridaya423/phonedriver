@@ -1361,8 +1361,12 @@ pub(crate) fn show_shell(result: &Value, json: bool) -> Result<String, Failure> 
             .strip_prefix("ran")
             .unwrap_or(seen)
             .trim_start_matches(" · ");
+        let seen: Vec<&str> = seen
+            .lines()
+            .filter(|l| !l.starts_with("hint: nothing changed;"))
+            .collect();
         out.push_str("\nscreen: ");
-        out.push_str(seen);
+        out.push_str(&seen.join("\n"));
     }
     Ok(out)
 }
@@ -1653,6 +1657,17 @@ mod tests {
         assert!(parse_step_line("devices").unwrap_err().contains("batch"));
         assert!(parse_step_line("").is_err());
         assert!(parse_step_line("tap").is_err());
+    }
+
+    #[test]
+    fn a_shell_command_that_leaves_the_screen_alone_gets_no_missed_tap_hint() {
+        let mut action = action(false, "diff", "");
+        action["settle_ms"] = json!(250);
+        action["summary"] = json!("ran");
+        let shell = json!({"exit": 0, "output": "dark", "omitted": 0, "ms": 81, "timed_out": false, "action": action});
+        let shown = show_shell(&shell, false).unwrap();
+        assert!(shown.contains("screen: no change after 250ms"), "{shown}");
+        assert!(!shown.contains("tap"), "{shown}");
     }
 
     #[test]
