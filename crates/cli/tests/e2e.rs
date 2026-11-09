@@ -254,13 +254,13 @@ async fn a_secure_screen_says_so_and_its_tree_is_still_readable() {
     rig.tab("secure").await;
     tokio::time::sleep(std::time::Duration::from_millis(800)).await;
     let text = rig.ok(&["snapshot"]);
-    assert!(
-        text.lines()
-            .nth(1)
-            .unwrap()
-            .contains("secure content hidden"),
-        "{text}"
-    );
+    let header = |t: &str| {
+        t.lines()
+            .find(|l| l.starts_with("app "))
+            .unwrap_or_default()
+            .to_string()
+    };
+    assert!(header(&text).contains("secure content hidden"), "{text}");
     assert!(text.contains("SECRET code 123456"), "{text}");
     rig.tab("taps").await;
     tokio::time::sleep(std::time::Duration::from_millis(800)).await;

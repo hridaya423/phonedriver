@@ -80,7 +80,7 @@ async fn typing_into_a_field_returns_a_value_line() {
     assert!(
         changed
             .iter()
-            .any(|l| l.contains("textbox") && l.contains("→ \"hello\"")),
+            .any(|l| l.contains("textbox") && l.contains("\"hello\"")),
         "{r}"
     );
 }
@@ -467,7 +467,11 @@ async fn press_back_on_the_second_screen_returns_to_the_first() {
     rig.tab("settle").await;
     rig.ok(&["--expect-change", "1500", "tap", "Open second"]);
     let r = rig.json(&["press", "back"]);
-    assert!(text(&r).contains("Open second"), "{r}");
+    let t = text(&r);
+    assert!(
+        t.contains("Open second") || t == "back to the screen from before, unchanged",
+        "{r}"
+    );
     let log = testbed::wait_for_log(&rig.adb, &rig.serial, 3000, |l| {
         l.iter()
             .any(|e| e["ev"] == "second" && e["state"] == "destroyed")
@@ -683,7 +687,7 @@ async fn after_a_paste_type_the_device_clipboard_is_what_it_was_before() {
 
 #[tokio::test]
 #[ignore = "needs PHONEDRIVER_TEST_DEVICE"]
-async fn a_shown_keyboard_marks_the_button_under_it_and_tapping_that_button_says_how_to_get_out() {
+async fn a_shown_keyboard_marks_the_button_under_it_and_tapping_that_button_hides_the_keyboard_first() {
     let rig = Rig::new().await;
     rig.tab("text").await;
     let before = rig.ok(&["snapshot"]);
@@ -711,26 +715,11 @@ async fn a_shown_keyboard_marks_the_button_under_it_and_tapping_that_button_says
     assert!(send.ends_with("under-keyboard"), "{send}");
 
     testbed::clear_log(&rig.adb, &rig.serial).await;
-    let out = rig.cli(&["tap", "Send"]);
-    let err = failure(&out);
-    assert_eq!(out.status.code(), Some(1), "{err}");
-    assert!(err.contains("under the keyboard"), "{err}");
-    assert!(err.contains("press back"), "{err}");
-    tokio::time::sleep(std::time::Duration::from_millis(500)).await;
-    let log = testbed::read_log(&rig.adb, &rig.serial).await;
-    assert!(log.iter().all(|e| e["id"] != "send"), "{log:?}");
-
-    rig.ok(&["press", "back"]);
-    let mut hidden = String::new();
-    for _ in 0..30 {
-        hidden = rig.ok(&["snapshot"]);
-        if hidden.contains("keyboard hidden") {
-            break;
-        }
-        tokio::time::sleep(std::time::Duration::from_millis(200)).await;
-    }
-    assert!(hidden.contains("keyboard hidden"), "{hidden}");
-    rig.ok(&["tap", "Send"]);
+    let r = rig.json(&["tap", "Send"]);
+    assert!(
+        r["summary"].as_str().unwrap().starts_with("hid the keyboard, then"),
+        "{r}"
+    );
     let log = testbed::wait_for_log(&rig.adb, &rig.serial, 3000, |l| {
         l.iter().any(|e| e["id"] == "send")
     })

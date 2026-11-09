@@ -1203,3 +1203,16 @@ The fixes come from the first run on a physical Android phone, a Honor X8 (TFY-L
 - Tests: `a_long_value_cut_short_by_the_platform_is_not_printed_beside_the_label_it_repeats` (red with the rule disabled), `long_labels_truncate` (now also requires the hint, and no hint under `within`), and a case in `hints_name_tools_and_arguments`.
 - Live, `open https://httpbin.org/get?x=1`: the JSON text prints once, followed by `hint: \`phonedriver snapshot --within @e3\` prints @e3 whole`. The whole reply is 709 bytes.
 - `cargo test --workspace --no-fail-fast`: 705 passed, 0 failed. Clippy: 0 warnings.
+
+## 2026-11-09: Android live suites re-run after the iOS hillclimb
+
+Ran the three live suites on win-pc `emulator-5554` (Pixel_API_37, `-gpu swangle_indirect`; the default gfxstream backend hung adb shell).
+
+- e2e: the secure-screen test read line 0 as the header. Since the device line prints once per session, it now finds the `app ` line. 10 of 10 pass.
+- actions: 4 failures. None were regressions:
+  - The typing test wanted `→ "hello"`. A field that changes both value and focus prints as one line, `~ @e31 textbox "hello" focused` (1903f10).
+  - The back test wanted the first screen in full. A back press onto an unchanged screen prints `back to the screen from before, unchanged` (20f51d8).
+  - The keyboard test wanted a refusal. A tap under the keyboard now hides it and taps (af59453). The test now checks for the summary `hid the keyboard, then …` and the testbed's `send` event.
+  - Deep link: Chrome showed its notifications sheet over an empty page once. It passed on rerun.
+- `cargo test -p phonedriver --test actions -- --ignored --test-threads=1` on the four tests: `4 passed; 0 failed`.
+- states: `8 passed; 0 failed`.
