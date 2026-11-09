@@ -1336,3 +1336,7 @@ In run i8f, `press hide-keyboard` in Safari failed with `this screen kept the ke
 - Test `hiding_the_keyboard_taps_done_on_the_bar_above_it_and_not_a_done_elsewhere`, with the measured bounds. My first gap of 12 pt was wrong (the live tap still failed), and the saved tree showed the 32 pt gap.
 - Live in Safari: `type "Ring twice" --into "Delivery instructions:"`, then `press hide-keyboard` gives `ok hid the keyboard via hide-key · settled in 638ms` (before the variant) and then `via done`, with `keyboard hidden`.
 - `cargo test -q --workspace --no-fail-fast`: no failures. Clippy is clean.
+
+## 2026-11-09: iOS Safari form, measured after the web-form changes
+
+Rerun i8g (same task as i8f): 11 calls and 31 s, against 11 calls and 41 s for i8f. The answer was correct: Medium on, Bacon and Mushroom on, all text fields verified, not submitted. `press hide-keyboard` answered `ok hid the keyboard via done`, where i8f got an error, and the replies printed no label lines and no raw radio values.
