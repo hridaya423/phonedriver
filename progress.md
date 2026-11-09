@@ -997,3 +997,15 @@ The fixes come from the first run on a physical Android phone, a Honor X8 (TFY-L
   - `scroll up --until "Adobe Scan"`: 3 times, 4.8 s.
   - `scroll down --until Gmail`, an app this phone does not list: `scrolled 17 times and the list ended at "YouTube Music"; "Gmail" is not in it`, 16.8 s. Before the in-between rule, it failed after 30 scrolls and 25.4 s.
 - `cargo test --workspace --no-fail-fast`: 680 passed, 0 failed. Clippy is clean.
+
+## 2026-11-09: tonight's changes on the iOS Simulator (smoke run)
+
+- I could not run the Android emulator suites, because win-pc (`mmhv`) is offline on Tailscale. So I copied the MacBook release build at `70a03c0` to the Mac mini (`~/phone-use-work/pd-night`) and drove the iPhone 17 Simulator (iOS 26.5), session `night`, with the cached runner.
+- Results:
+  - `launch Settings`: settled in 1132 ms.
+  - `tap About`: new screen.
+  - `tap '"General"'`, with the quotes: `back to the screen from before, unchanged`.
+  - `scroll down --until "VPN & Device Management"`: `already on screen, no scroll`.
+  - `tap Keyboard`: new screen.
+  - Then `press home`, `release` and `daemon stop`.
+- Not run: the iOS e2e suites, because the mini has 3.8 GB free and building there was ruled out.
