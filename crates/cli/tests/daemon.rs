@@ -806,6 +806,55 @@ async fn a_web_page_that_calls_several_fields_focused_still_gets_the_text_in_the
     assert_eq!(r["verified"], true, "{r}");
 }
 
+fn small_web_field_tree(value: &str, zoomed: bool) -> RawTree {
+    let b = if zoomed { "[20,100,350,200]" } else { "[60,100,160,130]" };
+    let json = format!(
+        r#"{{"windows":[{{"id":1,"type":"application","package":"com.apple.mobilesafari","bounds":[0,0,360,800]}}],"nodes":[
+        {{"p":-1,"w":1,"cls":"android.widget.FrameLayout","b":[0,0,360,800],"f":"vVe"}},
+        {{"p":0,"w":1,"cls":"android.webkit.WebView","text":"Order","b":[0,0,360,800],"f":"vVe"}},
+        {{"p":1,"w":1,"cls":"android.widget.EditText","text":"{value}","desc":"Name","b":{b},"f":"vVeEF","a":["tap"]}}]}}"#
+    );
+    RawTree::from_android_json(&json, Scale { density: 1.0 }).unwrap()
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_page_that_zooms_in_on_a_field_it_focuses_is_zoomed_back_out_after_typing() {
+    let (source, fake) = FakeSource::with(vec![small_web_field_tree("", false)]);
+    let (d, _home) = daemon(source);
+    ok(&d, "default", "snapshot", json!({})).await;
+    fake.on_gesture(|g| (g.fingers.len() == 1).then(|| vec![small_web_field_tree("", true)]));
+    fake.on_text(|_| Some(vec![small_web_field_tree("Test Pilot", false)]));
+    let params = json!({"action": {"kind": "type", "text": "Test Pilot", "into": {"text": "Name"}}});
+    let r = ok(&d, "default", "act", params).await;
+    assert_eq!(r["verified"], true, "{r}");
+    assert!(r["summary"].as_str().unwrap().contains("zoomed the page back out"), "{r}");
+    let calls = fake.calls();
+    let typed = calls.iter().position(|c| matches!(c, Call::Text(_))).unwrap();
+    assert!(
+        calls[typed..]
+            .iter()
+            .any(|c| matches!(c, Call::Gesture(g) if g.fingers.len() == 2)),
+        "{calls:?}"
+    );
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_page_that_does_not_zoom_is_not_pinched() {
+    let (source, fake) = FakeSource::with(vec![small_web_field_tree("", false)]);
+    fake.on_text(|_| Some(vec![small_web_field_tree("Test Pilot", false)]));
+    let (d, _home) = daemon(source);
+    ok(&d, "default", "snapshot", json!({})).await;
+    let params = json!({"action": {"kind": "type", "text": "Test Pilot", "into": {"text": "Name"}}});
+    let r = ok(&d, "default", "act", params).await;
+    assert!(!r["summary"].as_str().unwrap().contains("zoomed"), "{r}");
+    assert!(
+        !fake
+            .calls()
+            .iter()
+            .any(|c| matches!(c, Call::Gesture(g) if g.fingers.len() == 2))
+    );
+}
+
 #[tokio::test(start_paused = true)]
 async fn a_paste_asked_for_by_name_is_not_retried_another_way() {
     let (source, fake) = FakeSource::with(vec![web_field_tree("")]);
