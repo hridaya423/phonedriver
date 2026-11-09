@@ -1447,3 +1447,9 @@ In run a14 (Android: Do Not Disturb from quick settings, using the UI only), the
 
 - Daemon test `a_point_outside_the_screen_is_refused_with_the_screen_in_points_and_nothing_is_sent` failed with `tapped at 540,1200` and passes now. It checks the tap and the drag, that no gesture reached the device, and that `360,800` is still accepted. `protocol.md` lists the code. Core tests: 202 passed. Daemon tests: 153 passed. MCP tests: 30 passed.
 - Live: `tap 540,1200` gives the error and hint above, and `drag 200,5 200,600` still works.
+
+## 2026-11-09: runs a12 to a14, open findings
+
+- a12 (Android: free storage and the top-level folders in Files) took 14 calls. The emulator's Files app shows no free space anywhere: the tree of the roots drawer has no "free" text. So the agent's answer, that it could not find it, was correct. Open finding: the reply to the first tap on the storage root listed folders only up to "Documents" (`settled in 738ms`), with an unlabeled `@e25 button` among them. The agent's next scroll then went past Download through Ringtones without seeing them. Four warm repeats each listed all folders, so this was a cold listing still loading after settle. Grid items cut off at the bottom of the screen print as unlabeled `button` lines, because their name is off screen.
+- a13 (Do Not Disturb on and off) took 3 `shell` calls and was correct.
+- a14 (the same, with the UI only) took 10 calls. It led to the `point_off_screen` change above. Quick-settings tiles print as a `button "Modes" "Off"` holding a `switch "Modes. " off`. The switch's label keeps the trailing ". " of its content description, and the Do Not Disturb tile repeats its state in its label (`switch "Do Not Disturb. On" on`). This is cosmetic, so I left it. The first `press back` folded the panel to the notification shade, as Android does, and a second one closed it.
