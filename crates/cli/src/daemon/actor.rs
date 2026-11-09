@@ -1860,11 +1860,16 @@ impl Actor {
                 let (field, tap_at): (Option<Element>, Option<Point>) = match &into {
                     Some(t) => {
                         let r = match self.resolve_target(s, t).await {
-                            Err(stale @ Error::StaleRef { r#ref, .. }) => {
-                                let Some(gone) = s.gone_field(r#ref).cloned() else {
-                                    return Err(stale);
+                            Err(missing @ (Error::StaleRef { .. } | Error::NotFound { .. })) => {
+                                let gone = match (&missing, t) {
+                                    (Error::StaleRef { r#ref, .. }, _) => s.gone_field(*r#ref),
+                                    (_, Target::Text { text, .. }) => s.gone_field_named(text),
+                                    _ => None,
                                 };
-                                let (r, said) = self.bring_back(s, cfg, &gone, stale).await?;
+                                let Some(gone) = gone.cloned() else {
+                                    return Err(missing);
+                                };
+                                let (r, said) = self.bring_back(s, cfg, &gone, missing).await?;
                                 brought = said;
                                 r
                             }

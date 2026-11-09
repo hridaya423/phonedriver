@@ -2981,6 +2981,42 @@ async fn type_into_a_field_the_keyboard_pushed_out_of_the_list_scrolls_it_back_a
 }
 
 #[tokio::test(start_paused = true)]
+async fn type_into_the_text_of_a_field_the_keyboard_pushed_out_scrolls_it_back_too() {
+    let (source, fake) = FakeSource::with(vec![form_tree(false, Some(600.0))]);
+    let (d, _home) = daemon(source);
+    ok(&d, "default", "snapshot", json!({})).await;
+    fake.set_tree(form_tree(true, None));
+    ok(&d, "default", "snapshot", json!({})).await;
+    fake.on_gesture(|g| {
+        let path = &g.fingers[0];
+        let moved = path.first()?.at.y - path.last()?.at.y;
+        (moved > 20.0).then(|| vec![form_tree(true, Some(300.0))])
+    });
+    let r = ok(
+        &d,
+        "default",
+        "act",
+        json!({"action": {"kind": "type", "text": "555 0199", "into": {"text": "phone (mobile)"}}}),
+    )
+    .await;
+    assert!(
+        r["summary"]
+            .as_str()
+            .unwrap()
+            .starts_with("scrolled down 1 time to"),
+        "{r}"
+    );
+    let e = err(
+        &d,
+        "default",
+        "act",
+        json!({"action": {"kind": "type", "text": "x", "into": {"text": "Fax"}}}),
+    )
+    .await;
+    assert_eq!(e.data["code_name"], "not_found", "{e:?}");
+}
+
+#[tokio::test(start_paused = true)]
 async fn a_field_that_renames_itself_once_typed_into_is_named_by_its_new_ref() {
     let field = |label: &str, value: &str, focused: bool| {
         let json = format!(
