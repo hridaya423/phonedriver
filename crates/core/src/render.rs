@@ -10,6 +10,9 @@ use crate::prune::Node;
 const MAX_TEXT: usize = 200;
 const MASK: &str = "•••";
 
+/// Points of an element above the keyboard that still take a tap.
+pub const KEYBOARD_EDGE: f32 = 12.0;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Orientation {
@@ -128,11 +131,17 @@ impl Rendered {
         false
     }
 
-    /// The keyboard is shown over the element, which is not part of the keyboard.
+    /// The keyboard covers the element, which is not part of the keyboard, all but less than `KEYBOARD_EDGE` of
+    /// its height. A row with more than that above the keyboard can still be tapped there.
     pub fn under_keyboard(&self, e: &Element) -> bool {
-        self.header
-            .keyboard
-            .is_some_and(|k| k.contains(e.bounds) && !self.in_keyboard(e.r#ref))
+        self.header.keyboard.is_some_and(|k| {
+            let b = e.bounds;
+            b.y + b.h > k.y
+                && b.x < k.x + k.w
+                && b.x + b.w > k.x
+                && k.y - b.y < KEYBOARD_EDGE
+                && !self.in_keyboard(e.r#ref)
+        })
     }
 
     pub fn in_web_view(&self, r: Ref) -> bool {
@@ -147,6 +156,15 @@ impl Rendered {
     /// move the element out from under it: down for a bar on the lower half of the screen, up for one on the upper.
     pub fn covered_by(&self, i: usize) -> Option<(&Element, Direction)> {
         let e = &self.elements[i];
+        // Only content that scrolls slides under a bar; a bar's own neighbor (the back button iOS 26 draws over the
+        // contact card's top "Toolbar") is on top of it.
+        let scrolls = self.ancestors(i).any(|a| {
+            let p = &self.elements[a];
+            p.role == Role::List || p.actions.intersects(crate::element::Actions::SCROLL)
+        });
+        if !scrolls {
+            return None;
+        }
         let c = e.bounds.center();
         let bar = self.elements.iter().enumerate().find(|(j, b)| {
             *j != i
