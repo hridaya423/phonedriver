@@ -1191,7 +1191,9 @@ impl Mcp {
             .complete()
     }
 
-    #[tool(description = "Wait for `settled`, a text (`A|B` for either) or @ref to appear, or `gone:<text>`.")]
+    #[tool(
+        description = "Wait for `settled`, a text (`A|B` for either) or @ref to appear, or `gone:<text>`."
+    )]
     async fn wait(&self, Parameters(a): Parameters<WaitArgs>) -> CallToolResult {
         let mut globals = self.globals(a.device);
         globals.timeout = a.timeout_ms;

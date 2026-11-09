@@ -2229,7 +2229,8 @@ async fn launch_by_name_in_any_case_or_by_package_foregrounds_the_app_and_return
 }
 
 #[tokio::test(start_paused = true)]
-async fn a_launch_that_is_the_first_call_on_a_polled_device_settles_without_waiting_out_its_window() {
+async fn a_launch_that_is_the_first_call_on_a_polled_device_settles_without_waiting_out_its_window()
+{
     let (source, fake) = FakeSource::polled(vec![list_tree(&["Calculator", "7", "8"])]);
     fake.install(&[("com.android.calculator2", "Calculator")]);
     let (d, _home) = daemon(source);

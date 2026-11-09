@@ -254,7 +254,10 @@ impl Rendered {
             .find(|(i, line)| Some(*i) != root && line.contains(" chars)\""))
         {
             let r = self.elements[*i].r#ref;
-            let _ = write!(out, "\nhint: `phonedriver snapshot --within @{r}` prints @{r} whole");
+            let _ = write!(
+                out,
+                "\nhint: `phonedriver snapshot --within @{r}` prints @{r} whole"
+            );
         }
         Ok(out)
     }
