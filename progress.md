@@ -1104,3 +1104,10 @@ The fixes come from the first run on a physical Android phone, a Honor X8 (TFY-L
 - `FakeDevice::on_gesture` swaps the trees after a gesture, as `on_text` does, so a test can zoom the page on the focus tap.
 - Tests: `a_page_that_zooms_in_on_a_field_it_focuses_is_zoomed_back_out_after_typing` (red before the change) and `a_page_that_does_not_zoom_is_not_pinched`.
 - `cargo test --workspace --no-fail-fast`: 691 passed, 0 failed. Clippy: 0 warnings. `docs/architecture.md` (type, web pages) says what happens and why.
+
+## 2026-11-09: web fields that all claim focus show none
+
+- Live diffs on the httpbin form showed `~ @e10 textbox "Telephone:" focused → (none)` for every field each time the keyboard came or went. With no field being typed into, WebKit marks every field focused.
+- `Rendered::build` clears `focused` from web text fields when more than one claims it. This also fixes the wrong-field `type` from i8 one layer down, so the special case in `follow_focus` from 2f463c5 is removed. Its test `a_web_page_that_calls_several_fields_focused_still_gets_the_text_in_the_field_asked_for` still passes.
+- Test: `render::tests::web_fields_that_all_say_focused_are_shown_without_it_and_one_that_alone_does_keeps_it` (red before the change).
+- `cargo test --workspace --no-fail-fast`: 692 passed, 0 failed. Clippy: 0 warnings.
