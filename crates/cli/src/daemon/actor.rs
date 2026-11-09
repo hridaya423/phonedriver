@@ -1759,11 +1759,19 @@ impl Actor {
                 self.cold_until = Some(self.now() + COLD_APP_WINDOW);
                 s.set_last(None);
                 let verb = if restart { "restarted" } else { "launched" };
-                let summary = if grant.is_empty() {
+                let mut summary = if grant.is_empty() {
                     format!("{verb} {}", found.name)
                 } else {
                     format!("{verb} {} (granted {})", found.name, grant.join(", "))
                 };
+                // Observed on the iOS 26.5 Simulator: Photos crashed at every launch, the home screen stayed, and the
+                // agent read "launched Photos" as a launch that worked and tapped the icon again and again.
+                if let Some(front) = device.foreground().await?.filter(|f| *f != found.id) {
+                    summary = format!(
+                        "{summary}, but {} is not in front ({} is): it may have quit at start",
+                        found.name, front.0
+                    );
+                }
                 self.finish(s, p.settle, cfg, started, summary, None, None, None)
                     .await
             }

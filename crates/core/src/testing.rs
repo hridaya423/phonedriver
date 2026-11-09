@@ -37,6 +37,7 @@ pub struct FakeDevice {
     clipboard: Mutex<Option<String>>,
     foreground: Mutex<Option<AppId>>,
     url_handler: Mutex<Option<AppId>>,
+    quits_at_launch: std::sync::atomic::AtomicBool,
     screen: Mutex<ScreenState>,
     screen_reads: std::sync::atomic::AtomicUsize,
     tree_reads: std::sync::atomic::AtomicUsize,
@@ -73,6 +74,7 @@ impl FakeDevice {
             clipboard: Mutex::new(None),
             foreground: Mutex::new(None),
             url_handler: Mutex::new(None),
+            quits_at_launch: Default::default(),
             screen_reads: Default::default(),
             tree_reads: Default::default(),
             screen: Mutex::new(ScreenState {
@@ -135,6 +137,12 @@ impl FakeDevice {
     }
 
     /// The same device under another id, as an Android device is `android:<serial>`.
+    /// Launched apps quit at once, as Photos does on a broken Simulator: the app in front stays in front.
+    pub fn set_quits_at_launch(&self, quits: bool) {
+        self.quits_at_launch
+            .store(quits, std::sync::atomic::Ordering::Relaxed);
+    }
+
     /// The app `open_url` reports as handling a link that names no app.
     pub fn set_url_handler(&self, app: Option<AppId>) {
         *lock(&self.url_handler) = app;
@@ -225,6 +233,7 @@ impl Device for FakeDevice {
         lock(&self.order).push("tree");
         self.tree_reads
             .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+
         let mut trees = lock(&self.trees);
         match trees.len() {
             0 => Err(Error::Transport {
@@ -303,7 +312,12 @@ impl Device for FakeDevice {
     }
 
     async fn launch(&self, app: &AppId) -> Result<()> {
-        *lock(&self.foreground) = Some(app.clone());
+        if !self
+            .quits_at_launch
+            .load(std::sync::atomic::Ordering::Relaxed)
+        {
+            *lock(&self.foreground) = Some(app.clone());
+        }
         self.record(Call::Launch(app.clone()))
     }
 
