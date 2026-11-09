@@ -74,6 +74,20 @@ impl Session {
         self.gone.iter().rev().find(|e| e.r#ref == r)
     }
 
+    /// The one dropped text field whose label contains `text`, in any case.
+    pub fn gone_field_named(&self, text: &str) -> Option<&Element> {
+        let q = text.to_lowercase();
+        let mut named = self.gone.iter().rev().filter(|e| {
+            e.label
+                .as_deref()
+                .is_some_and(|l| l.to_lowercase().contains(&q))
+        });
+        let first = named.next()?;
+        named
+            .all(|e| e.role == first.role && e.label == first.label)
+            .then_some(first)
+    }
+
     /// What `now` changed since the screen the agent was last shown. A dialog or menu is a window of its own whose
     /// tree has none of the screen under it, so when it closes the screen is back as a new one: say so instead.
     pub fn diff_for_reply(&mut self, now: &Rendered) -> Option<DiffOrFull> {

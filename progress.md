@@ -1255,3 +1255,11 @@ Rerun a4b (Contacts, Grace Hopper with a phone and email) took 12 calls and 36 s
 - Live, before the change: `tap "Grace Hopper"` after back answered `back to the screen from before, except: - @e85` while the contact page was open.
 - Test expectations changed first (diff.rs, daemon.rs, actions.rs). `cargo test -q -p phonedriver-core diff` then gave `2 failed`, and after the change the workspace shows no failures outside `tests/ocr.rs` (Apple Vision is down again).
 - The short reply after Save (seven lines, while the page went on to list Call, Message and the phone) did not reproduce when a contact is opened from the list. That is still open.
+
+## 2026-11-09: the scroll-back also serves a text target
+
+The same keyboard case with a text target, `type "555 0100" --into "Phone (Mobile)"` after the keyboard opened, failed with `no element matches "Phone (Mobile)"`. A text that matches nothing on screen, and is in the label of exactly one field the session remembers (in any case), now brings that field back the way a stale ref does. A text that matches no remembered field still fails with `not_found`.
+
+- Test: `type_into_the_text_of_a_field_the_keyboard_pushed_out_scrolls_it_back_too` failed with `not_found` before, and passes now. It covers lowercase `phone (mobile)`, and `Fax` still failing.
+- Live, editing a contact on the emulator: `type Tess --into "First name"` (the keyboard opens), then `type "555 0100" --into "Phone (Mobile)"` gives `ok scrolled down 1 time to "Phone (Mobile)", then typed 8 chars into @e49 · verified`. The edit was discarded, and the throwaway "Test" contact was deleted.
+- `cargo test -q --workspace`: no failures outside `tests/ocr.rs` (Apple Vision is down). Clippy is clean.
