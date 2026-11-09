@@ -163,3 +163,77 @@ async fn the_default_connect_on_refuses_a_hidden_display() {
         .expect_err("no hidden display on this kind of device");
     assert!(e.message.contains("display"), "{}", e.message);
 }
+
+fn field_tree(value: &str, web: bool) -> phonedriver_core::raw::RawTree {
+    let field = format!(
+        r#"{{"p":{},"w":1,"cls":"android.widget.EditText","text":"{value}","b":[0,100,360,160],"f":"vVeEF","a":["tap","set_text"]}}"#,
+        if web { 1 } else { 0 }
+    );
+    let web_view = if web {
+        r#"{"p":0,"w":1,"cls":"android.webkit.WebView","b":[0,90,360,800],"f":"vVe"},"#
+    } else {
+        ""
+    };
+    let json = format!(
+        r#"{{"windows":[{{"id":1,"type":"application","package":"com.example","bounds":[0,0,360,800]}}],"nodes":[{{"p":-1,"w":1,"cls":"android.widget.FrameLayout","b":[0,0,360,800],"f":"vVe"}},{web_view}{field}]}}"#
+    );
+    phonedriver_core::raw::RawTree::from_android_json(
+        &json,
+        phonedriver_core::geometry::Scale { density: 1.0 },
+    )
+    .unwrap()
+}
+
+async fn typed_with(display: &str, web: bool, action: Value) -> Vec<phonedriver_core::device::TextInput> {
+    let main = Arc::new(FakeDevice::new(vec![field_tree("Hello", web)]));
+    let hidden = Arc::new(FakeDevice::new(vec![field_tree("Hello", web)]).on_hidden_display(7));
+    let source = Arc::new(Source {
+        main: main.clone(),
+        hidden: Some(hidden.clone()),
+        connected: Mutex::new(Vec::new()),
+    });
+    let home = tempfile::tempdir().unwrap();
+    let d = Daemon::new(
+        source,
+        Config {
+            home: home.path().to_path_buf(),
+        },
+    );
+    d.call("default", "snapshot", json!({"display": display})).await.unwrap();
+    d.call("default", "act", json!({"display": display, "settle": false, "action": action}))
+        .await
+        .unwrap();
+    let used = if display == "hidden" { hidden } else { main };
+    used.calls()
+        .into_iter()
+        .filter_map(|c| match c {
+            phonedriver_core::testing::Call::Text(t) => Some(t),
+            _ => None,
+        })
+        .collect()
+}
+
+#[tokio::test]
+async fn typing_on_the_hidden_display_sets_the_field_so_the_phone_shows_no_clipboard_toast() {
+    use phonedriver_core::device::TextInput;
+    let append = json!({"kind": "type", "text": " world"});
+    assert_eq!(
+        typed_with("hidden", false, append.clone()).await,
+        [TextInput::SetValue("Hello world".into())]
+    );
+    assert_eq!(
+        typed_with("main", false, append).await,
+        [TextInput::Paste(" world".into())]
+    );
+    let chosen = json!({"kind": "type", "text": " world", "mode": "paste"});
+    assert_eq!(
+        typed_with("hidden", false, chosen).await,
+        [TextInput::Paste(" world".into())]
+    );
+    let web = json!({"kind": "type", "text": " world"});
+    assert_eq!(
+        typed_with("hidden", true, web).await,
+        [TextInput::Paste(" world".into())],
+        "set on a web field falls back to select-all and paste, which would replace what it holds"
+    );
+}

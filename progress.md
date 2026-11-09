@@ -955,3 +955,14 @@ The fixes come from the first run on a physical Android phone, a Honor X8 (TFY-L
   - `adb uiautomator dump n=20 p50=2506.6 ms p95=2583.9 ms out=25334 B`
   - `adb screencap -p n=20 p50=1005.7 ms p95=1097.6 ms`
 - Docs: `docs/bench/speed.md` has a new "A physical phone" section, and the README speed paragraph and limits list name the phone.
+
+## 2026-11-09: in hidden mode, type sets a native field, so the phone's own screen shows no clipboard toast (D32)
+
+- Seen on the Honor X8 in hidden mode: each `type` raised "Settings is accessing the clipboard" on the phone's own screen, the one visible trace of an agent that should leave the screen to its owner. D32's reopen-if named this exact case.
+- Changed: `Action::Type` in `crates/cli/src/daemon/actor.rs` picks the mode after it finds the field.
+  - In hidden mode, a native field with `set_text` (`Actions::EDIT`, not inside a web view) gets `set`. A password field gets it only when its whole text is replaced.
+  - Everything else, and every `--mode` the caller chose, is as before.
+  - `set` without `--into` now sets the field's text plus the new text, which is what verification (`Expect::Appended`) already expected.
+- Test: `typing_on_the_hidden_display_sets_the_field_so_the_phone_shows_no_clipboard_toast` in `crates/cli/tests/hidden_display.rs` covers hidden, main, `mode: paste` and a web field. It failed first with `Paste` where `SetValue("Hello world")` was expected.
+- Live check on the Honor X8, release build, hidden mode: `type "dark mode"` into Settings search replied `verified · settled in 274ms`; the paste took 915 ms. Two `adb screencap`s of the phone's own screen, taken right after, show Chrome with no toast. The hidden screen shows the three search results. The image is `phonedriver-launch/png/hidden-display-honor-x8.png`, outside the repo.
+- `cargo test --workspace --no-fail-fast`: 676 passed, 0 failed. Clippy is clean.
