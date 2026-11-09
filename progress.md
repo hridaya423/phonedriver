@@ -1175,3 +1175,13 @@ The fixes come from the first run on a physical Android phone, a Honor X8 (TFY-L
 - Test: `prune::tests::a_safari_page_keeps_one_webview_and_no_bare_wrappers_around_it` (red before; the fixture copies the live structure from `snapshot --json`).
 - Live, the same `open https://en.wikipedia.org/wiki/Ada_Lovelace` from Settings: 2,059 bytes, 39 lines, 402 spaces of indent before; 1,754 bytes, 35 lines, 228 spaces after (−15%).
 - `cargo test --workspace --no-fail-fast`: 702 passed, 0 failed (Android and iOS goldens unchanged). Clippy: 0 warnings.
+
+## 2026-11-09: iOS scrolls stop where the finger stops, and play in fewer points
+
+- A Safari `scroll down` took 4.5 s: `fresh` 210 ms, `gesture` 1,130 ms, settle 2,700 ms (the new laps). Screenshots every 380 ms after the gesture showed the page still moving for 2.3 s. The hold before the lift did not stop the fling.
+- Experiment on the mini with raw `gesture` paths on the Ada Lovelace article: a still hold drifted 430 and 582 px after the lift; the same hold moving ±0.5 pt drifted 0 px in both trials. XCTest sends no touch-moved event for a point that does not move, so UIKit keeps the last real velocity.
+- A second experiment: the same 400 ms path as 17 points took 1,240 ms; as 5 points (one straight move, three wiggled still samples) it took 870–950 ms and scrolled as far (1,380 px against 1,290–1,401 px), with 0 drift.
+- `map::gesture_request` (iOS only) drops an interior point on a straight, constant-speed segment, keeps still samples at least 50 ms apart, moves each kept still sample ±0.5 pt in turn, and rounds coordinates to 0.01 pt. Android is unchanged; its stationary samples already read as stopped.
+- Test: `map::tests::a_scroll_goes_to_xctest_as_one_straight_move_and_a_still_hold_that_wiggles` (17 points before the change, 5 after).
+- Live on the Ada Lovelace article: `scroll down` 4.5 s → 2.0–2.2 s (gesture 1,130 → 830–850 ms, settle 2,700 → 490–620 ms). `pinch out` and `scroll --until "Developer"`/`"General"` in Settings still work.
+- `cargo test --workspace --no-fail-fast`: 703 passed, 0 failed. Clippy: 0 warnings.

@@ -209,17 +209,56 @@ fn tidy(reply: &mut Value) {
     *nodes = kept;
 }
 
+/// XCTest sends no touch-moved event for a point that does not move, so UIKit keeps the velocity of the last real
+/// move and a scroll that held still before lifting still flung Safari 143 to 194 pt further. Half a point back and
+/// forth on each still sample reads as stopped (0 pt of drift in the same test).
+const STILL_WIGGLE: f32 = 0.5;
+/// XCTest moves the finger in a straight line between the points it is given, and each point costs time: a 400 ms
+/// path of 17 points took 1,240 ms to play and one of 5 points 870 to 950 ms, scrolling as far.
+const STILL_STEP_MS: u32 = 50;
+
+fn for_xctest(path: &[TimedPoint]) -> Vec<Value> {
+    let still = |i: usize| i > 0 && path[i - 1].at == path[i].at && path[i - 1].t_ms < path[i].t_ms;
+    let straight = |i: usize| {
+        let (a, b, c) = (&path[i - 1], &path[i], &path[i + 1]);
+        let (t0, t1, t2) = (a.t_ms as f32, b.t_ms as f32, c.t_ms as f32);
+        if t2 <= t0 || b.at == c.at || a.at == b.at {
+            return false;
+        }
+        let f = (t1 - t0) / (t2 - t0);
+        let x = a.at.x + (c.at.x - a.at.x) * f;
+        let y = a.at.y + (c.at.y - a.at.y) * f;
+        (x - b.at.x).abs() < 0.01 && (y - b.at.y).abs() < 0.01
+    };
+    let round = |v: f32| (v * 100.0).round() / 100.0;
+    let mut out = Vec::new();
+    let mut last_kept = 0u32;
+    let mut wiggles = 0u32;
+    for (i, p) in path.iter().enumerate() {
+        let end = i + 1 == path.len();
+        let y = if still(i) {
+            if !end && p.t_ms < last_kept + STILL_STEP_MS {
+                continue;
+            }
+            wiggles += 1;
+            if wiggles % 2 == 1 { STILL_WIGGLE } else { -STILL_WIGGLE }
+        } else {
+            if i > 0 && !end && straight(i) {
+                continue;
+            }
+            0.0
+        };
+        last_kept = p.t_ms;
+        out.push(json!({"x": round(p.at.x), "y": round(p.at.y + y), "t_ms": p.t_ms}));
+    }
+    out
+}
+
 pub fn gesture_request(g: &Gesture) -> Value {
     let pointers: Vec<Value> = g
         .fingers
         .iter()
-        .map(|path| {
-            let path: Vec<Value> = path
-                .iter()
-                .map(|p| json!({"x": p.at.x, "y": p.at.y, "t_ms": p.t_ms}))
-                .collect();
-            json!({"path": path})
-        })
+        .map(|path| json!({"path": for_xctest(path)}))
         .collect();
     json!({"op": "gesture", "pointers": pointers})
 }
@@ -618,6 +657,35 @@ mod tests {
             gesture_request(&g),
             json!({"op": "gesture", "pointers": [{"path": [
                 {"x": 10.5, "y": 20.0, "t_ms": 0}, {"x": 30.0, "y": 40.0, "t_ms": 120}]}]})
+        );
+    }
+
+    #[test]
+    fn a_scroll_goes_to_xctest_as_one_straight_move_and_a_still_hold_that_wiggles() {
+        let area = phonedriver_core::geometry::Rect {
+            x: 0.0,
+            y: 100.0,
+            w: 400.0,
+            h: 700.0,
+        };
+        let g = phonedriver_core::gesture::scroll(area, phonedriver_core::error::Direction::Down);
+        let sent: Vec<(f64, u64)> = gesture_request(&g)["pointers"][0]["path"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|p| (p["y"].as_f64().unwrap(), p["t_ms"].as_u64().unwrap()))
+            .collect();
+        assert_eq!(
+            sent,
+            [(660.0, 0), (240.0, 250), (240.5, 300), (239.5, 350), (240.5, 400)]
+        );
+        let at = Point { x: 200.0, y: 180.0 };
+        let tap = Gesture {
+            fingers: vec![vec![TimedPoint { at, t_ms: 0 }, TimedPoint { at, t_ms: 0 }]],
+        };
+        assert_eq!(
+            gesture_request(&tap)["pointers"][0]["path"],
+            json!([{"x": 200.0, "y": 180.0, "t_ms": 0}, {"x": 200.0, "y": 180.0, "t_ms": 0}])
         );
     }
 
