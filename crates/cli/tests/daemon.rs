@@ -774,6 +774,38 @@ async fn a_web_field_that_ignores_a_paste_gets_the_text_key_by_key() {
     );
 }
 
+fn two_web_fields_tree(notes: &str) -> RawTree {
+    let json = format!(
+        r#"{{"windows":[{{"id":1,"type":"application","package":"com.apple.mobilesafari","bounds":[0,0,360,800]}}],"nodes":[
+        {{"p":-1,"w":1,"cls":"android.widget.FrameLayout","b":[0,0,360,800],"f":"vVe"}},
+        {{"p":0,"w":1,"cls":"android.webkit.WebView","text":"Order","b":[0,0,360,800],"f":"vVe"}},
+        {{"p":1,"w":1,"cls":"android.widget.EditText","text":"Test Pilot","desc":"Name","b":[0,100,360,160],"f":"vVeEF","a":["tap"]}},
+        {{"p":1,"w":1,"cls":"android.widget.EditText","text":"{notes}","desc":"Notes","b":[0,300,360,360],"f":"vVeEF","a":["tap"]}}]}}"#
+    );
+    RawTree::from_android_json(&json, Scale { density: 1.0 }).unwrap()
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_web_page_that_calls_several_fields_focused_still_gets_the_text_in_the_field_asked_for() {
+    let (source, fake) = FakeSource::with(vec![two_web_fields_tree("")]);
+    fake.on_text(|_| Some(vec![two_web_fields_tree("ring twice")]));
+    let (d, _home) = daemon(source);
+    let shown = ok(&d, "default", "snapshot", json!({})).await;
+    let notes = shown["text"]
+        .as_str()
+        .unwrap()
+        .lines()
+        .find(|l| l.contains("\"Notes\""))
+        .and_then(|l| l.trim().split(' ').next())
+        .unwrap()
+        .trim_start_matches('@')
+        .to_string();
+    let params = json!({"action": {"kind": "type", "text": "ring twice", "into": {"text": "Notes"}}});
+    let r = ok(&d, "default", "act", params).await;
+    assert!(r["summary"].as_str().unwrap().contains(&format!("into @{notes}")), "{r}");
+    assert_eq!(r["verified"], true, "{r}");
+}
+
 #[tokio::test(start_paused = true)]
 async fn a_paste_asked_for_by_name_is_not_retried_another_way() {
     let (source, fake) = FakeSource::with(vec![web_field_tree("")]);

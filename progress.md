@@ -1087,3 +1087,10 @@ The fixes come from the first run on a physical Android phone, a Honor X8 (TFY-L
 - Cause, from `snapshot --save-fixture`: WebKit reports an element that runs past the left edge with `x = 0` and its whole width. `Medium` showed as `[0,394,153,435]`, but only "um", from x 0 to about 35, was on screen. The tap at its center (76.5) hit empty page. The snapshot's `visibleFrame` (`XC_kAXXCAttributeVisibleFrame`) carries the same pinned rect, so the runner cannot fix this; that experiment was reverted.
 - `element_at` taps a web element that starts at the screen's left edge at most `WEB_LEFT_EDGE_TAP` (8 pt) in from that edge.
 - Test: `session::tests::a_web_element_cut_off_at_the_left_edge_of_a_zoomed_page_is_tapped_near_that_edge` (x 76.5 before the change).
+
+## 2026-11-09: `type --into` keeps the field it aimed at when WebKit calls several fields focused
+
+- In the same i8 run, `type "ring twice" --into @e80` (Delivery instructions) reported `typed 10 chars into @e55 · NOT verified: @e55 shows "Test Pilot"`. Safari had marked all three text fields `focused`, and `follow_focus` took the first one.
+- `follow_focus` now prefers the field the tap aimed at when that field is among the focused ones.
+- Test: `a_web_page_that_calls_several_fields_focused_still_gets_the_text_in_the_field_asked_for`. Before the change it failed with the live symptom: `typed 10 chars into @e2`, `@e2 shows "Test Pilot"`.
+- `cargo test --workspace --no-fail-fast`: 689 passed, 0 failed. Clippy: 0 warnings.
