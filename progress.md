@@ -1185,3 +1185,12 @@ The fixes come from the first run on a physical Android phone, a Honor X8 (TFY-L
 - Test: `map::tests::a_scroll_goes_to_xctest_as_one_straight_move_and_a_still_hold_that_wiggles` (17 points before the change, 5 after).
 - Live on the Ada Lovelace article: `scroll down` 4.5 s → 2.0–2.2 s (gesture 1,130 → 830–850 ms, settle 2,700 → 490–620 ms). `pinch out` and `scroll --until "Developer"`/`"General"` in Settings still work.
 - `cargo test --workspace --no-fail-fast`: 703 passed, 0 failed. Clippy: 0 warnings.
+
+## 2026-11-09: a short Safari page keeps its web view (regression from 1a1867c)
+
+- Rerun i8d of the httpbin form took 40 turns: `type` was `NOT verified`, the page was never zoomed back out, and a retype went into the wrong field. `snapshot` showed no `webview` line at all.
+- Cause: on a short page no web view carries `N pages`, so all three matched the new fold. Each was dropped because it held a web view or sat inside one. With no web view left, `in_web_view` was false, and `type` treated the field as native: it skipped focus following and zoom detection.
+- The fold now counts only web view ancestors that are kept, so the innermost web view stays when none carries pages.
+- Test: `prune::tests::a_short_page_whose_web_views_carry_no_pages_still_keeps_one` (0 web views before the fix).
+- Live: httpbin shows `@e2 webview`, and `type "Live" --into "Customer name:"` says `then zoomed the page back out · verified`. The Ada Lovelace article still shows one `webview "8 pages" scrollable↓`.
+- `cargo test --workspace --no-fail-fast`: 704 passed, 0 failed. Clippy: 0 warnings.
