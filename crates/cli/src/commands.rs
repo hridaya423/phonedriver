@@ -212,7 +212,7 @@ pub(crate) enum Verb {
         /// Print only the elements that can be tapped, typed into or scrolled.
         #[arg(long)]
         interactive: bool,
-        /// Print only this element's subtree: `@ref`.
+        /// Print only this element's subtree, its own text uncut: `@ref`.
         #[arg(long, alias = "in")]
         within: Option<String>,
         /// Cut the output to this many lines.

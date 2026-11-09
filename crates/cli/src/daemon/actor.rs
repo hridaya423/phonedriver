@@ -1446,7 +1446,10 @@ impl Actor {
                         self.settle_probing(cfg, started, false).await;
                         let now = self.fresh(s).await?;
                         let r = s.resolve(&Target::Ref { r#ref: wanted }, &now)?;
-                        if r.under_keyboard || now.header.keyboard.is_some() && r.at.y >= now.header.keyboard.map_or(f32::MAX, |k| k.y) {
+                        if r.under_keyboard
+                            || now.header.keyboard.is_some()
+                                && r.at.y >= now.header.keyboard.map_or(f32::MAX, |k| k.y)
+                        {
                             return Err(behind);
                         }
                         hid = true;
@@ -1986,7 +1989,11 @@ impl Actor {
                     .as_ref()
                     .map(|f| format!(" into @{}", f.r#ref))
                     .unwrap_or_default();
-                let unzoomed = if unzoom { ", then zoomed the page back out" } else { "" };
+                let unzoomed = if unzoom {
+                    ", then zoomed the page back out"
+                } else {
+                    ""
+                };
                 let summary = approved_summary(
                     format!("typed {}{label}{unzoomed}", plural(n as u64, "char")),
                     approved,
@@ -2832,10 +2839,12 @@ fn numbered_distance(
 /// contact form, "no element changed"). The whole area when too little of it is left.
 fn above_keyboard(area: Rect, keyboard: Option<Rect>) -> Rect {
     match keyboard {
-        Some(k) if k.y > area.y && k.y < area.y + area.h && k.y - area.y >= MIN_SCROLL_SPAN => Rect {
-            h: k.y - area.y,
-            ..area
-        },
+        Some(k) if k.y > area.y && k.y < area.y + area.h && k.y - area.y >= MIN_SCROLL_SPAN => {
+            Rect {
+                h: k.y - area.y,
+                ..area
+            }
+        }
         _ => area,
     }
 }
@@ -2868,7 +2877,12 @@ fn sorted_distance(
     }
     let want = text.to_lowercase();
     let (first, last) = (rows.first()?, rows.last()?);
-    let letter = |s: &str| s.chars().next().filter(char::is_ascii_lowercase).map(u32::from);
+    let letter = |s: &str| {
+        s.chars()
+            .next()
+            .filter(char::is_ascii_lowercase)
+            .map(u32::from)
+    };
     let forward = matches!(direction, Direction::Down | Direction::Right);
     let (behind, gap) = if want > *last {
         (!forward, letter(&want)?.checked_sub(letter(last)?)?)

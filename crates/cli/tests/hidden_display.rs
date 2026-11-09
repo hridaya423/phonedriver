@@ -184,7 +184,11 @@ fn field_tree(value: &str, web: bool) -> phonedriver_core::raw::RawTree {
     .unwrap()
 }
 
-async fn typed_with(display: &str, web: bool, action: Value) -> Vec<phonedriver_core::device::TextInput> {
+async fn typed_with(
+    display: &str,
+    web: bool,
+    action: Value,
+) -> Vec<phonedriver_core::device::TextInput> {
     let main = Arc::new(FakeDevice::new(vec![field_tree("Hello", web)]));
     let hidden = Arc::new(FakeDevice::new(vec![field_tree("Hello", web)]).on_hidden_display(7));
     let source = Arc::new(Source {
@@ -199,10 +203,16 @@ async fn typed_with(display: &str, web: bool, action: Value) -> Vec<phonedriver_
             home: home.path().to_path_buf(),
         },
     );
-    d.call("default", "snapshot", json!({"display": display})).await.unwrap();
-    d.call("default", "act", json!({"display": display, "settle": false, "action": action}))
+    d.call("default", "snapshot", json!({"display": display}))
         .await
         .unwrap();
+    d.call(
+        "default",
+        "act",
+        json!({"display": display, "settle": false, "action": action}),
+    )
+    .await
+    .unwrap();
     let used = if display == "hidden" { hidden } else { main };
     used.calls()
         .into_iter()

@@ -526,17 +526,15 @@ mod tests {
     }
 
     #[test]
-    fn a_keyboard_that_goes_away_is_one_short_line_and_the_elements_it_starts_to_cover_are_one_ref_line() {
+    fn a_keyboard_that_goes_away_is_one_short_line_and_the_elements_it_starts_to_cover_are_one_ref_line()
+     {
         let mut t = RefTable::default();
         let labels = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L"];
         let nodes = buttons(&labels);
         let covered = with_keyboard(screen(&mut t, &nodes), true);
         let clear = with_keyboard(screen(&mut t, &nodes), false);
         let gone = diff(&covered, &clear);
-        assert_eq!(
-            gone.text(&clear),
-            "keyboard hidden"
-        );
+        assert_eq!(gone.text(&clear), "keyboard hidden");
         assert_eq!(
             diff(&clear, &covered).text(&covered),
             "~ @e1 @e2 @e3 @e4 @e5 @e6 @e7 @e8 @e9 @e10 @e11 @e12 (none) → under-keyboard"

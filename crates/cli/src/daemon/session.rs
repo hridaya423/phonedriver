@@ -94,9 +94,8 @@ impl Session {
         };
         let holder = within.and_then(|r| now.index_of(r));
         let inside = |i: usize| {
-            holder.is_none_or(|h| {
-                std::iter::successors(Some(i), |&j| now.parents[j]).any(|j| j == h)
-            })
+            holder
+                .is_none_or(|h| std::iter::successors(Some(i), |&j| now.parents[j]).any(|j| j == h))
         };
         refs.iter()
             .filter_map(|r| now.index_of(*r))
@@ -495,10 +494,18 @@ mod tests {
 
     #[test]
     fn a_target_copied_with_the_quotes_the_screen_prints_around_labels_still_matches() {
-        let line = picked(&["Display & brightness", "Battery"], "\"Display & brightness\"").unwrap();
+        let line = picked(
+            &["Display & brightness", "Battery"],
+            "\"Display & brightness\"",
+        )
+        .unwrap();
         assert!(line.ends_with("\"Display & brightness\""), "{line}");
         assert!(picked(&["Battery"], "\u{201c}Battery\u{201d}").is_ok());
-        assert!(picked(&["\"Hi\" she said", "Hi"], "\"Hi\" she said").unwrap().contains("she said"));
+        assert!(
+            picked(&["\"Hi\" she said", "Hi"], "\"Hi\" she said")
+                .unwrap()
+                .contains("she said")
+        );
     }
 
     #[test]
@@ -515,16 +522,28 @@ mod tests {
         let nodes = prune(&tree);
         let refs = RefTable::default().assign(&tree, &nodes);
         let now = Rendered::build(nodes, &refs, Header::default());
-        let at = Session::default().resolve(&text("Wikipedia"), &now).unwrap().at;
+        let at = Session::default()
+            .resolve(&text("Wikipedia"), &now)
+            .unwrap()
+            .at;
         let card = now.elements[0].bounds;
-        assert!(card.x <= at.x && at.x <= card.x + card.w && card.y <= at.y && at.y <= card.y + card.h, "{at:?}");
-        assert!(at.y < 160.0, "the card's own title band, above the ratings: {at:?}");
+        assert!(
+            card.x <= at.x && at.x <= card.x + card.w && card.y <= at.y && at.y <= card.y + card.h,
+            "{at:?}"
+        );
+        assert!(
+            at.y < 160.0,
+            "the card's own title band, above the ratings: {at:?}"
+        );
         for e in &now.elements[1..] {
             let b = e.bounds;
             let inside = b.x <= at.x && at.x <= b.x + b.w && b.y <= at.y && at.y <= b.y + b.h;
             assert!(!inside, "{at:?} is on {:?}", e.label);
         }
-        let plain = Session::default().resolve(&text("Install"), &now).unwrap().at;
+        let plain = Session::default()
+            .resolve(&text("Install"), &now)
+            .unwrap()
+            .at;
         assert_eq!((plain.x, plain.y), (350.0, 130.0));
     }
 
@@ -540,10 +559,16 @@ mod tests {
         let nodes = prune(&tree);
         let refs = RefTable::default().assign(&tree, &nodes);
         let now = Rendered::build(nodes, &refs, Header::default());
-        let radio = Session::default().resolve(&text("Medium"), &now).unwrap().at;
+        let radio = Session::default()
+            .resolve(&text("Medium"), &now)
+            .unwrap()
+            .at;
         assert!(radio.x <= WEB_LEFT_EDGE_TAP, "{radio:?}");
         assert_eq!(radio.y, 414.5);
-        let field = Session::default().resolve(&text("Customer name:"), &now).unwrap().at;
+        let field = Session::default()
+            .resolve(&text("Customer name:"), &now)
+            .unwrap()
+            .at;
         assert_eq!((field.x, field.y), (201.5, 110.0));
     }
 

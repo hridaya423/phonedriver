@@ -230,6 +230,9 @@ impl Rendered {
         let lines: Vec<(usize, String)> = (0..self.elements.len())
             .filter(|&i| shown[i])
             .filter_map(|i| match &plan[i] {
+                Plan::Own if Some(i) == root => {
+                    Some((i, self.line_upto(&self.elements[i], usize::MAX)))
+                }
                 Plan::Own => Some((i, self.line(&self.elements[i]))),
                 Plan::Line(l) => Some((i, l.clone())),
                 Plan::Skip => None,
@@ -255,7 +258,7 @@ impl Rendered {
             || e.source != Source::Tree
             || self.under_keyboard(e)
             || !state_words(e).is_empty()
-            || second_text(e).is_some()
+            || second_text(e, MAX_TEXT).is_some()
         {
             return None;
         }
@@ -393,9 +396,13 @@ impl Rendered {
 
     /// One element line: `@eN role "label" ["value"] [state…]`.
     pub fn line(&self, e: &Element) -> String {
+        self.line_upto(e, MAX_TEXT)
+    }
+
+    fn line_upto(&self, e: &Element, max: usize) -> String {
         let mut s = format!("@{} {}", e.r#ref, e.role.name());
         if let Some(l) = &e.label {
-            let _ = write!(s, " {}", quote(l));
+            let _ = write!(s, " {}", quote_upto(l, max));
         }
         if e.role == Role::List
             && let Some(c) = e.collection
@@ -407,7 +414,7 @@ impl Rendered {
                 (rows, cols) => write!(s, " {rows}x{cols} cells"),
             };
         }
-        if let Some(v) = second_text(e) {
+        if let Some(v) = second_text(e, max) {
             let _ = write!(s, " {v}");
         }
         for w in state_words(e) {
@@ -565,12 +572,17 @@ pub fn shown_value(e: &Element) -> Option<String> {
     (!redundant).then(|| v.to_string())
 }
 
-fn second_text(e: &Element) -> Option<String> {
+fn second_text(e: &Element, max: usize) -> Option<String> {
+    let bare = |s: &str| -> String {
+        s.chars()
+            .filter(|c| !c.is_whitespace() && *c != '·')
+            .collect()
+    };
     match shown_value(e) {
-        Some(v) => Some(v).filter(|t| e.label.as_deref() != Some(t.as_str())),
+        Some(v) => Some(v).filter(|t| e.label.as_deref().map(bare) != Some(bare(t))),
         None => shown_hint(e),
     }
-    .map(|t| quote(&t))
+    .map(|t| quote_upto(&t, max))
 }
 
 fn words(s: &str) -> Vec<String> {
@@ -601,10 +613,14 @@ pub fn plural(n: u64, noun: &str) -> String {
 }
 
 pub fn quote(s: &str) -> String {
+    quote_upto(s, MAX_TEXT)
+}
+
+fn quote_upto(s: &str, max: usize) -> String {
     let n = s.chars().count();
-    let body = if n > MAX_TEXT {
-        let head: String = s.chars().take(MAX_TEXT).collect();
-        format!("{head}…(+{} chars)", n - MAX_TEXT)
+    let body = if n > max {
+        let head: String = s.chars().take(max).collect();
+        format!("{head}…(+{} chars)", n - max)
     } else {
         s.to_string()
     };
@@ -1095,6 +1111,42 @@ mod tests {
     }
 
     #[test]
+    fn a_long_label_asked_for_by_ref_is_printed_whole() {
+        let label = "x".repeat(300);
+        let r = one(&format!(
+            r#"{{"p":-1,"w":1,"cls":"android.widget.TextView","text":"{label}","b":[0,0,400,100],"f":"vVe"}}"#
+        ));
+        let f = Filters {
+            within: Some(Ref(1)),
+            ..Filters::default()
+        };
+        let text = r.text(&f).unwrap();
+        assert!(text.contains(&format!("@e1 text \"{label}\"")), "{text}");
+    }
+
+    #[test]
+    fn a_value_that_repeats_the_label_with_other_spacing_is_not_printed_twice() {
+        let r = RawTree::from_ios_json(
+            r#"{"app":{"bundle_id":"x","pid":1},"nodes":[
+            {"p":-1,"cls":"XCUIElementTypeOther","b":[0,0,400,800],"f":"vVe"},
+            {"p":0,"cls":"XCUIElementTypeStaticText","text":"Medium","sd":" Medium","b":[0,100,400,140],"f":"vVe"},
+            {"p":0,"cls":"XCUIElementTypeStaticText","text":"{\n  \"size\": \"medium\"\n}","sd":"{\n  \"size\": \"medium\"\n}","b":[0,200,400,240],"f":"vVe"}]}"#,
+        )
+        .unwrap();
+        let nodes = prune(&r);
+        let refs = RefTable::default().assign(&r, &nodes);
+        let text = Rendered::build(nodes, &refs, header())
+            .text(&Filters::default())
+            .unwrap();
+        assert!(
+            text.contains("text \"Medium\"\n") || text.ends_with("text \"Medium\""),
+            "{text}"
+        );
+        assert!(!text.contains("\" Medium\""), "{text}");
+        assert_eq!(text.matches("\\\"medium\\\"").count(), 1, "{text}");
+    }
+
+    #[test]
     fn secure_values_are_masked() {
         let r = one(
             r#"{"p":-1,"w":1,"cls":"android.widget.EditText","text":"hunter2","desc":"Password","b":[0,0,400,100],"f":"vVeEP","a":["set_text"]}"#,
@@ -1233,7 +1285,9 @@ mod tests {
             let tree = RawTree::from_ios_json(&json).unwrap();
             let nodes = prune(&tree);
             let refs = RefTable::default().assign(&tree, &nodes);
-            Rendered::build(nodes, &refs, header()).text(&Filters::default()).unwrap()
+            Rendered::build(nodes, &refs, header())
+                .text(&Filters::default())
+                .unwrap()
         };
         let all = page([true, true, true]);
         assert!(!all.contains("focused"), "{all}");

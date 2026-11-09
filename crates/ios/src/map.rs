@@ -450,8 +450,16 @@ mod tests {
             {"p": 0, "cls": "XCUIElementTypeKeyboard", "b": [0, 583, 402, 816], "f": "vVe"}
         ]});
         let tree = raw_tree(&reply, SCREEN).unwrap();
-        let kb = tree.windows.iter().find(|w| w.kind == "input_method").unwrap();
-        assert!(kb.bounds.y <= 566.0, "the panel is drawn from y 566: {:?}", kb.bounds);
+        let kb = tree
+            .windows
+            .iter()
+            .find(|w| w.kind == "input_method")
+            .unwrap();
+        assert!(
+            kb.bounds.y <= 566.0,
+            "the panel is drawn from y 566: {:?}",
+            kb.bounds
+        );
         assert_eq!(kb.bounds.y + kb.bounds.h, 874.0);
     }
 
@@ -495,7 +503,10 @@ mod tests {
             .iter()
             .find(|w| w.kind == "input_method")
             .unwrap();
-        assert_eq!((kb.bounds.y, kb.bounds.h), (583.0 - KEYBOARD_GLASS, 874.0 - 583.0 + KEYBOARD_GLASS));
+        assert_eq!(
+            (kb.bounds.y, kb.bounds.h),
+            (583.0 - KEYBOARD_GLASS, 874.0 - 583.0 + KEYBOARD_GLASS)
+        );
     }
 
     #[test]

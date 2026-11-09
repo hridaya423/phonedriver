@@ -1111,3 +1111,11 @@ The fixes come from the first run on a physical Android phone, a Honor X8 (TFY-L
 - `Rendered::build` clears `focused` from web text fields when more than one claims it. This also fixes the wrong-field `type` from i8 one layer down, so the special case in `follow_focus` from 2f463c5 is removed. Its test `a_web_page_that_calls_several_fields_focused_still_gets_the_text_in_the_field_asked_for` still passes.
 - Test: `render::tests::web_fields_that_all_say_focused_are_shown_without_it_and_one_that_alone_does_keeps_it` (red before the change).
 - `cargo test --workspace --no-fail-fast`: 692 passed, 0 failed. Clippy: 0 warnings.
+
+## 2026-11-09: `snapshot --within` prints the element's text whole; a value that repeats the label is not printed
+
+- Rerun i8c of the httpbin form took 11 turns and 35 s, down from 48 turns and 150 s, and gave the right answer. At the end, httpbin's JSON reply came back as one static text printed twice: once as the label (lines joined with ` · `) and once as the value (with `\n`). Both were cut at 200 chars, so the agent took a screenshot to read the rest.
+- `second_text` compares label and value without whitespace and ` · `, so WebKit's copy of the label as the value (`"Medium" " Medium"`, the JSON block) is printed once.
+- `Rendered::text` prints the `within` element's own label and value uncut, so `snapshot within=@e48` reads a long block without a screenshot. The `within` docs (MCP, CLI, architecture) say so.
+- Tests: `a_long_label_asked_for_by_ref_is_printed_whole` and `a_value_that_repeats_the_label_with_other_spacing_is_not_printed_twice` (both red before the change).
+- `cargo test --workspace --no-fail-fast`: 694 passed, 0 failed. Clippy: 0 warnings.
