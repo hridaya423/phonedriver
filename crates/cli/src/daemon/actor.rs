@@ -2052,11 +2052,22 @@ impl Actor {
         loop {
             tokio::time::sleep(TREE_STEP).await;
             let now = self.fresh(s).await?;
-            let focused = now
+            // Safari on iOS: WebKit can call every field on the page focused at once, so the field the tap aimed at
+            // wins when it is one of them.
+            let fields: Vec<&Element> = now
                 .elements
                 .iter()
-                .find(|e| e.state.contains(ElementState::FOCUSED) && e.role.is_text_entry())
-                .filter(|e| now.in_web_view(e.r#ref));
+                .filter(|e| {
+                    e.state.contains(ElementState::FOCUSED)
+                        && e.role.is_text_entry()
+                        && now.in_web_view(e.r#ref)
+                })
+                .collect();
+            let focused = fields
+                .iter()
+                .find(|e| Some(e.r#ref) == at)
+                .or(fields.first())
+                .copied();
             match focused {
                 Some(e) if Some(e.r#ref) == at => steady += 1,
                 Some(e) => {
