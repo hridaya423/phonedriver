@@ -933,6 +933,10 @@ fn for_mcp(hint: &str) -> String {
             "Run `phonedriver doctor` to see what this device supports.",
             "Try another approach; this device does not support that.",
         ),
+        (
+            "ask the user to run `phonedriver release`",
+            "ask the user to run phonedriver release in a terminal",
+        ),
         ("Run `phonedriver ", "Call `"),
     ];
     let mut out = hint.to_string();
@@ -1376,6 +1380,18 @@ mod tests {
         for (from, to) in cases {
             assert_eq!(for_mcp(from), to);
         }
+        let busy = phonedriver_core::error::Error::DeviceBusy {
+            id: "sim:A".into(),
+            held_by: "default".into(),
+            idle_s: 10,
+            expires_s: 590,
+        }
+        .hint();
+        assert!(
+            for_mcp(&busy).ends_with("or ask the user to run phonedriver release in a terminal."),
+            "{}",
+            for_mcp(&busy)
+        );
         assert!(
             !for_mcp("Run `phonedriver doctor` to check the connection.")
                 .contains("Run `phonedriver")

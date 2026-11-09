@@ -1126,3 +1126,10 @@ The fixes come from the first run on a physical Android phone, a Honor X8 (TFY-L
 - `fold_wrappers` drops a tappable wrapper whose only child is a tappable control with the same label, when the wrapper's value and hint are absent or the same as the child's. A row with its own subtitle (Android Settings' "Dark theme") keeps it.
 - Test: `prune::tests::a_row_or_link_around_a_control_with_its_own_name_is_that_control` (red before the change).
 - `cargo test --workspace --no-fail-fast`: 689 passed, 6 failed. The 6 are `tests/ocr.rs`, the intermittent `Apple Vision could not read this screenshot`. They passed earlier today on unchanged OCR code. Clippy: 0 warnings.
+
+## 2026-11-09: a busy device names the command that frees a CLI session's lease
+
+- Agent run i10 failed at once: my own CLI `snapshot` on the mini held the lease as session `default`, and the agent's `launch` got `DeviceBusy` for 10 minutes. The design is right: an agent must not take a lease over. But the hint only said to wait, so the agent could not tell the user what to do.
+- The `DeviceBusy` hint now adds `or ask the user to run \`phonedriver release\`` for `default`, or `PHONEDRIVER_SESSION=<name> phonedriver release` for another CLI session. A lease held by an `mcp-` session (another agent) gets no command. MCP keeps the command as a terminal command (`ask the user to run phonedriver release in a terminal`), not a tool name.
+- Tests: `error::tests::a_device_a_cli_session_holds_names_the_command_that_frees_it_and_one_an_agent_holds_does_not` and a case in `mcp::tests::hints_name_tools_and_arguments` (both red before the change).
+- `cargo test --workspace --no-fail-fast`: all pass except the 6 `tests/ocr.rs` Vision failures (environment). Clippy: 0 warnings.

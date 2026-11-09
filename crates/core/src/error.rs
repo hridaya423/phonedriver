@@ -498,11 +498,20 @@ impl Error {
                 idle_s,
                 expires_s,
                 ..
-            } => format!(
-                "Wait for session {held_by} to release it (idle {}, lease expires in {}), or use another device.",
-                span(*idle_s),
-                span(*expires_s)
-            ),
+            } => {
+                let wait = format!(
+                    "Wait for session {held_by} to release it (idle {}, lease expires in {}), or use another device",
+                    span(*idle_s),
+                    span(*expires_s)
+                );
+                match held_by.as_str() {
+                    agent if agent.starts_with("mcp-") => format!("{wait}."),
+                    "default" => format!("{wait}, or ask the user to run `phonedriver release`."),
+                    cli => format!(
+                        "{wait}, or ask the user to run `PHONEDRIVER_SESSION={cli} phonedriver release`."
+                    ),
+                }
+            }
             Error::DeviceDriven { pid, host, .. } => format!(
                 "Stop that daemon (`kill {pid}` on {host}) or use another device, then retry."
             ),
@@ -875,6 +884,35 @@ mod tests {
                 "hint of {name} starts with {first:?}: {hint}"
             );
         }
+    }
+
+    #[test]
+    fn a_device_a_cli_session_holds_names_the_command_that_frees_it_and_one_an_agent_holds_does_not()
+     {
+        let busy = |held_by: &str| {
+            Error::DeviceBusy {
+                id: "sim:A".into(),
+                held_by: held_by.into(),
+                idle_s: 10,
+                expires_s: 590,
+            }
+            .hint()
+        };
+        assert!(
+            busy("default").contains("ask the user to run `phonedriver release`"),
+            "{}",
+            busy("default")
+        );
+        assert!(
+            busy("tests").contains("`PHONEDRIVER_SESSION=tests phonedriver release`"),
+            "{}",
+            busy("tests")
+        );
+        assert!(
+            !busy("mcp-4242").contains("release`"),
+            "{}",
+            busy("mcp-4242")
+        );
     }
 
     #[test]
