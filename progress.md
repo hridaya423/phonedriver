@@ -1433,3 +1433,10 @@ Run i20 (iOS: search Wikipedia from its own search box) took 6 calls in 23 s. Ev
 
 - Test `a_text_inside_a_field_that_repeats_what_the_field_holds_is_dropped`. My first version gave the child no value, so it passed while the live reply still printed the copy. The saved tree showed the child's `sd`. The test now has it, failed, and passes after the change. Core tests: 201 passed. CLI tests: no failures.
 - Live on the Simulator: `type "Ada Lovelace"` gives `~ @e46 textbox "Search Wikipedia" "Search Wikipedia" → "Ada Lovelace"`, with no text line after it.
+
+## 2026-11-09: a field whose old value was its own name prints that name once in a diff
+
+Safari reports an empty field's placeholder as its value, so the first `type` into it answered `~ @e46 textbox "Search Wikipedia" "Search Wikipedia" → "Ada Lovelace"`. A value change whose old value is the field's label now prints the label once: `~ @e46 textbox "Search Wikipedia" → "Ada Lovelace"`.
+
+- Test `a_value_that_was_the_fields_own_name_is_not_printed_twice` failed with the doubled line and passes now. Core tests: 202 passed. Daemon tests: 152 passed. MCP tests: 30 passed. They failed once only because my shell still exported the mini's `PHONEDRIVER_SOCKET`.
+- Live on the Simulator: `ok typed 11 chars into @e46 · verified` and then `~ @e46 textbox "Search Wikipedia" → "Alan Turing"`.
