@@ -1080,3 +1080,10 @@ The fixes come from the first run on a physical Android phone, a Honor X8 (TFY-L
 - `DiffOrFull::text` now prints `keyboard hidden` in place of those lines when the new screen has no keyboard. The case where the keyboard opens still lists the refs it covers.
 - Tests: `diff::tests::a_keyboard_that_goes_away_is_one_short_line_and…` (red before the change) and `hiding_the_keyboard_says_so_in_one_line_instead_of_listing_what_it_covered`.
 - `cargo test --workspace --no-fail-fast`: 687 passed, 0 failed (the OCR tests passed this run). Clippy: 0 warnings.
+
+## 2026-11-09: taps on a zoomed Safari page land on the visible part
+
+- Agent run i8 (httpbin order form in Safari on the Simulator) took 41 turns and 121 s. Typing into the name field made Safari zoom in, because the input's font is under 16 px. After that, the taps on `Medium`, `Bacon` and `Onion` did nothing.
+- Cause, from `snapshot --save-fixture`: WebKit reports an element that runs past the left edge with `x = 0` and its whole width. `Medium` showed as `[0,394,153,435]`, but only "um", from x 0 to about 35, was on screen. The tap at its center (76.5) hit empty page. The snapshot's `visibleFrame` (`XC_kAXXCAttributeVisibleFrame`) carries the same pinned rect, so the runner cannot fix this; that experiment was reverted.
+- `element_at` taps a web element that starts at the screen's left edge at most `WEB_LEFT_EDGE_TAP` (8 pt) in from that edge.
+- Test: `session::tests::a_web_element_cut_off_at_the_left_edge_of_a_zoomed_page_is_tapped_near_that_edge` (x 76.5 before the change).

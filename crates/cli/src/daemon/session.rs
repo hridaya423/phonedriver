@@ -190,6 +190,11 @@ impl Session {
 fn element_at(now: &Rendered, i: usize) -> Resolved {
     let e = &now.elements[i];
     let mut at = free_point(now, i);
+    // Safari on iOS, page zoomed after a field took focus: WebKit reports an element that runs past the left edge with
+    // x = 0 and its whole width, so the middle of that frame can be empty page while its visible part hugs the edge.
+    if e.bounds.x <= 0.0 && now.in_web_view(e.r#ref) {
+        at.x = at.x.min(e.bounds.x + WEB_LEFT_EDGE_TAP);
+    }
     // iOS Contacts: the "add phone" row sat half under the keyboard, and taps at its center typed letters into the
     // focused field.
     if let Some(k) = now.header.keyboard.filter(|_| e.role != Role::Keyboard)
@@ -209,6 +214,9 @@ fn element_at(now: &Rendered, i: usize) -> Resolved {
             .map(|(bar, toward)| (bar.label.clone().unwrap_or_default(), toward)),
     }
 }
+
+/// How far in from the screen's left edge a web element that starts there is tapped.
+const WEB_LEFT_EDGE_TAP: f32 = 8.0;
 
 /// Points of free height that hold a line of text.
 const MIN_BAND: f32 = 12.0;
@@ -518,6 +526,25 @@ mod tests {
         }
         let plain = Session::default().resolve(&text("Install"), &now).unwrap().at;
         assert_eq!((plain.x, plain.y), (350.0, 130.0));
+    }
+
+    #[test]
+    fn a_web_element_cut_off_at_the_left_edge_of_a_zoomed_page_is_tapped_near_that_edge() {
+        let json = r#"{"app":{"bundle_id":"com.apple.mobilesafari","pid":1},"nodes":[
+            {"p":-1,"cls":"XCUIElementTypeApplication","text":"Safari","b":[0,0,402,874],"f":"vVe"},
+            {"p":0,"cls":"XCUIElementTypeWebView","b":[0,0,402,874],"f":"vVe"},
+            {"p":1,"cls":"XCUIElementTypeTextField","text":"Customer name:","b":[88,95,315,125],"f":"vVeE","a":["tap"]},
+            {"p":1,"cls":"XCUIElementTypeOther","text":"Medium","sd":"0","b":[0,394,153,435],"f":"vVe"}
+        ]}"#;
+        let tree = RawTree::from_ios_json(json).unwrap();
+        let nodes = prune(&tree);
+        let refs = RefTable::default().assign(&tree, &nodes);
+        let now = Rendered::build(nodes, &refs, Header::default());
+        let radio = Session::default().resolve(&text("Medium"), &now).unwrap().at;
+        assert!(radio.x <= WEB_LEFT_EDGE_TAP, "{radio:?}");
+        assert_eq!(radio.y, 414.5);
+        let field = Session::default().resolve(&text("Customer name:"), &now).unwrap().at;
+        assert_eq!((field.x, field.y), (201.5, 110.0));
     }
 
     #[test]
