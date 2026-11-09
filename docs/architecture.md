@@ -435,7 +435,7 @@ phonedriver pinch <in|out> [--at <target>] [--distance 0..1]
 phonedriver scroll <up|down|left|right> [--within <target>] [--until "text"|@ref] [--max N]
 phonedriver gesture <json>                   multi-finger paths with timing
 phonedriver press <home|back|recents|notifications|lock|volume-up|volume-down|enter|hide-keyboard|...>
-phonedriver launch <app name|package|bundle id>
+phonedriver launch <app name|package|bundle id> [--restart]
 phonedriver open <url>                       deep link or web URL in its handler app
 phonedriver apps [install <path> | stop|clear|uninstall <app>]   list launchable apps, or manage one
 phonedriver wait <"text"|@ref|gone:"text"|settled> [--timeout ms]

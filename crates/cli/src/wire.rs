@@ -59,6 +59,8 @@ pub enum Action {
         app: String,
         #[serde(default)]
         grant: Vec<String>,
+        #[serde(default)]
+        restart: bool,
     },
     Open {
         url: String,

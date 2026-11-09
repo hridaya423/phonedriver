@@ -2229,6 +2229,36 @@ async fn launch_by_name_in_any_case_or_by_package_foregrounds_the_app_and_return
 }
 
 #[tokio::test(start_paused = true)]
+async fn a_launch_with_restart_stops_the_app_first_so_it_opens_on_its_first_screen() {
+    let (source, fake) = installed();
+    let (d, _home) = daemon(source);
+    let r = ok(
+        &d,
+        "default",
+        "act",
+        act_with(json!({"kind": "launch", "app": "Calculator", "restart": true})),
+    )
+    .await;
+    assert!(
+        r["summary"]
+            .as_str()
+            .unwrap()
+            .starts_with("restarted Calculator"),
+        "{r}"
+    );
+    let calls = fake.calls();
+    let stop = calls
+        .iter()
+        .position(|c| matches!(c, Call::AppOp(phonedriver_core::device::AppOp::Stop, _)))
+        .expect("a stop");
+    let launch = calls
+        .iter()
+        .position(|c| matches!(c, Call::Launch(_)))
+        .unwrap();
+    assert!(stop < launch, "{calls:?}");
+}
+
+#[tokio::test(start_paused = true)]
 async fn the_first_taps_after_a_launch_wait_for_a_cold_app_that_reacts_after_900_ms() {
     let (source, fake) = installed();
     let (d, _home) = daemon(source);

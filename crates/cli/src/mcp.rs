@@ -221,6 +221,7 @@ struct LaunchArgs {
     app: Option<String>,
     url: Option<String>,
     grant: Option<Vec<String>>,
+    restart: Option<bool>,
 }
 
 #[derive(Deserialize, JsonSchema)]
@@ -309,6 +310,7 @@ impl LaunchArgs {
             (Some(app), None) => Ok(Verb::Launch {
                 app,
                 grant: self.grant.unwrap_or_default(),
+                restart: self.restart.unwrap_or(false),
             }),
             (None, Some(url)) => Ok(Verb::Open { url, app: None }),
             (Some(app), Some(url)) => Ok(Verb::Open {
@@ -1159,7 +1161,7 @@ impl Mcp {
     }
 
     #[tool(
-        description = "Open an app (name, package or bundle id) or a `url` (with `app`, opened in that app); returns its first screen. `grant` pre-allows permissions (`camera`, `notifications`)."
+        description = "Open an app (name, package or bundle id) or a `url` (with `app`, opened in that app); returns the screen it shows, which is where the app was left unless `restart`. `grant` pre-allows permissions (`camera`, `notifications`)."
     )]
     async fn launch(&self, Parameters(a): Parameters<LaunchArgs>) -> CallToolResult {
         let device = a.device.clone();

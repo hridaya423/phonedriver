@@ -1142,3 +1142,11 @@ The fixes come from the first run on a physical Android phone, a Honor X8 (TFY-L
 - Test: `render::tests::a_safari_paragraph_whose_every_node_says_focused_still_reads_as_one_line` (red before the change).
 - Live, the Ada Lovelace article's first screen after `open`: 54 lines and 2,473 chars before, 39 lines and 2,071 bytes after. The paragraph reads as prose with `[mathematician @e35]` inline. D35 records this.
 - `cargo test --workspace --no-fail-fast`: all pass except the 6 `tests/ocr.rs` Vision failures. Clippy: 0 warnings.
+
+## 2026-11-09: `launch --restart` opens an app on its first screen
+
+- In i6, i9 and i11, `launch Settings` reopened a sub-page (General, Accessibility), and the agent spent one or two back taps on each run before it could start.
+- `launch --restart` (MCP `restart: true`, also in `batch`) stops the app, then launches it. `simctl terminate` exits 3 (`found nothing to terminate`) for an app that is not running; that error is ignored because such an app opens fresh anyway (checked on the mini first). The summary says `restarted <app>`. The MCP `launch` description now says the screen is where the app was left unless `restart`. SKILL.md and the architecture CLI table name the flag.
+- Test: `a_launch_with_restart_stops_the_app_first_so_it_opens_on_its_first_screen` (red before the change).
+- Live on the iPhone 17 Simulator: `launch Settings` showed `button "General"` (inside General); `launch Settings --restart` showed the root list (`Apple Account…`, `General`). `launch Calendar --restart` twice in a row succeeded both times.
+- `cargo test --workspace --no-fail-fast`: all pass except the 6 `tests/ocr.rs` Vision failures. Clippy: 0 warnings.
