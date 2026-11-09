@@ -1414,14 +1414,35 @@ impl Actor {
                     self.lap("resolve", t);
                     r?
                 };
-                if let (true, Some(e)) = (under_keyboard, &found) {
-                    return Err(Error::OffScreen {
-                        r#ref: e.r#ref,
-                        scroll_hint: Direction::Down,
-                        behind_keyboard: true,
-                        covered_by: None,
-                    });
-                }
+                let mut hid = false;
+                let (at, element, found, covered) = match (under_keyboard, &found) {
+                    (true, Some(e)) => {
+                        let behind = Error::OffScreen {
+                            r#ref: e.r#ref,
+                            scroll_hint: Direction::Down,
+                            behind_keyboard: true,
+                            covered_by: None,
+                        };
+                        if !p.settle {
+                            return Err(behind);
+                        }
+                        // Agents answered "under the keyboard" with a hide-keyboard call and the same tap, two calls
+                        // for one intent (iOS Contacts, run i2c). The tap does both and finds the element again,
+                        // since the form moves when the keyboard goes.
+                        let wanted = e.r#ref;
+                        let started = self.begin_action();
+                        device.hide_keyboard().await?;
+                        self.settle_probing(cfg, started, false).await;
+                        let now = self.fresh(s).await?;
+                        let r = s.resolve(&Target::Ref { r#ref: wanted }, &now)?;
+                        if r.under_keyboard || now.header.keyboard.is_some() && r.at.y >= now.header.keyboard.map_or(f32::MAX, |k| k.y) {
+                            return Err(behind);
+                        }
+                        hid = true;
+                        (r.at, r.line, r.element, r.covered)
+                    }
+                    _ => (at, element, found, covered),
+                };
                 if let (Some((bar, scroll_hint)), Some(e)) = (covered, &found) {
                     return Err(Error::OffScreen {
                         r#ref: e.r#ref,
@@ -1453,6 +1474,11 @@ impl Actor {
                         at.y.round()
                     ),
                     None => format!("{verb} at {},{}", at.x.round(), at.y.round()),
+                };
+                let summary = if hid {
+                    format!("hid the keyboard, then {summary}")
+                } else {
+                    summary
                 };
                 let summary = approved_summary(summary, approved);
                 if let Some(e) = found.as_ref().filter(|e| {

@@ -2673,7 +2673,11 @@ async fn a_row_the_keyboard_half_covers_is_tapped_above_the_keyboard_and_a_slive
     )
     .await;
     assert_eq!(e.data["behind_keyboard"], true, "{e:?}");
-    assert_eq!(fake.calls().len(), 1, "{:?}", fake.calls());
+    assert_eq!(
+        fake.calls()[1..],
+        [Call::Button(phonedriver_core::device::Button::Back)],
+        "a keyboard that stays is not tapped through"
+    );
 }
 
 #[tokio::test(start_paused = true)]
@@ -2693,6 +2697,41 @@ async fn a_scroll_with_the_keyboard_up_drags_above_the_keyboard() {
     };
     let ys: Vec<f32> = g.fingers[0].iter().map(|p| p.at.y).collect();
     assert!(ys.iter().all(|y| *y < 500.0), "{ys:?}");
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_tap_on_a_button_under_the_keyboard_hides_the_keyboard_and_then_taps_it() {
+    let (source, fake) = FakeSource::with(vec![keyboard_tree()]);
+    let (d, _home) = daemon(source);
+    ok(&d, "default", "snapshot", json!({})).await;
+    let watch = fake.clone();
+    tokio::spawn(async move {
+        loop {
+            if watch
+                .calls()
+                .contains(&Call::Button(phonedriver_core::device::Button::Back))
+            {
+                watch.set_tree(tree(&["Field", "Cancel", "Send"]));
+                watch.push_frame(big_frame(1));
+                return;
+            }
+            tokio::time::sleep(Duration::from_millis(5)).await;
+        }
+    });
+    let r = ok(&d, "default", "act", tap_text("Send")).await;
+    assert!(
+        r["summary"].as_str().unwrap().starts_with("hid the keyboard, then tapped"),
+        "{r}"
+    );
+    let taps: Vec<f32> = fake
+        .calls()
+        .iter()
+        .filter_map(|c| match c {
+            Call::Gesture(g) => Some(g.fingers[0][0].at.y),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(taps, [330.0], "the tap goes where Send is once the keyboard is gone");
 }
 
 #[tokio::test(start_paused = true)]
@@ -2722,7 +2761,11 @@ async fn a_button_under_the_keyboard_is_marked_and_a_tap_on_it_fails_off_screen_
         hint.contains("press hide-keyboard") && hint.contains("scroll"),
         "{hint}"
     );
-    assert!(fake.calls().is_empty(), "{:?}", fake.calls());
+    assert_eq!(
+        fake.calls(),
+        [Call::Button(phonedriver_core::device::Button::Back)],
+        "it tried to hide the keyboard, which stayed, and did not tap"
+    );
 
     ok(
         &d,
@@ -2731,7 +2774,7 @@ async fn a_button_under_the_keyboard_is_marked_and_a_tap_on_it_fails_off_screen_
         json!({"action": {"kind": "tap", "target": {"text": "Cancel"}}}),
     )
     .await;
-    assert_eq!(fake.calls().len(), 1);
+    assert_eq!(fake.calls().len(), 2);
 }
 
 async fn wait_with_frames(
