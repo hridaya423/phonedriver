@@ -2700,6 +2700,25 @@ async fn a_scroll_with_the_keyboard_up_drags_above_the_keyboard() {
 }
 
 #[tokio::test(start_paused = true)]
+async fn a_tap_on_a_disabled_button_fails_at_once_and_a_point_tap_still_goes() {
+    let json = r#"{"windows":[{"id":1,"type":"application","package":"com.example","bounds":[0,0,360,800]}],"nodes":[
+        {"p":-1,"w":1,"cls":"android.widget.FrameLayout","b":[0,0,360,800],"f":"vVe"},
+        {"p":0,"w":1,"cls":"android.widget.Button","text":"Add","b":[300,40,360,90],"f":"vV","a":["tap"]}]}"#;
+    let disabled = RawTree::from_android_json(json, Scale { density: 1.0 }).unwrap();
+    let (source, fake) = FakeSource::with(vec![disabled]);
+    let (d, _home) = daemon(source);
+    ok(&d, "default", "snapshot", json!({})).await;
+    let started = tokio::time::Instant::now();
+    let e = err(&d, "default", "act", tap_text("Add")).await;
+    assert_eq!(e.data["code_name"], "disabled", "{e:?}");
+    assert!(e.message.contains("disabled"), "{e:?}");
+    assert_eq!(started.elapsed(), Duration::ZERO);
+    assert!(fake.calls().is_empty(), "{:?}", fake.calls());
+    ok(&d, "default", "act", json!({"action": {"kind": "tap", "target": {"point": {"x": 330.0, "y": 65.0}}}, "settle": false})).await;
+    assert_eq!(fake.calls().len(), 1);
+}
+
+#[tokio::test(start_paused = true)]
 async fn a_tap_on_a_button_under_the_keyboard_hides_the_keyboard_and_then_taps_it() {
     let (source, fake) = FakeSource::with(vec![keyboard_tree()]);
     let (d, _home) = daemon(source);
