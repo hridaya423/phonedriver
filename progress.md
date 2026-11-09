@@ -1047,3 +1047,11 @@ The fixes come from the first run on a physical Android phone, a Honor X8 (TFY-L
 - Changed: `save_fixture_files` in `crates/cli/src/commands.rs` asks for the screenshot `inline`, as `screenshot -o` does, and writes the bytes itself.
 - Live check: `snapshot --save-fixture contact_card --fixture-dir <scratch>` wrote `contact_card.json` (12,423 bytes) and `contact_card.png` (279,039 bytes) on the MacBook. No automated test, because this is the client half of the inline path that `screenshot_over_a_remote_socket_returns_the_image_without_reading_the_daemons_path` already covers.
 - `cargo test --workspace --no-fail-fast`: 684 passed, 0 failed. Clippy is clean.
+
+## 2026-11-09: a tap on an element under the keyboard hides the keyboard and then taps it
+
+- Seen in agent run i2c (Contacts, 13 calls, passed): after the keyboard fix, two taps came back `under the keyboard`, then the agent called `press hide-keyboard` and the same tap again. That is two extra calls for one intent.
+- Changed: the Tap branch in `crates/cli/src/daemon/actor.rs`. If the target is under the keyboard and the call settles, it hides the keyboard (the device's own way), settles, reads the screen and finds the element again by its ref, because the form moves. It taps only if the element is now clear of the keyboard. Otherwise it fails `behind_keyboard` as before. The reply starts `hid the keyboard, then tapped …`. With `settle: false` it fails as before.
+- Tests: `a_tap_on_a_button_under_the_keyboard_hides_the_keyboard_and_then_taps_it`: the keyboard goes when Back is pressed, and the tap lands at Send's new y, 330. Two tests whose keyboard never hides now expect the one `Back` press and no tap.
+- Live check, iPhone 17 Simulator: in a new contact with the keyboard up, `tap "add phone"` replied `ok hid the keyboard, then tapped @e59 "add phone" at 201,325 · settled in 1129ms` with `+ @e84 button "mobile"`. The draft was discarded.
+- `cargo test --workspace --no-fail-fast`: 679 passed and 6 OCR tests failed while other builds loaded the MacBook; `--test ocr` alone passed 7 of 7. Clippy is clean.
