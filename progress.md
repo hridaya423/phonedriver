@@ -1440,3 +1440,10 @@ Safari reports an empty field's placeholder as its value, so the first `type` in
 
 - Test `a_value_that_was_the_fields_own_name_is_not_printed_twice` failed with the doubled line and passes now. Core tests: 202 passed. Daemon tests: 152 passed. MCP tests: 30 passed. They failed once only because my shell still exported the mini's `PHONEDRIVER_SOCKET`.
 - Live on the Simulator: `ok typed 11 chars into @e46 · verified` and then `~ @e46 textbox "Search Wikipedia" → "Alan Turing"`.
+
+## 2026-11-09: a point outside the screen is an error that names the screen in points
+
+In run a14 (Android: Do Not Disturb from quick settings, using the UI only), the agent's first call was `swipe` from `540,5` to `540,1200`. Those are pixels on a 1080-wide display, while the device line says `411x923pt`. phonedriver answered `ok dragged 540,5 to 540,1200`, the panel did not open, and the agent had to find another way. A tap at `540,1200` answered `ok tapped at 540,1200 · no change`. Every point target (`tap`, `swipe` `from`, `drag`) now goes through `resolve_target`, which refuses a point outside the screen with the new error `point_off_screen` (-32024): `540,1200 is outside the screen, which is 411x923 points`. The hint reads `Use points, not pixels: an x,y inside 0,0 to 411,923, or a ref from phonedriver snapshot.` Points on the edge are allowed.
+
+- Daemon test `a_point_outside_the_screen_is_refused_with_the_screen_in_points_and_nothing_is_sent` failed with `tapped at 540,1200` and passes now. It checks the tap and the drag, that no gesture reached the device, and that `360,800` is still accepted. `protocol.md` lists the code. Core tests: 202 passed. Daemon tests: 153 passed. MCP tests: 30 passed.
+- Live: `tap 540,1200` gives the error and hint above, and `drag 200,5 200,600` still works.
