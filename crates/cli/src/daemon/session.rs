@@ -203,21 +203,23 @@ impl Session {
         }
     }
 
-    /// The rendered lines of the elements whose label or hint contains `text`, in any case.
+    /// The rendered lines of the elements whose label or hint contains `text`, in any case. An alternative that no
+    /// label holds and that is a role word (`radio|checkbox`, as agents wrote it in run a5b) stands for that role.
     pub fn find(&self, now: &Rendered, text: &str, role: Option<Role>) -> Vec<String> {
         let qs: Vec<String> = std::iter::once(text)
             .chain(either(text))
             .map(str::to_lowercase)
             .collect();
+        let holds = |e: &Element, q: &str| parts(e).any(|p| p.to_lowercase().contains(q));
+        let roles: Vec<Role> = qs
+            .iter()
+            .filter(|q| !now.elements.iter().any(|e| holds(e, q)))
+            .filter_map(|q| Role::from_word(q))
+            .collect();
         now.elements
             .iter()
             .filter(|e| role.is_none_or(|r| e.role == r))
-            .filter(|e| {
-                parts(e).any(|p| {
-                    let p = p.to_lowercase();
-                    qs.iter().any(|q| p.contains(q))
-                })
-            })
+            .filter(|e| qs.iter().any(|q| holds(e, q)) || roles.contains(&e.role))
             .map(|e| now.line(e))
             .collect()
     }
