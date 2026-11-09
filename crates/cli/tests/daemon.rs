@@ -1806,6 +1806,137 @@ async fn scroll_until_a_far_numbered_row_flings_on_a_device_with_a_frame_stream(
 }
 
 #[tokio::test(start_paused = true)]
+async fn scroll_until_a_name_far_down_an_alphabetical_list_flings_and_a_near_one_drags() {
+    let apps = ["Activity Launcher", "Adobe Scan", "Airlearn", "Amazon Shopping", "Android Auto"];
+    let first_gesture = |target: &'static str, rows: &'static [&'static str]| async move {
+        let (source, fake) = FakeSource::with(vec![list_tree(rows)]);
+        let (d, _home) = daemon(source);
+        let _ = d
+            .call("default", "act", scroll(json!({"until": {"text": target}, "max": 1})))
+            .await;
+        fake.calls().first().map(is_fling)
+    };
+    let sorted: &'static [&'static str] = Box::leak(Box::new(apps));
+    assert_eq!(first_gesture("YouTube", sorted).await, Some(true));
+    assert_eq!(first_gesture("Bluetooth", sorted).await, Some(false));
+    let mixed: &'static [&'static str] =
+        Box::leak(Box::new(["Wi-Fi", "Bluetooth", "Apps", "Battery", "Display"]));
+    assert_eq!(first_gesture("YouTube", mixed).await, Some(false));
+}
+
+/// A sorted list of 39 names, A to M without "Gmail", five on screen. A drag moves it three rows and a fling twelve.
+struct AlphaList {
+    inner: Arc<FakeDevice>,
+    rows: Vec<String>,
+    top: Mutex<usize>,
+}
+
+impl AlphaList {
+    fn new() -> AlphaList {
+        let rows = ('A'..='M')
+            .flat_map(|c| (0..3).map(move |k| format!("{c}{}app{k}", c.to_ascii_lowercase())))
+            .collect();
+        AlphaList {
+            inner: Arc::new(FakeDevice::new(vec![tree(&["unused"])])),
+            rows,
+            top: Mutex::new(0),
+        }
+    }
+}
+
+#[async_trait]
+impl Device for AlphaList {
+    fn info(&self) -> &phonedriver_core::device::DeviceInfo {
+        self.inner.info()
+    }
+    async fn tree(&self) -> Result<RawTree, Error> {
+        let top = *self.top.lock().unwrap();
+        let shown: Vec<&str> = self.rows[top..(top + 5).min(self.rows.len())]
+            .iter()
+            .map(String::as_str)
+            .collect();
+        Ok(list_tree(&shown))
+    }
+    fn frames(&self) -> Option<tokio::sync::watch::Receiver<FrameRef>> {
+        self.inner.frames()
+    }
+    async fn screenshot(
+        &self,
+        q: phonedriver_core::device::Quality,
+    ) -> Result<phonedriver_core::device::Image, Error> {
+        self.inner.screenshot(q).await
+    }
+    fn events(&self) -> tokio::sync::broadcast::Receiver<DeviceEvent> {
+        self.inner.events()
+    }
+    async fn gesture(&self, g: phonedriver_core::device::Gesture) -> Result<(), Error> {
+        let path = &g.fingers[0];
+        let (a, b) = (path.first().unwrap(), path.last().unwrap());
+        let rows = if b.t_ms - a.t_ms < 150 { 12 } else { 3 };
+        let moved = {
+            let mut top = self.top.lock().unwrap();
+            let before = *top;
+            let last = self.rows.len() - 5;
+            *top = if b.at.y < a.at.y { (*top + rows).min(last) } else { top.saturating_sub(rows) };
+            *top != before
+        };
+        if moved {
+            let seq = self.inner.calls().len() as u64 + 1;
+            self.inner.push_frame(big_frame(seq));
+        }
+        self.inner.gesture(g).await
+    }
+    async fn key(&self, k: phonedriver_core::device::Key) -> Result<(), Error> {
+        self.inner.key(k).await
+    }
+    async fn button(&self, b: phonedriver_core::device::Button) -> Result<(), Error> {
+        self.inner.button(b).await
+    }
+    async fn open_url(
+        &self,
+        u: &phonedriver_core::device::Url,
+        app: Option<&AppId>,
+    ) -> Result<(), Error> {
+        self.inner.open_url(u, app).await
+    }
+    async fn text(&self, t: phonedriver_core::device::TextInput) -> Result<(), Error> {
+        self.inner.text(t).await
+    }
+    async fn clipboard(
+        &self,
+        op: phonedriver_core::device::ClipboardOp,
+    ) -> Result<Option<String>, Error> {
+        self.inner.clipboard(op).await
+    }
+    async fn apps(&self) -> Result<Vec<phonedriver_core::device::App>, Error> {
+        self.inner.apps().await
+    }
+    async fn launch(&self, app: &phonedriver_core::device::AppId) -> Result<(), Error> {
+        self.inner.launch(app).await
+    }
+    async fn foreground(&self) -> Result<Option<phonedriver_core::device::AppId>, Error> {
+        self.inner.foreground().await
+    }
+}
+
+#[tokio::test(start_paused = true)]
+async fn scroll_until_a_name_missing_from_an_alphabetical_list_goes_on_one_way_to_the_end() {
+    let list = Arc::new(AlphaList::new());
+    let home = tempfile::tempdir().unwrap();
+    let d = Daemon::new(
+        Arc::new(OneDevice(list.clone())),
+        Config {
+            home: home.path().to_path_buf(),
+        },
+    );
+    let found = ok(&d, "default", "act", scroll(json!({"until": {"text": "Kkapp1"}}))).await;
+    assert!(found["summary"].as_str().unwrap().ends_with("\"Kkapp1\""), "{found}");
+    *list.top.lock().unwrap() = 0;
+    let e = err(&d, "default", "act", scroll(json!({"until": {"text": "Gmail"}}))).await;
+    assert!(e.message.contains("list ended"), "{e:?}");
+}
+
+#[tokio::test(start_paused = true)]
 async fn scroll_until_never_flings_on_a_polled_device_where_a_fling_moves_nothing() {
     let (source, fake) = FakeSource::polled(vec![list_tree(&["Row 0", "Row 1"])]);
     let (d, _home) = daemon(source);
