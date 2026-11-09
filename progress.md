@@ -1328,3 +1328,11 @@ Rerun i8f (iOS Safari, the httpbin form) took 11 calls and 41 s, about where i8e
 - Live: the Safari form went from 39 lines to 24, and `tap Medium` gives `~ @e9 radio "Medium" off → on`. The Chrome form went from 21 lines to 16.
 - `cargo test -q --workspace --no-fail-fast`: no failures. Clippy is clean.
 - The mini's disk was full (124 MiB free), so the binary upload failed. I removed `~/phone-use-work/target`, my own build directory there (2.2 GB). Nothing else was touched.
+
+## 2026-11-09: hide-keyboard on iOS taps the Done of Safari's form bar
+
+In run i8f, `press hide-keyboard` in Safari failed with `this screen kept the keyboard when it was told to hide`. The drag above the keyboard does not dismiss Safari's keyboard. Its form bar (Previous, Next, Done) sits right above the keys: Done at `[341, 513, 381, 551]`, the keyboard from y 583. `hide_keyboard_plan` now taps a `Done` button that ends at most 48 pt above the keyboard (`HidePlan::Done`, summary `via done`) before it falls back to the drag. A `Done` in a navigation bar far above is not taken.
+
+- Test `hiding_the_keyboard_taps_done_on_the_bar_above_it_and_not_a_done_elsewhere`, with the measured bounds. My first gap of 12 pt was wrong (the live tap still failed), and the saved tree showed the 32 pt gap.
+- Live in Safari: `type "Ring twice" --into "Delivery instructions:"`, then `press hide-keyboard` gives `ok hid the keyboard via hide-key · settled in 638ms` (before the variant) and then `via done`, with `keyboard hidden`.
+- `cargo test -q --workspace --no-fail-fast`: no failures. Clippy is clean.

@@ -298,12 +298,18 @@ pub fn back_button(tree: &RawTree) -> Option<Point> {
 pub enum HidePlan {
     /// A "Hide keyboard" key (iPad keyboards have one).
     Tap(Point),
+    /// The Done button on the bar right above the keyboard (Safari's form bar).
+    Done(Point),
     /// Drag the content above the keyboard up: forms that dismiss on drag (Contacts, Settings) hide it. A drag down
     /// would also dismiss a sheet such as Contacts' New Contact, and lose its draft.
     Drag(Gesture),
 }
 
 /// Reads the runner's snapshot, keys included, and plans how to hide the keyboard; `None` when none is shown.
+/// How far above the keyboard's top a Done button may end and still be on the keyboard's own bar, in points. Safari's
+/// bar ends 32 pt above the keys on an iPhone 17 (iOS 26.5).
+const DONE_BAR_GAP: f32 = 48.0;
+
 pub fn hide_keyboard_plan(reply: &Value, screen: Size) -> Option<HidePlan> {
     let nodes = reply["nodes"].as_array()?;
     let keyboard = nodes
@@ -331,6 +337,23 @@ pub fn hide_keyboard_plan(reply: &Value, screen: Size) -> Option<HidePlan> {
         }));
     }
     let [_, top, _, _] = bounds(keyboard)?;
+    // Safari keeps the keyboard through the drag (run i8f), and puts Previous, Next and Done on a bar right above it.
+    let done = nodes.iter().find_map(|n| {
+        let b = bounds(n)?;
+        (n["cls"] == "XCUIElementTypeButton"
+            && n["text"]
+                .as_str()
+                .is_some_and(|t| t.eq_ignore_ascii_case("done"))
+            && b[3] <= top + 1.0
+            && b[3] >= top - DONE_BAR_GAP)
+            .then_some(b)
+    });
+    if let Some([left, t, right, bottom]) = done {
+        return Some(HidePlan::Done(Point {
+            x: (left + right) / 2.0,
+            y: (t + bottom) / 2.0,
+        }));
+    }
     let from = Point {
         x: screen.w / 2.0,
         y: top - 40.0,
@@ -572,6 +595,26 @@ mod tests {
         assert_eq!(
             hide_keyboard_plan(&with_key, SCREEN),
             Some(HidePlan::Tap(Point { x: 370.0, y: 785.0 }))
+        );
+    }
+
+    #[test]
+    fn hiding_the_keyboard_taps_done_on_the_bar_above_it_and_not_a_done_elsewhere() {
+        let mut nav = keyboard_reply();
+        nav["nodes"].as_array_mut().unwrap().push(json!({
+            "p": 0, "cls": "XCUIElementTypeButton", "text": "Done", "a": ["tap"],
+            "b": [340, 50, 400, 90], "f": "vVe"}));
+        assert!(matches!(
+            hide_keyboard_plan(&nav, SCREEN),
+            Some(HidePlan::Drag(_))
+        ));
+        let mut bar = nav.clone();
+        bar["nodes"].as_array_mut().unwrap().push(json!({
+            "p": 0, "cls": "XCUIElementTypeButton", "text": "Done", "a": ["tap"],
+            "b": [341, 513, 381, 551], "f": "vVe"}));
+        assert_eq!(
+            hide_keyboard_plan(&bar, SCREEN),
+            Some(HidePlan::Done(Point { x: 361.0, y: 532.0 }))
         );
     }
 
