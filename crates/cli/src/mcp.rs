@@ -150,6 +150,7 @@ fn flag<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Option<bool>, D::Error
 struct TapArgs {
     device: Option<String>,
     /// @ref, `x,y` or text.
+    #[serde(alias = "ref")]
     target: String,
     /// With a text target: only an element of this role, such as button, cell, textbox or switch.
     role: Option<String>,
@@ -1335,6 +1336,14 @@ mod tests {
                 .as_deref(),
             Some("android:emulator-5556")
         );
+    }
+
+    #[test]
+    fn tap_takes_ref_as_another_name_for_target_and_the_schema_names_only_target() {
+        let a: TapArgs = serde_json::from_value(json!({"ref": "@e27"})).unwrap();
+        assert_eq!(a.target, "@e27");
+        let schema = serde_json::to_string(&schemars::schema_for!(TapArgs)).unwrap();
+        assert!(!schema.contains("\"ref\""), "{schema}");
     }
 
     #[test]
