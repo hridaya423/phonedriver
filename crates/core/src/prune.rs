@@ -359,7 +359,7 @@ fn fold_wrappers(mut nodes: Vec<Node>) -> Vec<Node> {
             && n.collection.is_none()
         {
             let in_page = std::iter::successors(n.parent, |&p| nodes[p].parent)
-                .any(|p| nodes[p].role == Role::WebView);
+                .any(|p| nodes[p].role == Role::WebView && !drop[p]);
             let wrapper = match n.role {
                 Role::WebView => nodes[c].role == Role::WebView || in_page,
                 Role::Other => true,
@@ -1137,6 +1137,25 @@ mod tests {
             "{nodes:#?}"
         );
         assert_eq!(nodes[1].value.as_deref(), Some("8 pages"));
+    }
+
+    #[test]
+    fn a_short_page_whose_web_views_carry_no_pages_still_keeps_one() {
+        let json = r#"{"app":{"bundle_id":"com.apple.mobilesafari","pid":1},"nodes":[
+            {"p":-1,"cls":"XCUIElementTypeApplication","text":"Safari","b":[0,0,402,874],"f":"vVe"},
+            {"p":0,"cls":"XCUIElementTypeWebView","id":"WebView","b":[0,0,402,874],"f":"vVe"},
+            {"p":1,"cls":"XCUIElementTypeWebView","b":[0,0,402,874],"f":"vVe"},
+            {"p":2,"cls":"XCUIElementTypeWebView","b":[0,0,402,874],"f":"vVe"},
+            {"p":3,"cls":"XCUIElementTypeOther","text":"form","b":[0,62,402,812],"f":"vVe"},
+            {"p":4,"cls":"XCUIElementTypeTextField","text":"Customer name:","b":[88,95,315,125],"f":"vVeE","a":["tap"]}
+        ]}"#;
+        let nodes = prune(&RawTree::from_ios_json(json).unwrap());
+        let webviews = nodes.iter().filter(|n| n.role == Role::WebView).count();
+        assert_eq!(webviews, 1, "{nodes:#?}");
+        let field = nodes.iter().position(|n| n.role.is_text_entry()).unwrap();
+        let in_page = std::iter::successors(nodes[field].parent, |&p| nodes[p].parent)
+            .any(|p| nodes[p].role == Role::WebView);
+        assert!(in_page, "{nodes:#?}");
     }
 
     #[test]
