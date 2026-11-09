@@ -945,3 +945,13 @@ The fixes come from the first run on a physical Android phone, a Honor X8 (TFY-L
 - Tests: `scroll_until_looks_inside_what_it_scrolls_not_at_a_toolbar_above_it` and `scroll_until_ignores_a_toolbar_that_slides_back_over_the_page` both failed with the containment check switched off. `scroll_until_text_already_on_screen_twice_stops_at_the_first_without_scrolling` now also checks the wording and `settled`, and it failed first.
 - Live check on the Honor X8, release build: after three `scroll down`s, `scroll up --until Search` replied `ok scrolled up 3 times to @e10 "Search"`. Run again, it replied `ok already on screen, no scroll: @e10 "Search"`.
 - `cargo test --workspace --no-fail-fast`: 675 passed, 0 failed. Clippy is clean.
+
+## 2026-11-09: real-phone speed in the README and docs/bench/speed.md
+
+- Command: `python3 realbench.py target/release/phonedriver AS6N6R2223005087 30` (a throwaway script in the session scratchpad), on the Honor X8 on Settings, Display & brightness, release build at `aa1f9d3`.
+- Output:
+  - `phonedriver snapshot --no-settle n=30 p50=78.5 ms p95=128.5 ms out=461 B`
+  - `phonedriver screenshot n=30 p50=16.4 ms p95=21.4 ms`
+  - `adb uiautomator dump n=20 p50=2506.6 ms p95=2583.9 ms out=25334 B`
+  - `adb screencap -p n=20 p50=1005.7 ms p95=1097.6 ms`
+- Docs: `docs/bench/speed.md` has a new "A physical phone" section, and the README speed paragraph and limits list name the phone.
