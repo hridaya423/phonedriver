@@ -128,18 +128,25 @@ impl Session {
         target: &Target,
         now: &Rendered,
         within: Option<Ref>,
+        sentences: bool,
     ) -> Result<Resolved, Error> {
         let Target::Text { text, role } = target else {
             return self.resolve(target, now);
         };
-        let refs: Vec<_> = std::iter::once(text.as_str())
-            .chain(either(text))
-            .flat_map(|t| match find_text(now, t, *role, None) {
-                TextMatch::None => Vec::new(),
-                TextMatch::One { r#ref, .. } => vec![r#ref],
-                TextMatch::Many(refs) => refs,
-            })
-            .collect();
+        let matches = |extra: Option<usize>| -> Vec<Ref> {
+            std::iter::once(text.as_str())
+                .chain(either(text))
+                .flat_map(|t| match find_text(now, t, *role, extra) {
+                    TextMatch::None => Vec::new(),
+                    TextMatch::One { r#ref, .. } => vec![r#ref],
+                    TextMatch::Many(refs) => refs,
+                })
+                .collect()
+        };
+        let mut refs = matches(Some(EXTRA_WORDS));
+        if refs.is_empty() && sentences {
+            refs = matches(None);
+        }
         let holder = within.and_then(|r| now.index_of(r));
         let inside = |i: usize| {
             holder
@@ -539,8 +546,33 @@ mod tests {
     fn sought(labels: &[&str], target: &str) -> Result<String, Error> {
         let now = screen(labels);
         Session::default()
-            .seek(&text(target), &now, None)
+            .seek(&text(target), &now, None, true)
             .map(|r| r.line.unwrap_or_default())
+    }
+
+    #[test]
+    fn a_search_does_not_stop_at_a_sentence_that_a_tap_on_the_same_text_would_not_take() {
+        let labels = [
+            "If you choose to 'Reject all', we will not use cookies or IP addresses for these additional purposes.",
+            "Accept all",
+        ];
+        let first_screen = |target: &str| {
+            Session::default()
+                .seek(&text(target), &screen(&labels), None, false)
+                .map(|r| r.line.unwrap_or_default())
+        };
+        assert!(picked(&labels, "Reject all").is_err());
+        assert!(first_screen("Reject all").is_err());
+        assert!(
+            sought(&labels, "Reject all")
+                .unwrap()
+                .contains("If you choose")
+        );
+        let with_button = [labels[0], "Reject all"];
+        assert_eq!(
+            sought(&with_button, "Reject all").unwrap(),
+            "@e2 button \"Reject all\""
+        );
     }
 
     #[test]

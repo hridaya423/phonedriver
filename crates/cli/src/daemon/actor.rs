@@ -2349,7 +2349,7 @@ impl Actor {
         let max = max.unwrap_or_else(|| default_scroll_limit(&until, &now, direction));
         let mut sorted = true;
         loop {
-            match s.seek(&until, &now, holder) {
+            match s.seek(&until, &now, holder, gestures > 0) {
                 Ok(found) if found.covered.is_none() || idle >= 2 => {
                     let line = found.line.unwrap_or_default();
                     let summary = if gestures == 0 {
@@ -2815,7 +2815,7 @@ impl Actor {
             reads += 1;
             let rendered = self.build(s, &tree, None);
             let found = matches!(
-                s.seek(target, &rendered, None),
+                s.seek(target, &rendered, None, true),
                 Ok(_) | Err(Error::Ambiguous { .. })
             );
             if found == present {
