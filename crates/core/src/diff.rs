@@ -16,6 +16,9 @@ pub enum Field {
     Hint,
     State,
     Covered,
+    /// The element's place among its siblings: `to` is `before @e6`, `last`, or `reordered` for a parent whose
+    /// children moved in more places than are worth listing.
+    Order,
 }
 
 /// One difference between two observations. `from` and `to` are already rendered and masked.
@@ -146,7 +149,94 @@ pub fn diff(prev: &Rendered, next: &Rendered) -> DiffOrFull {
             }
         }
     }
+    let moved = moves(prev, next, &changes);
+    changes.extend(moved);
     DiffOrFull::Diff(changes)
+}
+
+const MOVES_LISTED: usize = 3;
+
+/// Children that kept their parent and changed their order. Messages pinned a conversation by moving its row to the
+/// top: no label or state changed, the reply listed nothing about the row, and the agent took a snapshot to look.
+/// When either of two rows could be called the one that moved, it is the one that also changed (the pinned row was
+/// the selected one).
+fn moves(prev: &Rendered, next: &Rendered, changes: &[Change]) -> Vec<Change> {
+    let changed = |r: &Ref| {
+        changes
+            .iter()
+            .any(|c| matches!(c, Change::Changed { r#ref, .. } if r#ref == r))
+    };
+    let mut out = Vec::new();
+    for parent in &next.elements {
+        let Some(old) = prev.index_of(parent.r#ref).map(|i| &prev.elements[i]) else {
+            continue;
+        };
+        let now: Vec<Ref> = parent
+            .children
+            .iter()
+            .map(|&i| next.elements[i].r#ref)
+            .collect();
+        let was: Vec<Ref> = old
+            .children
+            .iter()
+            .map(|&i| prev.elements[i].r#ref)
+            .filter(|r| now.contains(r))
+            .collect();
+        let kept: Vec<usize> = now
+            .iter()
+            .filter_map(|r| was.iter().position(|w| w == r))
+            .collect();
+        if kept.is_sorted() {
+            continue;
+        }
+        let weight: Vec<usize> = kept
+            .iter()
+            .map(|&k| if changed(&was[k]) { 1000 } else { 1001 })
+            .collect();
+        let mut run = weight.clone();
+        let mut from = vec![usize::MAX; kept.len()];
+        for i in 0..kept.len() {
+            for j in 0..i {
+                if kept[j] < kept[i] && run[j] + weight[i] > run[i] {
+                    run[i] = run[j] + weight[i];
+                    from[i] = j;
+                }
+            }
+        }
+        let mut stayed = vec![false; kept.len()];
+        let mut at = (0..kept.len()).max_by_key(|&i| (run[i], i)).unwrap_or(0);
+        while at != usize::MAX {
+            stayed[at] = true;
+            at = from[at];
+        }
+        let moved: Vec<Ref> = kept
+            .iter()
+            .zip(&stayed)
+            .filter(|(_, s)| !**s)
+            .map(|(&k, _)| was[k])
+            .collect();
+        if moved.len() > MOVES_LISTED {
+            out.push(Change::Changed {
+                r#ref: parent.r#ref,
+                field: Field::Order,
+                from: String::new(),
+                to: "reordered".into(),
+            });
+            continue;
+        }
+        for r in moved {
+            let place = now.iter().position(|n| *n == r).unwrap_or(0);
+            out.push(Change::Changed {
+                r#ref: r,
+                field: Field::Order,
+                from: String::new(),
+                to: now
+                    .get(place + 1)
+                    .map_or_else(|| "last".into(), |n| format!("before @{n}")),
+            });
+        }
+    }
+    out
 }
 
 impl DiffOrFull {
@@ -161,7 +251,7 @@ impl DiffOrFull {
         let mut fields: HashMap<Ref, usize> = HashMap::new();
         for c in changes {
             if let Change::Changed { r#ref, field, .. } = c
-                && *field != Field::Covered
+                && !matches!(field, Field::Covered | Field::Order)
             {
                 *fields.entry(*r#ref).or_default() += 1;
             }
@@ -217,6 +307,14 @@ impl DiffOrFull {
                             Some((_, _, refs)) => refs.push(*r#ref),
                             None => covering.push((from, to, vec![*r#ref])),
                         }
+                        continue;
+                    }
+                    if *field == Field::Order {
+                        let name = e.label.as_deref().map(quote).unwrap_or_default();
+                        let verb = if to == "reordered" { "" } else { "moved " };
+                        let head = format!("~ @{} {} {name}", r#ref, e.role.name());
+                        lines.push(format!("{} {verb}{to}", head.trim_end()));
+                        removing = false;
                         continue;
                     }
                     if fields.get(r#ref).is_some_and(|n| *n > 1) && !is_secure(e) {
@@ -547,6 +645,51 @@ mod tests {
             diff(&a, &b).text(&b),
             "~ @e2 textbox \"City\" (none) → focused"
         );
+    }
+
+    #[test]
+    fn a_row_that_moved_in_its_list_is_told_with_its_new_place() {
+        let mut t = RefTable::default();
+        let list = |rows: &[&str]| {
+            let mut nodes = vec![
+                r#"{"p":-1,"w":1,"cls":"androidx.recyclerview.widget.RecyclerView","desc":"Chats","b":[0,0,400,900],"n":"list","f":"vVe"}"#.to_string(),
+            ];
+            for (i, row) in rows.iter().enumerate() {
+                let y = 100 + i * 60;
+                let (name, flags) = match row.strip_suffix('*') {
+                    Some(name) => (name, "vVes"),
+                    None => (*row, "vVe"),
+                };
+                nodes.push(format!(
+                    r#"{{"p":0,"w":1,"cls":"android.widget.Button","text":"{name}","b":[0,{y},400,{}],"n":"{name}","f":"{flags}","a":["tap"]}}"#,
+                    y + 50
+                ));
+            }
+            nodes
+        };
+        let a = screen(&mut t, &list(&["Carol", "Bob*", "Alice", "Dan"]));
+        let b = screen(&mut t, &list(&["Bob", "Carol", "Alice", "Dan"]));
+        assert_eq!(
+            diff(&a, &b).text(&b),
+            "~ @e3 button \"Bob\" selected → (none)\n~ @e3 button \"Bob\" moved before @e2"
+        );
+        let a = screen(&mut t, &list(&["Bob", "Carol*", "Alice", "Dan"]));
+        let b = screen(&mut t, &list(&["Carol", "Bob", "Alice", "Dan"]));
+        assert_eq!(
+            diff(&a, &b).text(&b),
+            "~ @e2 button \"Carol\" selected → (none)\n~ @e2 button \"Carol\" moved before @e3"
+        );
+        let e = screen(
+            &mut t,
+            &list(&["Carol", "Bob", "Alice", "Dan", "Eve", "Fay"]),
+        );
+        let f = screen(
+            &mut t,
+            &list(&["Fay", "Eve", "Dan", "Alice", "Bob", "Carol"]),
+        );
+        assert_eq!(diff(&e, &f).text(&f), "~ @e1 list \"Chats\" reordered");
+        let d = screen(&mut t, &list(&["Carol", "Alice", "Dan"]));
+        assert_eq!(diff(&b, &d).text(&d), "- @e3");
     }
 
     #[test]
