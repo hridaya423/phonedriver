@@ -1500,3 +1500,12 @@ In run a14 (Android: Do Not Disturb from quick settings, using the UI only), the
 - Test: `a_password_field_refusal_tells_an_agent_that_a_made_up_test_value_needs_no_asking` (failed first on the old text). A first, longer `type` description failed `the_tool_list_every_turn_re_reads_fits_a_budget…`, so it was cut to fewer words than before.
 - Builds and tests now run on the Mac mini (`~/pd-build`, synced with rsync), at the user's request: the MacBook restarted twice under load today.
 - On the mini, `cargo test --workspace --no-fail-fast`: 734 passed, 6 failed before the description was shortened. One was the budget test above. Four were `guard_property` with "Too many open files"; they pass with `ulimit -n 8192` (7 passed). One is `no_device_exits_4_with_the_message_then_the_hint`, which fails on the mini because three simulators are connected there. After the fix: `mcp` 30 passed, `guard_property` 7 passed, clippy and `cargo fmt --check` clean.
+
+## 2026-11-10: benchmark rerun on the current build, and what it did not show
+
+- Ran the nine jobs three times with phonedriver `add1a2b` on a recreated tablet emulator, from the Mac mini. Details and the per-job table are in `docs/bench/jobs.md` ("Rerun of phonedriver on the current build").
+- Eight jobs compare: 24 of 24 passed, 1,066,097 tokens as the sum of medians, against 916,883 on 7 November. That is 16% more, and 4.4x under mobile-mcp where 7 November gave 5.2x on the same eight jobs. `compare.py` calls seven of the eight changes noise and chrome-prefs higher.
+- wakelock-restrict is excluded: the seeded wakelock did not survive on the new AVD. Wall times are not comparable (loaded mini, two tunnels).
+- The README claim is now "4x", which both measurements support. The chart and its numbers stay the 7 November same-day comparison, with its date.
+- Two earlier attempts were thrown away whole: the MacBook restarted during one, and in the other the adb link was down for all 27 runs. The PC's adb server died several times; the benchmark now uses its own server on port 5047 and checks the device before every job.
+- Also in this commit: the wakelock seed waits up to 20 s for `jobs:drain` before it presses Home, and the README gets a two-sentence opening, a CI badge and an "Add to Cursor" button. The CI badge shows no status until GitHub Actions runs.

@@ -133,6 +133,37 @@ phonedriver is the final binary (`126db3e`), runs `p4` and `p5`. phone-harness 0
 
 Round 1 (`p1`, before these fixes) was 9/9 passed at 955,535 tokens, 572 s; the final `p5` was 9/9 at 932,417 tokens, 493 s and `p4` 9/9 (rubric v2) at 1,023,143 tokens, 440 s. The fixes mostly removed dead ends in single jobs (relay-code above); the sum of tokens did not move much, and run-to-run spread in qa-shop and photos-crop is larger than the difference.
 
+## Rerun of phonedriver on the current build (2026-11-10)
+
+Why: the totals above date from 7 November, and three days of changes went in after them. Only phonedriver was rerun. mobile-mcp is still 1.0.16 and phone-harness still 0.3.3, the versions measured above.
+
+Setup: build `add1a2b`, three passes (`p6`, `p7`, `p8`), `claude -p` on the subscription, `claude-sonnet-5-5`, Claude Code 2.1.319. The agent and phonedriver ran on the Mac mini. The tablet emulator of 7 November no longer existed, so `emulator-5558` is a new AVD of the same image and size (`Pixel_Tablet_API_37`, 2560x1600, API 37, 4 GB RAM). Raw runs: `docs/bench/jobs.json`, passes `p6` to `p8`, and `rerun_2026_11_10`.
+
+Result on the eight jobs that could be compared: 24 of 24 passed, and the sum of per-job median tokens is 1,066,097, against 916,883 for the same eight jobs on 7 November (16% more). mobile-mcp's sum for these eight jobs is 4,740,053, so the ratio is 4.4x, against 5.2x on 7 November.
+
+| Job | Passed 7 Nov | Passed now | Tokens 7 Nov | Tokens now | Change | Outside the spread? |
+|---|---|---|---|---|---|---|
+| chrome-prefs | 2/2 | 3/3 | 104,302 | 138,521 | +32.8% | yes, higher |
+| clock-settings | 2/2 | 3/3 | 95,116 | 96,562 | +1.5% | no |
+| log-code | 2/2 | 3/3 | 59,470 | 53,333 | -10.3% | no |
+| messages-pin-archive | 2/2 | 3/3 | 47,090 | 79,799 | +69.5% | no |
+| photos-crop | 2/2 | 3/3 | 220,836 | 322,153 | +45.9% | no |
+| qa-shop | 2/2 | 3/3 | 138,557 | 93,950 | -32.2% | no |
+| qa-signup | 2/2 | 3/3 | 181,518 | 217,250 | +19.7% | no |
+| relay-code | 2/2 | 3/3 | 69,994 | 64,529 | -7.8% | no |
+
+"Outside the spread" means no run of one group falls inside the range of the other (`bench/agent-eval/jobs/compare.py`). With two and three passes this shows only large changes.
+
+What the rerun says, plainly:
+
+- The changes since 7 November did not lower tokens on these jobs. Seven of eight jobs moved inside the run-to-run spread. chrome-prefs is higher in all three passes (138,359, 138,521 and 527,834). Not diagnosed. One candidate: a cold Chrome launch now lists the first-run screen where it used to list an empty pager.
+- Wall time is not comparable. The agent ran on a Mac mini that other work was loading, through two SSH tunnels. The times are in `jobs.json` and are not used.
+- wakelock-restrict is excluded. On the new AVD the seeded `jobs:drain` wakelock was gone before the agent started in most runs (the first `dumpsys power` shows `Wake Locks: size=0`), so the job measured the seed, not the tool. One run with the lock in place passed with 55,251 tokens and 7 calls. The seed now waits for the lock before it presses Home, which was not enough.
+- The rerun found a regression and it is fixed. In the first pass, qa-signup failed: since 8 November a plain `type` into a password field is refused, and the refusal said "Ask the user for the text". The agent stopped and asked for test passwords. The message now says to use `secret` and that a made-up test value needs no asking (`add1a2b`). The three passes above ran with that fix.
+- Runs that hit a dropped adb connection were rerun: relay-code in `p6` and `p8`. The discarded files are kept outside the repository.
+
+The headline comparison stays the 7 November table, because it is the only one where all three tools ran on the same device on the same day. Claims outside this file say "4x", which holds for both measurements.
+
 ### Notes for the site
 
 The site's blog text now says a field that refuses `set_text` is selected with Ctrl+A and pasted over, which is what `TextInput.java` and `Input.java` do. The results are on the benchmarks page and in blog post 4.
