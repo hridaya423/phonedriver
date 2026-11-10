@@ -1651,3 +1651,14 @@ Release run 42896232370 failed on all five runners in "Install Android SDK": `ye
 Release run 42896667984 was green on all five targets and pushed `phonedriver.rb` to `hridaya423/homebrew-tap`. The user published `packaging/npm`; npm staged it and `phonedriver@0.1.0` became `latest` after npm's validation.
 
 Proof, from an empty folder with an empty HOME and npm cache: `npx -y phonedriver --version` prints `phonedriver 0.1.0` (the first run downloads the binary from the release); `npx -y phonedriver mcp` answers `initialize` with `serverInfo {"name":"phonedriver","version":"0.1.0"}`. The "Not released yet" line is gone from the README. Not tested: `brew install`, the PowerShell installer, `claude mcp add` on a clean machine.
+
+## 2026-11-10: installs tested; MCP Registry published
+
+- Homebrew (Mac mini): `brew install hridaya423/tap/phonedriver` installed 0.1.0. With that binary: `launch Settings` and a tap on the Android emulator, `launch Settings`, `tap General`, `tap About` on the iPhone 17 simulator, and `doctor` all ok on both devices.
+- PowerShell installer (win-pc, into a test folder): installed `phonedriver.exe` 0.1.0; `launch Settings`, a tap, `screenshot` and `doctor` ok on the Android emulator.
+- Shell installer (Mac mini, temp folder): `phonedriver 0.1.0`.
+- Claude Code: `claude mcp add --scope project phonedriver -- npx -y phonedriver mcp`, then one `claude -p` call (Sonnet, subscription) to the `devices` tool returned "no devices" with the hint, so the client reached the server.
+- MCP Registry: `mcp-publisher validate` ok, `publish` ok; the registry search returns `io.github.hridaya423/phonedriver 0.1.0 active`. The GitHub device login was approved in the user's browser at their request; it grants identity only.
+- Added `install-check.yml` (manual): `npx -y phonedriver` on the five release runners.
+
+Observed: on iOS, a tap on "General" while Settings still showed an old search with the keyboard up reported "no element changed"; from a fresh launch the same tap worked.
