@@ -40,7 +40,7 @@ Options.
 
 Recommendation. A for the first release, with a line in the README that says the binary contains the OpenH264 source build and has no Cisco patent license. Ask a lawyer before any commercial distribution. Choose B only if you want the patent license more than you want zero outbound traffic.
 
-Decision needed. Write "A", "B", or "C". Say whether you want a lawyer to look first.
+Decided 2026-11-10: A. The README License section carries the line.
 
 ## 2. How the Android agent jar ships with `cargo install`
 

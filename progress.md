@@ -1614,3 +1614,6 @@ In run a14 (Android: Do Not Disturb from quick settings, using the UI only), the
 - photos-crop went from 151,431 to 61,477 tokens (16 calls to 8). Two causes that are not separated: the Edit reply now lists the editor, and Photos showed no "Update" prompt in these passes because the emulator had not been restarted. In `p12` to `p14` the agent also opened About to check the file name in every run; in `p15` to `p17` it did not.
 - phone-harness now uses fewer tokens on two jobs (clock-settings, messages-pin-archive), not four.
 - `jobs.json` `totals`, `jobs.md`, the README and both chart files are updated.
+
+## 2026-11-10: H.264 decision A; the README says the build has no Cisco patent license
+
