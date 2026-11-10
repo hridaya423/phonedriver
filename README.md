@@ -8,7 +8,7 @@
   <a href="https://github.com/hridaya423/phonedriver/actions/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/hridaya423/phonedriver/ci.yml?branch=main&style=flat-square&labelColor=161512&label=ci"></a>
 </p>
 
-phonedriver lets Claude Code, Codex, Cursor or any MCP client use an Android phone or an iPhone. It reads the screen as text, which took 5.8x fewer tokens than mobile-mcp on nine phone jobs, and it asks you before it taps Pay.
+phonedriver lets Claude Code, Codex, Cursor or any MCP client use an Android phone or an iPhone. It reads the screen as text, which took 6.9x fewer tokens than mobile-mcp on nine phone jobs, and it asks you before it taps Pay.
 
 <p align="center">
   <img alt="Claude Code drives an Android phone through phonedriver on the real dominos.co.uk website. Asked for a large pepperoni pizza from the Domino's nearest Leicester Square, it finds the store, fills the basket and the guest checkout, and taps Buy with GPay. phonedriver holds the tap and asks the human in Claude Code. The human declines and nothing is ordered." src=".github/assets/demo.gif" width="100%">
@@ -69,9 +69,9 @@ ok tapped @e24 "Dark theme" at 353,532 · settled in 2034ms
 
 Tokens are what an agent's usage limit is spent on. I ran nine jobs that only a phone can do, twice each, with Claude Sonnet 5.5 and three MCP servers. The jobs included setting Chrome's search engine, cropping a photo, pinning and archiving Messages threads, finding the app that keeps the phone awake, and testing a sign-up flow for planted bugs. A script checked the phone's own data afterwards, not the model's report.
 
-<p align="center"><picture><source media="(prefers-color-scheme: dark)" srcset=".github/assets/jobs-dark.svg"><img alt="On nine real phone jobs on one Android emulator, 10 November 2026, with Claude Sonnet 5.5: phonedriver passed 27 of 27 runs with 781 thousand tokens in 5.8 minutes; mobile-mcp passed 17 of 18 with 4.6 million tokens in 8.7 minutes; phone-harness passed 14 of 18 with 1.1 million tokens in 22.7 minutes." src=".github/assets/jobs-light.svg" width="100%"></picture></p>
+<p align="center"><picture><source media="(prefers-color-scheme: dark)" srcset=".github/assets/jobs-dark.svg"><img alt="On nine real phone jobs on one Android emulator, 10 November 2026, with Claude Sonnet 5.5: phonedriver passed 27 of 27 runs with 658 thousand tokens in 5.1 minutes; mobile-mcp passed 17 of 18 with 4.6 million tokens in 8.7 minutes; phone-harness passed 14 of 18 with 1.1 million tokens in 22.7 minutes." src=".github/assets/jobs-light.svg" width="100%"></picture></p>
 
-This is my own test set. All three tools ran on the same Android emulator on 10 November 2026. phone-harness used fewer tokens than phonedriver on four of the nine jobs. Every run, the versions, the checks and what was thrown away are published in [docs/bench/jobs.md](docs/bench/jobs.md). If you maintain one of these tools and think I set it up wrong, open an issue and I will rerun it.
+This is my own test set. All three tools ran on the same Android emulator on 10 November 2026. phone-harness used fewer tokens than phonedriver on two of the nine jobs. Every run, the versions, the checks and what was thrown away are published in [docs/bench/jobs.md](docs/bench/jobs.md). If you maintain one of these tools and think I set it up wrong, open an issue and I will rerun it.
 
 ## Speed
 

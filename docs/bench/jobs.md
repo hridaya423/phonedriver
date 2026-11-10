@@ -168,48 +168,48 @@ The emulator was the cause of the higher numbers, not the tool: see the next sec
 
 Why: the rerun above ran on a starved emulator. The new AVD drew 2560x1600 with SwiftShader, Contacts was left in front redrawing, and the guest load was 7 on 4 cores. 17 launches answered "not settled", and one job met "Chrome isn't responding" seven times.
 
-Setup: the same AVD started with `-gpu host -cores 8 -memory 8192`. `claude -p` on the subscription, `claude-sonnet-5-5`, Claude Code 2.1.319, agent and tools on the Mac mini, one agent at a time. phonedriver build `778b6e7`, three passes (`p12` to `p14`). mobile-mcp 1.0.16 (its helper `mobilecli` 1.0.22), two passes (`m3`, `m4`), with adb allowed on the two mixed jobs as on 7 November. phone-harness 0.3.3, two passes (`h4`, `h5`), and adb on the two mixed jobs, two passes (`a3`, `a4`), ran later the same day after the emulator was started again. Raw runs: `docs/bench/jobs.json`, `same_device_2026_11_10`.
+Setup: the same AVD started with `-gpu host -cores 8 -memory 8192`. `claude -p` on the subscription, `claude-sonnet-5-5`, Claude Code 2.1.319, agent and tools on the Mac mini, one agent at a time. phonedriver build `cfa37b2`, three passes (`p15` to `p17`). mobile-mcp 1.0.16 (its helper `mobilecli` 1.0.22), two passes (`m3`, `m4`), with adb allowed on the two mixed jobs as on 7 November. phone-harness 0.3.3, two passes (`h4`, `h5`), and adb on the two mixed jobs, two passes (`a3`, `a4`), ran later the same day after the emulator was started again. Raw runs: `docs/bench/jobs.json`, `same_device_2026_11_10`.
 
 | | Passed | Tokens (sum of job medians) | Tool calls | Wall s |
 |---|---|---|---|---|
-| phonedriver `778b6e7` | 27/27 | 781,132 | 108 | 349 |
+| phonedriver `cfa37b2` | 27/27 | 657,542 | 99 | 306 |
 | mobile-mcp 1.0.16 | 17/18 | 4,567,200 | 276.5 | 523 |
 | phone-harness 0.3.3 | 14/18 | 1,127,495 | 104.5 | 1,360.5 |
 | adb (2 jobs) | 4/4 | 203,751 | 20.5 | 83 |
 
-mobile-mcp used 5.8x the tokens of phonedriver (5.0x on 7 November). Its one failure: chrome-prefs in `m3` ended with "Always use secure connections" off.
+mobile-mcp used 6.9x the tokens of phonedriver (5.0x on 7 November). Its one failure: chrome-prefs in `m3` ended with "Always use secure connections" off.
 
 | Job | phonedriver passed | phonedriver tokens | mobile-mcp passed | mobile-mcp tokens | Ratio |
 |---|---|---|---|---|---|
-| qa-signup | 3/3 | 136,262 | 2/2 | 549,354 | 4.0x |
-| qa-shop | 3/3 | 96,516 | 2/2 | 473,095 | 4.9x |
-| relay-code | 3/3 | 48,844 | 2/2 | 574,428 | 11.8x |
-| chrome-prefs | 3/3 | 98,624 | 1/2 | 1,052,348 | 10.7x |
-| clock-settings | 3/3 | 95,846 | 2/2 | 691,926 | 7.2x |
-| messages-pin-archive | 3/3 | 45,219 | 2/2 | 315,560 | 7.0x |
-| photos-crop | 3/3 | 151,431 | 2/2 | 636,680 | 4.2x |
-| wakelock-restrict | 3/3 | 55,018 | 2/2 | 122,772 | 2.2x |
-| log-code | 3/3 | 53,372 | 2/2 | 151,038 | 2.8x |
+| qa-signup | 3/3 | 121,854 | 2/2 | 549,354 | 4.5x |
+| qa-shop | 3/3 | 92,570 | 2/2 | 473,095 | 5.1x |
+| relay-code | 3/3 | 49,126 | 2/2 | 574,428 | 11.7x |
+| chrome-prefs | 3/3 | 98,576 | 1/2 | 1,052,348 | 10.7x |
+| clock-settings | 3/3 | 95,962 | 2/2 | 691,926 | 7.2x |
+| messages-pin-archive | 3/3 | 45,240 | 2/2 | 315,560 | 7.0x |
+| photos-crop | 3/3 | 61,477 | 2/2 | 636,680 | 10.4x |
+| wakelock-restrict | 3/3 | 38,775 | 2/2 | 122,772 | 3.2x |
+| log-code | 3/3 | 53,962 | 2/2 | 151,038 | 2.8x |
 
-phone-harness used 1.4x the tokens of phonedriver and 3.9x the time, and failed four runs: relay-code twice (no contact was saved), wakelock-restrict once, and qa-signup once (stopped by the 10-minute limit; its tokens are summed from the transcript). It used fewer tokens than phonedriver on four jobs.
+phone-harness used 1.7x the tokens of phonedriver and 4.4x the time, and failed four runs: relay-code twice (no contact was saved), wakelock-restrict once, and qa-signup once (stopped by the 10-minute limit; its tokens are summed from the transcript). It used fewer tokens than phonedriver on two jobs (clock-settings and messages-pin-archive).
 
 | Job | phonedriver passed | phonedriver tokens | phone-harness passed | phone-harness tokens |
 |---|---|---|---|---|
-| qa-signup | 3/3 | 136,262 | 1/2 | 305,766 |
-| qa-shop | 3/3 | 96,516 | 2/2 | 136,428 |
-| relay-code | 3/3 | 48,844 | 0/2 | 161,444 |
-| chrome-prefs | 3/3 | 98,624 | 2/2 | 151,782 |
-| clock-settings | 3/3 | 95,846 | 2/2 | 79,931 |
-| messages-pin-archive | 3/3 | 45,219 | 2/2 | 42,452 |
-| photos-crop | 3/3 | 151,431 | 2/2 | 65,703 |
-| wakelock-restrict | 3/3 | 55,018 | 1/2 | 54,694 |
-| log-code | 3/3 | 53,372 | 2/2 | 129,294 |
+| qa-signup | 3/3 | 121,854 | 1/2 | 305,766 |
+| qa-shop | 3/3 | 92,570 | 2/2 | 136,428 |
+| relay-code | 3/3 | 49,126 | 0/2 | 161,444 |
+| chrome-prefs | 3/3 | 98,576 | 2/2 | 151,782 |
+| clock-settings | 3/3 | 95,962 | 2/2 | 79,931 |
+| messages-pin-archive | 3/3 | 45,240 | 2/2 | 42,452 |
+| photos-crop | 3/3 | 61,477 | 2/2 | 65,703 |
+| wakelock-restrict | 3/3 | 38,775 | 1/2 | 54,694 |
+| log-code | 3/3 | 53,962 | 2/2 | 129,294 |
 
-adb on its two jobs: 4 of 4 with 203,751 tokens; phonedriver's sum for the same two jobs is 108,390.
+adb on its two jobs: 4 of 4 with 203,751 tokens; phonedriver's sum for the same two jobs is 92,737.
 
-phonedriver against its own 7 November runs (`p4`, `p5`): 781,132 tokens against 977,780 (20% fewer), 108 calls against 123.5. Five jobs are lower outside the run-to-run spread (chrome-prefs, messages-pin-archive, photos-crop, qa-signup, relay-code); the other four moved inside it. The device is not the same as on 7 November, so part of this is the device.
+phonedriver against its own 7 November runs (`p4`, `p5`): 657,542 tokens against 977,780 (33% fewer), 99 calls against 123.5. The device is not the same as on 7 November, so part of this is the device.
 
-Build `add1a2b` on the same device (`p9` to `p11`): 27/27, 808,241 tokens, 114 calls. Against it, `778b6e7` made no `apps` call (8 before) and 1 `snapshot` with `find` (12 before). The difference in the totals is inside the spread.
+Earlier builds on the same device, same day: `add1a2b` (`p9` to `p11`) 27/27 with 808,241 tokens and 114 calls; `778b6e7` (`p12` to `p14`) 27/27 with 781,132 and 108. The largest single change is photos-crop, 151,431 to 61,477: the reply to the Edit tap now lists the editor's tabs (`cfa37b2`), and the emulator was not restarted before `p15` to `p17`, so Photos did not show its "Update" prompt in them. The two effects are not separated.
 
 What was thrown away, and why:
 
@@ -221,7 +221,7 @@ What was thrown away, and why:
 
 - The first phone-harness run met Android's one-time taskbar tutorial after a cold boot. The tutorial was cleared and the pass started again.
 
-The discarded files are kept outside the repository. Claims outside this file say "5.8x" and name 10 November. The chart and `totals` in `jobs.json` are this section's numbers; the 7 November totals are kept as `totals_2026_11_07`.
+The discarded files are kept outside the repository. Claims outside this file say "6.9x" and name 10 November. The chart and `totals` in `jobs.json` are this section's numbers; the 7 November totals are kept as `totals_2026_11_07`.
 
 ### Notes for the site
 
