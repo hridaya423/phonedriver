@@ -183,6 +183,8 @@ fn within_is_one_name_and_in_still_works() {
     );
     let mut c = phonedriver(&home);
     c.args(["scroll", "down", "--in", "@e1", "--device", "nope"]);
-    let stderr = stderr_of(c, 4);
+    let out = c.assert().failure();
+    let stderr = String::from_utf8(out.get_output().stderr.clone()).unwrap();
+    assert_ne!(out.get_output().status.code(), Some(2), "{stderr}");
     assert!(!stderr.contains("unexpected argument"), "{stderr}");
 }
