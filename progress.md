@@ -1582,3 +1582,13 @@ In run a14 (Android: Do Not Disturb from quick settings, using the UI only), the
 - Thrown away and rerun: two chrome-prefs runs (tunnel dropped), one qa-shop run (the emulator process ended), five mobile-mcp runs through a tunnelled adb server (its helper cannot reach the device that way), and one whole mobile-mcp pass on an overloaded emulator. All listed in `docs/bench/jobs.md`.
 - README says 5.8x and names both dates. The chart stays the 7 November three-tool table.
 - Mac mini, whole workspace: all suites pass except the two `cli` tests that fail there (three simulators attached). The OCR tests failed once with the disk full and passed when run alone.
+
+## 2026-11-10: today's changes checked on iOS; `type --into` picks the one field among same-named elements
+
+- iPhone 17 simulator (iOS 26.5) on the Mac mini, build of `5c4459a`:
+  - `tap "Privacy & Security"` off screen answered the new hint; `scroll down --until "Privacy & Security"` then found it in one drag.
+  - `type Kate --into @e14` in Contacts search answered with the "Search results" list and Kate Bell in the same reply.
+  - New contact: typing First name and then Last name printed one focus line (`~ @e67 textbox "Last name" "Seven" focused`), none for the field that lost focus. `type 4631121` into Phone answered `verified` with `"4631121"`.
+  - A moved row was not checked on iOS: no app on the simulator reorders rows without a drag.
+- Found there: Settings has a row "Search" and a search field "Search", and `type wall --into Search` failed with `2 elements match "Search"`. `type` now takes the one text field among the matches; two fields with the name stay ambiguous. Test: `typing_into_a_name_shared_by_a_button_and_one_field_means_the_field`. Live: the same command typed into `@e15` and listed the results.
+- Mac mini: lib 86, daemon 157 passed.

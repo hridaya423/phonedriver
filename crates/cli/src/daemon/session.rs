@@ -160,6 +160,30 @@ impl Session {
             .ok_or_else(|| not_found(now, text))
     }
 
+    /// The text field a `type` names. When the text names several elements and one of them is a text field, that one
+    /// is meant: iOS Settings has a row "Search" and a search field "Search", and `type --into Search` was refused
+    /// as ambiguous.
+    pub fn resolve_field(&self, target: &Target, now: &Rendered) -> Result<Resolved, Error> {
+        let plain = self.resolve(target, now);
+        let (Err(Error::Ambiguous { .. }), Target::Text { text, role: None }) = (&plain, target)
+        else {
+            return plain;
+        };
+        let mut fields = [Role::TextField, Role::SearchField, Role::SecureField]
+            .into_iter()
+            .filter_map(|role| {
+                let named = Target::Text {
+                    text: text.clone(),
+                    role: Some(role),
+                };
+                self.resolve(&named, now).ok()
+            });
+        match (fields.next(), fields.next()) {
+            (Some(one), None) => Ok(one),
+            _ => plain,
+        }
+    }
+
     /// Finds where a target is on `now`. A ref the screen no longer has fails with the closest current element.
     pub fn resolve(&self, target: &Target, now: &Rendered) -> Result<Resolved, Error> {
         match target {
@@ -751,6 +775,35 @@ mod tests {
             err.hint(),
             "Run `phonedriver snapshot` to see what is on screen."
         );
+    }
+
+    #[test]
+    fn typing_into_a_name_shared_by_a_button_and_one_field_means_the_field() {
+        let screen = |second: &str| {
+            let json = format!(
+                r#"{{"windows":[{{"id":1,"type":"application","bounds":[0,0,400,800]}}],"nodes":[
+                {{"p":-1,"w":1,"cls":"android.widget.Button","text":"Search","b":[0,0,400,60],"f":"vVe","a":["tap"]}},
+                {{"p":-1,"w":1,"cls":"android.widget.EditText","desc":"Search","b":[0,100,400,160],"f":"vVeE","a":["tap","set_text"]}},
+                {{"p":-1,"w":1,"cls":"{second}","desc":"Search","b":[0,200,400,260],"f":"vVeE","a":["tap"]}}]}}"#
+            );
+            let tree = RawTree::from_android_json(&json, Scale { density: 1.0 }).unwrap();
+            let nodes = prune(&tree);
+            let refs = RefTable::default().assign(&tree, &nodes);
+            Rendered::build(nodes, &refs, Header::default())
+        };
+        let now = screen("android.widget.ImageView");
+        let s = Session::default();
+        assert!(matches!(
+            s.resolve(&text("Search"), &now),
+            Err(Error::Ambiguous { .. })
+        ));
+        let field = s.resolve_field(&text("Search"), &now).ok().unwrap();
+        assert!(field.element.unwrap().role.is_text_entry());
+        let two = screen("android.widget.EditText");
+        assert!(matches!(
+            s.resolve_field(&text("Search"), &two),
+            Err(Error::Ambiguous { .. })
+        ));
     }
 
     #[test]

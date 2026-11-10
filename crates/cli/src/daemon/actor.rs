@@ -1953,7 +1953,14 @@ impl Actor {
                 let mut brought = String::new();
                 let (field, tap_at): (Option<Element>, Option<Point>) = match &into {
                     Some(t) => {
-                        let r = match self.resolve_target(s, t).await {
+                        let found = match self.resolve_target(s, t).await {
+                            Err(Error::Ambiguous { .. }) => {
+                                let now = self.fresh(s).await?;
+                                s.resolve_field(t, &now)
+                            }
+                            other => other,
+                        };
+                        let r = match found {
                             Err(missing @ (Error::StaleRef { .. } | Error::NotFound { .. })) => {
                                 let gone = match (&missing, t) {
                                     (Error::StaleRef { r#ref, .. }, _) => s.gone_field(*r#ref),
