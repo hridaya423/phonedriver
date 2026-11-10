@@ -1607,3 +1607,10 @@ In run a14 (Android: Do Not Disturb from quick settings, using the UI only), the
 - Tests: `a_new_screen_that_shows_two_buttons_first_is_read_once_the_rest_is_there`, `a_new_screen_that_is_only_a_spinner_is_waited_for_past_four_seconds` (both failed first).
 - Live, `~/edit-rep.sh` on the tablet: the reply to the Edit tap listed "Crop tab" 3 of 3 times (0 of 3 before).
 - Mac mini: lib 86, daemon 159, mcp 30 passed. Clippy clean.
+
+## 2026-11-10: the published numbers are the final build's: 6.9x
+
+- Build `cfa37b2` (every change of today), passes `p15` to `p17`, same emulator: 27 of 27, 657,542 tokens, 99 calls, 306 s. Against mobile-mcp's 4,567,200 that is 6.9x; against phone-harness's 1,127,495, 1.7x.
+- photos-crop went from 151,431 to 61,477 tokens (16 calls to 8). Two causes that are not separated: the Edit reply now lists the editor, and Photos showed no "Update" prompt in these passes because the emulator had not been restarted. In `p12` to `p14` the agent also opened About to check the file name in every run; in `p15` to `p17` it did not.
+- phone-harness now uses fewer tokens on two jobs (clock-settings, messages-pin-archive), not four.
+- `jobs.json` `totals`, `jobs.md`, the README and both chart files are updated.
