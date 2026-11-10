@@ -358,6 +358,7 @@ def main():
             ], W, R, lambda name: time.sleep(1.5))
             puh.stop()
         if want("screenshot"):
+            puh.start()
             def shot():
                 with open(os.path.join(rig.tmp, "adb.png"), "wb") as f:
                     f.write(rig.adb("exec-out", "screencap", "-p", raw=True))
