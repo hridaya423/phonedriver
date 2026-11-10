@@ -13,5 +13,10 @@ jobs:
         with:
           components: rustfmt, clippy
       - run: cargo fmt --check
+      - name: Build the Android agent jar
+        shell: bash
+        run: |
+          bash android-agent/build.sh
+          echo "PHONEDRIVER_AGENT_JAR=$GITHUB_WORKSPACE/android-agent/build/phonedriver-agent.jar" >> "$GITHUB_ENV"
       - run: cargo clippy --all-targets -- -D warnings
       - run: cargo test --workspace --no-fail-fast

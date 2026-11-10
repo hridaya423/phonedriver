@@ -8,6 +8,10 @@ PLATFORM_NAME=${ANDROID_PLATFORM:-android-37.0}
 BT=$SDK/build-tools/$BT_VERSION
 PLATFORM=$SDK/platforms/$PLATFORM_NAME
 AJ=$PLATFORM/android.jar
+D8=$BT/d8
+SEP=:
+WINDOWS=
+case $(uname -s) in MINGW*|MSYS*|CYGWIN*) D8=$BT/d8.bat; SEP=';'; WINDOWS=1 ;; esac
 
 problems=()
 if [ ! -d "$SDK" ]; then
@@ -17,9 +21,8 @@ else
     found=$(ls "$SDK/build-tools" 2>/dev/null | tr '\n' ' ' | sed 's/ $//')
     problems+=("- build-tools $BT_VERSION not found under $SDK (found: ${found:-none})")
   else
-    for tool in aidl d8; do
-      [ -x "$BT/$tool" ] || problems+=("- $tool: not in $BT")
-    done
+    [ -x "$BT/aidl" ] || problems+=("- aidl: not in $BT")
+    [ -f "$D8" ] || problems+=("- d8: not in $BT")
     [ -f "$BT/core-lambda-stubs.jar" ] || problems+=("- core-lambda-stubs.jar: not in $BT")
   fi
   [ -f "$AJ" ] || problems+=("- android.jar: platform $PLATFORM_NAME not found at $PLATFORM")
@@ -51,8 +54,14 @@ cat > "$OUT/gen/com/genymobile/scrcpy/BuildConfig.java" <<JAVA
 package com.genymobile.scrcpy;
 public final class BuildConfig { public static final boolean DEBUG = false; public static final String VERSION_NAME = "phonedriver"; }
 JAVA
-(cd aidl && "$BT/aidl" -o"../$OUT/gen" -I. -p "$PLATFORM/framework.aidl" android/view/IDisplayWindowListener.aidl)
+# aidl on Windows joins the import path with a backslash and rejects a source file whose directory has forward slashes.
+if [ -n "$WINDOWS" ]; then
+  AIDL_ROOT=$(cygpath -w "$PWD/aidl")
+  (cd aidl && "$BT/aidl" -o"../$OUT/gen" "-I$AIDL_ROOT" -p "$PLATFORM/framework.aidl" "$AIDL_ROOT\\android\\view\\IDisplayWindowListener.aidl")
+else
+  (cd aidl && "$BT/aidl" -o"../$OUT/gen" -I. -p "$PLATFORM/framework.aidl" android/view/IDisplayWindowListener.aidl)
+fi
 javac -encoding UTF-8 -bootclasspath "$AJ" -cp "$BT/core-lambda-stubs.jar" -d "$OUT/classes" -source 1.8 -target 1.8 -Xlint:-options \
-  -sourcepath "src:$OUT/gen" src/dev/phonedriver/agent/*.java
-(cd "$OUT/classes" && "$BT/d8" --min-api 26 --release --classpath "$AJ" --output ../agent.zip $(find . -name '*.class'))
+  -sourcepath "src$SEP$OUT/gen" src/dev/phonedriver/agent/*.java
+(cd "$OUT/classes" && "$D8" --min-api 26 --release --classpath "$AJ" --output ../agent.zip $(find . -name '*.class'))
 mv "$OUT/agent.zip" "$OUT/phonedriver-agent.jar"

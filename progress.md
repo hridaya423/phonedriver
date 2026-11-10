@@ -1617,3 +1617,11 @@ In run a14 (Android: Do Not Disturb from quick settings, using the UI only), the
 
 ## 2026-11-10: H.264 decision A; the README says the build has no Cisco patent license
 
+
+## 2026-11-10: the Android agent builds on Windows
+
+CI run 42888938346 was the first to reach Windows. `cargo clippy` failed in `crates/android/build.rs`: on the runner `bash` is WSL's launcher ("Windows Subsystem for Linux has no installed distributions"). Under Git Bash `android-agent/build.sh` failed too: `d8` is `d8.bat`, `javac` wants `;` between source paths, and `aidl.exe` rejects a source file given with forward slashes ("directory ./ is not found in any of the import paths: .\"). The release workflow runs the same script on its Windows runner, so the first release would have failed there.
+
+Changed: `build.sh` picks `d8.bat`, `;` and Windows paths for aidl under MINGW/MSYS/CYGWIN. `ci.yml` builds the jar in a `shell: bash` step and sets `PHONEDRIVER_AGENT_JAR`, as the release setup does.
+
+Proof: on win-pc (Git Bash, build-tools 37.0.0, javac 22) `ANDROID_HOME=/d/Android/Sdk bash android-agent/build.sh` exits 0 and writes a jar with one `classes.dex` (97,052 bytes). On the MacBook the script still exits 0 (96,904 bytes, javac 17). The Windows-built jar has not been run on a device.
