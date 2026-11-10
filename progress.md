@@ -1555,3 +1555,11 @@ In run a14 (Android: Do Not Disturb from quick settings, using the UI only), the
 - Test: `a_row_that_moved_in_its_list_is_told_with_its_new_place`.
 - Live on `emulator-5554`, three seeded conversations: `tap "Pin to top"` answered `~ @e8 button "Bob Park" moved before @e6`. Scrolling Settings down and up, opening Apps and going back printed no move line.
 - Mac mini: core 208, lib 83, daemon 157, mcp 30 passed. Clippy clean.
+
+## 2026-11-10: a phone number that a leftover `+` changed is not verified
+
+- Benchmark pass 10, relay-code: `type 4631121 --into <Phone>` in Contacts answered `verified` while the field showed `+46 31 121`. The field starts as `+1`, the clear left the `+`, and the digits became a Swedish number. The agent saw it only because the diff printed the value, and spent five more calls (snapshot, screenshot, clear, snapshot, type).
+- The phone-format check now refuses a value with a `+` that was not typed in front of exactly the typed digits. The reply says `NOT verified` with a hint to clear the field and type again.
+- Test: `digits_that_a_leftover_plus_turned_into_another_countrys_number_are_not_verified` (failed first at the `+46 31 121` case).
+- The clear that left the `+` is the same race as the lost paste (text sent before the tapped field had focus). On `emulator-5554` with the focus wait, 5 of 5 runs of `~/contact-rep.sh` gave `463-1121`. Not yet repeated on the tablet, where it was seen.
+- Mac mini: lib 84 passed.
