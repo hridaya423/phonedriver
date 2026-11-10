@@ -1680,3 +1680,7 @@ Release run 42901875744 green (17 files); CI green on three systems; the tap for
 At the user's request. The h3 is "Give your AI agent a phone. 6.9x fewer tokens than mobile-mcp."; the examples lead with the pizza order. `demo.mp4` and `demo.gif` were re-cut from the existing `demo.mp4` with ffmpeg, not rebuilt by `design/build/demo_compose.py`: seconds 29.5 to 33.75 (the approval prompt, real speed) now play first, then the whole clip as before (47.7 s). No new footage. The caption and alt text say so. `demo-vertical.mp4` is unchanged.
 
 Proof: contact sheets of the new GIF were inspected: frame 0 shows the "MCP server phonedriver requests your input … Buy with GPay" prompt, frame 50 shows Decline selected, frame 52 is the opening prompt of the run.
+
+## 2026-11-10: README order and install row
+
+At the user's request: "6.9x fewer tokens than mobile-mcp." is its own line under the tagline; "Fewer tokens" sits above "What the model sees"; Start has a VS Code install button next to Cursor's and a row of client names. The row names clients that take a stdio MCP server; the text under it says only Claude Code is tested. Checked: `codex mcp add --help` and `code --help` show the syntax used; the VS Code link redirects to `vscode:mcp/install?…`. The rendered page on GitHub was inspected; no image is broken.
