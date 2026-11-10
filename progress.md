@@ -1539,3 +1539,11 @@ In run a14 (Android: Do Not Disturb from quick settings, using the UI only), the
 - Test: `text_for_a_field_that_was_just_tapped_is_sent_once_the_field_has_focus` (failed first: "text was sent after 1 reads").
 - Live, same script (`~/signup-rep.sh` on the Mac mini): 12 of 12 replaces verified, and 36 of 36 first types.
 - Mac mini: daemon 157 passed.
+
+## 2026-11-10: a diff tells moved focus once
+
+- Each `type --into` on a form printed two focus lines: the field that lost focus (`~ @e43 textbox focused → (none)`) and the field that took it. In the sign-up job that was one extra line on 9 of 31 replies.
+- When a text field gains focus in a diff, the line for the field that lost it is left out. Focus that goes nowhere is still told.
+- Test: `focus_that_moved_to_another_field_is_told_once_on_the_field_that_has_it`.
+- Live on `emulator-5554`: typing into Password after Email now answers `~ @e9 secure field changed` and `~ @e9 password (none) → focused`, with no line for the email field.
+- Mac mini: core 207, lib 83, daemon 157 passed.
