@@ -1670,3 +1670,7 @@ Observed: on iOS, a tap on "General" while Settings still showed an old search w
 Changed: the launcher calls `%SystemRoot%\System32\tar.exe` on Windows (`tarProgram`). Test first: `on Windows the archive is unpacked by the system tar, not the first tar on PATH` failed ("tarProgram is not a function"), then 6 pass. npm versions cannot be replaced, so the version is 0.1.1 everywhere.
 
 Proof on win-pc with the fixed launcher: `node npm/bin/phonedriver.js --version` prints `phonedriver 0.1.0` from Git Bash (download, then cache) and from cmd. On the mini: fmt and clippy clean; `--test cli` 19 pass, 1 fail (`no_device_exits_4…`, the known mini-only failure: the mini has devices).
+
+## 2026-11-10: 0.1.1 is out everywhere
+
+Release run 42901875744 green (17 files); CI green on three systems; the tap formula says 0.1.1. The user published `phonedriver@0.1.1` to npm. `install-check` run 42904585168: all five runners pass, Windows included. On win-pc in Git Bash, `npx -y phonedriver@0.1.1 --version` prints `phonedriver 0.1.1`. MCP Registry republished at 0.1.1 after a second device login (the first token had expired).
