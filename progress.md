@@ -1645,3 +1645,9 @@ Proof: `gh secret list` shows `HOMEBREW_TAP_DEPLOY_KEY`; `dist plan` announces v
 ## 2026-11-10: the release builds the agent jar once
 
 Release run 42896232370 failed on all five runners in "Install Android SDK": `yes | sdkmanager` under `pipefail` exits non-zero when `yes` gets a broken pipe. The matrix also has `ubuntu-22.04-arm`, where the x86-64 build-tools cannot run. Changed: an `agent-jar` job on `ubuntu-22.04` builds the jar and uploads it; every build job downloads it and sets `PHONEDRIVER_AGENT_JAR`. Every platform now ships the same jar. No release was created by the failed run, so the `v0.1.0` tag was moved to the fixed commit.
+
+## 2026-11-10: v0.1.0 released and published to npm
+
+Release run 42896667984 was green on all five targets and pushed `phonedriver.rb` to `hridaya423/homebrew-tap`. The user published `packaging/npm`; npm staged it and `phonedriver@0.1.0` became `latest` after npm's validation.
+
+Proof, from an empty folder with an empty HOME and npm cache: `npx -y phonedriver --version` prints `phonedriver 0.1.0` (the first run downloads the binary from the release); `npx -y phonedriver mcp` answers `initialize` with `serverInfo {"name":"phonedriver","version":"0.1.0"}`. The "Not released yet" line is gone from the README. Not tested: `brew install`, the PowerShell installer, `claude mcp add` on a clean machine.
