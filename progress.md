@@ -1523,3 +1523,11 @@ In run a14 (Android: Do Not Disturb from quick settings, using the UI only), the
 - `the agent did not print ready within 3 s` failed the first call of a session five times today on two loaded emulators; the next call found the agent up. `READY_TIMEOUT` is 10 s now. No test saw this red: it needs a slow device.
 - Every testbed job in passes `p6`, `p7`, `p9` and `p10` opened with an `apps` call (731 characters back) although the server instructions say not to. The `launch` description now reads "any part of its name, or its id", which is shorter than before. Whether it removes the call is to be measured.
 - Mac mini: android 33 passed, mcp 30 passed, cli 19 passed and 1 failed (the mini's own simulators). Clippy and format clean.
+
+## 2026-11-10: typing into a search field waits for its results
+
+- In Clock's city search the suggestions reach the tree 300 to 600 ms after the text. The `type` reply showed the field and "Clear text" only, so the agent in `p9` clock-settings took a snapshot after each city (two for London).
+- `type` now reads again, for up to 1.5 s, when the field is a search field (its role, or "search" in its hint, label or resource id) and fewer than two other elements changed. A form field does not wait. Typing with `--submit`, a secret, or an empty text does not wait.
+- Test: `a_search_field_waits_for_its_results_and_a_form_field_does_not`.
+- Live on `emulator-5554` (API 37, host GPU), build on the Mac mini: `type Tokyo --into @e13` replied with the five cities in the same reply (`settled in 209ms`), then London (five cities) and Nairobi (two rows changed). Before the change the same command listed `@e13` and "Clear text" only.
+- Mac mini: lib 83 passed, clippy clean. iOS is not checked live.
