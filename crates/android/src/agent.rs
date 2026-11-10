@@ -25,7 +25,9 @@ const OWNED: i32 = 98;
 const OWNER_FILE: &str = "/data/local/tmp/phonedriver-owner";
 const OWNER_GRACE_TRIES: u32 = 4;
 const OWNER_GRACE_STEP: Duration = Duration::from_millis(500);
-const READY_TIMEOUT: Duration = Duration::from_secs(3);
+/// Observed on two API 37 emulators under load (2026-11-10): the first call of a session failed five times with "did not
+/// print `ready` within 3 s", and the next call found the agent up. An agent that starts in time is not delayed by this.
+const READY_TIMEOUT: Duration = Duration::from_secs(10);
 /// Creating the encoder and the virtual display at 2560x1600 took 5 to 8 s to `ready` on the API 37 tablet emulator.
 const HIDDEN_READY_TIMEOUT: Duration = Duration::from_secs(20);
 const LOG_LINES: usize = 200;
