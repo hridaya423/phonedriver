@@ -1531,3 +1531,11 @@ In run a14 (Android: Do Not Disturb from quick settings, using the UI only), the
 - Test: `a_search_field_waits_for_its_results_and_a_form_field_does_not`.
 - Live on `emulator-5554` (API 37, host GPU), build on the Mac mini: `type Tokyo --into @e13` replied with the five cities in the same reply (`settled in 209ms`), then London (five cities) and Nairobi (two rows changed). Before the change the same command listed `@e13` and "Clear text" only.
 - Mac mini: lib 83 passed, clippy clean. iOS is not checked live.
+
+## 2026-11-10: text for a field that was just tapped waits for the field's focus
+
+- `type abc --into <email>` on the testbed's sign-up form, with focus on another field, answered `NOT verified: @e59 shows no text` in 3 of 6 runs on `emulator-5554` and twice in benchmark pass 9. The field was emptied and the paste was lost: the tap had not moved input focus yet. With a separate `tap` first, 8 of 8 were verified.
+- On Android, after the tap on a native field that was not focused, the daemon now reads the screen until the field reports focus (30 ms steps, up to 1 s). iOS and web fields keep their own paths.
+- Test: `text_for_a_field_that_was_just_tapped_is_sent_once_the_field_has_focus` (failed first: "text was sent after 1 reads").
+- Live, same script (`~/signup-rep.sh` on the Mac mini): 12 of 12 replaces verified, and 36 of 36 first types.
+- Mac mini: daemon 157 passed.

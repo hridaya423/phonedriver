@@ -756,6 +756,49 @@ fn page_tree() -> RawTree {
     RawTree::from_android_json(json, Scale { density: 1.0 }).unwrap()
 }
 
+fn two_fields_tree(email: &str, email_focused: bool) -> RawTree {
+    let (email_flags, confirm_flags) = if email_focused {
+        ("vVeEF", "vVeE")
+    } else {
+        ("vVeE", "vVeEF")
+    };
+    let json = format!(
+        r#"{{"windows":[{{"id":1,"type":"application","package":"com.example","bounds":[0,0,360,800]}}],"nodes":[
+        {{"p":-1,"w":1,"cls":"android.widget.FrameLayout","b":[0,0,360,800],"f":"vVe"}},
+        {{"p":0,"w":1,"cls":"android.widget.EditText","text":"{email}","desc":"Email","b":[0,100,360,160],"f":"{email_flags}","a":["tap","set_text"]}},
+        {{"p":0,"w":1,"cls":"android.widget.EditText","text":"x","desc":"Confirm","b":[0,200,360,260],"f":"{confirm_flags}","a":["tap","set_text"]}}]}}"#
+    );
+    RawTree::from_android_json(&json, Scale { density: 1.0 }).unwrap()
+}
+
+#[tokio::test(start_paused = true)]
+async fn text_for_a_field_that_was_just_tapped_is_sent_once_the_field_has_focus() {
+    let (source, fake) = FakeSource::of(
+        FakeDevice::new(vec![two_fields_tree("old", false)]).with_id("android:emulator-5554"),
+    );
+    let (d, _home) = daemon(source);
+    ok(&d, "default", "snapshot", json!({})).await;
+    fake.on_gesture(|_| {
+        Some(vec![
+            two_fields_tree("old", false),
+            two_fields_tree("old", false),
+            two_fields_tree("old", true),
+        ])
+    });
+    let reads_at_text = Arc::new(std::sync::atomic::AtomicUsize::new(usize::MAX));
+    let (seen, at) = (fake.clone(), reads_at_text.clone());
+    fake.on_text(move |_| {
+        at.fetch_min(seen.tree_reads(), std::sync::atomic::Ordering::SeqCst);
+        Some(vec![two_fields_tree("new", true)])
+    });
+    let before = fake.tree_reads();
+    let params = json!({"action": {"kind": "type", "text": "new", "into": {"text": "Email"}}});
+    let r = ok(&d, "default", "act", params).await;
+    assert_eq!(r["verified"], true, "{r}");
+    let reads = reads_at_text.load(std::sync::atomic::Ordering::SeqCst) - before;
+    assert!(reads >= 3, "text was sent after {reads} reads");
+}
+
 fn web_field_tree(value: &str) -> RawTree {
     let json = format!(
         r#"{{"windows":[{{"id":1,"type":"application","package":"com.android.chrome","bounds":[0,0,360,800]}}],"nodes":[
