@@ -1592,3 +1592,10 @@ In run a14 (Android: Do Not Disturb from quick settings, using the UI only), the
   - A moved row was not checked on iOS: no app on the simulator reorders rows without a drag.
 - Found there: Settings has a row "Search" and a search field "Search", and `type wall --into Search` failed with `2 elements match "Search"`. `type` now takes the one text field among the matches; two fields with the name stay ambiguous. Test: `typing_into_a_name_shared_by_a_button_and_one_field_means_the_field`. Live: the same command typed into `@e15` and listed the results.
 - Mac mini: lib 86, daemon 157 passed.
+
+## 2026-11-10: phone-harness and adb rerun on the same emulator; the chart is one day, one device
+
+- Their versions had not changed, but the emulator had, so they were run again: phone-harness 0.3.3 `h4`, `h5`: 14 of 18, 1,127,495 tokens, 104.5 calls, 1,360.5 s. adb `a3`, `a4` on its two jobs: 4 of 4, 203,751 tokens.
+- phone-harness used fewer tokens than phonedriver on four of the nine jobs (clock-settings, messages-pin-archive, photos-crop, wakelock-restrict).
+- `jobs.json` `totals` now holds the 10 November numbers (7 November kept as `totals_2026_11_07`). `design/build/quiet.py` rebuilt `jobs-light.svg` and `jobs-dark.svg`; I rendered the light one and looked at it: 5.8x title, three bars, no overlap.
+- README alt text and caption updated.

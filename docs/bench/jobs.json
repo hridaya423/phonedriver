@@ -2040,6 +2040,292 @@
    "tool_calls": 8,
    "wall_s": 19,
    "cost_usd": 0.07928670000000002
+  },
+  {
+   "pass": "h4",
+   "harness": "phone-harness",
+   "task": "qa-signup",
+   "success": true,
+   "success_as_run": true,
+   "total_tokens": 190373,
+   "tokens_estimated": false,
+   "output_tokens": 5425,
+   "tool_calls": 17,
+   "wall_s": 353,
+   "cost_usd": 0.12361460000000002
+  },
+  {
+   "pass": "h4",
+   "harness": "phone-harness",
+   "task": "qa-shop",
+   "success": true,
+   "success_as_run": true,
+   "total_tokens": 61860,
+   "tokens_estimated": false,
+   "output_tokens": 2010,
+   "tool_calls": 7,
+   "wall_s": 178,
+   "cost_usd": 0.0543826
+  },
+  {
+   "pass": "h4",
+   "harness": "phone-harness",
+   "task": "relay-code",
+   "success": false,
+   "success_as_run": false,
+   "total_tokens": 138928,
+   "tokens_estimated": false,
+   "output_tokens": 2424,
+   "tool_calls": 13,
+   "wall_s": 198,
+   "cost_usd": 0.08085139999999999
+  },
+  {
+   "pass": "h4",
+   "harness": "phone-harness",
+   "task": "chrome-prefs",
+   "success": true,
+   "success_as_run": true,
+   "total_tokens": 167274,
+   "tokens_estimated": false,
+   "output_tokens": 2252,
+   "tool_calls": 18,
+   "wall_s": 140,
+   "cost_usd": 0.0775913
+  },
+  {
+   "pass": "h4",
+   "harness": "phone-harness",
+   "task": "clock-settings",
+   "success": true,
+   "success_as_run": true,
+   "total_tokens": 78229,
+   "tokens_estimated": false,
+   "output_tokens": 1072,
+   "tool_calls": 9,
+   "wall_s": 80,
+   "cost_usd": 0.0464445
+  },
+  {
+   "pass": "h4",
+   "harness": "phone-harness",
+   "task": "messages-pin-archive",
+   "success": true,
+   "success_as_run": true,
+   "total_tokens": 46228,
+   "tokens_estimated": false,
+   "output_tokens": 804,
+   "tool_calls": 6,
+   "wall_s": 35,
+   "cost_usd": 0.0347493
+  },
+  {
+   "pass": "h4",
+   "harness": "phone-harness",
+   "task": "photos-crop",
+   "success": true,
+   "success_as_run": true,
+   "total_tokens": 65642,
+   "tokens_estimated": false,
+   "output_tokens": 930,
+   "tool_calls": 8,
+   "wall_s": 82,
+   "cost_usd": 0.04893979999999999
+  },
+  {
+   "pass": "h4",
+   "harness": "phone-harness",
+   "task": "wakelock-restrict",
+   "success": false,
+   "success_as_run": false,
+   "total_tokens": 51598,
+   "tokens_estimated": false,
+   "output_tokens": 1313,
+   "tool_calls": 7,
+   "wall_s": 46,
+   "cost_usd": 0.0396584
+  },
+  {
+   "pass": "h4",
+   "harness": "phone-harness",
+   "task": "log-code",
+   "success": true,
+   "success_as_run": true,
+   "total_tokens": 64767,
+   "tokens_estimated": false,
+   "output_tokens": 759,
+   "tool_calls": 5,
+   "wall_s": 35,
+   "cost_usd": 0.05841510000000001
+  },
+  {
+   "pass": "h5",
+   "harness": "phone-harness",
+   "task": "qa-signup",
+   "success": false,
+   "success_as_run": false,
+   "total_tokens": 421160,
+   "tokens_estimated": true,
+   "output_tokens": 0,
+   "tool_calls": 24,
+   "wall_s": 601,
+   "cost_usd": null
+  },
+  {
+   "pass": "h5",
+   "harness": "phone-harness",
+   "task": "qa-shop",
+   "success": true,
+   "success_as_run": true,
+   "total_tokens": 210997,
+   "tokens_estimated": false,
+   "output_tokens": 4251,
+   "tool_calls": 20,
+   "wall_s": 307,
+   "cost_usd": 0.1080286
+  },
+  {
+   "pass": "h5",
+   "harness": "phone-harness",
+   "task": "relay-code",
+   "success": false,
+   "success_as_run": false,
+   "total_tokens": 183960,
+   "tokens_estimated": false,
+   "output_tokens": 2743,
+   "tool_calls": 16,
+   "wall_s": 182,
+   "cost_usd": 0.0954544
+  },
+  {
+   "pass": "h5",
+   "harness": "phone-harness",
+   "task": "chrome-prefs",
+   "success": true,
+   "success_as_run": true,
+   "total_tokens": 136290,
+   "tokens_estimated": false,
+   "output_tokens": 1910,
+   "tool_calls": 15,
+   "wall_s": 141,
+   "cost_usd": 0.06946160000000001
+  },
+  {
+   "pass": "h5",
+   "harness": "phone-harness",
+   "task": "clock-settings",
+   "success": true,
+   "success_as_run": true,
+   "total_tokens": 81633,
+   "tokens_estimated": false,
+   "output_tokens": 1106,
+   "tool_calls": 9,
+   "wall_s": 88,
+   "cost_usd": 0.0493601
+  },
+  {
+   "pass": "h5",
+   "harness": "phone-harness",
+   "task": "messages-pin-archive",
+   "success": true,
+   "success_as_run": true,
+   "total_tokens": 38677,
+   "tokens_estimated": false,
+   "output_tokens": 598,
+   "tool_calls": 5,
+   "wall_s": 39,
+   "cost_usd": 0.0306679
+  },
+  {
+   "pass": "h5",
+   "harness": "phone-harness",
+   "task": "photos-crop",
+   "success": true,
+   "success_as_run": true,
+   "total_tokens": 65764,
+   "tokens_estimated": false,
+   "output_tokens": 887,
+   "tool_calls": 8,
+   "wall_s": 72,
+   "cost_usd": 0.0474382
+  },
+  {
+   "pass": "h5",
+   "harness": "phone-harness",
+   "task": "wakelock-restrict",
+   "success": true,
+   "success_as_run": true,
+   "total_tokens": 57789,
+   "tokens_estimated": false,
+   "output_tokens": 1459,
+   "tool_calls": 8,
+   "wall_s": 41,
+   "cost_usd": 0.0423546
+  },
+  {
+   "pass": "h5",
+   "harness": "phone-harness",
+   "task": "log-code",
+   "success": true,
+   "success_as_run": true,
+   "total_tokens": 193821,
+   "tokens_estimated": false,
+   "output_tokens": 1812,
+   "tool_calls": 14,
+   "wall_s": 103,
+   "cost_usd": 0.0950902
+  },
+  {
+   "pass": "a3",
+   "harness": "adb",
+   "task": "wakelock-restrict",
+   "success": true,
+   "success_as_run": true,
+   "total_tokens": 56033,
+   "tokens_estimated": false,
+   "output_tokens": 1444,
+   "tool_calls": 8,
+   "wall_s": 33,
+   "cost_usd": 0.0398036
+  },
+  {
+   "pass": "a3",
+   "harness": "adb",
+   "task": "log-code",
+   "success": true,
+   "success_as_run": true,
+   "total_tokens": 123617,
+   "tokens_estimated": false,
+   "output_tokens": 1439,
+   "tool_calls": 10,
+   "wall_s": 39,
+   "cost_usd": 0.0678102
+  },
+  {
+   "pass": "a4",
+   "harness": "adb",
+   "task": "wakelock-restrict",
+   "success": true,
+   "success_as_run": true,
+   "total_tokens": 88816,
+   "tokens_estimated": false,
+   "output_tokens": 2210,
+   "tool_calls": 12,
+   "wall_s": 47,
+   "cost_usd": 0.0575601
+  },
+  {
+   "pass": "a4",
+   "harness": "adb",
+   "task": "log-code",
+   "success": true,
+   "success_as_run": true,
+   "total_tokens": 139036,
+   "tokens_estimated": false,
+   "output_tokens": 1622,
+   "tool_calls": 11,
+   "wall_s": 47,
+   "cost_usd": 0.07654180000000001
   }
  ],
  "medians": [
@@ -2306,33 +2592,33 @@
   }
  ],
  "totals": {
-  "adb": {
-   "passed": 4,
-   "runs": 4,
-   "sum_median_tokens": 144669.0,
-   "sum_median_tool_calls": 17.5,
-   "sum_median_wall_s": 94.5
+  "phonedriver": {
+   "passed": 27,
+   "runs": 27,
+   "sum_median_tokens": 781132,
+   "sum_median_tool_calls": 108,
+   "sum_median_wall_s": 349
   },
   "mobile-mcp": {
-   "passed": 18,
+   "passed": 17,
    "runs": 18,
-   "sum_median_tokens": 4892241.0,
-   "sum_median_tool_calls": 270.5,
-   "sum_median_wall_s": 910.0
+   "sum_median_tokens": 4567199.5,
+   "sum_median_tool_calls": 276.5,
+   "sum_median_wall_s": 523.0
   },
   "phone-harness": {
    "passed": 14,
    "runs": 18,
-   "sum_median_tokens": 1272617.0,
-   "sum_median_tool_calls": 101.0,
-   "sum_median_wall_s": 1946.0
+   "sum_median_tokens": 1127495.0,
+   "sum_median_tool_calls": 104.5,
+   "sum_median_wall_s": 1360.5
   },
-  "phonedriver": {
-   "passed": 18,
-   "runs": 18,
-   "sum_median_tokens": 977780.0,
-   "sum_median_tool_calls": 123.5,
-   "sum_median_wall_s": 466.5
+  "adb": {
+   "passed": 4,
+   "runs": 4,
+   "sum_median_tokens": 203751.0,
+   "sum_median_tool_calls": 20.5,
+   "sum_median_wall_s": 83.0
   }
  },
  "rerun_2026_11_10": {
@@ -2626,6 +2912,58 @@
     "wall_s_change_pct": -17.2,
     "wall_s_verdict": "noise"
    }
-  ]
+  ],
+  "phone-harness_0.3.3": {
+   "passes": [
+    "h4",
+    "h5"
+   ],
+   "passed": 14,
+   "runs": 18,
+   "sum_median_tokens": 1127495.0,
+   "sum_median_tool_calls": 104.5,
+   "sum_median_wall_s": 1360.5
+  },
+  "adb": {
+   "passes": [
+    "a3",
+    "a4"
+   ],
+   "passed": 4,
+   "runs": 4,
+   "sum_median_tokens": 203751.0,
+   "sum_median_tool_calls": 20.5,
+   "sum_median_wall_s": 83.0
+  }
+ },
+ "totals_2026_11_07": {
+  "adb": {
+   "passed": 4,
+   "runs": 4,
+   "sum_median_tokens": 144669.0,
+   "sum_median_tool_calls": 17.5,
+   "sum_median_wall_s": 94.5
+  },
+  "mobile-mcp": {
+   "passed": 18,
+   "runs": 18,
+   "sum_median_tokens": 4892241.0,
+   "sum_median_tool_calls": 270.5,
+   "sum_median_wall_s": 910.0
+  },
+  "phone-harness": {
+   "passed": 14,
+   "runs": 18,
+   "sum_median_tokens": 1272617.0,
+   "sum_median_tool_calls": 101.0,
+   "sum_median_wall_s": 1946.0
+  },
+  "phonedriver": {
+   "passed": 18,
+   "runs": 18,
+   "sum_median_tokens": 977780.0,
+   "sum_median_tool_calls": 123.5,
+   "sum_median_wall_s": 466.5
+  }
  }
 }
