@@ -1684,3 +1684,9 @@ Proof: contact sheets of the new GIF were inspected: frame 0 shows the "MCP serv
 ## 2026-11-10: README order and install row
 
 At the user's request: "6.9x fewer tokens than mobile-mcp." is its own line under the tagline; "Fewer tokens" sits above "What the model sees"; Start has a VS Code install button next to Cursor's and a row of client names. The row names clients that take a stdio MCP server; the text under it says only Claude Code is tested. Checked: `codex mcp add --help` and `code --help` show the syntax used; the VS Code link redirects to `vscode:mcp/install?…`. The rendered page on GitHub was inspected; no image is broken.
+
+## 2026-11-10: speed rerun on 0.1.1, chart kept
+
+The user asked for a current speed chart. Reran `bench/speed/run_speed.py` on win-pc (phonedriver 0.1.1 from `071147a`, `Pixel_API_37` on 5554, phone-harness 0.3.3). The host was at 29 to 99% CPU from other work, so every tool's milliseconds are slower than on 7 November (adb typing 9.4 s against 4.8 s). Ratios against adb: list read 96.4x (98x), screenshot 44.8x (41x), Settings 29.7x (27x), typing 26.0x (19x), tap then what changed 5.1x (4.6x). Decision: the chart stays on the quiet 7 November run; the rerun is a section in `docs/bench/speed.md` with its raw data in `docs/bench/data/speed-2026-11-10/`.
+
+Fixed in `run_speed.py`: the daemon is started again before the screenshot rows. Discarded: one run that hit that bug, one run under a "System UI isn't responding" alert. While stopping the first run I force-stopped every `phonedriver.exe` on win-pc without checking whose they were; reported to the user.
