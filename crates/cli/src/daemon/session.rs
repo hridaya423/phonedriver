@@ -1,7 +1,7 @@
 //! What one named session remembers about one device: its refs and the last screen it was shown.
 
 use phonedriver_core::diff::{Change, DiffOrFull, diff_below};
-use phonedriver_core::element::{Element, Ref, Role};
+use phonedriver_core::element::{Actions, Element, Ref, Role};
 use phonedriver_core::error::{Category, Direction, Error};
 use phonedriver_core::geometry::{Point, Rect};
 use phonedriver_core::refs::RefTable;
@@ -397,9 +397,29 @@ fn not_found(now: &Rendered, text: &str) -> Error {
         .take(5)
         .map(|(_, e)| now.line(e))
         .collect();
+    let further = |forward: Actions| {
+        now.elements
+            .iter()
+            .filter(|e| e.actions.contains(forward))
+            .max_by(|a, b| a.bounds.area().total_cmp(&b.bounds.area()))
+    };
+    let down = further(Actions::SCROLL_DOWN);
+    let scrolls = [(down, "down"), (further(Actions::SCROLL_RIGHT), "right")]
+        .into_iter()
+        .filter_map(|(holder, way)| {
+            let holder = holder?;
+            let largest = down.is_some_and(|d| d.r#ref == holder.r#ref);
+            Some(if largest {
+                way.to_string()
+            } else {
+                format!("{way} --within @{}", holder.r#ref)
+            })
+        })
+        .collect();
     Error::NotFound {
         query: text.to_string(),
         similar,
+        scrolls,
     }
 }
 
@@ -704,6 +724,33 @@ mod tests {
             panic!("{err:?}")
         };
         assert!(similar.iter().any(|l| l.contains("Row 364")), "{similar:?}");
+    }
+
+    #[test]
+    fn a_target_that_is_not_on_screen_names_the_scroll_that_can_bring_it() {
+        let json = r#"{"windows":[{"id":1,"type":"application","bounds":[0,0,400,800]}],"nodes":[
+            {"p":-1,"w":1,"cls":"android.widget.HorizontalScrollView","b":[0,0,400,60],"f":"vVeS","a":["scroll_right"]},
+            {"p":0,"w":1,"cls":"android.widget.Button","text":"Taps","b":[0,0,100,60],"f":"vVe","a":["tap"]},
+            {"p":-1,"w":1,"cls":"androidx.recyclerview.widget.RecyclerView","b":[0,60,400,800],"f":"vVeS","a":["scroll_fwd"]},
+            {"p":2,"w":1,"cls":"android.widget.Button","text":"Row 1","b":[0,60,400,120],"f":"vVe","a":["tap"]}]}"#;
+        let tree = RawTree::from_android_json(json, Scale { density: 1.0 }).unwrap();
+        let nodes = prune(&tree);
+        let refs = RefTable::default().assign(&tree, &nodes);
+        let now = Rendered::build(nodes, &refs, Header::default());
+        let Err(err) = Session::default().resolve(&text("Signup"), &now) else {
+            panic!("found")
+        };
+        let hint = err.hint();
+        assert!(
+            hint.contains("`phonedriver scroll down --until \"Signup\"`")
+                && hint.contains("`phonedriver scroll right --within @e1 --until \"Signup\"`"),
+            "{hint}"
+        );
+        let err = picked(&["Taps"], "Signup").unwrap_err();
+        assert_eq!(
+            err.hint(),
+            "Run `phonedriver snapshot` to see what is on screen."
+        );
     }
 
     #[test]

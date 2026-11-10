@@ -1563,3 +1563,11 @@ In run a14 (Android: Do Not Disturb from quick settings, using the UI only), the
 - Test: `digits_that_a_leftover_plus_turned_into_another_countrys_number_are_not_verified` (failed first at the `+46 31 121` case).
 - The clear that left the `+` is the same race as the lost paste (text sent before the tapped field had focus). On `emulator-5554` with the focus wait, 5 of 5 runs of `~/contact-rep.sh` gave `463-1121`. Not yet repeated on the tablet, where it was seen.
 - Mac mini: lib 84 passed.
+
+## 2026-11-10: "no element matches" names the scroll that can bring the target
+
+- On the phone emulator the testbed's Signup tab is past the edge of the tab strip. `tap Signup` answered `no element matches "Signup"` with the hint to run `snapshot`; the agent then needs a snapshot, a scroll and a tap.
+- When the screen can still scroll down or right, the hint now gives the call: ``It may be off screen: `phonedriver scroll down --until "Signup"` or `phonedriver scroll right --until "Signup"` drags until it shows.`` A horizontal strip that is not the main list is named with `--within @eN`. The MCP text reads `` `scroll` right in @e1 until "Signup" ``. A screen that cannot scroll keeps the old hint.
+- Tests: `a_target_that_is_not_on_screen_names_the_scroll_that_can_bring_it`, and one more case in the MCP hint test.
+- Live on `emulator-5554`: the hint above, then `scroll right --within @e1 --until "Signup"` answered `scrolled right 5 times to @e39 "Signup"` and `tap Signup` opened the tab.
+- Mac mini: core 208, lib 85, daemon 157, mcp 30 passed. Clippy clean.

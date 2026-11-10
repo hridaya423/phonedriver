@@ -331,6 +331,9 @@ pub enum Error {
     NotFound {
         query: String,
         similar: Vec<ElementLine>,
+        /// Ways the screen can still scroll, as `scroll` arguments: `down`, `right --within @e1`.
+        #[serde(default)]
+        scrolls: Vec<String>,
     },
     #[error("unknown key \"{key}\"")]
     UnknownKey { key: String, valid: Vec<String> },
@@ -539,6 +542,16 @@ impl Error {
             },
             Error::NotFound { similar, .. } if !similar.is_empty() => {
                 format!("Use one of these instead: {}", similar.join("; "))
+            }
+            Error::NotFound { query, scrolls, .. } if !scrolls.is_empty() => {
+                let ways: Vec<String> = scrolls
+                    .iter()
+                    .map(|way| format!("`phonedriver scroll {way} --until {}`", crate::render::quote(query)))
+                    .collect();
+                format!(
+                    "It may be off screen: {} drags until it shows. Or run `phonedriver snapshot` to see what is on screen.",
+                    ways.join(" or ")
+                )
             }
             Error::NotFound { .. } => "Run `phonedriver snapshot` to see what is on screen.".into(),
             Error::UnknownKey { valid, .. } => {
@@ -756,6 +769,7 @@ mod tests {
             Error::NotFound {
                 query: "Wifi".into(),
                 similar: vec!["@e4 button \"Wi‑Fi\"".into()],
+                scrolls: vec![],
             },
             Error::Ambiguous {
                 query: "Dark theme".into(),

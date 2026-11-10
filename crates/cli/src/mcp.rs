@@ -957,7 +957,11 @@ fn for_mcp(hint: &str) -> String {
         let tool = words.next().unwrap_or_default().to_string();
         let rest: Vec<&str> = words.collect();
         let shown = if tool == "scroll" && !rest.is_empty() {
-            format!("`scroll` {}", rest.join(" "))
+            let args = rest.join(" ");
+            format!(
+                "`scroll` {}",
+                args.replace("--within", "in").replace("--until", "until")
+            )
         } else if let ["--within", r] = rest[..] {
             format!("`{tool}` with `within` {r}")
         } else {
@@ -1400,6 +1404,12 @@ mod tests {
         assert_eq!(
             for_mcp("`phonedriver snapshot --within @e45` prints @e45 whole"),
             "`snapshot` with `within` @e45 prints @e45 whole"
+        );
+        assert_eq!(
+            for_mcp(
+                "It may be off screen: `phonedriver scroll down --until \"Signup\"` or `phonedriver scroll right --within @e1 --until \"Signup\"` drags until it shows. Or run `phonedriver snapshot` to see what is on screen."
+            ),
+            "It may be off screen: `scroll` down until \"Signup\" or `scroll` right in @e1 until \"Signup\" drags until it shows. Or run `snapshot` to see what is on screen."
         );
         let busy = phonedriver_core::error::Error::DeviceBusy {
             id: "sim:A".into(),
