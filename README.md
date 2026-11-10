@@ -8,6 +8,10 @@
   <a href="https://github.com/hridaya423/phonedriver/actions/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/hridaya423/phonedriver/ci.yml?branch=main&style=flat-square&labelColor=161512&label=ci"></a>
 </p>
 
+<p align="center">
+  <a href="https://phonedriver.dev">phonedriver.dev</a> · <a href="docs/reference.md">Reference</a> · <a href="docs/bench/jobs.md">Benchmarks</a> · <a href="https://github.com/hridaya423/phonedriver/releases">Releases</a>
+</p>
+
 phonedriver lets Claude Code, Codex, Cursor or any MCP client use an Android phone or an iPhone. It reads the screen as text, which took 6.9x fewer tokens than mobile-mcp on nine phone jobs, and it asks you before it taps Pay.
 
 <p align="center">
@@ -22,6 +26,13 @@ phonedriver lets Claude Code, Codex, Cursor or any MCP client use an Android pho
 claude mcp add phonedriver -- npx -y phonedriver mcp
 ```
 
+Or install the binary with Homebrew and register that:
+
+```sh
+brew install hridaya423/tap/phonedriver
+claude mcp add phonedriver -- phonedriver mcp
+```
+
 <a href="https://cursor.com/en/install-mcp?name=phonedriver&config=eyJjb21tYW5kIjoibnB4IiwiYXJncyI6WyIteSIsInBob25lZHJpdmVyIiwibWNwIl19"><img alt="Add phonedriver to Cursor" src="https://cursor.com/deeplink/mcp-install-dark.svg" height="32"></a>
 
 Start an Android emulator, plug in an Android phone with USB debugging on, or boot the iOS Simulator. Then give Claude a job that only a phone can do:
@@ -32,7 +43,7 @@ Start an Android emulator, plug in an Android phone with USB debugging on, or bo
 
 > Go through my app's onboarding in dark mode and in light mode, and show me every screen where the text is hard to read.
 
-The first run downloads one binary for your machine (macOS, Linux or Windows) and caches it. `phonedriver doctor` checks adb, Xcode and each device and tells you what to fix. Codex, Cursor and other clients: see [Other clients](#other-clients). Homebrew, the shell installer and real iPhones: [docs/reference.md](docs/reference.md#install).
+The first run downloads one binary for your machine (macOS, Linux or Windows) and caches it. `phonedriver doctor` checks adb, Xcode and each device and tells you what to fix. Codex, Cursor and other clients: see [Other clients](#other-clients). The shell and PowerShell installers and real iPhones: [docs/reference.md](docs/reference.md#install).
 
 ## What the model sees
 
@@ -107,7 +118,7 @@ The MCP server has 14 tools: `devices`, `apps`, `snapshot`, `screenshot`, `tap`,
 ## Limits
 
 - Tested on Android emulators (API 26 and 37), a HONOR X8 (Android 13), the iOS Simulator, an iPhone 14 Plus and an iPad Pro. Other Android phones use the same path. Bug reports from them are welcome.
-- A tap takes 70 to 120 ms on an Android emulator and 450 to 530 ms on a real iPhone.
+- A tap alone takes 70 to 120 ms on an Android emulator and 450 to 530 ms on a real iPhone. The 587 ms in the Speed chart is a tap, the wait until the screen stops changing, and the list of what changed.
 - The model can do anything on the phone you could do with your finger. For unattended runs, use an emulator or a spare phone.
 - phonedriver never enters a passcode and can't pass Face ID or a fingerprint check. Screens that block screenshots, as some banking apps do, come out black in a screenshot, though their text can still be read.
 
