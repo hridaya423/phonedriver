@@ -1547,3 +1547,11 @@ In run a14 (Android: Do Not Disturb from quick settings, using the UI only), the
 - Test: `focus_that_moved_to_another_field_is_told_once_on_the_field_that_has_it`.
 - Live on `emulator-5554`: typing into Password after Email now answers `~ @e9 secure field changed` and `~ @e9 password (none) → focused`, with no line for the email field.
 - Mac mini: core 207, lib 83, daemon 157 passed.
+
+## 2026-11-10: a row that moved in its list is in the diff
+
+- Messages pins a conversation by moving its row to the top. The reply to `tap "Pin to top"` listed the closed toolbar and nothing about the row, so the agent took a full snapshot in each Messages run of passes 9 to 11.
+- `diff` now compares the order of each parent's children. Up to three moved children get a line each (`~ @e8 button "Bob Park" moved before @e6`, or `moved last`); more than three give one line for the parent (`~ @e1 list "Chats" reordered`). When either of two rows could be called the moved one, it is the row that also changed.
+- Test: `a_row_that_moved_in_its_list_is_told_with_its_new_place`.
+- Live on `emulator-5554`, three seeded conversations: `tap "Pin to top"` answered `~ @e8 button "Bob Park" moved before @e6`. Scrolling Settings down and up, opening Apps and going back printed no move line.
+- Mac mini: core 208, lib 83, daemon 157, mcp 30 passed. Clippy clean.
