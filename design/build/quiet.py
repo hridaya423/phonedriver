@@ -49,8 +49,8 @@ def jobs(tn):
     t = load_jobs()
     pd = t["phonedriver"]
     fold = t["mobile-mcp"]["sum_median_tokens"] / pd["sum_median_tokens"]
-    b = head(c, f"{fold:.0f}x fewer tokens, same jobs",
-             "Nine jobs only a phone can do · two runs each · Claude Sonnet 5.5 · Android emulator")
+    b = head(c, f"{fold:.1f}x fewer tokens, same jobs",
+             "Nine jobs only a phone can do · Claude Sonnet 5.5 · one Android emulator · 10 Nov 2026")
     tmax = max(v["sum_median_tokens"] for v in t.values())
     bw = W - 2 * MX
     y = 262
@@ -66,7 +66,7 @@ def jobs(tn):
         y += 172
     H = y + 40
     b += foot(c, H - 40, "sums of per-job medians · a script checks the phone, not the reply · docs/bench/jobs.md")
-    alt = (f"Bar chart: on nine real phone jobs, two runs each, phonedriver used {fold:.1f} times fewer tokens than mobile-mcp. "
+    alt = (f"Bar chart: on nine real phone jobs, on one Android emulator on 10 November 2026, phonedriver used {fold:.1f} times fewer tokens than mobile-mcp. "
            + "; ".join(f"{n}: {v['sum_median_tokens']:,.0f} tokens, {v['passed']} of {v['runs']} runs passed, {v['sum_median_wall_s']:,.1f} seconds" for n, v in t.items())
            + ". Sums of per-job medians, Claude Sonnet 5.5, Android emulator.")
     return svg(W, H, b, alt, c["page"])
