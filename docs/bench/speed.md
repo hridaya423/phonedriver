@@ -17,6 +17,22 @@ phonedriver is faster than adb and phone-harness on every operation measured her
 
 The bare tap is the weak row. Host to reply it is 117.6 ms when taps come back to back and 72.4 ms when they are 1.5 s apart, as an agent sends them. The first run of this page had 175.6 and 61.6 ms; the back-to-back gap was the tap guard (D27) reading the screen again behind the previous tap's ripple, fixed in `b1b43af` and `a1b9eed` (below). Measured on the device, from the host sending the tap to the testbed's touch listener logging it, phonedriver is 1.7x faster than adb (45.0 ms against 77.0 ms); this row moves by tens of milliseconds between runs (below).
 
+## Rerun on 0.1.1 under load (2026-11-10)
+
+The chart above is still the 7 November run. On 10 November I ran the same script again with phonedriver 0.1.1 (main `071147a`) on the same host and the same emulator image. The host was busy with other work: `Processor(_Total)` was 29 to 99% around the rows (about 15% on 7 November), and the emulator had been booted 27 minutes earlier. The absolute times are slower for every tool, so they are not used in the chart. The ratios against adb are close to the 7 November ones:
+
+| op | adb / phonedriver, 7 Nov | adb / phonedriver, 10 Nov | 95% CI, 10 Nov |
+|---|---|---|---|
+| UI tree, 1,000-row list | 98x | 96.4x | 88.9 to 120.4 |
+| Screenshot | 41x | 44.8x | 32.4 to 49.4 |
+| UI tree, Settings | 27x | 29.7x | 25.3 to 32.6 |
+| Type 100 characters | 19x | 26.0x | 21.9 to 32.6 |
+| Tap, then what changed | 4.6x | 5.1x | 4.7 to 5.6 |
+| Tap, 1.5 s apart | 1.6x | 2.6x | 1.9 to 3.4 |
+| Tap, back to back | 2.1x | 2.8x | 2.2 to 3.6 |
+
+Load slows adb more than phonedriver, because adb starts a process for each call, so the higher ratios here are not a claim. Raw samples, the load beside each row and the full table: `docs/bench/data/speed-2026-11-10/`. Two earlier attempts that day were thrown away: one stopped at a bug in `run_speed.py` (the daemon was not started again before the screenshot rows, fixed), and one ran while the freshly booted emulator showed "System UI isn't responding".
+
 ## What happened to the 153x
 
 The first run (`docs/bench/history/m1.md`) read the 1,000-row list in 15.5 ms against phone-harness's 2,370 ms, a ratio of 153. The later busy-machine run (`docs/bench/history/adb.md`) used a different baseline and a different load, and its chart showed 51x against adb with a tap that looked slower than phone-harness's. This run holds the three tools to one machine state and interleaves them. The list read is 24.0 ms against 2,653.7 ms (111x phone-harness, 98x adb). phonedriver's list read is 8 ms slower than in M1 and phone-harness's is 280 ms slower, so the ratio is lower than 153 on both counts. The 153 is not a current number and is not used anywhere.
