@@ -1641,3 +1641,7 @@ Proof (win-pc, Windows-built jar): `cargo clippy --all-targets -- -D warnings` f
 The user asked for a release with Homebrew working. Created the public repo `hridaya423/homebrew-tap`. A token needs the user's passkey (GitHub sudo mode), so the release job uses a write deploy key on the tap instead: secret `HOMEBREW_TAP_DEPLOY_KEY`, `ssh-key` in the `publish-homebrew-formula` checkout, `allow-dirty = ["ci"]` in `dist-workspace.toml`. The private key was written only to a temp directory and deleted after `gh secret set`.
 
 Proof: `gh secret list` shows `HOMEBREW_TAP_DEPLOY_KEY`; `dist plan` announces v0.1.0 with five archives, both installers and `phonedriver.rb`.
+
+## 2026-11-10: the release builds the agent jar once
+
+Release run 42896232370 failed on all five runners in "Install Android SDK": `yes | sdkmanager` under `pipefail` exits non-zero when `yes` gets a broken pipe. The matrix also has `ubuntu-22.04-arm`, where the x86-64 build-tools cannot run. Changed: an `agent-jar` job on `ubuntu-22.04` builds the jar and uploads it; every build job downloads it and sets `PHONEDRIVER_AGENT_JAR`. Every platform now ships the same jar. No release was created by the failed run, so the `v0.1.0` tag was moved to the fixed commit.
