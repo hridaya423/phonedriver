@@ -4,7 +4,7 @@ Moved out of the README. Commands use the current binary name, `phonedriver`.
 
 ## Install
 
-After the first release (nothing is published yet, so these do not work today), one line gets you the prebuilt binary. Each artifact has the Android agent inside.
+One line gets you the prebuilt binary. Each artifact has the Android agent inside.
 
 The shortest route is `npx`. The `phonedriver` npm package is a small launcher: on first run it downloads the binary for your platform from GitHub Releases, checks its SHA-256, caches it and runs it. It contacts GitHub only for that download and sends no telemetry.
 
