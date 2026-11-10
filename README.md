@@ -5,9 +5,10 @@
 <p align="center">
   <a href="LICENSE"><img alt="License: AGPL-3.0" src="https://img.shields.io/badge/license-AGPL--3.0-6b675e?style=flat-square&labelColor=161512"></a>
   <a href="https://www.npmjs.com/package/phonedriver"><img alt="npm" src="https://img.shields.io/npm/v/phonedriver?style=flat-square&labelColor=161512&color=6b675e"></a>
+  <a href="https://github.com/hridaya423/phonedriver/actions/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/hridaya423/phonedriver/ci.yml?branch=main&style=flat-square&labelColor=161512&label=ci"></a>
 </p>
 
-phonedriver lets Claude Code, Codex, Cursor or any MCP client use an Android phone or an iPhone. The model opens apps, taps, types, scrolls and reads the screen. It reads the screen as text instead of screenshots, and after each tap it gets back only the lines that changed. On the same nine phone jobs, that took 5x fewer tokens than mobile-mcp. And when it reaches a button labeled Pay or Place order, phonedriver stops and asks you.
+phonedriver lets Claude Code, Codex, Cursor or any MCP client use an Android phone or an iPhone. It reads the screen as text, which took 4x fewer tokens than mobile-mcp on nine phone jobs, and it asks you before it taps Pay.
 
 <p align="center">
   <img alt="Claude Code drives an Android phone through phonedriver on the real dominos.co.uk website. Asked for a large pepperoni pizza from the Domino's nearest Leicester Square, it finds the store, fills the basket and the guest checkout, and taps Buy with GPay. phonedriver holds the tap and asks the human in Claude Code. The human declines and nothing is ordered." src=".github/assets/demo.gif" width="100%">
@@ -20,6 +21,8 @@ phonedriver lets Claude Code, Codex, Cursor or any MCP client use an Android pho
 ```sh
 claude mcp add phonedriver -- npx -y phonedriver mcp
 ```
+
+<a href="https://cursor.com/en/install-mcp?name=phonedriver&config=eyJjb21tYW5kIjoibnB4IiwiYXJncyI6WyIteSIsInBob25lZHJpdmVyIiwibWNwIl19"><img alt="Add phonedriver to Cursor" src="https://cursor.com/deeplink/mcp-install-dark.svg" height="32"></a>
 
 Start an Android emulator, plug in an Android phone with USB debugging on, or boot the iOS Simulator. Then give Claude a job that only a phone can do:
 
@@ -68,7 +71,7 @@ Tokens are what an agent's usage limit is spent on. I ran nine jobs that only a 
 
 <p align="center"><picture><source media="(prefers-color-scheme: dark)" srcset=".github/assets/jobs-dark.svg"><img alt="On nine real phone jobs, two runs each, with Claude Sonnet 5.5: phonedriver passed 18 of 18 with 978 thousand tokens in 7.8 minutes; mobile-mcp passed 18 of 18 with 4.9 million tokens in 15.2 minutes; phone-harness passed 14 of 18 with 1.3 million tokens in 32.4 minutes." src=".github/assets/jobs-light.svg" width="100%"></picture></p>
 
-This is my own test set, run on an Android emulator. Every run, the versions and the checks are published in [docs/bench/jobs.md](docs/bench/jobs.md). If you maintain one of these tools and think I set it up wrong, open an issue and I will rerun it.
+This is my own test set, run on an Android emulator on 7 November 2026. Every run, the versions, the checks and a rerun from 10 November are published in [docs/bench/jobs.md](docs/bench/jobs.md). If you maintain one of these tools and think I set it up wrong, open an issue and I will rerun it.
 
 ## Speed
 

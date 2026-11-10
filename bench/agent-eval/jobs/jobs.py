@@ -429,6 +429,9 @@ def seed(task):
         sh(f"cmd appops reset {TESTBED}")
         sh(f"cmd appops query-op RUN_ANY_IN_BACKGROUND ignore > {BASELINE}-ignored")
         launch_testbed("drain")
+        deadline = time.time() + 20
+        while "jobs:drain" not in sh("dumpsys power") and time.time() < deadline:
+            time.sleep(1)
         sh("input keyevent KEYCODE_HOME")
     elif task in ("qa-signup", "qa-shop"):
         sh("logcat -c")
