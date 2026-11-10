@@ -1599,3 +1599,11 @@ In run a14 (Android: Do Not Disturb from quick settings, using the UI only), the
 - phone-harness used fewer tokens than phonedriver on four of the nine jobs (clock-settings, messages-pin-archive, photos-crop, wakelock-restrict).
 - `jobs.json` `totals` now holds the 10 November numbers (7 November kept as `totals_2026_11_07`). `design/build/quiet.py` rebuilt `jobs-light.svg` and `jobs-dark.svg`; I rendered the light one and looked at it: 5.8x title, three bars, no overlap.
 - README alt text and caption updated.
+
+## 2026-11-10: a new screen with one or two elements is read again before the reply
+
+- Photos, API 37 tablet emulator: `tap` on Edit answered with "Cancel edits" and "Save copy" only, 3 of 3 times; the tabs reached the tree 0.2 to 0.5 s later. On the first open after a boot the reply was one progress indicator after the 4 s loading wait. In passes 12 to 14 the agent then spent two to four calls (screenshot, snapshot, wait) to see the editor. This is the largest part of the photos-crop gap to phone-harness.
+- When a reply is a new screen with at most two elements (no web view), the daemon reads again for up to 1.2 s, or 4 s more when the screen is loading. A spinner that never goes away now costs up to 8 s when it is the whole screen (the test of the 4 s limit is renamed and its bound raised).
+- Tests: `a_new_screen_that_shows_two_buttons_first_is_read_once_the_rest_is_there`, `a_new_screen_that_is_only_a_spinner_is_waited_for_past_four_seconds` (both failed first).
+- Live, `~/edit-rep.sh` on the tablet: the reply to the Edit tap listed "Crop tab" 3 of 3 times (0 of 3 before).
+- Mac mini: lib 86, daemon 159, mcp 30 passed. Clippy clean.
