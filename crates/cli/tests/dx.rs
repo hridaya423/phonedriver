@@ -43,7 +43,7 @@ fn the_secret_error_shows_how_to_pipe_it_and_not_the_top_level_usage() {
 
 fn daemon_env(c: &mut Command, home: &tempfile::TempDir) {
     c.env("PHONEDRIVER_HOME", home.path())
-        .env("PHONEDRIVER_SOCKET", home.path().join("run").join("d.sock"))
+        .env("PHONEDRIVER_SOCKET", test_socket(home.path(), "d.sock"))
         .env("ADB_SERVER_SOCKET", "tcp:127.0.0.1:1")
         .env("USBMUXD_SOCKET_ADDRESS", "127.0.0.1:1")
         .env_remove("PHONEDRIVER_DEVICE");
@@ -187,4 +187,13 @@ fn within_is_one_name_and_in_still_works() {
     let stderr = String::from_utf8(out.get_output().stderr.clone()).unwrap();
     assert_ne!(out.get_output().status.code(), Some(2), "{stderr}");
     assert!(!stderr.contains("unexpected argument"), "{stderr}");
+}
+
+fn test_socket(home: &std::path::Path, name: &str) -> std::path::PathBuf {
+    if cfg!(windows) {
+        let scope = home.file_name().unwrap().to_string_lossy();
+        std::path::PathBuf::from(format!(r"\\.\pipe\phonedriver-test-{scope}-{name}"))
+    } else {
+        home.join("run").join(name)
+    }
 }

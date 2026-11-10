@@ -38,7 +38,7 @@ impl DeviceSource for Slow {
 async fn lines_for(slow: Duration, progress: bool) -> Vec<Value> {
     let _alone = ONE_AT_A_TIME.lock().await;
     let home = tempfile::tempdir().unwrap();
-    let path = home.path().join("run").join("d.sock");
+    let path = test_socket(home.path(), "d.sock");
     let daemon = Daemon::new(
         Arc::new(Slow(slow)),
         Config {
@@ -105,4 +105,13 @@ async fn a_client_that_did_not_ask_gets_only_the_reply() {
 async fn a_fast_step_says_nothing() {
     let lines = lines_for(Duration::from_millis(10), true).await;
     assert_eq!(lines.len(), 1, "{lines:?}");
+}
+
+fn test_socket(home: &std::path::Path, name: &str) -> std::path::PathBuf {
+    if cfg!(windows) {
+        let scope = home.file_name().unwrap().to_string_lossy();
+        std::path::PathBuf::from(format!(r"\\.\pipe\phonedriver-test-{scope}-{name}"))
+    } else {
+        home.join("run").join(name)
+    }
 }

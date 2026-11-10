@@ -421,7 +421,14 @@ async fn fake_daemon(trees: Vec<phonedriver_core::raw::RawTree>) -> (tempfile::T
             home: home.path().to_path_buf(),
         },
     );
-    let socket = home.path().join("run").join("d.sock");
+    let socket = if cfg!(windows) {
+        PathBuf::from(format!(
+            r"\\.\pipe\phonedriver-test-{}-served",
+            home.path().file_name().unwrap().to_string_lossy()
+        ))
+    } else {
+        home.path().join("run").join("d.sock")
+    };
     let listener = phonedriver::daemon::socket::listen(&socket).await.unwrap();
     tokio::spawn(daemon.serve_on(listener));
     (home, socket)
