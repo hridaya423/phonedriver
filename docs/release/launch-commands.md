@@ -14,7 +14,7 @@ gh auth status                                # logged in as hridaya423
 npm whoami || npm login                       # needs an npm account with 2FA
 ```
 
-Also from `release-checklist.md` section 0: the Homebrew tap repo `hridaya423/homebrew-tap` and the `HOMEBREW_TAP_TOKEN` secret (or drop `homebrew` from `dist-workspace.toml`), and the CI proof on a pull request. The versions in `Cargo.toml`, `packaging/npm/package.json` and `server.json` must agree (a test checks it).
+Also from `release-checklist.md` section 0: the Homebrew tap repo `hridaya423/homebrew-tap` and the `HOMEBREW_TAP_DEPLOY_KEY` secret (both exist since 2026-11-10), and the CI proof on a pull request. The versions in `Cargo.toml`, `packaging/npm/package.json` and `server.json` must agree (a test checks it).
 
 ## 1. Create the repo and push (one-way door)
 
