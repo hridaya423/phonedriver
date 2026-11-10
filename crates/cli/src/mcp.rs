@@ -1166,7 +1166,7 @@ impl Mcp {
     }
 
     #[tool(
-        description = "Open an app (name, package or bundle id) or a `url` (with `app`, opened in that app); returns the screen it shows, which is where the app was left unless `restart`. `grant` pre-allows permissions (`camera`, `notifications`)."
+        description = "Open an app (any part of its name, or its id) or a `url` (with `app`, opened in that app); returns the screen it shows, which is where the app was left unless `restart`. `grant` pre-allows permissions (`camera`, `notifications`)."
     )]
     async fn launch(&self, Parameters(a): Parameters<LaunchArgs>) -> CallToolResult {
         let device = a.device.clone();

@@ -1517,3 +1517,9 @@ In run a14 (Android: Do Not Disturb from quick settings, using the UI only), the
 - **A node without `cls` no longer fails the whole tree.** On the starved tablet, `launch` answered `the agent sent a tree that does not parse: missing field cls`. The field now defaults to empty and the node reads as `Role::Other`. Test: `a_node_whose_class_the_platform_did_not_report_is_still_read` (failed first with that error).
 - **"not settled after Nms" is now "still animating after Nms, read as it is now"** in an action's first line. Agents followed most not-settled launches with a snapshot or screenshot to check lines that were already current. Test: `a_screen_that_kept_animating_says_its_lines_were_read_after_the_wait` (failed first on the old text). The snapshot header keeps `not settled after`. Whether the new words save the call is not measured yet.
 - Mac mini: `cargo test --workspace --no-fail-fast` ran out of disk part-way (734 passed, 8 failed, six of them OCR tests that could not write). After freeing space: core 206, lib 82, daemon 156, mcp 30, ocr 7 passed. `cli` has 2 failures that come from the mini itself (three simulators attached). Clippy and `cargo fmt --check` are clean.
+
+## 2026-11-10: the agent gets 10 s to start; `launch` says a part of the name is enough
+
+- `the agent did not print ready within 3 s` failed the first call of a session five times today on two loaded emulators; the next call found the agent up. `READY_TIMEOUT` is 10 s now. No test saw this red: it needs a slow device.
+- Every testbed job in passes `p6`, `p7`, `p9` and `p10` opened with an `apps` call (731 characters back) although the server instructions say not to. The `launch` description now reads "any part of its name, or its id", which is shorter than before. Whether it removes the call is to be measured.
+- Mac mini: android 33 passed, mcp 30 passed, cli 19 passed and 1 failed (the mini's own simulators). Clippy and format clean.
