@@ -146,3 +146,5 @@ phonedriver sends no telemetry. After the first download from GitHub, it connect
 ## License
 
 AGPL-3.0-only. See [LICENSE](LICENSE). The Android helper includes files from scrcpy under Apache-2.0; see [NOTICE](NOTICE).
+
+The binary decodes H.264 with OpenH264 built from source. Cisco's patent license covers only the binaries Cisco distributes, so this build carries no H.264 patent license.
