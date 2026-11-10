@@ -1,6 +1,8 @@
 <p align="center"><picture><source media="(prefers-color-scheme: dark)" srcset=".github/assets/banner-dark.svg"><img alt="phonedriver" src=".github/assets/banner-light.svg" width="100%"></picture></p>
 
-<h3 align="center">Give your AI agent a phone. 6.9x fewer tokens than mobile-mcp.</h3>
+<h3 align="center">Give your AI agent a phone.</h3>
+
+<p align="center"><b>6.9x fewer tokens than mobile-mcp.</b></p>
 
 <p align="center">
   <a href="LICENSE"><img alt="License: AGPL-3.0" src="https://img.shields.io/badge/license-AGPL--3.0-6b675e?style=flat-square&labelColor=161512"></a>
@@ -33,7 +35,11 @@ brew install hridaya423/tap/phonedriver
 claude mcp add phonedriver -- phonedriver mcp
 ```
 
-<a href="https://cursor.com/en/install-mcp?name=phonedriver&config=eyJjb21tYW5kIjoibnB4IiwiYXJncyI6WyIteSIsInBob25lZHJpdmVyIiwibWNwIl19"><img alt="Add phonedriver to Cursor" src="https://cursor.com/deeplink/mcp-install-dark.svg" height="32"></a>
+<a href="https://cursor.com/en/install-mcp?name=phonedriver&config=eyJjb21tYW5kIjoibnB4IiwiYXJncyI6WyIteSIsInBob25lZHJpdmVyIiwibWNwIl19"><img alt="Add phonedriver to Cursor" src="https://cursor.com/deeplink/mcp-install-dark.svg" height="32"></a> <a href="https://insiders.vscode.dev/redirect/mcp/install?name=phonedriver&config=%7B%22command%22%3A%22npx%22%2C%22args%22%3A%5B%22-y%22%2C%22phonedriver%22%2C%22mcp%22%5D%7D"><img alt="Add phonedriver to VS Code" src="https://img.shields.io/badge/VS_Code-Install_server-0098FF?style=for-the-badge" height="32"></a>
+
+<p><img alt="Claude Code" src="https://img.shields.io/badge/Claude%20Code-161512?style=flat-square&logo=claude&logoColor=white"> <img alt="Codex" src="https://img.shields.io/badge/Codex-161512?style=flat-square"> <img alt="Cursor" src="https://img.shields.io/badge/Cursor-161512?style=flat-square&logo=cursor&logoColor=white"> <img alt="VS Code" src="https://img.shields.io/badge/VS%20Code-161512?style=flat-square"> <img alt="GitHub Copilot" src="https://img.shields.io/badge/GitHub%20Copilot-161512?style=flat-square&logo=githubcopilot&logoColor=white"> <img alt="Gemini CLI" src="https://img.shields.io/badge/Gemini%20CLI-161512?style=flat-square&logo=googlegemini&logoColor=white"> <img alt="Windsurf" src="https://img.shields.io/badge/Windsurf-161512?style=flat-square&logo=windsurf&logoColor=white"> <img alt="Zed" src="https://img.shields.io/badge/Zed-161512?style=flat-square&logo=zedindustries&logoColor=white"> <img alt="Cline" src="https://img.shields.io/badge/Cline-161512?style=flat-square&logo=cline&logoColor=white"> <img alt="opencode" src="https://img.shields.io/badge/opencode-161512?style=flat-square&logo=opencode&logoColor=white"> <img alt="JetBrains" src="https://img.shields.io/badge/JetBrains-161512?style=flat-square&logo=jetbrains&logoColor=white"></p>
+
+phonedriver is a standard MCP server over stdio, so any MCP client can run it. I test it with Claude Code. Setup for the others: [Other clients](#other-clients).
 
 Start an Android emulator, plug in an Android phone with USB debugging on, or boot the iOS Simulator. Then give Claude a job that only a phone can do:
 
@@ -45,7 +51,15 @@ Start an Android emulator, plug in an Android phone with USB debugging on, or bo
 
 The first one is the demo above. phonedriver stops at Buy with GPay and asks you.
 
-The first run downloads one binary for your machine (macOS, Linux or Windows) and caches it. `phonedriver doctor` checks adb, Xcode and each device and tells you what to fix. Codex, Cursor and other clients: see [Other clients](#other-clients). The shell and PowerShell installers and real iPhones: [docs/reference.md](docs/reference.md#install).
+The first run downloads one binary for your machine (macOS, Linux or Windows) and caches it. `phonedriver doctor` checks adb, Xcode and each device and tells you what to fix. The shell and PowerShell installers and real iPhones: [docs/reference.md](docs/reference.md#install).
+
+## Fewer tokens
+
+Tokens are what an agent's usage limit is spent on. I ran nine jobs that only a phone can do, twice each, with Claude Sonnet 5.5 and three MCP servers. The jobs included setting Chrome's search engine, cropping a photo, pinning and archiving Messages threads, finding the app that keeps the phone awake, and testing a sign-up flow for planted bugs. A script checked the phone's own data afterwards, not the model's report.
+
+<p align="center"><picture><source media="(prefers-color-scheme: dark)" srcset=".github/assets/jobs-dark.svg"><img alt="On nine real phone jobs on one Android emulator, 10 November 2026, with Claude Sonnet 5.5: phonedriver passed 27 of 27 runs with 658 thousand tokens in 5.1 minutes; mobile-mcp passed 17 of 18 with 4.6 million tokens in 8.7 minutes; phone-harness passed 14 of 18 with 1.1 million tokens in 22.7 minutes." src=".github/assets/jobs-light.svg" width="100%"></picture></p>
+
+This is my own test set. All three tools ran on the same Android emulator on 10 November 2026. phone-harness used fewer tokens than phonedriver on two of the nine jobs. Every run, the versions, the checks and what was thrown away are published in [docs/bench/jobs.md](docs/bench/jobs.md). If you maintain one of these tools and think I set it up wrong, open an issue and I will rerun it.
 
 ## What the model sees
 
@@ -73,14 +87,6 @@ ok tapped @e24 "Dark theme" at 353,532 · settled in 2034ms
 ```
 
 `+` marks a line that appeared, `-` one that left, `~` one that changed. The model doesn't need to poll or guess how long a screen takes to load. It takes a screenshot only when it needs to see a picture.
-
-## Fewer tokens
-
-Tokens are what an agent's usage limit is spent on. I ran nine jobs that only a phone can do, twice each, with Claude Sonnet 5.5 and three MCP servers. The jobs included setting Chrome's search engine, cropping a photo, pinning and archiving Messages threads, finding the app that keeps the phone awake, and testing a sign-up flow for planted bugs. A script checked the phone's own data afterwards, not the model's report.
-
-<p align="center"><picture><source media="(prefers-color-scheme: dark)" srcset=".github/assets/jobs-dark.svg"><img alt="On nine real phone jobs on one Android emulator, 10 November 2026, with Claude Sonnet 5.5: phonedriver passed 27 of 27 runs with 658 thousand tokens in 5.1 minutes; mobile-mcp passed 17 of 18 with 4.6 million tokens in 8.7 minutes; phone-harness passed 14 of 18 with 1.1 million tokens in 22.7 minutes." src=".github/assets/jobs-light.svg" width="100%"></picture></p>
-
-This is my own test set. All three tools ran on the same Android emulator on 10 November 2026. phone-harness used fewer tokens than phonedriver on two of the nine jobs. Every run, the versions, the checks and what was thrown away are published in [docs/bench/jobs.md](docs/bench/jobs.md). If you maintain one of these tools and think I set it up wrong, open an issue and I will rerun it.
 
 ## Speed
 
@@ -125,6 +131,14 @@ The MCP server has 14 tools: `devices`, `apps`, `snapshot`, `screenshot`, `tap`,
 - phonedriver never enters a passcode and can't pass Face ID or a fingerprint check. Screens that block screenshots, as some banking apps do, come out black in a screenshot, though their text can still be read.
 
 ## Other clients
+
+```sh
+claude mcp add phonedriver -- npx -y phonedriver mcp     # Claude Code
+codex mcp add phonedriver -- npx -y phonedriver mcp      # Codex
+code --add-mcp '{"name":"phonedriver","command":"npx","args":["-y","phonedriver","mcp"]}'   # VS Code
+```
+
+Every other client takes the same entry in its MCP config file:
 
 ```json
 {
