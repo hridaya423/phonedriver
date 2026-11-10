@@ -85,6 +85,9 @@ const CONTENT_WAIT: Duration = Duration::from_secs(2);
 /// How long an opened link may take to put its page in the tree before the reply goes out with what is there.
 const PAGE_WAIT: Duration = Duration::from_secs(5);
 const WEB_TEXT_WAIT: Duration = Duration::from_millis(1500);
+/// Observed in Clock's city search on the API 37 emulators: the suggestions reached the tree 300 to 600 ms after the
+/// text did, the reply showed the field and "Clear text" only, and the agent took a snapshot after every city.
+const SEARCH_WAIT: Duration = Duration::from_millis(1500);
 const WEB_VIEW_WAIT: Duration = Duration::from_secs(10);
 const LEAVE_WAIT: Duration = Duration::from_millis(2500);
 /// Observed on the API 37 tablet emulator: the first "Add alarm" tap after a cold Clock launch opened its time picker
@@ -2629,6 +2632,29 @@ impl Actor {
             self.read_checkboxes(&mut rendered, s.last.as_ref()).await?;
             verdict = judge(s, &rendered);
         }
+        if let (Some(v), Some(Verdict::Landed)) = (&verify, &verdict)
+            && !v.submitted
+            && !v.secure
+            && !matches!(&v.expect, Expect::Exactly(t) if t.is_empty())
+            && let Some(field) = v.view(&rendered).target
+        {
+            let waited = Instant::now();
+            let mut late = None;
+            while search_unanswered(s.last.as_ref(), &rendered, field)
+                && waited.elapsed() < SEARCH_WAIT
+            {
+                tokio::time::sleep(TREE_STEP).await;
+                let tree = self.device()?.tree().await?;
+                rendered = self.build(s, &tree, None);
+                late = Some(tree);
+            }
+            if let Some(tree) =
+                late.filter(|_| !search_unanswered(s.last.as_ref(), &rendered, field))
+            {
+                let tree = self.stabilize(tree, None).await?;
+                rendered = self.build(s, &tree, None);
+            }
+        }
         // Contacts names a new phone field "Phone (Mobile)" and, once it holds text, "Phone": a new ref.
         if let (Some(v), Some(Verdict::Landed)) = (&verify, &verdict)
             && let Some(old) = v.field.filter(|r| rendered.index_of(*r).is_none())
@@ -3001,6 +3027,38 @@ fn only_lost_lines(s: &Session, now: &Rendered) -> bool {
         Some(DiffOrFull::Diff(changes))
             if !changes.is_empty() && changes.iter().all(|c| matches!(c, Change::Removed(_)))
     )
+}
+
+/// `field` is a search field and at most one other element has changed since `prev`: its results are not in yet.
+fn search_unanswered(prev: Option<&Rendered>, now: &Rendered, field: Ref) -> bool {
+    let Some(e) = now.index_of(field).map(|i| &now.elements[i]) else {
+        return false;
+    };
+    let named = |s: &Option<String>| {
+        s.as_deref()
+            .is_some_and(|s| s.to_ascii_lowercase().contains("search"))
+    };
+    if e.role != Role::SearchField && !named(&e.hint) && !named(&e.id) && !named(&e.label) {
+        return false;
+    }
+    let Some(DiffOrFull::Diff(changes)) = prev.map(|p| diff(p, now)) else {
+        return false;
+    };
+    let answers = changes
+        .iter()
+        .filter(|c| {
+            let r = match c {
+                Change::Added(r) => *r,
+                Change::Changed { r#ref, .. } => *r#ref,
+                _ => return false,
+            };
+            r != field
+                && now
+                    .index_of(r)
+                    .is_some_and(|i| now.elements[i].role != Role::Keyboard)
+        })
+        .count();
+    answers < 2
 }
 
 /// The screen changed somewhere other than `field` and the keyboard.
@@ -3495,6 +3553,66 @@ mod tests {
             sorted_distance(&text("Zulu|Alpha"), &now, Direction::Down, list),
             None
         );
+    }
+
+    #[test]
+    fn a_search_field_waits_for_its_results_and_a_form_field_does_not() {
+        use phonedriver_core::geometry::Scale;
+        use phonedriver_core::refs::RefTable;
+        use phonedriver_core::render::Header;
+        let mut table = RefTable::default();
+        let mut screen = |hint: &str, text: &str, rows: &[&str]| {
+            let mut nodes = vec![
+                r#"{"p":-1,"w":1,"cls":"android.widget.ImageButton","desc":"Back","b":[0,0,50,50],"n":"back","f":"vVe","a":["tap"]}"#.to_string(),
+                format!(
+                    r#"{{"p":-1,"w":1,"cls":"android.widget.EditText","text":"{text}","hint":"{hint}","b":[50,0,350,50],"n":"field","f":"vVe","a":["tap","set_text"]}}"#
+                ),
+            ];
+            for (i, row) in rows.iter().enumerate() {
+                let y = 60 + i * 60;
+                nodes.push(format!(
+                    r#"{{"p":-1,"w":1,"cls":"android.widget.Button","text":"{row}","b":[0,{y},400,{}],"n":"{row}","f":"vVe","a":["tap"]}}"#,
+                    y + 50
+                ));
+            }
+            let json = format!(
+                r#"{{"windows":[{{"id":1,"type":"application","bounds":[0,0,400,800]}}],"nodes":[{}]}}"#,
+                nodes.join(",")
+            );
+            let tree = RawTree::from_android_json(&json, Scale { density: 1.0 }).unwrap();
+            let pruned = phonedriver_core::prune::prune(&tree);
+            let refs = table.assign(&tree, &pruned);
+            Rendered::build(pruned, &refs, Header::default())
+        };
+        let field = |r: &Rendered| {
+            r.elements
+                .iter()
+                .find(|e| e.role.is_text_entry())
+                .unwrap()
+                .r#ref
+        };
+        let empty = screen("Search for a city", "", &[]);
+        let typed = screen("Search for a city", "Tokyo", &["Clear text"]);
+        let answered = screen(
+            "Search for a city",
+            "Tokyo",
+            &["Clear text", "Tokyo, Japan", "Yokohama, Japan"],
+        );
+        assert!(search_unanswered(Some(&empty), &typed, field(&typed)));
+        assert!(!search_unanswered(
+            Some(&empty),
+            &answered,
+            field(&answered)
+        ));
+        let other = screen(
+            "Search for a city",
+            "Osaka",
+            &["Clear text", "Tokyo, Japan", "Yokohama, Japan"],
+        );
+        assert!(search_unanswered(Some(&answered), &other, field(&other)));
+        let form = screen("Email", "", &[]);
+        let filled = screen("Email", "a@b.c", &[]);
+        assert!(!search_unanswered(Some(&form), &filled, field(&filled)));
     }
 
     #[test]
