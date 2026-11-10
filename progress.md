@@ -1625,3 +1625,13 @@ CI run 42888938346 was the first to reach Windows. `cargo clippy` failed in `cra
 Changed: `build.sh` picks `d8.bat`, `;` and Windows paths for aidl under MINGW/MSYS/CYGWIN. `ci.yml` builds the jar in a `shell: bash` step and sets `PHONEDRIVER_AGENT_JAR`, as the release setup does.
 
 Proof: on win-pc (Git Bash, build-tools 37.0.0, javac 22) `ANDROID_HOME=/d/Android/Sdk bash android-agent/build.sh` exits 0 and writes a jar with one `classes.dex` (97,052 bytes). On the MacBook the script still exits 0 (96,904 bytes, javac 17). The Windows-built jar has not been run on a device.
+
+## 2026-11-10: the test suite runs on Windows; two OCR tests skip on hosted runners
+
+CI run 42889844605: Windows built the agent jar, then failed to compile `crates/android/tests/build_script.rs` (Unix permissions). macOS failed two OCR tests: Vision on the runner read "b0" as "bo" and took 580 ms a frame against the 120 ms limit.
+
+A first full `cargo test --workspace` on win-pc showed 91 failing tests in 7 targets. Causes: test rigs listened on a file path where Windows needs a named pipe ("not a named pipe path"); four agent tests run stub `sh` scripts; a checkout with CRLF made `skill_prints_skill_md_exactly` fail, and the binary would embed `SKILL.md` with CRLF.
+
+Changed: the rigs in `guard_rig.rs`, `mcp.rs`, `progress.rs`, `dx.rs` and `cli.rs` use a pipe name on Windows, as `daemon.rs` already did. `build_script.rs` and the four stub-script tests are `cfg(unix)`. `.gitattributes` pins LF. The two OCR tests return early when `GITHUB_ACTIONS` is set.
+
+Proof (win-pc, Windows-built jar): `cargo clippy --all-targets -- -D warnings` finished clean; `cargo test --workspace --no-fail-fast`: 48 targets ok, 726 passed, 0 failed, 96 ignored. Observed and not fixed: a test run leaves one `phonedriver.exe` daemon alive on Windows, which blocks the next build until it is stopped.

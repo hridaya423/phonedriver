@@ -89,7 +89,7 @@ pub async fn rig_showing(tree: RawTree) -> Rig {
             home: home.path().to_path_buf(),
         },
     );
-    let socket = home.path().join("run").join("daemon.sock");
+    let socket = test_socket(home.path(), "daemon.sock");
     let listener = socket::listen(&socket).await.unwrap();
     tokio::spawn(daemon.serve_on(listener));
     Rig {
@@ -126,5 +126,14 @@ impl Rig {
             .iter()
             .filter(|c| matches!(c, Call::Gesture(Gesture { .. })))
             .count()
+    }
+}
+
+fn test_socket(home: &std::path::Path, name: &str) -> std::path::PathBuf {
+    if cfg!(windows) {
+        let scope = home.file_name().unwrap().to_string_lossy();
+        std::path::PathBuf::from(format!(r"\\.\pipe\phonedriver-test-{scope}-{name}"))
+    } else {
+        home.join("run").join(name)
     }
 }

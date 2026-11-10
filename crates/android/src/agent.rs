@@ -508,6 +508,7 @@ mod tests {
         assert_eq!(plain.hidden_display, None);
     }
 
+    #[cfg(unix)]
     fn run_start_command(
         owner_in_file: Option<&str>,
         agent_running: bool,
@@ -563,6 +564,7 @@ mod tests {
         )
     }
 
+    #[cfg(unix)]
     #[test]
     fn a_live_agent_another_daemon_owns_is_not_killed() {
         let (code, out, calls) =
@@ -572,6 +574,7 @@ mod tests {
         assert!(calls.is_empty(), "{calls:?}");
     }
 
+    #[cfg(unix)]
     #[test]
     fn this_daemons_own_agent_is_replaced_and_the_owner_file_names_it() {
         let (code, _, calls) = run_start_command(Some("pid=7 host=mine"), true, "pid=7 host=mine");
@@ -579,6 +582,7 @@ mod tests {
         assert_eq!(calls, ["pkill", "app_process"]);
     }
 
+    #[cfg(unix)]
     #[test]
     fn an_owner_file_with_no_agent_running_is_stale_and_is_taken_over() {
         let (code, _, calls) =
@@ -587,6 +591,7 @@ mod tests {
         assert_eq!(calls, ["pkill", "app_process"]);
     }
 
+    #[cfg(unix)]
     #[test]
     fn an_agent_with_no_owner_file_is_from_an_older_phonedriver_and_is_replaced() {
         let (code, _, calls) = run_start_command(None, true, "pid=7 host=mine");

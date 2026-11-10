@@ -32,7 +32,7 @@ async fn rig_with(device: Arc<dyn phonedriver_core::device::Device>) -> Rig {
             home: home.path().to_path_buf(),
         },
     );
-    let socket = home.path().join("run").join("daemon.sock");
+    let socket = test_socket(home.path(), "daemon.sock");
     let listener = socket::listen(&socket).await.unwrap();
     tokio::spawn(daemon.serve_on(listener));
     let (client_io, server_io) = tokio::io::duplex(1 << 20);
@@ -209,7 +209,7 @@ async fn screenshot_is_one_png_image_block_and_one_text_block_with_size_and_scal
 async fn remote(rig: &Rig) -> PathBuf {
     use interprocess::local_socket::traits::tokio::Listener as _;
     use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader, split};
-    let proxy = rig.home.path().join("run").join("remote.sock");
+    let proxy = test_socket(rig.home.path(), "remote.sock");
     let listener = socket::listen(&proxy).await.unwrap();
     let daemon = rig.socket.clone();
     tokio::spawn(async move {
@@ -730,4 +730,13 @@ async fn apps_with_an_action_stops_an_app_and_refuses_a_missing_path() {
     assert_eq!(r.is_error, Some(true), "{r:?}");
     let r = rig.call("apps", json!({"action": "install"})).await;
     assert_eq!(r.is_error, Some(true), "{r:?}");
+}
+
+fn test_socket(home: &std::path::Path, name: &str) -> std::path::PathBuf {
+    if cfg!(windows) {
+        let scope = home.file_name().unwrap().to_string_lossy();
+        std::path::PathBuf::from(format!(r"\\.\pipe\phonedriver-test-{scope}-{name}"))
+    } else {
+        home.join("run").join(name)
+    }
 }
