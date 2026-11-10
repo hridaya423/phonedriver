@@ -1662,3 +1662,11 @@ Proof, from an empty folder with an empty HOME and npm cache: `npx -y phonedrive
 - Added `install-check.yml` (manual): `npx -y phonedriver` on the five release runners.
 
 Observed: on iOS, a tap on "General" while Settings still showed an old search with the keyboard up reported "no element changed"; from a fresh launch the same tap worked.
+
+## 2026-11-10: 0.1.1, the npm launcher unpacks on Windows under Git Bash
+
+`install-check` run 42901155514: four runners ok, `windows-2022` failed: "could not unpack phonedriver-x86_64-pc-windows-msvc.zip with tar: tar: Cannot connect to C: resolve failed". Under Git Bash the first `tar` on PATH is GNU tar, which reads `C:\...` as a remote host. Claude Code on Windows runs through Git Bash, so this would hit its users. Reproduced on win-pc with the published package: `npx -y phonedriver@0.1.0 --version` in Git Bash gives the same error.
+
+Changed: the launcher calls `%SystemRoot%\System32\tar.exe` on Windows (`tarProgram`). Test first: `on Windows the archive is unpacked by the system tar, not the first tar on PATH` failed ("tarProgram is not a function"), then 6 pass. npm versions cannot be replaced, so the version is 0.1.1 everywhere.
+
+Proof on win-pc with the fixed launcher: `node npm/bin/phonedriver.js --version` prints `phonedriver 0.1.0` from Git Bash (download, then cache) and from cmd. On the mini: fmt and clippy clean; `--test cli` 19 pass, 1 fail (`no_device_exits_4…`, the known mini-only failure: the mini has devices).
