@@ -41,6 +41,12 @@ function archiveName(target) {
   return `phonedriver-${target}.${target.includes("windows") ? "zip" : "tar.gz"}`;
 }
 
+// Git Bash puts GNU tar first on PATH; it reads "C:\\..." as a remote host and cannot open a zip. Windows ships bsdtar in System32.
+function tarProgram(platform, env) {
+  if (platform !== "win32") return "tar";
+  return path.win32.join(env.SystemRoot || "C:\\Windows", "System32", "tar.exe");
+}
+
 async function fetchBytes(url) {
   if (url.startsWith("file:")) return fs.readFileSync(new URL(url));
   const res = await fetch(url, { redirect: "follow" });
@@ -96,7 +102,7 @@ async function ensureBinary({ env = process.env, platform = process.platform, ar
     fs.writeFileSync(archivePath, archive);
     const out = path.join(work, "out");
     fs.mkdirSync(out);
-    const tar = spawnSync("tar", ["-xf", archivePath, "-C", out], { encoding: "utf8" });
+    const tar = spawnSync(tarProgram(platform, env), ["-xf", archivePath, "-C", out], { encoding: "utf8" });
     if (tar.error || tar.status !== 0) {
       throw new Error(`could not unpack ${name} with tar: ${tar.error ? tar.error.message : tar.stderr.trim()}`);
     }
@@ -128,4 +134,4 @@ async function main(argv, opts = {}) {
   });
 }
 
-module.exports = { targetFor, cacheRoot, archiveName, ensureBinary, main, TARGETS };
+module.exports = { targetFor, cacheRoot, archiveName, tarProgram, ensureBinary, main, TARGETS };

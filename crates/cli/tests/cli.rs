@@ -20,7 +20,7 @@ fn version_prints_name_and_version() {
         .arg("version")
         .assert()
         .success()
-        .stdout("phonedriver 0.1.0\n");
+        .stdout("phonedriver 0.1.1\n");
 }
 
 #[test]
@@ -31,7 +31,7 @@ fn the_version_flag_prints_the_same_line_as_the_version_verb() {
             .arg(flag)
             .assert()
             .success()
-            .stdout("phonedriver 0.1.0\n");
+            .stdout("phonedriver 0.1.1\n");
     }
 }
 
@@ -177,9 +177,9 @@ async fn devices_starts_the_daemon_and_the_next_call_reuses_it() {
     assert!(table.contains("android:emulator-5554"), "{table}");
     assert!(table.contains("Pixel_9"), "{table}");
     assert!(table.lines().next().unwrap().contains("TIER"), "{table}");
-    let first = env.rpc("hello", json!({"version": "0.1.0"})).await;
+    let first = env.rpc("hello", json!({"version": "0.1.1"})).await;
     env.cmd().arg("devices").assert().success();
-    let second = env.rpc("hello", json!({"version": "0.1.0"})).await;
+    let second = env.rpc("hello", json!({"version": "0.1.1"})).await;
     let pid = first["result"]["pid"].as_u64().unwrap();
     assert!(pid > 0);
     assert_eq!(second["result"]["pid"].as_u64().unwrap(), pid);
@@ -264,7 +264,7 @@ async fn a_daemon_of_another_version_is_shut_down_and_replaced() {
     );
     stopped.await.unwrap();
     old.await.unwrap();
-    let pid = env.rpc("hello", json!({"version": "0.1.0"})).await["result"]["pid"]
+    let pid = env.rpc("hello", json!({"version": "0.1.1"})).await["result"]["pid"]
         .as_u64()
         .unwrap();
     assert_ne!(pid, u64::from(std::process::id()));

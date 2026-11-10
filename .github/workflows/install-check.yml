@@ -12,8 +12,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          npx -y phonedriver --version | tee version.txt
-          grep -qx "phonedriver 0.1.0" version.txt
+          want=$(npm view phonedriver version)
+          npx -y phonedriver --version | tr -d '\r' | tee version.txt
+          grep -qx "phonedriver $want" version.txt
           (echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"check","version":"0"}}}'; sleep 5) | npx -y phonedriver mcp > reply.txt
           head -c 200 reply.txt
-          grep -q '"serverInfo":{"name":"phonedriver","version":"0.1.0"}' reply.txt
+          grep -q "\"serverInfo\":{\"name\":\"phonedriver\",\"version\":\"$want\"}" reply.txt

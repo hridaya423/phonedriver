@@ -48,7 +48,7 @@ That binary has no Android support (`phonedriver doctor` skips the Android check
 
 ```console
 $ target/release/phonedriver version
-phonedriver 0.1.0
+phonedriver 0.1.1
 ```
 
 Until the package is published, register the built binary with your client by its full path: `claude mcp add phonedriver -- "$PWD/target/release/phonedriver" mcp`.

@@ -8,7 +8,7 @@ const path = require("node:path");
 const { spawnSync } = require("node:child_process");
 
 const pkg = require("../package.json");
-const { targetFor, archiveName } = require("../lib/launcher");
+const { targetFor, archiveName, tarProgram } = require("../lib/launcher");
 
 const BIN = path.join(__dirname, "..", "bin", "phonedriver.js");
 const posix = process.platform !== "win32";
@@ -98,4 +98,11 @@ test("a missing release explains the failure and points at the other installers"
   assert.strictEqual(r.status, 1);
   assert.match(r.stderr, /download failed/);
   assert.match(r.stderr, /#install/);
+});
+
+test("on Windows the archive is unpacked by the system tar, not the first tar on PATH", () => {
+  assert.strictEqual(tarProgram("win32", { SystemRoot: "D:\\Windows" }), "D:\\Windows\\System32\\tar.exe");
+  assert.strictEqual(tarProgram("win32", {}), "C:\\Windows\\System32\\tar.exe");
+  assert.strictEqual(tarProgram("linux", {}), "tar");
+  assert.strictEqual(tarProgram("darwin", {}), "tar");
 });

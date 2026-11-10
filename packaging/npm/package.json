@@ -1,6 +1,6 @@
 {
   "name": "phonedriver",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Let AI agents see and control Android and iOS phones. Launcher for the phonedriver binary: downloads it from GitHub Releases on first run.",
   "mcpName": "io.github.hridaya423/phonedriver",
   "license": "AGPL-3.0-only",
