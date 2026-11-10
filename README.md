@@ -34,7 +34,6 @@ Start an Android emulator, plug in an Android phone with USB debugging on, or bo
 
 The first run downloads one binary for your machine (macOS, Linux or Windows) and caches it. `phonedriver doctor` checks adb, Xcode and each device and tells you what to fix. Codex, Cursor and other clients: see [Other clients](#other-clients). Homebrew, the shell installer and real iPhones: [docs/reference.md](docs/reference.md#install).
 
-
 ## What the model sees
 
 Each screen arrives as a short numbered list. This is the Settings app on an Android emulator:
