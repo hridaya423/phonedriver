@@ -159,6 +159,7 @@ struct WireNode {
     #[serde(default)]
     w: i32,
     id: Option<String>,
+    #[serde(default)]
     cls: String,
     text: Option<String>,
     desc: Option<String>,
@@ -537,6 +538,16 @@ mod tests {
         )
         .unwrap();
         assert!(!table.loading(), "a web table");
+    }
+
+    #[test]
+    fn a_node_whose_class_the_platform_did_not_report_is_still_read() {
+        let json = r#"{"windows":[],"nodes":[
+            {"p":-1,"w":1,"b":[0,0,360,800],"f":"vVe"},
+            {"p":0,"w":1,"cls":"android.widget.Button","text":"Settings","b":[0,100,360,160],"f":"vVe","a":["tap"]}]}"#;
+        let t = RawTree::from_android_json(json, Scale { density: 1.0 }).unwrap();
+        assert_eq!(t.nodes[0].role, Role::Other);
+        assert_eq!(t.nodes[1].label.as_deref(), Some("Settings"));
     }
 
     #[test]
