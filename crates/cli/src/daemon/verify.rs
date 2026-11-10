@@ -166,7 +166,9 @@ impl Verify {
             Expect::Exactly(t) => t.as_str(),
             Expect::Appended { text, .. } => text.as_str(),
         };
-        let hint = if value.is_empty() && !typed.is_empty() {
+        let hint = if self.plus_left_over(value) {
+            "the field kept a `+` from before, so the first digits read as a country code: clear the field (type an empty text into it), then type again".to_string()
+        } else if value.is_empty() && !typed.is_empty() {
             let other = match self.mode {
                 Some("keys") => "",
                 _ => "; `--mode keys` types key by key",
@@ -201,8 +203,25 @@ impl Verify {
             .chars()
             .all(|c| c.is_ascii_digit() || "+-(). ".contains(c));
         let digits = |s: &str| s.chars().filter(char::is_ascii_digit).collect::<String>();
+        let code_made_of_typed_digits = self.plus_left_over(value);
         let (typed, shown) = (digits(typed), digits(value));
-        phone_like && typed.len() >= 4 && shown.ends_with(&typed) && shown.len() <= typed.len() + 3
+        phone_like
+            && !code_made_of_typed_digits
+            && typed.len() >= 4
+            && shown.ends_with(&typed)
+            && shown.len() <= typed.len() + 3
+    }
+
+    /// The field shows a `+` that was not typed, in front of exactly the digits typed, so the first of them read as
+    /// a country code. Contacts on the API 37 tablet emulator, 1 run in 3: its phone field starts as `+1`, the clear
+    /// left the `+`, and `4631121` became `+46 31 121` (Sweden) and was reported as verified.
+    fn plus_left_over(&self, value: &str) -> bool {
+        let typed = match &self.expect {
+            Expect::Exactly(t) => t.as_str(),
+            Expect::Appended { text, .. } => text.as_str(),
+        };
+        let digits = |s: &str| s.chars().filter(char::is_ascii_digit).collect::<String>();
+        value.contains('+') && !typed.contains('+') && digits(value) == digits(typed)
     }
 }
 
@@ -380,6 +399,23 @@ mod tests {
         assert!(v.judge(&shows("+1 371"), false).is_some());
         let word = verify(Expect::Exactly("hello".into()));
         assert!(word.judge(&shows("h-e-l-l-o"), false).is_some());
+    }
+
+    #[test]
+    fn digits_that_a_leftover_plus_turned_into_another_countrys_number_are_not_verified() {
+        let v = verify(Expect::Exactly("4631121".into()));
+        let shows = |value: &str| FieldView {
+            found: true,
+            focused: true,
+            value: Some(value.into()),
+            focus_elsewhere: None,
+            target: Some(Ref(5)),
+        };
+        assert!(v.judge(&shows("463-1121"), false).is_none());
+        let bad = v.judge(&shows("+46 31 121"), false).unwrap();
+        assert!(bad.hint.contains("`+`"), "{}", bad.hint);
+        let plus = verify(Expect::Exactly("+4631121".into()));
+        assert!(plus.judge(&shows("+46 31 121"), false).is_none());
     }
 
     #[test]
