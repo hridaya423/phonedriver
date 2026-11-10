@@ -1392,7 +1392,12 @@ fn show_action(result: &Value, json: bool) -> Result<String, Failure> {
     }
     if r.settle_ms > 0 || r.settled {
         if !r.settled {
-            head.push_str(&format!(" · not settled after {}ms", r.settle_ms));
+            // Benchmark passes p6 and p7 (2026-11-10, a slow emulator): 17 launches answered "not settled after", and
+            // agents followed most of them with a snapshot or a screenshot to check lines that were already current.
+            head.push_str(&format!(
+                " · still animating after {}ms, read as it is now",
+                r.settle_ms
+            ));
             if let Some(b) = r.observation.still_changing {
                 head.push_str(&format!(
                     " (still changing at {},{} {}x{})",
@@ -1675,6 +1680,19 @@ mod tests {
         let shown = show_shell(&shell, false).unwrap();
         assert!(shown.contains("screen: no change after 250ms"), "{shown}");
         assert!(!shown.contains("tap"), "{shown}");
+    }
+
+    #[test]
+    fn a_screen_that_kept_animating_says_its_lines_were_read_after_the_wait() {
+        let mut v = action(true, "full", "@e1 button \"Stay signed out\"");
+        v["settled"] = json!(false);
+        v["settle_ms"] = json!(9150);
+        let shown = show_action(&v, false).unwrap();
+        let head = shown.lines().next().unwrap();
+        assert!(
+            head.ends_with("still animating after 9150ms, read as it is now"),
+            "{head}"
+        );
     }
 
     #[test]
