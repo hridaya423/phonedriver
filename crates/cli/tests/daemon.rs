@@ -554,7 +554,8 @@ async fn an_action_that_leaves_a_progress_bar_showing_waits_for_the_page_up_to_f
 }
 
 #[tokio::test(start_paused = true)]
-async fn a_progress_bar_that_never_goes_away_costs_at_most_four_seconds_of_waiting() {
+async fn a_progress_bar_that_never_goes_away_costs_at_most_eight_seconds_when_it_is_the_whole_screen()
+ {
     let (source, fake) = FakeSource::with(vec![tree(&["Search"]), progress_tree(&["Spinning"])]);
     let (d, _home) = daemon(source);
     ok(&d, "default", "snapshot", json!({})).await;
@@ -567,7 +568,7 @@ async fn a_progress_bar_that_never_goes_away_costs_at_most_four_seconds_of_waiti
     assert_eq!(r["ok"], true);
     assert_eq!(r["observation"]["loading"], true, "{r}");
     assert!(
-        started.elapsed() < Duration::from_secs(5),
+        started.elapsed() < Duration::from_secs(9),
         "{:?}",
         started.elapsed()
     );
@@ -2579,6 +2580,54 @@ async fn a_tap_whose_ripple_settles_before_the_next_page_draws_waits_for_the_pag
     let r = ok(&d, "default", "act", tap_point(10.0, 120.0)).await;
     let text = r["observation"]["text"].as_str().unwrap();
     assert!(text.contains("Default apps"), "{r}");
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_new_screen_that_shows_two_buttons_first_is_read_once_the_rest_is_there() {
+    let (source, fake) = FakeSource::with(vec![tree_of("com.photos", &["Share", "Edit", "Trash"])]);
+    let (d, _home) = daemon(source);
+    ok(&d, "default", "snapshot", json!({})).await;
+    let late = fake.clone();
+    tokio::spawn(async move {
+        tokio::time::sleep(Duration::from_millis(30)).await;
+        late.set_tree(tree_of("com.photos", &["Cancel edits", "Save copy"]));
+        late.push_frame(big_frame(1));
+        tokio::time::sleep(Duration::from_millis(700)).await;
+        late.set_tree(tree_of(
+            "com.photos",
+            &["Cancel edits", "Save copy", "Crop tab", "Adjust tab"],
+        ));
+    });
+    let r = ok(&d, "default", "act", tap_point(10.0, 220.0)).await;
+    let text = r["observation"]["text"].as_str().unwrap();
+    assert!(text.contains("Crop tab"), "{r}");
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_new_screen_that_is_only_a_spinner_is_waited_for_past_four_seconds() {
+    let spinner = || {
+        let json = r#"{"windows":[{"id":1,"type":"application","package":"com.photos","bounds":[0,0,360,800]}],"nodes":[
+            {"p":-1,"w":1,"cls":"android.widget.FrameLayout","b":[0,0,360,800],"f":"vVe"},
+            {"p":0,"w":1,"cls":"android.widget.ProgressBar","desc":"in progress","b":[150,370,210,430],"f":"vVe"}]}"#;
+        RawTree::from_android_json(json, Scale { density: 1.0 }).unwrap()
+    };
+    let (source, fake) = FakeSource::with(vec![tree_of("com.photos", &["Share", "Edit", "Trash"])]);
+    let (d, _home) = daemon(source);
+    ok(&d, "default", "snapshot", json!({})).await;
+    let late = fake.clone();
+    tokio::spawn(async move {
+        tokio::time::sleep(Duration::from_millis(30)).await;
+        late.set_tree(spinner());
+        late.push_frame(big_frame(1));
+        tokio::time::sleep(Duration::from_millis(6500)).await;
+        late.set_tree(tree_of(
+            "com.photos",
+            &["Cancel edits", "Save copy", "Crop tab"],
+        ));
+    });
+    let r = ok(&d, "default", "act", tap_point(10.0, 220.0)).await;
+    let text = r["observation"]["text"].as_str().unwrap();
+    assert!(text.contains("Crop tab"), "{r}");
 }
 
 #[tokio::test(start_paused = true)]

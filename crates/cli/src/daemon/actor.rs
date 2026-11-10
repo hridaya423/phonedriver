@@ -85,6 +85,12 @@ const CONTENT_WAIT: Duration = Duration::from_secs(2);
 /// How long an opened link may take to put its page in the tree before the reply goes out with what is there.
 const PAGE_WAIT: Duration = Duration::from_secs(5);
 const WEB_TEXT_WAIT: Duration = Duration::from_millis(1500);
+/// Observed in Photos on the API 37 tablet emulator, 3 of 3 opens of the editor: the reply listed "Cancel edits" and
+/// "Save copy" only, and the tabs reached the tree 0.2 to 0.5 s later. On the first open after a boot the screen
+/// was one progress indicator for longer than `LOADING_WAIT`, so such a screen gets `SPINNER_WAIT` more. In three benchmark runs the agent then spent two to
+/// four calls (screenshot, snapshot, wait) to see the editor.
+const BARE_WAIT: Duration = Duration::from_millis(1200);
+const SPINNER_WAIT: Duration = Duration::from_secs(4);
 const FOCUS_WAIT: Duration = Duration::from_secs(1);
 const FOCUS_STEP: Duration = Duration::from_millis(30);
 /// Observed in Clock's city search on the API 37 emulators: the suggestions reached the tree 300 to 600 ms after the
@@ -2644,6 +2650,30 @@ impl Actor {
             let tree = self.device()?.tree().await?;
             rendered = self.build(s, &tree, None);
         }
+        let arrived = s
+            .last
+            .as_ref()
+            .is_some_and(|prev| matches!(diff(prev, &rendered), DiffOrFull::Full));
+        let bare_since = Instant::now();
+        let mut filled = None;
+        while arrived && bare(&rendered) {
+            let limit = if rendered.loading() {
+                SPINNER_WAIT
+            } else {
+                BARE_WAIT
+            };
+            if bare_since.elapsed() >= limit {
+                break;
+            }
+            tokio::time::sleep(TREE_STEP).await;
+            let tree = self.device()?.tree().await?;
+            rendered = self.build(s, &tree, None);
+            filled = Some(tree);
+        }
+        if let Some(tree) = filled.filter(|_| !bare(&rendered)) {
+            let tree = self.stabilize(tree, None).await?;
+            rendered = self.build(s, &tree, None);
+        }
         self.read_checkboxes(&mut rendered, s.last.as_ref()).await?;
         let judge = |s: &Session, rendered: &Rendered| {
             verify
@@ -3061,6 +3091,18 @@ fn only_lost_lines(s: &Session, now: &Rendered) -> bool {
         Some(DiffOrFull::Diff(changes))
             if !changes.is_empty() && changes.iter().all(|c| matches!(c, Change::Removed(_)))
     )
+}
+
+/// A screen with at most two elements besides the keyboard: it is rarely the whole of a screen an app opens. A web
+/// page can be that short (one line of text), so a screen with a web view is never called bare.
+fn bare(now: &Rendered) -> bool {
+    let web = now.elements.iter().any(|e| e.role == Role::WebView);
+    let shown = now
+        .elements
+        .iter()
+        .filter(|e| e.role != Role::Keyboard)
+        .count();
+    !web && shown <= 2
 }
 
 /// `field` is a search field and at most one other element has changed since `prev`: its results are not in yet.
