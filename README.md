@@ -1,6 +1,6 @@
 <p align="center"><picture><source media="(prefers-color-scheme: dark)" srcset=".github/assets/banner-dark.svg"><img alt="phonedriver" src=".github/assets/banner-light.svg" width="100%"></picture></p>
 
-<h3 align="center">Give your AI agent a phone.</h3>
+<h3 align="center">Give your AI agent a phone. 6.9x fewer tokens than mobile-mcp.</h3>
 
 <p align="center">
   <a href="LICENSE"><img alt="License: AGPL-3.0" src="https://img.shields.io/badge/license-AGPL--3.0-6b675e?style=flat-square&labelColor=161512"></a>
@@ -12,13 +12,13 @@
   <a href="https://phonedriver.dev">phonedriver.dev</a> · <a href="docs/reference.md">Reference</a> · <a href="docs/bench/jobs.md">Benchmarks</a> · <a href="https://github.com/hridaya423/phonedriver/releases">Releases</a>
 </p>
 
-phonedriver lets Claude Code, Codex, Cursor or any MCP client use an Android phone or an iPhone. It reads the screen as text, which took 6.9x fewer tokens than mobile-mcp on nine phone jobs, and it asks you before it taps Pay.
+phonedriver lets Claude Code, Codex, Cursor or any MCP client use an Android phone or an iPhone. It reads the screen as text, and it asks you before it taps Pay. The 6.9x is the token total on [nine phone jobs](#fewer-tokens).
 
 <p align="center">
-  <img alt="Claude Code drives an Android phone through phonedriver on the real dominos.co.uk website. Asked for a large pepperoni pizza from the Domino's nearest Leicester Square, it finds the store, fills the basket and the guest checkout, and taps Buy with GPay. phonedriver holds the tap and asks the human in Claude Code. The human declines and nothing is ordered." src=".github/assets/demo.gif" width="100%">
+  <img alt="The clip opens on phonedriver holding a tap on Buy with GPay and asking the human, then shows the run from the start. Claude Code drives an Android phone through phonedriver on the real dominos.co.uk website. Asked for a large pepperoni pizza from the Domino's nearest Leicester Square, it finds the store, fills the basket and the guest checkout, and taps Buy with GPay. phonedriver holds the tap and asks the human in Claude Code. The human declines and nothing is ordered." src=".github/assets/demo.gif" width="100%">
 </p>
 
-<p align="center"><sub>One real Claude Code (Opus 5.5) session on an Android emulator, ordering on dominos.co.uk. The run took 6.5 minutes and is shown at 15x; the approval prompt plays at real speed. Nothing was ordered. <a href=".github/assets/demo.mp4">Full video (MP4)</a>.</sub></p>
+<p align="center"><sub>One real Claude Code (Opus 5.5) session on an Android emulator, ordering on dominos.co.uk. The clip opens on the approval prompt, then shows the run from the start. The run took 6.5 minutes and is shown at 15x; the approval prompt plays at real speed. Nothing was ordered. <a href=".github/assets/demo.mp4">Full video (MP4)</a>.</sub></p>
 
 ## Start
 
@@ -37,11 +37,13 @@ claude mcp add phonedriver -- phonedriver mcp
 
 Start an Android emulator, plug in an Android phone with USB debugging on, or boot the iOS Simulator. Then give Claude a job that only a phone can do:
 
+> Order me a large pepperoni pizza from the Domino's nearest Leicester Square, for collection.
+
 > Open my app, sign up with a new account, and tell me every bug you find on the way. Give me steps to reproduce each one.
 
-> Find the app that drains my battery and tell me how long it ran in the background today.
-
 > Go through my app's onboarding in dark mode and in light mode, and show me every screen where the text is hard to read.
+
+The first one is the demo above. phonedriver stops at Buy with GPay and asks you.
 
 The first run downloads one binary for your machine (macOS, Linux or Windows) and caches it. `phonedriver doctor` checks adb, Xcode and each device and tells you what to fix. Codex, Cursor and other clients: see [Other clients](#other-clients). The shell and PowerShell installers and real iPhones: [docs/reference.md](docs/reference.md#install).
 
