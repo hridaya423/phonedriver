@@ -1635,3 +1635,9 @@ A first full `cargo test --workspace` on win-pc showed 91 failing tests in 7 tar
 Changed: the rigs in `guard_rig.rs`, `mcp.rs`, `progress.rs`, `dx.rs` and `cli.rs` use a pipe name on Windows, as `daemon.rs` already did. `build_script.rs` and the four stub-script tests are `cfg(unix)`. `.gitattributes` pins LF. The two OCR tests return early when `GITHUB_ACTIONS` is set.
 
 Proof (win-pc, Windows-built jar): `cargo clippy --all-targets -- -D warnings` finished clean; `cargo test --workspace --no-fail-fast`: 48 targets ok, 726 passed, 0 failed, 96 ignored. Observed and not fixed: a test run leaves one `phonedriver.exe` daemon alive on Windows, which blocks the next build until it is stopped.
+
+## 2026-11-10: Homebrew publishing set up; v0.1.0 tagged
+
+The user asked for a release with Homebrew working. Created the public repo `hridaya423/homebrew-tap`. A token needs the user's passkey (GitHub sudo mode), so the release job uses a write deploy key on the tap instead: secret `HOMEBREW_TAP_DEPLOY_KEY`, `ssh-key` in the `publish-homebrew-formula` checkout, `allow-dirty = ["ci"]` in `dist-workspace.toml`. The private key was written only to a temp directory and deleted after `gh secret set`.
+
+Proof: `gh secret list` shows `HOMEBREW_TAP_DEPLOY_KEY`; `dist plan` announces v0.1.0 with five archives, both installers and `phonedriver.rb`.
