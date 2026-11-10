@@ -1571,3 +1571,14 @@ In run a14 (Android: Do Not Disturb from quick settings, using the UI only), the
 - Tests: `a_target_that_is_not_on_screen_names_the_scroll_that_can_bring_it`, and one more case in the MCP hint test.
 - Live on `emulator-5554`: the hint above, then `scroll right --within @e1 --until "Signup"` answered `scrolled right 5 times to @e39 "Signup"` and `tap Signup` opened the tab.
 - Mac mini: core 208, lib 85, daemon 157, mcp 30 passed. Clippy clean.
+
+## 2026-11-10: phonedriver and mobile-mcp on one device, one day: 5.8x
+
+- Why the first 10 November rerun was higher: the emulator (SwiftShader, Contacts redrawing in front, load 7). It now runs with `-gpu host -cores 8 -memory 8192`.
+- Build `778b6e7`, passes `p12` to `p14`: 27 of 27, 781,132 tokens (sum of job medians), 108 calls, 349 s. Build `add1a2b`, `p9` to `p11`: 27 of 27, 808,241 tokens, 114 calls.
+- mobile-mcp 1.0.16, passes `m3` and `m4`, same emulator, same day: 17 of 18, 4,567,200 tokens, 276.5 calls, 523 s. Ratio 5.8x (5.0x on 7 November).
+- Against `add1a2b`, the new build made 0 `apps` calls (8 before) and 1 `snapshot` with `find` (12 before). The token difference between the two builds is inside the run-to-run spread.
+- Command: `run-harness.sh <harness> <task> <dir>` per job on the Mac mini; totals computed from each pass's `results.jsonl` into `docs/bench/jobs.json` (`same_device_2026_11_10`).
+- Thrown away and rerun: two chrome-prefs runs (tunnel dropped), one qa-shop run (the emulator process ended), five mobile-mcp runs through a tunnelled adb server (its helper cannot reach the device that way), and one whole mobile-mcp pass on an overloaded emulator. All listed in `docs/bench/jobs.md`.
+- README says 5.8x and names both dates. The chart stays the 7 November three-tool table.
+- Mac mini, whole workspace: all suites pass except the two `cli` tests that fail there (three simulators attached). The OCR tests failed once with the disk full and passed when run alone.

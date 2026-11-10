@@ -162,7 +162,46 @@ What the rerun says, plainly:
 - The rerun found a regression and it is fixed. In the first pass, qa-signup failed: since 8 November a plain `type` into a password field is refused, and the refusal said "Ask the user for the text". The agent stopped and asked for test passwords. The message now says to use `secret` and that a made-up test value needs no asking (`add1a2b`). The three passes above ran with that fix.
 - Runs that hit a dropped adb connection were rerun: relay-code in `p6` and `p8`. The discarded files are kept outside the repository.
 
-The headline comparison stays the 7 November table, because it is the only one where all three tools ran on the same device on the same day. Claims outside this file say "4x", which holds for both measurements.
+The emulator was the cause of the higher numbers, not the tool: see the next section.
+
+## phonedriver and mobile-mcp on the same device, same day (2026-11-10)
+
+Why: the rerun above ran on a starved emulator. The new AVD drew 2560x1600 with SwiftShader, Contacts was left in front redrawing, and the guest load was 7 on 4 cores. 17 launches answered "not settled", and one job met "Chrome isn't responding" seven times.
+
+Setup: the same AVD started with `-gpu host -cores 8 -memory 8192`. `claude -p` on the subscription, `claude-sonnet-5-5`, Claude Code 2.1.319, agent and tools on the Mac mini, one agent at a time. phonedriver build `778b6e7`, three passes (`p12` to `p14`). mobile-mcp 1.0.16 (its helper `mobilecli` 1.0.22), two passes (`m3`, `m4`), with adb allowed on the two mixed jobs as on 7 November. phone-harness and adb were not rerun. Raw runs: `docs/bench/jobs.json`, `same_device_2026_11_10`.
+
+| | Passed | Tokens (sum of job medians) | Tool calls | Wall s |
+|---|---|---|---|---|
+| phonedriver `778b6e7` | 27/27 | 781,132 | 108 | 349 |
+| mobile-mcp 1.0.16 | 17/18 | 4,567,200 | 276.5 | 523 |
+
+mobile-mcp used 5.8x the tokens of phonedriver (5.0x on 7 November). Its one failure: chrome-prefs in `m3` ended with "Always use secure connections" off.
+
+| Job | phonedriver passed | phonedriver tokens | mobile-mcp passed | mobile-mcp tokens | Ratio |
+|---|---|---|---|---|---|
+| qa-signup | 3/3 | 136,262 | 2/2 | 549,354 | 4.0x |
+| qa-shop | 3/3 | 96,516 | 2/2 | 473,095 | 4.9x |
+| relay-code | 3/3 | 48,844 | 2/2 | 574,428 | 11.8x |
+| chrome-prefs | 3/3 | 98,624 | 1/2 | 1,052,348 | 10.7x |
+| clock-settings | 3/3 | 95,846 | 2/2 | 691,926 | 7.2x |
+| messages-pin-archive | 3/3 | 45,219 | 2/2 | 315,560 | 7.0x |
+| photos-crop | 3/3 | 151,431 | 2/2 | 636,680 | 4.2x |
+| wakelock-restrict | 3/3 | 55,018 | 2/2 | 122,772 | 2.2x |
+| log-code | 3/3 | 53,372 | 2/2 | 151,038 | 2.8x |
+
+phonedriver against its own 7 November runs (`p4`, `p5`): 781,132 tokens against 977,780 (20% fewer), 108 calls against 123.5. Five jobs are lower outside the run-to-run spread (chrome-prefs, messages-pin-archive, photos-crop, qa-signup, relay-code); the other four moved inside it. The device is not the same as on 7 November, so part of this is the device.
+
+Build `add1a2b` on the same device (`p9` to `p11`): 27/27, 808,241 tokens, 114 calls. Against it, `778b6e7` made no `apps` call (8 before) and 1 `snapshot` with `find` (12 before). The difference in the totals is inside the spread.
+
+What was thrown away, and why:
+
+- Two chrome-prefs runs (`p9`, `p11`) lost the adb tunnel mid-job and were rerun.
+- The first qa-shop run of `p14` ran as the emulator process ended. The emulator was restarted and the run repeated.
+- The first 5 mobile-mcp runs went through a tunnelled adb server. `mobilecli` forwards a port to its device server, which a remote adb server binds on the wrong machine, so every tool call failed. The Mac mini was given its own adb server and the passes started again.
+- A whole second mobile-mcp pass ran with the guest load between 9 and 16 and failed five jobs for device reasons. The emulator was rebooted and the pass repeated as `m4`.
+- Photos shows an "Update" prompt after each emulator restart. Both tools met it; it adds calls to photos-crop.
+
+The discarded files are kept outside the repository. Claims outside this file say "5.8x" and name 10 November. The chart with phone-harness and adb is still the 7 November table, the only one where all four ran on one device on one day.
 
 ### Notes for the site
 
