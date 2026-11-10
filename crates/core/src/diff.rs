@@ -98,12 +98,24 @@ pub fn diff(prev: &Rendered, next: &Rendered) -> DiffOrFull {
         return DiffOrFull::Full;
     }
 
+    let focused = |e: &Element| e.state.contains(ElementState::FOCUSED) && e.role.is_text_entry();
+    let focus_moved = next
+        .elements
+        .iter()
+        .any(|e| focused(e) && !before.get(&e.r#ref).is_some_and(|old| focused(old)));
     let mut changes: Vec<Change> = removed.into_iter().map(Change::Removed).collect();
     for e in &next.elements {
         let r = e.r#ref;
         let Some(old) = before.get(&r) else {
             changes.push(Change::Added(r));
             continue;
+        };
+        let was = if focus_moved && focused(old) && !focused(e) {
+            let mut unfocused = (*old).clone();
+            unfocused.state.remove(ElementState::FOCUSED);
+            words(&unfocused)
+        } else {
+            words(old)
         };
         let value = if is_secure(e) {
             let changed = old.value != e.value;
@@ -116,7 +128,7 @@ pub fn diff(prev: &Rendered, next: &Rendered) -> DiffOrFull {
             (Field::Label, opt(old.label.clone()), opt(e.label.clone())),
             (Field::Value, value.0, value.1),
             (Field::Hint, opt(shown_hint(old)), opt(shown_hint(e))),
-            (Field::State, words(old), words(e)),
+            (Field::State, was, words(e)),
             (
                 Field::Covered,
                 covered(prev.under_keyboard(old)),
@@ -512,6 +524,28 @@ mod tests {
         assert_eq!(
             diff(&c, &e).text(&e),
             "~ @e2 textbox \"Name\" focused → (none)"
+        );
+    }
+
+    #[test]
+    fn focus_that_moved_to_another_field_is_told_once_on_the_field_that_has_it() {
+        let mut t = RefTable::default();
+        let field = |slot: usize, name: &str, focused: bool| {
+            node(
+                slot,
+                name,
+                "android.widget.EditText",
+                &format!(
+                    r#""desc":"{name}","f":"{}","a":["set_text"]"#,
+                    if focused { "vVeEF" } else { "vVeE" }
+                ),
+            )
+        };
+        let a = screen(&mut t, &[field(1, "Email", true), field(2, "City", false)]);
+        let b = screen(&mut t, &[field(1, "Email", false), field(2, "City", true)]);
+        assert_eq!(
+            diff(&a, &b).text(&b),
+            "~ @e2 textbox \"City\" (none) → focused"
         );
     }
 
