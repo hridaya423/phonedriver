@@ -85,6 +85,8 @@ const CONTENT_WAIT: Duration = Duration::from_secs(2);
 /// How long an opened link may take to put its page in the tree before the reply goes out with what is there.
 const PAGE_WAIT: Duration = Duration::from_secs(5);
 const WEB_TEXT_WAIT: Duration = Duration::from_millis(1500);
+const FOCUS_WAIT: Duration = Duration::from_secs(1);
+const FOCUS_STEP: Duration = Duration::from_millis(30);
 /// Observed in Clock's city search on the API 37 emulators: the suggestions reached the tree 300 to 600 ms after the
 /// text did, the reply showed the field and "Clear text" only, and the agent took a snapshot after every city.
 const SEARCH_WAIT: Duration = Duration::from_millis(1500);
@@ -2095,6 +2097,13 @@ impl Actor {
                         held = f.value.clone().filter(|v| !v.is_empty());
                         wipe = replace && held.is_some() && mode != TypeMode::Set;
                         field = Some(f);
+                    } else if !in_page
+                        && device.info().id.starts_with("android:")
+                        && let Some(f) = field
+                            .as_ref()
+                            .filter(|f| !f.state.contains(ElementState::FOCUSED))
+                    {
+                        self.await_focus(s, f.r#ref).await?;
                     }
                 }
                 let before = held.clone().unwrap_or_default();
@@ -2234,6 +2243,24 @@ impl Actor {
                 .await
             }
         }
+    }
+
+    /// A tap moves input focus a moment after it is sent. Observed on the testbed's sign-up form (API 37 emulators,
+    /// 3 of 6 runs, and twice in benchmark pass 9): the field was emptied, the paste that followed at once went
+    /// nowhere, and the reply said "NOT verified: shows no text". With the focus read first, 0 of 8.
+    async fn await_focus(&mut self, s: &mut Session, field: Ref) -> Result<(), Error> {
+        let started = Instant::now();
+        while started.elapsed() < FOCUS_WAIT {
+            let now = self.fresh(s).await?;
+            let waiting = now
+                .index_of(field)
+                .is_some_and(|i| !now.elements[i].state.contains(ElementState::FOCUSED));
+            if !waiting {
+                break;
+            }
+            tokio::time::sleep(FOCUS_STEP).await;
+        }
+        Ok(())
     }
 
     /// A page can answer a tap on its search box by building another field and focusing that one, a few hundred ms
