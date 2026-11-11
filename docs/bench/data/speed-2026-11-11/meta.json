@@ -1,0 +1,142 @@
+{
+ "load": {
+  "before tap": [
+   38.8,
+   36.7,
+   33.4,
+   40.0,
+   39.1
+  ],
+  "after tap": [
+   45.8,
+   39.4,
+   35.3,
+   36.0,
+   36.0
+  ],
+  "before tap, paced": [
+   43.8,
+   37.2,
+   48.2,
+   38.6,
+   46.5
+  ],
+  "after tap, paced": [
+   39.4,
+   47.5,
+   47.2,
+   39.7,
+   38.9
+  ],
+  "before screenshot": [
+   36.7,
+   38.8,
+   36.7,
+   36.3,
+   34.9
+  ],
+  "after screenshot": [
+   33.9,
+   35.0,
+   41.3,
+   31.3,
+   34.3
+  ],
+  "before tap, then what changed": [
+   41.8,
+   40.1,
+   34.9,
+   44.1,
+   33.9
+  ],
+  "after tap, then what changed": [
+   51.5,
+   34.7,
+   28.2,
+   31.7,
+   31.9
+  ],
+  "before tree, Settings": [
+   74.5,
+   65.9,
+   49.6,
+   40.3,
+   38.7
+  ],
+  "after tree, Settings": [
+   35.3,
+   35.6,
+   31.8,
+   42.0,
+   42.5
+  ],
+  "before tree, list": [
+   45.4,
+   79.5,
+   55.4,
+   41.0,
+   36.9
+  ],
+  "after tree, list": [
+   58.2,
+   57.9,
+   51.3,
+   47.1,
+   44.9
+  ],
+  "before type 100 characters": [
+   44.8,
+   45.0,
+   40.2,
+   45.5,
+   49.0
+  ],
+  "after type 100 characters": [
+   61.6,
+   63.0,
+   61.8,
+   62.5,
+   62.8
+  ],
+  "before cold start": [
+   63.9,
+   79.3,
+   64.7,
+   62.3,
+   64.9
+  ],
+  "after cold start": [
+   53.3,
+   59.3,
+   53.9,
+   61.6,
+   63.5
+  ]
+ },
+ "date": "2026-11-11 07:54:21",
+ "phonedriver_version": "phonedriver 0.1.1",
+ "adb_version": [
+  "Android Debug Bridge version 1.0.41",
+  "Version 37.0.1-15733141"
+ ],
+ "serial": "emulator-5554",
+ "model": "sdk_gphone64_x86_64",
+ "api": "37",
+ "fingerprint": "google/sdk_gphone64_x86_64/emu64xa:17/CE2A.260420.051.A3/16571990:userdebug/dev-keys",
+ "wm_size": "Physical size: 1080x2424",
+ "wm_density": "Physical density: 420",
+ "devices": [
+  "emulator-5554\tdevice",
+  "emulator-5558\tdevice",
+  ""
+ ],
+ "runs": 50,
+ "warmup": 20,
+ "blocks": 5,
+ "clock_offset_s": {
+  "before": -0.8531827926635742,
+  "after": -0.8531484603881836,
+  "rtt_before_ms": 7.45391845703125,
+  "rtt_after_ms": 7.150173187255859
+ }
+}

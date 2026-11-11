@@ -1,0 +1,52 @@
+{
+ "load": {
+  "before tree, Settings": [
+   57.4,
+   37.0,
+   37.8,
+   35.0,
+   39.9
+  ],
+  "after tree, Settings": [
+   31.7,
+   36.5,
+   38.5,
+   38.5,
+   37.1
+  ],
+  "before tree, list": [
+   34.1,
+   33.9,
+   34.7,
+   44.6,
+   33.3
+  ],
+  "after tree, list": [
+   38.6,
+   36.8,
+   33.6,
+   35.2,
+   34.1
+  ]
+ },
+ "date": "2026-11-11 08:45:46",
+ "phonedriver_version": "phonedriver 0.1.1",
+ "adb_version": [
+  "Android Debug Bridge version 1.0.41",
+  "Version 37.0.1-15733141"
+ ],
+ "serial": "emulator-5554",
+ "model": "sdk_gphone64_x86_64",
+ "api": "37",
+ "fingerprint": "google/sdk_gphone64_x86_64/emu64xa:17/CE2A.260420.051.A3/16571990:userdebug/dev-keys",
+ "wm_size": "Physical size: 1080x2424",
+ "wm_density": "Physical density: 420",
+ "devices": [
+  "emulator-5554\tdevice",
+  "emulator-5558\tdevice",
+  ""
+ ],
+ "runs": 50,
+ "warmup": 20,
+ "blocks": 5
+}
