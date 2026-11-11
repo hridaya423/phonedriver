@@ -145,6 +145,21 @@ fn flag<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Option<bool>, D::Error
     }
 }
 
+/// `then` is not in the lean tool schema either: a model that learned it from the skill sent the list as the
+/// string `"[\"Settings\"]"` and the call failed with `invalid type: string`.
+fn texts<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Option<Vec<String>>, D::Error> {
+    use serde::de::Error;
+    match Option::<serde_json::Value>::deserialize(d)? {
+        None | Some(serde_json::Value::Null) => Ok(None),
+        Some(serde_json::Value::String(t)) => Ok(Some(
+            serde_json::from_str::<Vec<String>>(&t).unwrap_or_else(|_| vec![t]),
+        )),
+        Some(list) => serde_json::from_value(list)
+            .map(Some)
+            .map_err(|_| D::Error::custom("`then` is a list of texts to tap")),
+    }
+}
+
 #[derive(Clone, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 struct TapArgs {
@@ -157,6 +172,9 @@ struct TapArgs {
     /// Tap this many times; 2 is a double tap.
     count: Option<u32>,
     long: Option<u32>,
+    /// Texts to tap next, in order; stops at the first one missing.
+    #[serde(default, deserialize_with = "texts")]
+    then: Option<Vec<String>>,
     #[serde(default, deserialize_with = "flag")]
     autonomous: Option<bool>,
 }
@@ -175,6 +193,9 @@ struct TypeArgs {
     /// With `into`, add to the field's text instead of replacing it.
     append: Option<bool>,
     secret: Option<bool>,
+    /// Texts to tap after typing, in order.
+    #[serde(default, deserialize_with = "texts")]
+    then: Option<Vec<String>>,
     #[serde(default, deserialize_with = "flag")]
     autonomous: Option<bool>,
 }
@@ -247,7 +268,26 @@ impl TapArgs {
     }
 }
 
+impl TapArgs {
+    fn chain(&mut self) -> Option<Vec<serde_json::Value>> {
+        let then = self.then.take().filter(|t| !t.is_empty())?;
+        let first = json!({"tool": "tap", "target": self.target, "role": self.role, "count": self.count, "long": self.long});
+        Some(chained(first, then))
+    }
+}
+
 impl TypeArgs {
+    fn chain(&mut self) -> Option<Result<Vec<serde_json::Value>, &'static str>> {
+        let then = self.then.take().filter(|t| !t.is_empty())?;
+        if self.secret.unwrap_or(false) {
+            return Some(Err(
+                "`then` does not go with `secret`: type the secret in its own call",
+            ));
+        }
+        let first = json!({"tool": "type", "text": self.text, "into": self.into, "mode": self.mode, "submit": self.submit, "append": self.append});
+        Some(Ok(chained(first, then)))
+    }
+
     fn type_verb(&self) -> Verb {
         let secret = self.secret.unwrap_or(false);
         Verb::Type {
@@ -661,6 +701,18 @@ impl Mcp {
         serde_json::to_value(reply).map_err(|e| e.to_string())
     }
 
+    async fn chain(
+        &self,
+        channel: Channel<'_>,
+        device: Option<String>,
+        raw: Vec<serde_json::Value>,
+    ) -> Outcome {
+        match batch_steps(raw) {
+            Ok(steps) => self.guarded_batch(channel, device, steps, None).await,
+            Err(why) => Outcome::Done(bad(&why)),
+        }
+    }
+
     /// The tap and type tools for a client on protocol 2026-07-28, which may not receive requests from a server.
     async fn call_guarded(
         &self,
@@ -689,17 +741,28 @@ impl Mcp {
                 Err(why) => Outcome::Done(bad(&why)),
             }
         } else if request.name == "tap" {
-            let a: TapArgs = serde_json::from_value(args).map_err(invalid)?;
+            let mut a: TapArgs = serde_json::from_value(args).map_err(invalid)?;
             let (device, autonomous) = (a.device.clone(), a.autonomous.unwrap_or(false));
-            self.guarded(channel, key, device, || a.clone().verb(), None, autonomous)
-                .await
+            match a.chain() {
+                Some(steps) => self.chain(channel, device, steps).await,
+                None => {
+                    self.guarded(channel, key, device, || a.clone().verb(), None, autonomous)
+                        .await
+                }
+            }
         } else {
-            let a: TypeArgs = serde_json::from_value(args).map_err(invalid)?;
+            let mut a: TypeArgs = serde_json::from_value(args).map_err(invalid)?;
             let secret = a.secret.unwrap_or(false);
             let (device, autonomous) = (a.device.clone(), a.autonomous.unwrap_or(false));
-            let text = secret.then(|| a.text.clone());
-            self.guarded(channel, key, device, || a.type_verb(), text, autonomous)
-                .await
+            match a.chain() {
+                Some(Ok(steps)) => self.chain(channel, device, steps).await,
+                Some(Err(why)) => Outcome::Done(bad(why)),
+                None => {
+                    let text = secret.then(|| a.text.clone());
+                    self.guarded(channel, key, device, || a.type_verb(), text, autonomous)
+                        .await
+                }
+            }
         };
         Ok(match outcome {
             Outcome::Done(r) => r.into(),
@@ -728,6 +791,18 @@ impl Mcp {
             Err(f) => failure(&f),
         }
     }
+}
+
+fn chained(mut first: serde_json::Value, then: Vec<String>) -> Vec<serde_json::Value> {
+    if let Some(fields) = first.as_object_mut() {
+        fields.retain(|_, v| !v.is_null());
+    }
+    let mut steps = vec![first];
+    steps.extend(
+        then.into_iter()
+            .map(|t| json!({"tool": "tap", "target": t})),
+    );
+    steps
 }
 
 fn batch_steps(raw: Vec<serde_json::Value>) -> Result<Vec<serde_json::Value>, String> {
@@ -1096,8 +1171,14 @@ impl Mcp {
     async fn tap(
         &self,
         peer: Peer<RoleServer>,
-        Parameters(a): Parameters<TapArgs>,
+        Parameters(mut a): Parameters<TapArgs>,
     ) -> CallToolResult {
+        if let Some(steps) = a.chain() {
+            return self
+                .chain(Channel::Peer(&peer), a.device, steps)
+                .await
+                .complete();
+        }
         let device = a.device.clone();
         let autonomous = a.autonomous.unwrap_or(false);
         let outcome = self
@@ -1120,9 +1201,19 @@ impl Mcp {
     async fn r#type(
         &self,
         peer: Peer<RoleServer>,
-        Parameters(a): Parameters<TypeArgs>,
+        Parameters(mut a): Parameters<TypeArgs>,
     ) -> CallToolResult {
         let secret = a.secret.unwrap_or(false);
+        match a.chain() {
+            Some(Ok(steps)) => {
+                return self
+                    .chain(Channel::Peer(&peer), a.device, steps)
+                    .await
+                    .complete();
+            }
+            Some(Err(why)) => return bad(why),
+            None => {}
+        }
         if a.text.is_empty() && !secret {
             return match a.into {
                 Some(target) => self.run(a.device, Verb::Clear { target }, None).await,

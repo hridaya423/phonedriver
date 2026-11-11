@@ -590,6 +590,89 @@ async fn a_batch_over_mcp_runs_the_steps_and_returns_one_numbered_reply() {
 }
 
 #[tokio::test]
+async fn a_tap_with_then_taps_each_text_in_order_and_returns_one_numbered_reply() {
+    let rig = rig(vec![tree(&["One", "Two", "Three"])]).await;
+    rig.call("snapshot", json!({})).await;
+    let r = rig
+        .call("tap", json!({"target": "One", "then": ["Two", "Three"]}))
+        .await;
+    assert_ne!(r.is_error, Some(true), "{r:?}");
+    let text = texts(&r).join("\n");
+    assert!(text.starts_with("ok 3 steps"), "{text}");
+    assert!(text.contains("\n1. tapped @e1"), "{text}");
+    assert!(text.contains("\n2. tapped @e2"), "{text}");
+    assert!(text.contains("\n3. tapped @e3"), "{text}");
+}
+
+#[tokio::test]
+async fn then_written_as_a_json_string_or_one_bare_text_is_read_as_the_list() {
+    let rig = rig(vec![tree(&["One", "Two", "Three"])]).await;
+    rig.call("snapshot", json!({})).await;
+    let r = rig
+        .call(
+            "tap",
+            json!({"target": "One", "then": "[\"Two\",\"Three\"]"}),
+        )
+        .await;
+    let text = texts(&r).join("\n");
+    assert!(text.starts_with("ok 3 steps"), "{text}");
+    let r = rig
+        .call("tap", json!({"target": "One", "then": "Two"}))
+        .await;
+    let text = texts(&r).join("\n");
+    assert!(text.starts_with("ok 2 steps"), "{text}");
+    assert!(text.contains("\n2. tapped @e2"), "{text}");
+}
+
+#[tokio::test]
+async fn a_then_text_that_is_not_on_the_screen_stops_there_and_names_the_step() {
+    let rig = rig(vec![tree(&["One", "Two"])]).await;
+    rig.call("snapshot", json!({})).await;
+    let r = rig
+        .call("tap", json!({"target": "One", "then": ["Nope", "Two"]}))
+        .await;
+    assert_eq!(r.is_error, Some(true), "{r:?}");
+    let text = texts(&r).join("\n");
+    assert!(text.starts_with("step 2 of 3 failed"), "{text}");
+    assert!(text.contains("1. tapped @e1"), "{text}");
+}
+
+#[tokio::test]
+async fn typing_with_then_types_and_taps_the_texts_after_it() {
+    let rig = rig(vec![field_tree("", false), field_tree("hi", false)]).await;
+    rig.call("snapshot", json!({})).await;
+    let r = rig
+        .call(
+            "type",
+            json!({"text": "hi", "into": "@e1", "then": ["@e1"]}),
+        )
+        .await;
+    assert_ne!(r.is_error, Some(true), "{r:?}");
+    let text = texts(&r).join("\n");
+    assert!(text.starts_with("ok 2 steps"), "{text}");
+    assert!(text.contains("\n1. typed 2 chars"), "{text}");
+    assert!(text.contains("\n2. tapped @e1"), "{text}");
+}
+
+#[tokio::test]
+async fn then_is_refused_with_a_secret_before_anything_is_typed() {
+    let rig = rig(vec![field_tree("", false)]).await;
+    rig.call("snapshot", json!({})).await;
+    let r = rig
+        .call(
+            "type",
+            json!({"text": "hunter2", "into": "@e1", "secret": true, "then": ["@e1"]}),
+        )
+        .await;
+    assert_eq!(r.is_error, Some(true), "{r:?}");
+    let text = texts(&r).join("\n");
+    assert!(
+        text.contains("`then`") && !text.contains("hunter2"),
+        "{text}"
+    );
+}
+
+#[tokio::test]
 async fn a_failing_batch_step_is_an_error_naming_the_step_with_hints_in_tool_words() {
     let rig = rig(vec![tree(&["One"])]).await;
     rig.call("snapshot", json!({})).await;

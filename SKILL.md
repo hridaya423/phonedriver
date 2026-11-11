@@ -23,7 +23,9 @@ Run a setting, intent or key with `shell`: one call returns the exit code, the o
 
 Actions already wait for the screen; use `wait` when something loads later (`wait "Row 640"`, `wait gone:"Loading"`).
 
-Several steps in a row (tap a field, type, press enter) go in one `batch`: one call, one diff, and it names the step that failed. Send calls one at a time and read each reply before the next: they act on one shared screen, and an action already returns the screen after it, so `snapshot` straight after one only repeats the reply.
+A path of taps you can predict goes in one MCP call with `then`: `tap {"target":"More options","then":["Settings","Dark theme"]}` taps each text in order on the screens that follow, and `type {"text":"Paris","then":["Paris, France"]}` types and picks the suggestion. Name every step you expect, even on screens you have not seen: a missing text stops the path and returns that screen, so a wrong guess costs one call.
+
+Other steps in a row (tap a field, type, press enter) go in one `batch`: one call, one diff, and it names the step that failed. Send calls one at a time and read each reply before the next: they act on one shared screen, and an action already returns the screen after it, so `snapshot` straight after one only repeats the reply.
 
 ## Targets
 

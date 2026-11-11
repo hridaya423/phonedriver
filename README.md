@@ -123,6 +123,8 @@ On Android 13 and later, the agent can work on a hidden second screen, so your o
 
 The MCP server has 14 tools: `devices`, `apps`, `snapshot`, `screenshot`, `tap`, `type`, `swipe`, `scroll`, `press`, `launch`, `wait`, `batch`, `clipboard` and `shell`. The `phonedriver` CLI has the same commands, for scripts and for agents that prefer a shell.
 
+One call can tap a whole path: `tap {"target":"More options","then":["Settings","Dark theme"]}`. Models tap one step at a time unless told otherwise, so give your agent the skill (`phonedriver skill` prints it), which tells it to send paths.
+
 ## Limits
 
 - Tested on Android emulators (API 26 and 37), a HONOR X8 (Android 13), the iOS Simulator, an iPhone 14 Plus and an iPad Pro. Other Android phones use the same path. Bug reports from them are welcome.

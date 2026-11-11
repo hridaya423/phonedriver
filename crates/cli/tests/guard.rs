@@ -524,6 +524,17 @@ async fn an_approval_in_a_batch_covers_only_the_step_it_was_asked_for(v: Protoco
     assert_eq!(m.rig.gestures(), 3);
 }
 
+async fn a_then_tap_that_needs_approval_is_asked_and_the_chain_goes_on(v: ProtocolVersion) {
+    let m = mcp(accept("allow"), v).await;
+    let r = m
+        .tap(json!({"target": "Back", "then": ["Place order"]}))
+        .await;
+    assert_ne!(r.is_error, Some(true), "{r:?}");
+    assert!(text(&r).contains("approved by the human"), "{}", text(&r));
+    assert_eq!(m.asked.lock().unwrap().len(), 1);
+    assert_eq!(m.rig.gestures(), 2);
+}
+
 macro_rules! on_both_protocols {
     ($($name:ident),*) => {
         mod legacy {
@@ -553,7 +564,8 @@ on_both_protocols!(
     autonomous_never_asks,
     a_held_step_in_a_batch_is_asked_and_the_batch_resumes_there,
     declining_a_held_batch_step_stops_the_batch_there,
-    an_approval_in_a_batch_covers_only_the_step_it_was_asked_for
+    an_approval_in_a_batch_covers_only_the_step_it_was_asked_for,
+    a_then_tap_that_needs_approval_is_asked_and_the_chain_goes_on
 );
 
 #[allow(dead_code)]
