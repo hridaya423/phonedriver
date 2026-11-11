@@ -1,5 +1,6 @@
 ---
 title: How to use phonedriver with Claude Code
+seo: How to let Claude Code control an Android phone or iPhone
 nav: Claude Code
 description: Add phonedriver to Claude Code as an MCP server with one command, point it at a device and ask it to operate a phone in plain language.
 ---

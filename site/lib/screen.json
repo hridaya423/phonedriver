@@ -1,0 +1,134 @@
+{
+ "width": 1080,
+ "height": 2424,
+ "nodes": 155,
+ "bytes": 758,
+ "lines": [
+  {
+   "text": "device android:emulator-5554 · Pixel 9 · Android 17 · 360x800pt · portrait"
+  },
+  {
+   "text": "app com.android.settings (Settings) · keyboard hidden · settled in 212ms"
+  },
+  {
+   "text": "@e1 button \"Search Settings\"",
+   "ref": "@e1",
+   "box": [
+    0.0389,
+    0.0672,
+    0.9222,
+    0.078
+   ]
+  },
+  {
+   "text": "@e2 group scrollable↓",
+   "ref": "@e2",
+   "box": [
+    0,
+    0.1539,
+    1,
+    0.8201
+   ]
+  },
+  {
+   "text": "  @e3 button \"Google\" \"Services & preferences\"",
+   "ref": "@e3",
+   "box": [
+    0,
+    0.1605,
+    1,
+    0.0792
+   ]
+  },
+  {
+   "text": "  @e4 button \"Network & internet\" \"Mobile, Wi‑Fi, hotspot\"",
+   "ref": "@e4",
+   "box": [
+    0,
+    0.257,
+    1,
+    0.0792
+   ]
+  },
+  {
+   "text": "  @e5 button \"Connected devices\" \"Bluetooth, pairing\"",
+   "ref": "@e5",
+   "box": [
+    0,
+    0.3383,
+    1,
+    0.0792
+   ]
+  },
+  {
+   "text": "  @e6 button \"Apps\" \"Assistant, recent apps, default apps\"",
+   "ref": "@e6",
+   "box": [
+    0,
+    0.4348,
+    1,
+    0.0792
+   ]
+  },
+  {
+   "text": "  @e7 button \"Notifications\" \"Notification history, conversations\"",
+   "ref": "@e7",
+   "box": [
+    0,
+    0.5161,
+    1,
+    0.0792
+   ]
+  },
+  {
+   "text": "  @e8 button \"Sound & vibration\" \"Volume and haptics\"",
+   "ref": "@e8",
+   "box": [
+    0,
+    0.5974,
+    1,
+    0.0792
+   ]
+  },
+  {
+   "text": "  @e9 button \"Modes\" \"Do Not Disturb, Bedtime, Driving\"",
+   "ref": "@e9",
+   "box": [
+    0,
+    0.6786,
+    1,
+    0.0792
+   ]
+  },
+  {
+   "text": "  @e10 button \"Display & touch\" \"Dark theme, font size, touch\"",
+   "ref": "@e10",
+   "box": [
+    0,
+    0.7599,
+    1,
+    0.0792
+   ]
+  },
+  {
+   "text": "  @e11 button \"Wallpaper & style\" \"Colors, themed icons, app grid\"",
+   "ref": "@e11",
+   "box": [
+    0,
+    0.8412,
+    1,
+    0.0792
+   ]
+  },
+  {
+   "text": "  @e12 button \"Storage\"",
+   "ref": "@e12",
+   "box": [
+    0,
+    0.9377,
+    1,
+    0.0363
+   ]
+  }
+ ]
+}

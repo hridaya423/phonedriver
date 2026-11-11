@@ -5,11 +5,11 @@ meta: Boot an iPhone Simulator on a Mac and let an agent drive it with phonedriv
 description: Boot an iPhone Simulator on a Mac and let an agent drive it with phonedriver. Needs Xcode and XcodeGen. Covers the first-run runner build and the Simulator's tap latency.
 ---
 
-The iOS Simulator is a tested target: the 12-scenario suite passes on iOS 26.5, three runs in a row. One scenario, `settings-dark-appearance`, failed twice in six full runs and we have not found the cause.
+The iOS Simulator is a tested target: the 12-scenario suite passes on iOS 26.5, three runs in a row. One scenario, `settings-dark-appearance`, failed twice in six full runs and I have not found the cause.
 
 ## What you need
 
-A Mac with Xcode (we use Xcode 27) and XcodeGen (`brew install xcodegen`). There is no Android toolchain involved: the iOS-only build (`--no-default-features`) skips it.
+A Mac with Xcode (I use Xcode 27) and XcodeGen (`brew install xcodegen`). There is no Android toolchain involved: the iOS-only build (`--no-default-features`) skips it.
 
 ## Boot a Simulator
 
@@ -35,7 +35,7 @@ The first command that needs the runner builds a small XCTest runner on your Mac
 
 ## Speed
 
-A tap on the iOS 26.5 Simulator takes 357 ms, against 80 ms for the Simulator's own tool, because XCTest takes about 240 ms to confirm the event (decision D15). Screenshots and the settled diff are within budget. If speed on iOS matters, read [the benchmarks](/benchmarks/) before you decide.
+A tap on the iOS 26.5 Simulator takes 357 ms, against 80 ms for the Simulator's own tool, because XCTest takes about 240 ms to confirm the event. Screenshots and the diff after a tap meet the targets I set. If speed on iOS matters, read [the benchmarks](/benchmarks/) before you decide.
 
 ## If it does not work
 

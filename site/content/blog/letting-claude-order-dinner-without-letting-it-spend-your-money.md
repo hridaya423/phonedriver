@@ -9,15 +9,15 @@ short_card: Letting Claude order dinner without letting it spend your money
 card_sub: The approval guard: how it works, and where it stops working.
 ---
 
-Give an agent a phone and it can do whatever you can do on the screen. That includes tapping Place order. The baseline safety story is a paragraph in the instructions file that says to get the user's word before spending money. It works until the model skips the rule, or a line of text on the screen tells it to. A rule the model can skip is advice. This post is about the control we put in the tool, the thing the model cannot answer for itself, and about where that control stops.
+Give an agent a phone and it can do whatever you can do on the screen. That includes tapping Place order. The baseline safety story is a paragraph in the instructions file that says to get the user's word before spending money. It works until the model skips the rule, or a line of text on the screen tells it to. A rule the model can skip is advice. This post is about the control I put in the tool, the thing the model cannot answer for itself, and about where that control stops.
 
 ## The design
 
 Before a tap runs, the daemon classifies the element about to be tapped from its label (or its shown value when it has none). If the label means money moves or something cannot be undone, the tap is held and the human is asked. The agent does not get to answer.
 
-The classifier is a fixed list, on purpose. It matches whole-label phrases such as `Pay`, `Pay now`, `Buy now`, `Place order`, `Confirm payment`, `Send money`, `Transfer`, `Start subscription` and `Delete account`. It also matches a label of at most nine words that starts with a money verb and holds an amount: `Place order · $34.10`, `Send $20.00 to Sam`, `Subscribe · $9.99/month`. Roles that only navigate or edit are never guarded: tabs, menu items, text fields, switches. The guard covers `tap` by ref, by text and by point, `type --submit` when a guarded button sits in the field's own form, and every step of a `batch`, where a guarded step ends the batch.
+The classifier is a fixed list, on purpose. It matches whole-label phrases such as `Pay`, `Pay now`, `Buy now`, `Place order`, `Confirm payment`, `Send money`, `Transfer`, `Start subscription` and `Delete account`, and labels that start with `Buy with`, such as `Buy with GPay`. It also matches a label of at most nine words that starts with a money verb and holds an amount: `Place order · $34.10`, `Send $20.00 to Sam`, `Subscribe · $9.99/month`. Roles that only navigate or edit are never guarded: tabs, menu items, text fields, switches. The guard covers `tap` by ref, by text and by point, `type --submit` when a guarded button sits in the field's own form, and every step of a `batch`, where a guarded step ends the batch.
 
-We rejected a model call to classify labels, for three reasons: it costs tokens on every tap, it sends screen text somewhere (we have a no-telemetry rule), and a model can be talked out of its answer. A fixed list can be wrong, but it cannot be persuaded.
+I rejected a model call to classify labels, for three reasons: it costs tokens on every tap, it sends screen text somewhere (phonedriver has a no-telemetry rule), and a model can be talked out of its answer. A fixed list can be wrong, but it cannot be persuaded.
 
 ## Who asks, and how
 
@@ -29,11 +29,13 @@ Newer clients forbid a server from sending a request in the middle of a call. Pr
 
 After Allow, the target is resolved again, because the screen can change while you decide. A ref the screen no longer has fails as stale instead of tapping something else.
 
+The demo is one real Claude Code session (Opus 5.5) on an Android emulator, ordering a large pepperoni pizza on dominos.co.uk from the store nearest Leicester Square. It finds the store, fills the basket and the guest checkout, and taps Buy with GPay. phonedriver holds that tap and asks the human, who declines. Nothing is ordered. The run took 6.5 minutes and the video shows it at 15x, with the approval prompt at real speed.
+
 ## What it does not guard, on purpose
 
 A chat `Send` is not guarded. It is the most common tap in the apps agents are asked to use, a prompt on every reply would teach you to click Allow without reading, and the instructions already say that a message needs the user's word. `Send $20.00` and `Send money` are guarded. Also not guarded: `Pay later`, `Pay bills`, `Payments history`, `Buy again`, `Add to cart`, a bare `Checkout`, a bare `Subscribe` (YouTube's is free and the most common) and `Order status`.
 
-Every one of those is a judgment call. We wrote the reasoning next to the list, and the test table for the labels is in `crates/cli/src/daemon/guard.rs`. If real use shows labels missed often enough, or false prompts often enough, the list changes.
+Every one of those is a judgment call. I wrote the reasoning next to the list, and the test table for the labels is in `crates/cli/src/daemon/guard.rs`. If real use shows labels missed often enough, or false prompts often enough, the list changes. If you want to be asked about more, `PHONEDRIVER_ASK` turns on `send`, `delete` and `install` taps, and [the guard guide](/docs/approval-guard/) lists what each holds.
 
 ## The limits, stated plainly
 
@@ -43,8 +45,8 @@ This is the part to read before you hand an agent a phone with a payment app sig
 - **A model set on bypassing it can.** Over MCP an agent can pass `autonomous: true`, and on the CLI it can add `--autonomous` or set `PHONEDRIVER_GUARD=off`, when you never granted it. The guard stops a model that follows its rules or is steered by text on the screen. `PHONEDRIVER_GUARD` belongs in the MCP server's environment, which the agent does not write, but the CLI has no human at that terminal to ask.
 - **A merged container.** Names are matched on the element tapped. A tap on a container that merges the label of a guarded child is guarded only when the merged label matches.
 - **The shell.** `input tap` through `shell` is out of scope. A button pressed by shell input is not seen.
-- **A one-second window.** Point taps in a row reuse the screen the last guard check read, for up to a second while no window change or significant repaint arrives. We did this because a read right after a tap queues behind the button's ripple on the app's UI thread: 94 ms at p50 back to back against 33 ms at rest, and a tap reply of 126 ms against 20 ms with the reuse on the API 26 emulator. The cost is that a change smaller than a significant repaint that adds a guarded button inside that second is missed.
-- **No image in the question.** MCP elicitation has no image field in any version we checked, so there is no screenshot in the prompt. The prompt shows the screen's visible text to the human on their own machine, and the agent, in the no-elicitation reply, gets the same lines, which it could already read.
+- **A one-second window.** Point taps in a row reuse the screen the last guard check read, for up to a second while no window change or significant repaint arrives. I did this because a read right after a tap queues behind the button's ripple on the app's UI thread: 94 ms at p50 back to back against 33 ms at rest, and a tap reply of 126 ms against 20 ms with the reuse on the API 26 emulator. The cost is that a change smaller than a significant repaint that adds a guarded button inside that second is missed.
+- **No image in the question.** MCP elicitation has no image field in any version I checked, so there is no screenshot in the prompt. The prompt shows the screen's visible text to the human on their own machine, and the agent, in the no-elicitation reply, gets the same lines, which it could already read.
 - **Nobody home.** Headless `claude -p` has nobody to ask and answers cancel, so the tap does not run there.
 
 ## One change that came from running it
@@ -53,6 +55,6 @@ An earlier version treated a cancelled form as a refusal. In the jobs benchmark,
 
 ## Why it lives in the tool
 
-An agent that can tap Pay should not be the thing that decides whether it may. The instructions file still says the right thing, and a careful model follows it. The guard is the part that holds when the model does not, so the question reaches the person where they are, with the facts from the screen, instead of arriving as a chat message the model writes. It is a seat belt, not a lock. We would rather say so than let the first sentence of this post stand alone.
+An agent that can tap Pay should not be the thing that decides whether it may. The instructions file still says the right thing, and a careful model follows it. The guard is the part that holds when the model does not, so the question reaches the person where they are, with the facts from the screen, instead of arriving as a chat message the model writes. It is a seat belt, not a lock. I would rather say so than let the first sentence of this post stand alone.
 
 Setup, switches and exit codes are in [the approval guard guide](/docs/approval-guard/). The full decision record, D27, is in [the repository]({{REPO}}/blob/main/docs/decisions.md).

@@ -6,7 +6,7 @@ description: Pair an iPhone or iPad, set up Developer Mode and a signing team, a
 
 A physical iOS device needs the runner signed with your Apple developer team. A free Apple ID works, and the signing expires every 7 days. phonedriver needs a Mac with Xcode.
 
-We tested an iPhone 14 Plus (iOS 26.1) and an iPad Pro (iOS 27.0) through the CLI and MCP. Screenshot, snapshot and the settled tap diff are within budget. A tap misses its 80 ms budget, at 454 to 534 ms at p50. The 12-scenario suite was not run on devices.
+I tested an iPhone 14 Plus (iOS 26.1) and an iPad Pro (iOS 27.0) through the CLI and MCP. Screenshots, snapshots and the diff after a tap meet the targets I set. A bare tap does not: it takes 454 to 534 ms at p50 against a target of 80 ms. The 12-scenario suite was not run on devices.
 
 ## Set it up
 

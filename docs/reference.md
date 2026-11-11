@@ -189,12 +189,12 @@ Tests that need a device are ignored by default. Set `PHONEDRIVER_TEST_DEVICE` (
 
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset=".github/assets/brand-dark.svg">
-    <img alt="Brand sheet: the lockup, the mark at 16, 32, 64 and 128 pixels, ten Sodium colour tokens, and the two typefaces Inter Display and Commit Mono." src=".github/assets/brand-light.svg" width="100%">
+    <source media="(prefers-color-scheme: dark)" srcset="design/logo/display-dark.svg">
+    <img alt="The phonedriver wordmark: on the left the letters are orange and ink screen dots, which grow to the right until they become solid letters." src="design/logo/display.svg" width="100%">
   </picture>
 </p>
 
-The brand is built on the [Sodium](https://design.how/systems/sodium) design system: square corners, 1px rules, one weight, and one yellow. The mark is a phone frame drawn in rule weight with one row on the selection yellow, the ref that was tapped. Names and sentences are Inter Display 400; refs, code and labels in capitals are Commit Mono 400. [`design/logo/`](design/logo) holds the logo and favicon files, [`design/brand.md`](design/brand.md) the rules, and `python3 design/build/build.py` rebuilds every image. Text in the images is converted to outlines; both fonts are under the SIL Open Font License 1.1, and Sodium is MIT licensed (see [`NOTICE`](NOTICE)).
+The mark is an invisible chauffeur: a peaked cap floating over a phone and a white glove that taps it, with nobody in between. The glove is the pointing-hand cursor wearing a chauffeur's glove. The wordmark is lettering drawn for phonedriver; in its display form, shown here, it starts as screen dots and resolves into solid letters, because phonedriver reads a screen as text instead of screenshots. [`design/logo/`](design/logo) holds the figure, the icon, the lockup and the display wordmark; [`design/brand.md`](design/brand.md) has the rules; `cd site && node scripts/brand.ts` rebuilds every logo, banner and social image from `site/lib/chauffeur.ts` and `site/lib/brand.ts`. The README charts are built on the [Sodium](https://design.how/systems/sodium) design system (MIT, see [`NOTICE`](NOTICE)) by `python3 design/build/build.py`, with text converted to outlines.
 
 </details>
 

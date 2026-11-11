@@ -9,7 +9,7 @@ An agent that can drive any app can place an order. phonedriver's approval guard
 
 ## What is guarded
 
-The guard reads the tapped element's label, in English, Spanish, Portuguese, French, German, Italian, Dutch, Japanese, Chinese (Simplified), Korean and Hindi. It matches whole-label phrases such as `Pay`, `Pagar`, `Jetzt kaufen`, `提交订单`, `Pay now`, `Buy now`, `Place order`, `Confirm payment`, `Send money`, `Transfer`, `Start subscription` and `Delete account`, and short labels that start with a money verb and hold an amount, such as `Place order · $34.10`, `Send $20.00 to Sam` or `Subscribe · $9.99/month`.
+The guard reads the tapped element's label, in English, Spanish, Portuguese, French, German, Italian, Dutch, Japanese, Chinese (Simplified), Korean and Hindi. It matches whole-label phrases such as `Pay`, `Pagar`, `Jetzt kaufen`, `提交订单`, `Pay now`, `Buy now`, `Place order`, `Confirm payment`, `Send money`, `Transfer`, `Start subscription` and `Delete account`, labels that start with `Buy with`, such as `Buy with GPay`, and short labels that start with a money verb and hold an amount, such as `Place order · $34.10`, `Send $20.00 to Sam` or `Subscribe · $9.99/month`.
 
 It covers `tap` by ref, by text or by point, `type --submit` when a guarded button sits in the field's own form, and every step of a `batch`.
 
@@ -40,6 +40,8 @@ Over MCP, a client that supports elicitation shows one form that names the app a
 - Decline or cancel: nothing is tapped. A decline replies `The human declined`.
 
 Clients on protocol 2026-07-28 (Claude Code 2.1.319 speaks it) get the question as an `input_required` result and call the tool again with your answer. Older protocols get `elicitation/create` over the open connection. The agent never sees your answer as something it can supply itself.
+
+In the demo, one real Claude Code session (Opus 5.5) orders a large pepperoni pizza on dominos.co.uk on an Android emulator. It reaches Buy with GPay, phonedriver holds the tap, and the human declines. Nothing is ordered.
 
 If your client cannot ask, the tool replies `Needs the human's approval; nothing was tapped` with the screen facts. Headless `claude -p` has nobody to ask and answers cancel, so the tap does not run.
 

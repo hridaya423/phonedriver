@@ -1,14 +1,24 @@
 ---
 title: How to install phonedriver
 nav: Install
-description: Install the phonedriver binary with one command on macOS, Linux or Windows, or build it from source, then check it with phonedriver doctor.
+description: Set up phonedriver by pasting one prompt into your agent, or install the binary by hand on macOS, Linux or Windows and check it with phonedriver doctor.
 ---
 
 phonedriver is one binary: the CLI, the daemon and the MCP server. The Android agent is packed inside it, so there is nothing else to download.
 
-> Nothing is published yet. The commands under "One-line install" work once the first release is out. Until then, use "Build from source".
+> The current release is phonedriver 0.1.1, on npm, Homebrew and GitHub Releases. You only need to build from source if you want to change it.
 
-## Fastest: npx
+## Easiest: ask your agent
+
+Paste this into Claude Code, Codex, Cursor or any agent that can run commands. It checks your machine, adds the MCP server to itself and tells you what to plug in.
+
+```prompt
+{{BOOT}}
+```
+
+The rest of this page is the same setup by hand.
+
+## By hand: npx
 
 The `phonedriver` npm package is a small launcher. On first run it downloads the binary for your platform from GitHub Releases, checks its SHA-256 against the `.sha256` file published beside it, caches it (`~/Library/Caches/phonedriver/npm` on macOS, `~/.cache/phonedriver/npm` on Linux, `%LOCALAPPDATA%\phonedriver\npm` on Windows) and runs it. Later runs use the cache and make no network request. The launcher contacts GitHub only to download the binary and sends no telemetry. It needs Node 18 or later.
 
@@ -58,7 +68,7 @@ That binary has no Android support, and `phonedriver doctor` skips the Android c
 
 ```console
 $ phonedriver version
-phonedriver 0.1.0
+phonedriver 0.1.1
 ```
 
 `phonedriver doctor` checks adb, each Android device, the agent, UiAutomation, the video stream, Xcode, the simulators and the permissions of the daemon socket. Each line says `ok`, `warn` or `fail`, and a fix follows every line that is not `ok`.
@@ -83,6 +93,7 @@ Connect it to an agent: [Claude Code](/docs/claude-code/) or [Cursor and other M
 | `PHONEDRIVER_HOME` | `~/.phonedriver` | Where the daemon keeps its socket, `daemon.log`, `traces/`, `tmp/` and the iOS `runner/` builds. Set it to run a separate daemon. |
 | `PHONEDRIVER_SOCKET` | under `PHONEDRIVER_HOME` | The daemon's socket or named pipe. Point it at an `ssh -L` forward to use another machine's devices. |
 | `PHONEDRIVER_DEVICE` | none | The device to use when `--device` is not given. Also read by `phonedriver mcp`. |
+| `PHONEDRIVER_DISPLAY` | `main` | `hidden` makes the Android agent work on a second screen that the person holding the phone cannot see (Android 13 and later; `--display hidden` does the same). See [the Android phone page](/docs/android-phone/#a-hidden-screen-for-the-agent). |
 | `PHONEDRIVER_SESSION` | `default` | The session name, as `--session`. |
 | `PHONEDRIVER_TEAM` | none | Apple developer team ID that signs the iOS runner on a physical device. |
 | `PHONEDRIVER_GUARD` | on | `off` stops the [approval guard](/docs/approval-guard/). |

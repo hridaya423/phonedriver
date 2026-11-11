@@ -47,6 +47,8 @@ It checks the toolchain, devices and the socket, and says how to fix each proble
 
 **An iOS tap is slow.** That is XCTest, about 240 ms of confirmation, not a hang. See [the iOS Simulator page](/docs/ios-simulator/).
 
+**`--display hidden` fails as unsupported.** The hidden screen needs Android 13 (API 33) or later, and `press lock` and `press notifications` are not available in that mode. Use the default screen, or leave `PHONEDRIVER_DISPLAY` unset. See [the Android phone page](/docs/android-phone/#a-hidden-screen-for-the-agent).
+
 **A tap was held.** Exit code 5, or a reply that says it needs the human's approval. See [the approval guard](/docs/approval-guard/).
 
 ## Report a problem

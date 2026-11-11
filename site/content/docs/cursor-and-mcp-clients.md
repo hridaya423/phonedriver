@@ -1,10 +1,11 @@
 ---
 title: How to use phonedriver with Cursor and other MCP clients
+seo: How to let Cursor, Codex or any MCP client control a phone
 nav: Cursor and other clients
 description: Add phonedriver to Cursor or any MCP client that starts a stdio server, with a JSON entry, an optional device setting and the list of tools it exposes.
 ---
 
-Any client that starts a stdio MCP server can use phonedriver. We test with Claude Code. We have not run a Cursor session ourselves, so the Cursor steps below use the standard stdio entry and Cursor's documented configuration file, not something we watched work.
+Any client that starts a stdio MCP server can use phonedriver. I test with Claude Code. I have not run a Cursor session myself, so the Cursor steps below use the standard stdio entry and Cursor's documented configuration file, not something I watched work.
 
 ## The entry
 

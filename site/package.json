@@ -1,0 +1,24 @@
+{
+  "name": "phonedriver-site",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "next dev",
+    "build": "node scripts/sync-assets.mjs && node scripts/stars.ts && next build",
+    "check": "node scripts/check.mjs",
+    "typecheck": "tsc --noEmit",
+    "brand": "node scripts/brand.ts",
+    "indexnow": "node scripts/indexnow.mjs"
+  },
+  "dependencies": {
+    "next": "16.4.3",
+    "react": "19.3.1",
+    "react-dom": "19.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "^24",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "typescript": "^5.9"
+  }
+}

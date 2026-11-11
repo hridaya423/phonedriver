@@ -1,0 +1,6 @@
+{
+  "trailingSlash": true,
+  "redirects": [
+    { "source": "/blog/how-phonedriver-reads-a-screen-98x-faster-than-adb/", "destination": "/blog/how-phonedriver-reads-a-screen-170x-faster-than-adb/", "permanent": true }
+  ]
+}
