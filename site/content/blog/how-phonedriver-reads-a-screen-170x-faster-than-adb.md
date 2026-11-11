@@ -92,7 +92,7 @@ The first benchmark, M1, quoted 153 times against phone-harness for the same lis
 - The two tree reads were measured twice on 11 November. The list read gave 193.1x on the first pass and 170.0x on the second, and I use the lower.
 - The tap on the device is also timed from the other side: the Gestures tab logs each `ACTION_DOWN` to logcat, and latency is the logged time minus the host's send time with the emulator's clock offset measured (good to about 8 ms). That row does not use any reply from phonedriver. On 11 November it gave 0.2 ms for phonedriver with an interval that crosses zero, which is clock-offset noise, so it is left out of this run.
 
-phone-harness ran in process, which spares it a Python start per call and favours it. The raw samples, the machine description and the script that regenerates every table are linked from [the benchmarks page](/benchmarks/#data), and `bench/speed/reproduce.sh` repeats the run.
+phone-harness ran in process, which spares it a Python start per call and favours it. The raw samples, the machine description and the script that regenerates every table are linked from [the benchmarks page](/benchmarks/#data) (direct: [every sample as CSV](/benchmarks/data/speed-samples.csv), [medians and intervals as JSON](/benchmarks/data/speed.json), [the machine](/benchmarks/data/speed-meta.json)), and `bench/speed/reproduce.sh` repeats the run.
 
 ## What the numbers do not show
 

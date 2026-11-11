@@ -92,7 +92,7 @@ Part of that gap is the device. The tablet emulator of 7 November no longer exis
 - **mobile-mcp, chrome-prefs, 1 of 2.** The run ended with "Always use secure connections" off. mobile-mcp passed the other 17 runs but spent 4.6M tokens, because every action returns a screenshot or an element list. chrome-prefs (1.05M), clock-settings (692k) and photos-crop (637k) are the worst.
 - **phonedriver passed all 27.** The rubric for the two bug-report jobs reads headings and sections as well as sentences. A 7 November run that the first version of the rubric scored as a failure was a correct report with a "Bug 3: not a bug" heading, and passes under the second version. The original verdict is kept in `success_as_run` in the raw data.
 
-Raw runs, medians and totals: [`docs/bench/jobs.json`](https://github.com/hridaya423/phonedriver/blob/main/docs/bench/jobs.json) (`same_device_2026_11_10`; the 7 November totals are kept as `totals_2026_11_07`) and the write-up in `docs/bench/jobs.md`. Setup: `claude -p` on a subscription, Claude Sonnet 5.5, a 2560x1600 tablet emulator.
+Raw runs, medians and totals: [download `jobs.json`](/benchmarks/data/jobs.json), or in the repository [`docs/bench/jobs.json`](https://github.com/hridaya423/phonedriver/blob/main/docs/bench/jobs.json) (`same_device_2026_11_10`; the 7 November totals are kept as `totals_2026_11_07`) and the write-up in `docs/bench/jobs.md`. Setup: `claude -p` on a subscription, Claude Sonnet 5.5, a 2560x1600 tablet emulator.
 
 ### What I threw away
 

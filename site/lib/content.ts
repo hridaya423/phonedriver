@@ -12,6 +12,7 @@ export const DOCS = [
   "ios-simulator",
   "iphone",
   "approval-guard",
+  "no-telemetry",
   "shell",
   "troubleshooting",
 ];

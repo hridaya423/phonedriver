@@ -2,7 +2,7 @@
 title: phonedriver vs mobile-mcp
 seo: phonedriver vs mobile-mcp: an alternative with 6.9x fewer tokens
 updated: 2026-11-11
-meta: On nine real phone jobs mobile-mcp used 6.9x the tokens of phonedriver and passed 17 of 18 runs against 27 of 27. Platforms, waiting, telemetry and install compared.
+meta: On nine real phone jobs mobile-mcp used 6.9x the tokens of phonedriver and passed 17 of 18 runs against 27 of 27. Platforms, telemetry and install compared.
 description: Two MCP servers that let an AI agent control a phone. On nine real phone jobs on one emulator, mobile-mcp used 6.9 times the tokens of phonedriver and passed 17 of 18 runs against 27 of 27. What each reads, installs, waits for and sends, and what I have not measured.
 ---
 

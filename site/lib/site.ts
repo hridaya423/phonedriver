@@ -19,7 +19,10 @@ export const NAV = [
   { href: "/blog/", label: "Blog" },
 ];
 
-export const AUTHOR = { "@type": "Person", name: "Hridya Agrawal", url: "https://github.com/hridaya423" };
-export const PUBLISHER = { "@type": "Organization", name: "phonedriver", url: SITE_URL + "/" };
+export const RELEASED = "2026-11-10";
+export const NPM = "https://www.npmjs.com/package/phonedriver";
+
+export const AUTHOR = { "@type": "Person", "@id": SITE_URL + "/#author", name: "Hridya Agrawal", url: "https://github.com/hridaya423", sameAs: ["https://github.com/hridaya423"] };
+export const PUBLISHER = { "@type": "Organization", "@id": SITE_URL + "/#org", name: "phonedriver", url: SITE_URL + "/", logo: SITE_URL + "/favicon.svg", sameAs: [REPO, NPM] };
 
 export const ttl = (t: string) => (t.length > 52 ? t : `${t} | phonedriver`);

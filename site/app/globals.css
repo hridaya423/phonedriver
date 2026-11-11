@@ -326,3 +326,4 @@ pre{font-size:12.5px;padding:14px 16px}
 .tw{scroll-snap-type:x proximity;scroll-padding-left:8.25rem}
 .tw th,.tw td{scroll-snap-align:start}
 }
+.prose.log{max-width:72ch;padding-top:0}

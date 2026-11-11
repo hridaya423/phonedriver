@@ -10,6 +10,7 @@ import { Wordmark } from "./Wordmark";
 export function Header() {
   const path = usePathname();
   const count = stars.stars < 1000 ? stars.stars : `${(stars.stars / 1000).toFixed(1)}k`;
+  const shown = stars.stars > 10;
   return (
     <header className={path === "/" ? "top over" : "top"}>
       <div className="wrap bar">
@@ -24,8 +25,14 @@ export function Header() {
           ))}
           <a className="gh" href={REPO}>
             <Star />
-            GitHub <b>{count}</b>
-            <span className="vh">{stars.stars === 1 ? " star" : " stars"}</span>
+            GitHub
+            {shown && (
+              <>
+                {" "}
+                <b>{count}</b>
+                <span className="vh"> stars</span>
+              </>
+            )}
           </a>
           <button type="button" className="menu-btn" popoverTarget="menu">
             Menu
@@ -47,9 +54,7 @@ export function Header() {
           ))}
           <a href={REPO}>
             GitHub
-            <span>
-              {count} {stars.stars === 1 ? "star" : "stars"}
-            </span>
+            {shown && <span>{count} stars</span>}
           </a>
         </nav>
       </div>

@@ -1,7 +1,7 @@
 {
   "name": "phonedriver",
   "version": "0.1.1",
-  "description": "Let AI agents see and control Android and iOS phones. Launcher for the phonedriver binary: downloads it from GitHub Releases on first run.",
+  "description": "MCP server and CLI that lets AI agents like Claude Code, Codex and Cursor see and control Android and iOS phones. 6.9x fewer tokens than mobile-mcp, asks before it pays, no telemetry.",
   "mcpName": "io.github.hridaya423/phonedriver",
   "license": "AGPL-3.0-only",
   "homepage": "https://phonedriver.dev",
@@ -13,12 +13,23 @@
   "bugs": "https://github.com/hridaya423/phonedriver/issues",
   "keywords": [
     "mcp",
+    "mcp-server",
     "model-context-protocol",
+    "claude",
+    "claude-code",
+    "codex",
+    "cursor",
+    "ai-agents",
+    "agent",
     "android",
     "ios",
+    "iphone",
     "adb",
-    "ai-agents",
+    "emulator",
+    "simulator",
     "phone",
+    "mobile-automation",
+    "ui-automation",
     "automation"
   ],
   "bin": {

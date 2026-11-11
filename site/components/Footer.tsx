@@ -30,6 +30,8 @@ export function Footer() {
           <nav aria-label="Project">
             <p className="lab">Project</p>
             <a href={REPO}>GitHub</a>
+            <Link href="/changelog/">Changelog</Link>
+            <a href={`${REPO}/discussions`}>Discussions</a>
             <a href={`${REPO}/blob/main/LICENSE`}>License: AGPL-3.0</a>
             <a href={`${REPO}/blob/main/docs/decisions.md`}>Design decisions</a>
             <a href="/llms.txt">llms.txt</a>
@@ -37,7 +39,7 @@ export function Footer() {
           </nav>
         </div>
         <p className="small legal">
-          phonedriver sends no telemetry. This site sets no cookies and loads no third-party scripts. The phonedriver lettering is drawn for this project. JetBrains Mono and Inter Display are
+          phonedriver sends <Link href="/docs/no-telemetry/">no telemetry</Link>. This site sets no cookies and loads no third-party scripts. The phonedriver lettering is drawn for this project. JetBrains Mono and Inter Display are
           under the SIL Open Font License 1.1.
         </p>
         <FootMark svg={DISPLAY} sweep={Math.round(WIDTH * 0.62)} view={VIEW} />

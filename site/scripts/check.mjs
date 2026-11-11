@@ -2,7 +2,7 @@ import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 
 const OUT = join(import.meta.dirname, "../out");
-const TYPES = new Set(["SoftwareApplication", "SoftwareSourceCode", "WebSite", "FAQPage", "Question", "Answer", "BreadcrumbList", "ListItem", "BlogPosting", "TechArticle", "Article", "Blog", "Dataset", "DataDownload", "Person", "Organization", "Offer", "VideoObject", "CollectionPage", "WebPage"]);
+const TYPES = new Set(["SoftwareApplication", "SoftwareSourceCode", "WebSite", "FAQPage", "Question", "Answer", "BreadcrumbList", "ListItem", "BlogPosting", "TechArticle", "Article", "Blog", "Dataset", "DataDownload", "Person", "Organization", "Offer", "VideoObject", "CollectionPage", "WebPage", "ItemList"]);
 const REQ = {
   SoftwareApplication: ["name", "applicationCategory", "operatingSystem", "offers", "license"],
   SoftwareSourceCode: ["codeRepository"],

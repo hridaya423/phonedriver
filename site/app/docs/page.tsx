@@ -1,19 +1,21 @@
 import Link from "next/link";
+import { JsonLd } from "@/components/Bits";
 import { PageTop } from "@/components/PageTop";
 import { page } from "@/lib/content";
+import { listLd } from "@/lib/ld";
 import { meta } from "@/lib/meta";
 
 export const metadata = meta({
   path: "/docs/",
   title: "phonedriver docs: set up an AI agent to control a phone",
-  description: "How-to guides for phonedriver: install, Claude Code, Cursor, Android and iOS devices, the approval guard, the shell and troubleshooting.",
+  description: "How-to guides for phonedriver: install, Claude Code, Cursor, Android and iOS devices, the approval guard, telemetry, the shell and troubleshooting.",
   og: "/og/docs.png",
 });
 
 const GROUPS: [string, string[]][] = [
   ["Start", ["install", "claude-code", "cursor-and-mcp-clients"]],
   ["Connect a phone", ["android-emulator", "android-phone", "ios-simulator", "iphone"]],
-  ["Run it safely", ["approval-guard", "shell", "troubleshooting"]],
+  ["Run it safely", ["approval-guard", "no-telemetry", "shell", "troubleshooting"]],
 ];
 
 const COUNT = GROUPS.reduce((n, [, slugs]) => n + slugs.length, 0);
@@ -21,6 +23,7 @@ const COUNT = GROUPS.reduce((n, [, slugs]) => n + slugs.length, 0);
 export default function Docs() {
   return (
     <>
+      <JsonLd data={[listLd("phonedriver docs", "/docs/", GROUPS.flatMap(([, slugs]) => slugs).map((s) => [page("docs", s).meta.title, `/docs/${s}/`]))]} />
       <PageTop
         say="Show me how to set it up."
         short="Show me how."

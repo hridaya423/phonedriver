@@ -59,7 +59,7 @@ Tokens are what an agent's usage limit is spent on. I ran nine jobs that only a 
 
 <p align="center"><picture><source media="(prefers-color-scheme: dark)" srcset=".github/assets/jobs-dark.svg"><img alt="On nine real phone jobs on one Android emulator, 10 November 2026, with Claude Sonnet 5.5: phonedriver passed 27 of 27 runs with 658 thousand tokens in 5.1 minutes; mobile-mcp passed 17 of 18 with 4.6 million tokens in 8.7 minutes; phone-harness passed 14 of 18 with 1.1 million tokens in 22.7 minutes." src=".github/assets/jobs-light.svg" width="100%"></picture></p>
 
-This is my own test set. All three tools ran on the same Android emulator on 10 November 2026. phone-harness used fewer tokens than phonedriver on two of the nine jobs. Every run, the versions, the checks and what was thrown away are published in [docs/bench/jobs.md](docs/bench/jobs.md). If you maintain one of these tools and think I set it up wrong, open an issue and I will rerun it.
+This is my own test set. All three tools ran on the same Android emulator on 10 November 2026. Every run, the versions, the checks and what was thrown away are published in [docs/bench/jobs.md](docs/bench/jobs.md). If you maintain one of these tools and think I set it up wrong, open an issue and I will rerun it.
 
 ## What the model sees
 

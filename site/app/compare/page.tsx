@@ -1,13 +1,15 @@
 import Link from "next/link";
+import { JsonLd } from "@/components/Bits";
 import { PageTop } from "@/components/PageTop";
 import { board, op, ratio } from "@/lib/bench";
 import { COMPARE, page } from "@/lib/content";
+import { listLd } from "@/lib/ld";
 import { meta } from "@/lib/meta";
 
 export const metadata = meta({
   path: "/compare/",
   title: "phonedriver vs mobile-mcp, phone-harness and adb, measured",
-  description: "Which tool should an AI agent use to control a phone? phonedriver against mobile-mcp, phone-harness and adb on tokens, passed runs, speed and telemetry, with raw data.",
+  description: "Which tool should an AI agent use to control a phone? phonedriver against mobile-mcp, phone-harness and adb on tokens, passed runs, speed and telemetry.",
   og: "/og/compare-adb.png",
 });
 
@@ -22,6 +24,7 @@ export default function CompareIndex() {
   };
   return (
     <>
+      <JsonLd data={[listLd("phonedriver compared with other tools", "/compare/", COMPARE.map(([s, label]) => [label, `/compare/${s}/`]))]} />
       <PageTop
         say="Why not one of the others?"
         short="Why not the others?"

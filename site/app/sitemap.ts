@@ -1,6 +1,6 @@
 import type { MetadataRoute } from "next";
 import { COMPARE, DOCS, POSTS, page } from "@/lib/content";
-import { PUBLISHED, TODAY, url } from "@/lib/site";
+import { PUBLISHED, RELEASED, TODAY, url } from "@/lib/site";
 
 export const dynamic = "force-static";
 
@@ -13,6 +13,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     at("/benchmarks/"),
     at("/compare/"),
     ...COMPARE.map(([s]) => at(`/compare/${s}/`, page("compare", s).meta.updated ?? PUBLISHED)),
+    at("/changelog/", RELEASED),
     at("/blog/"),
     ...POSTS.map((s) => at(`/blog/${s}/`, page("blog", s).meta.updated ?? page("blog", s).meta.date)),
   ];

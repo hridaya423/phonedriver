@@ -11,7 +11,7 @@ import { inline, plain } from "@/lib/md";
 import { meta } from "@/lib/meta";
 import run from "@/lib/run.json";
 import screen from "@/lib/screen.json";
-import { BOOT, REPO, TODAY, raw, url } from "@/lib/site";
+import { BOOT, PUBLISHED, REPO, raw, url } from "@/lib/site";
 import "./charts.css";
 import "./home.css";
 
@@ -123,7 +123,7 @@ export default function Home() {
       name: "Claude Code orders a pizza on an Android phone with phonedriver and asks before it pays",
       description: DEMO_CAPTION,
       thumbnailUrl: url("/assets/demo-poster.jpg"),
-      uploadDate: TODAY,
+      uploadDate: `${PUBLISHED}T00:00:00Z`,
       contentUrl: url("/assets/demo.mp4"),
       duration: "PT43S",
       width: 1280,

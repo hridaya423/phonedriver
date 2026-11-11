@@ -59,7 +59,7 @@ export function llmsTxt() {
     const p = page("blog", s);
     L.push(`- [${p.meta.title}](${md(p.path)}): ${p.meta.description}`);
   }
-  L.push("", "## Optional", "", `- [Full text of this site](${SITE_URL}/llms-full.txt)`, `- [Source code and design decisions](${REPO})`, "");
+  L.push("", "## Optional", "", `- [Full text of this site](${SITE_URL}/llms-full.txt)`, `- [Changelog](${SITE_URL}/changelog/)`, `- [Source code and design decisions](${REPO})`, `- [Questions and discussion](${REPO}/discussions)`, "");
   return L.join("\n");
 }
 

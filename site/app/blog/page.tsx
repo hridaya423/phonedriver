@@ -5,7 +5,7 @@ import { TASKS, board, op, ratio } from "@/lib/bench";
 import { POSTS, page } from "@/lib/content";
 import { unbroken } from "@/lib/md";
 import { meta } from "@/lib/meta";
-import { url } from "@/lib/site";
+import { AUTHOR, PUBLISHER, url } from "@/lib/site";
 
 export const metadata = meta({
   path: "/blog/",
@@ -25,7 +25,18 @@ export default function Blog() {
   ];
   return (
     <>
-      <JsonLd data={[{ "@context": "https://schema.org", "@type": "Blog", name: "phonedriver blog", url: url("/blog/") }]} />
+      <JsonLd data={[{
+            "@context": "https://schema.org",
+            "@type": "Blog",
+            name: "phonedriver blog",
+            url: url("/blog/"),
+            author: AUTHOR,
+            publisher: PUBLISHER,
+            blogPost: POSTS.map((s) => {
+              const p = page("blog", s);
+              return { "@type": "BlogPosting", headline: p.meta.title, url: url(p.path), datePublished: p.meta.date, dateModified: p.meta.updated ?? p.meta.date, author: AUTHOR, image: url(`/og/post-${POSTS.indexOf(s) + 1}.png`) };
+            }),
+          }]} />
       <PageTop
         say="What did you learn building it?"
         short="What did you learn?"
