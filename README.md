@@ -91,10 +91,10 @@ ok tapped @e24 "Dark theme" at 353,532 · settled in 2034ms
 ## Speed
 
 <p align="center">
-  <picture><source media="(prefers-color-scheme: dark)" srcset=".github/assets/hero-dark.svg"><img alt="phonedriver against adb on an Android emulator, median of 50 runs. Reading the screen: 24 ms against 2,352 ms, 98 times faster. Screenshot: 12 ms against 476 ms, 41 times faster. Typing 100 characters: 251 ms against 4,841 ms, 19 times faster. Tapping and seeing what changed: 587 ms against 2,726 ms, 4.6 times faster." src=".github/assets/hero-light.svg" width="100%"></picture>
+  <picture><source media="(prefers-color-scheme: dark)" srcset=".github/assets/hero-dark.svg"><img alt="phonedriver against adb on an Android emulator, median of 50 runs. Reading the screen: 13 ms against 2,164 ms, 170 times faster. Screenshot: 9 ms against 291 ms, 32 times faster. Typing 100 characters: 158 ms against 3,638 ms, 23 times faster. Tapping and seeing what changed: 514 ms against 2,477 ms, 4.8 times faster." src=".github/assets/hero-light.svg" width="100%"></picture>
 </p>
 
-Measured on an Android 17 emulator, median of 50 runs, against `adb shell uiautomator dump`, `screencap` and `input`. The difference comes from a small helper process that phonedriver starts on the phone. It keeps the accessibility connection open, where adb starts a new process and writes XML each time. On a HONOR X8 phone (Android 13), reading the screen took 78.5 ms against 2,507 ms, and a screenshot took 16 ms against 1,006 ms. [Method and raw data.](docs/bench/speed.md)
+Measured on 11 November 2026 with phonedriver 0.1.1 on an Android 17 emulator, median of 50 runs, against `adb shell uiautomator dump`, `screencap` and `input`. The difference comes from a small helper process that phonedriver starts on the phone. It keeps the accessibility connection open, where adb starts a new process and writes XML each time. On a HONOR X8 phone (Android 13), reading the screen took 78.5 ms against 2,507 ms, and a screenshot took 16 ms against 1,006 ms. [Method and raw data.](docs/bench/speed.md)
 
 ## Asking before it pays
 
@@ -126,7 +126,7 @@ The MCP server has 14 tools: `devices`, `apps`, `snapshot`, `screenshot`, `tap`,
 ## Limits
 
 - Tested on Android emulators (API 26 and 37), a HONOR X8 (Android 13), the iOS Simulator, an iPhone 14 Plus and an iPad Pro. Other Android phones use the same path. Bug reports from them are welcome.
-- A tap alone takes 70 to 120 ms on an Android emulator and 450 to 530 ms on a real iPhone. The 587 ms in the Speed chart is a tap, the wait until the screen stops changing, and the list of what changed.
+- A tap alone takes 29 to 39 ms on an Android emulator and 450 to 530 ms on a real iPhone. The 514 ms in the Speed chart is a tap, the wait until the screen stops changing, and the list of what changed.
 - The model can do anything on the phone you could do with your finger. For unattended runs, use an emulator or a spare phone.
 - phonedriver never enters a passcode and can't pass Face ID or a fingerprint check. Screens that block screenshots, as some banking apps do, come out black in a screenshot, though their text can still be read.
 

@@ -1,15 +1,83 @@
-# Speed, phonedriver against adb and phone-harness (2026-11-07)
+# Speed, phonedriver against adb and phone-harness
 
-The README chart comes from this run. Raw samples: `docs/bench/data/speed-2026-11-07/` (`samples.csv`, `meta.json`, `run.log`; `second-pass/` holds the three ops that were measured again; `tap-pass-3/`, `device-pass-3/` and `device-pass-4/` re-run the tap rows from main `a1b9eed`, and `guard-baseline/` is the same rows from `aa3f4c3`). The chart reads `docs/bench/speed.json`, which `bench/speed/stats.py` writes from the CSVs. To repeat the run: `PH_PYTHON=<python with phone-harness 0.3.3> bash bench/speed/reproduce.sh`.
+The README chart comes from the run of 2026-11-11 with phonedriver 0.1.1. The run of 2026-11-07, which the chart showed until then, is kept below.
 
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="../../.github/assets/speed-dark.svg">
-    <img alt="Bar chart, log scale, p50 on an Android 17 emulator. phonedriver against plain adb and phone-harness 0.3.3. UI tree, 1,000-row list 98 times faster than adb (phone-harness 111 times); Screenshot 41 times faster than adb (phone-harness 49 times); UI tree, Settings 27 times faster than adb (phone-harness 30 times); Type 100 characters 19 times faster than adb (phone-harness 22 times); Tap, then what changed 4.6 times faster than adb (phone-harness not supported); Tap, 1.5 s apart 1.6 times faster than adb (phone-harness 4.7 times); Tap, back to back 2.1 times faster than adb (phone-harness 2.5 times)." src="../../.github/assets/speed-light.svg" width="100%">
+    <img alt="Bar chart, log scale, p50 on an Android 17 emulator. phonedriver against plain adb and phone-harness 0.3.3. UI tree, 1,000-row list 170 times faster than adb (phone-harness 186 times); UI tree, Settings 43 times faster than adb (phone-harness 47 times); Screenshot 32 times faster than adb (phone-harness 38 times); Type 100 characters 23 times faster than adb (phone-harness 25 times); Tap, then what changed 4.8 times faster than adb (phone-harness not supported); Tap, back to back 4.4 times faster than adb (phone-harness 4.2 times); Tap, 1.5 s apart 2.4 times faster than adb (phone-harness 7.7 times)." src="../../.github/assets/speed-light.svg" width="100%">
   </picture>
 </p>
 
 The bar is p50 and the tick is p95. The headline chart in the README uses four of these seven rows.
+
+## The current run (2026-11-11)
+
+phonedriver 0.1.1, built in release mode on the host from main `c3c3598`. Same host (`win-ts`), same emulator image (`google/sdk_gphone64_x86_64/emu64xa:17/CE2A.260420.051.A3/16571990:userdebug/dev-keys`, 1080x2424 at 420 dpi, software rendering), same phone-harness 0.3.3, same script and method as the 7 November run described below. Raw samples: `docs/bench/data/speed-2026-11-11/`; `second-pass/` holds the two tree rows, measured a second time.
+
+Headline: reading a 1,000-row list is 170x faster than adb, 12.7 ms against 2,163.7 ms at p50, 95% CI on the ratio 162.0 to 177.4. The first pass gave 193.1x (11.3 ms against 2,189.0 ms); the lower pass is the one used. On 7 November the same read took 24.0 ms. adb's time did not change, so the gain is phonedriver's.
+
+What to know about this run:
+
+- **Host load.** `Processor(_Total)` was 31 to 80% around the rows (about 15% on 7 November); the load beside each row is in `run.log`. The tablet emulator and an IDE were running. A run from the day before, at 29 to 99% load, is in `docs/bench/data/speed-2026-11-10/` and is not used.
+- **Emulator.** Booted 10 minutes before the first sample and idle (load average 0.55) when the run began. No dialog was on screen at the start or at the end.
+- **Typing.** The p50 ratio is 23.0x, and the lower bound of its interval is 19.7, below 90% of the p50 ratio, so its headline by the rule below is 20x. The chart shows the p50 ratio.
+- **Screenshot** is 32.0x, down from 41.0x: adb's `screencap` was faster in this run (291 ms against 476 ms) and phonedriver's time moved little (9.1 ms against 11.6 ms).
+- **Tap, device side** is left out. It gave 0.2 ms for phonedriver with an interval that crosses zero, which is clock-offset noise, not a measurement.
+
+| op | tool | n | p50 ms | p95 ms |
+|---|---|---|---|---|
+| tap | phonedriver | 50 | 38.5 | 175.6 |
+| tap | phone-harness | 50 | 162.8 | 434.9 |
+| tap | adb | 50 | 170.5 | 205.1 |
+| tap, paced | phonedriver | 50 | 28.7 | 42.2 |
+| tap, paced | phone-harness | 50 | 220.4 | 248.1 |
+| tap, paced | adb | 50 | 69.4 | 89.5 |
+| screenshot | phonedriver | 50 | 9.1 | 11.1 |
+| screenshot | phone-harness | 50 | 348.3 | 715.0 |
+| screenshot | adb | 50 | 291.2 | 763.7 |
+| tap, then what changed | phonedriver | 50 | 514.0 | 612.0 |
+| tap, then what changed | adb | 50 | 2477.2 | 5460.4 |
+| tree, Settings | phonedriver | 50 | 51.0 | 146.3 |
+| tree, Settings | phone-harness | 50 | 2393.8 | 3017.7 |
+| tree, Settings | adb | 50 | 2215.7 | 3054.8 |
+| tree, Settings | phonedriver, settled | 50 | 49.3 | 61.0 |
+| tree, list | phonedriver | 50 | 12.7 | 20.0 |
+| tree, list | phone-harness | 50 | 2362.5 | 2398.1 |
+| tree, list | adb | 50 | 2163.7 | 2204.5 |
+| tree, list | phonedriver, settled | 50 | 12.4 | 17.3 |
+| type 100 characters | phonedriver | 50 | 158.3 | 426.6 |
+| type 100 characters | phone-harness | 50 | 3928.7 | 10064.9 |
+| type 100 characters | adb | 50 | 3638.4 | 9234.2 |
+| type 100 characters | phonedriver, mixed Unicode | 50 | 160.6 | 384.7 |
+| cold start, first screen read | phonedriver | 10 | 1176.0 | 3014.6 |
+| cold start, first screen read | phone-harness | 10 | 2776.6 | 5095.1 |
+| cold start, first screen read | adb | 10 | 2248.4 | 7443.5 |
+| tree, Settings (first pass) | phonedriver | 50 | 51.5 | 85.4 |
+| tree, Settings (first pass) | phone-harness | 50 | 2393.3 | 2642.1 |
+| tree, Settings (first pass) | adb | 50 | 2198.2 | 2252.1 |
+| tree, Settings (first pass) | phonedriver, settled | 50 | 47.5 | 68.8 |
+| tree, list (first pass) | phonedriver | 50 | 11.3 | 17.3 |
+| tree, list (first pass) | phone-harness | 50 | 2357.7 | 3245.0 |
+| tree, list (first pass) | adb | 50 | 2189.0 | 3519.1 |
+| tree, list (first pass) | phonedriver, settled | 50 | 12.4 | 124.4 |
+
+| op | adb / phonedriver (p50) | 95% CI | phone-harness / phonedriver (p50) | 95% CI |
+|---|---|---|---|---|
+| tap | 4.4x | 3.0 to 5.2 | 4.2x | 3.0 to 5.1 |
+| tap, paced | 2.4x | 2.3 to 2.6 | 7.7x | 7.2 to 8.3 |
+| screenshot | 32.0x | 30.9 to 33.2 | 38.2x | 36.9 to 39.8 |
+| tap, then what changed | 4.8x | 4.7 to 5.2 | not supported |  |
+| tree, Settings | 43.5x | 41.1 to 48.0 | 47.0x | 44.3 to 51.7 |
+| tree, list | 170.0x | 162.0 to 177.4 | 185.6x | 176.8 to 193.4 |
+| type 100 characters | 23.0x | 19.7 to 25.1 | 24.8x | 21.2 to 26.9 |
+| cold start, first screen read | 1.9x | 1.4 to 2.4 | 2.4x | 1.7 to 2.6 |
+| tree, Settings (first pass) | 42.7x | 40.4 to 45.7 | 46.5x | 44.1 to 49.9 |
+| tree, list (first pass) | 193.1x | 181.0 to 225.2 | 208.0x | 194.5 to 225.2 |
+
+## The run of 2026-11-07
+
+Everything from here down describes the earlier run. Raw samples: `docs/bench/data/speed-2026-11-07/` (`samples.csv`, `meta.json`, `run.log`; `second-pass/` holds the three ops that were measured again; `tap-pass-3/`, `device-pass-3/` and `device-pass-4/` re-run the tap rows from main `a1b9eed`, and `guard-baseline/` is the same rows from `aa3f4c3`). To repeat a run: `PH_PYTHON=<python with phone-harness 0.3.3> bash bench/speed/reproduce.sh`.
 
 ## Verdict
 
@@ -19,7 +87,7 @@ The bare tap is the weak row. Host to reply it is 117.6 ms when taps come back t
 
 ## Rerun on 0.1.1 under load (2026-11-10)
 
-The chart above is still the 7 November run. On 10 November I ran the same script again with phonedriver 0.1.1 (main `071147a`) on the same host and the same emulator image. The host was busy with other work: `Processor(_Total)` was 29 to 99% around the rows (about 15% on 7 November), and the emulator had been booted 27 minutes earlier. The absolute times are slower for every tool, so they are not used in the chart. The ratios against adb are close to the 7 November ones:
+On 10 November I ran the same script again with phonedriver 0.1.1 (main `071147a`) on the same host and the same emulator image. The host was busy with other work: `Processor(_Total)` was 29 to 99% around the rows (about 15% on 7 November), and the emulator had been booted 27 minutes earlier. The absolute times are slower for every tool, so they are not used in the chart. The ratios against adb are close to the 7 November ones:
 
 | op | adb / phonedriver, 7 Nov | adb / phonedriver, 10 Nov | 95% CI, 10 Nov |
 |---|---|---|---|

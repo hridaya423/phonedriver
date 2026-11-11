@@ -1,0 +1,24 @@
+load before tap: [38.8, 36.7, 33.4, 40.0, 39.1]
+load after tap: [45.8, 39.4, 35.3, 36.0, 36.0]
+tap: done
+load before tap, paced: [43.8, 37.2, 48.2, 38.6, 46.5]
+load after tap, paced: [39.4, 47.5, 47.2, 39.7, 38.9]
+tap, paced: done
+load before screenshot: [36.7, 38.8, 36.7, 36.3, 34.9]
+load after screenshot: [33.9, 35.0, 41.3, 31.3, 34.3]
+screenshot: done
+load before tap, then what changed: [41.8, 40.1, 34.9, 44.1, 33.9]
+load after tap, then what changed: [51.5, 34.7, 28.2, 31.7, 31.9]
+tap, then what changed: done
+load before tree, Settings: [74.5, 65.9, 49.6, 40.3, 38.7]
+load after tree, Settings: [35.3, 35.6, 31.8, 42.0, 42.5]
+tree, Settings: done
+load before tree, list: [45.4, 79.5, 55.4, 41.0, 36.9]
+load after tree, list: [58.2, 57.9, 51.3, 47.1, 44.9]
+tree, list: done
+load before type 100 characters: [44.8, 45.0, 40.2, 45.5, 49.0]
+load after type 100 characters: [61.6, 63.0, 61.8, 62.5, 62.8]
+type 100 characters: done
+load before cold start: [63.9, 79.3, 64.7, 62.3, 64.9]
+load after cold start: [53.3, 59.3, 53.9, 61.6, 63.5]
+done

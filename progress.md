@@ -1690,3 +1690,11 @@ At the user's request: "6.9x fewer tokens than mobile-mcp." is its own line unde
 The user asked for a current speed chart. Reran `bench/speed/run_speed.py` on win-pc (phonedriver 0.1.1 from `071147a`, `Pixel_API_37` on 5554, phone-harness 0.3.3). The host was at 29 to 99% CPU from other work, so every tool's milliseconds are slower than on 7 November (adb typing 9.4 s against 4.8 s). Ratios against adb: list read 96.4x (98x), screenshot 44.8x (41x), Settings 29.7x (27x), typing 26.0x (19x), tap then what changed 5.1x (4.6x). Decision: the chart stays on the quiet 7 November run; the rerun is a section in `docs/bench/speed.md` with its raw data in `docs/bench/data/speed-2026-11-10/`.
 
 Fixed in `run_speed.py`: the daemon is started again before the screenshot rows. Discarded: one run that hit that bug, one run under a "System UI isn't responding" alert. While stopping the first run I force-stopped every `phonedriver.exe` on win-pc without checking whose they were; reported to the user.
+
+## 2026-11-11: the speed chart is the 0.1.1 run; the list read is 170x
+
+win-pc was quieter (31 to 80% CPU, no headless Chrome), so the speed run was repeated on phonedriver 0.1.1 from main `c3c3598`, same host, emulator image, phone-harness and script as 7 November. The emulator was booted and left 10 minutes until its load average was 0.55; no dialog was on screen before or after.
+
+Result against adb at p50: list read 193.1x in the first pass and 170.0x in a second pass of the tree rows (12.7 ms against 2,163.7 ms, CI 162.0 to 177.4); the lower pass is used. Settings 43.5x, screenshot 32.0x (was 41x; adb's screencap was faster this run), typing 23.0x (headline 20x by the rule), tap then what changed 4.8x. The device-side tap row gave 0.2 ms with an interval through zero and is left out as clock noise.
+
+Changed: `docs/bench/speed.json` (from `stats.py DIR --also second-pass`), the banner, hero, speed chart, social preview (`design/build/build.py`), README alt text and Speed and Limits lines, `docs/bench/speed.md` (new run on top, 7 November kept below), `docs/compare.md`. Raw data: `docs/bench/data/speed-2026-11-11/`. The rendered hero and banner were inspected. Not changed: the site (the user is working on it) and POSTS.md outside the repo.

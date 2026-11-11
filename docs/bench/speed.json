@@ -6,131 +6,131 @@
   {
    "id": "tap",
    "label": "Tap, back to back",
-   "phonedriver": 117.6,
-   "phonedriver_p95": 321.2,
-   "phone_harness": 289.0,
-   "phone_harness_p95": 863.1,
-   "adb": 250.5,
-   "adb_p95": 346.0,
+   "phonedriver": 38.5,
+   "phonedriver_p95": 175.6,
+   "phone_harness": 162.8,
+   "phone_harness_p95": 434.9,
+   "adb": 170.5,
+   "adb_p95": 205.1,
    "adb_ratio_ci": [
-    1.22,
-    2.95
+    3.02,
+    5.17
    ],
-   "headline_adb": 1.22,
+   "headline_adb": 3.02,
    "phone_harness_ratio_ci": [
-    1.41,
-    3.42
+    2.99,
+    5.1
    ]
   },
   {
    "id": "tap_paced",
    "label": "Tap, 1.5 s apart",
-   "phonedriver": 72.4,
-   "phonedriver_p95": 103.7,
-   "phone_harness": 342.9,
-   "phone_harness_p95": 422.1,
-   "adb": 114.5,
-   "adb_p95": 150.5,
+   "phonedriver": 28.7,
+   "phonedriver_p95": 42.2,
+   "phone_harness": 220.4,
+   "phone_harness_p95": 248.1,
+   "adb": 69.4,
+   "adb_p95": 89.5,
    "adb_ratio_ci": [
-    1.47,
-    1.73
+    2.26,
+    2.63
    ],
-   "headline_adb": 1.58,
+   "headline_adb": 2.42,
    "phone_harness_ratio_ci": [
-    4.4,
-    5.23
+    7.23,
+    8.3
    ]
   },
   {
    "id": "screenshot",
    "label": "Screenshot",
-   "phonedriver": 11.6,
-   "phonedriver_p95": 22.5,
-   "phone_harness": 570.5,
-   "phone_harness_p95": 809.6,
-   "adb": 476.3,
-   "adb_p95": 613.9,
+   "phonedriver": 9.1,
+   "phonedriver_p95": 11.1,
+   "phone_harness": 348.3,
+   "phone_harness_p95": 715.0,
+   "adb": 291.2,
+   "adb_p95": 763.7,
    "adb_ratio_ci": [
-    39.14,
-    43.55
+    30.88,
+    33.17
    ],
-   "headline_adb": 41.04,
+   "headline_adb": 31.95,
    "phone_harness_ratio_ci": [
-    47.51,
-    51.43
+    36.89,
+    39.8
    ]
   },
   {
    "id": "tree_settings",
    "label": "UI tree, Settings",
-   "phonedriver": 89.3,
-   "phonedriver_p95": 189.0,
-   "phone_harness": 2700.0,
-   "phone_harness_p95": 2816.7,
-   "adb": 2433.5,
-   "adb_p95": 2517.6,
+   "phonedriver": 51.0,
+   "phonedriver_p95": 146.3,
+   "phone_harness": 2393.8,
+   "phone_harness_p95": 3017.7,
+   "adb": 2215.7,
+   "adb_p95": 3054.8,
    "adb_ratio_ci": [
-    25.61,
-    27.8
+    41.11,
+    47.96
    ],
-   "headline_adb": 27.25,
+   "headline_adb": 43.49,
    "phone_harness_ratio_ci": [
-    28.5,
-    30.82
+    44.28,
+    51.71
    ]
   },
   {
    "id": "tree_list",
    "label": "UI tree, 1,000-row list",
-   "phonedriver": 24.0,
-   "phonedriver_p95": 36.6,
-   "phone_harness": 2653.7,
-   "phone_harness_p95": 2803.8,
-   "adb": 2352.4,
-   "adb_p95": 2446.9,
+   "phonedriver": 12.7,
+   "phonedriver_p95": 20.0,
+   "phone_harness": 2362.5,
+   "phone_harness_p95": 2398.1,
+   "adb": 2163.7,
+   "adb_p95": 2204.5,
    "adb_ratio_ci": [
-    92.2,
-    105.99
+    162.02,
+    177.37
    ],
-   "headline_adb": 98.11,
+   "headline_adb": 169.96,
    "phone_harness_ratio_ci": [
-    104.06,
-    119.51
+    176.78,
+    193.42
    ]
   },
   {
    "id": "type100",
    "label": "Type 100 characters",
-   "phonedriver": 251.1,
-   "phonedriver_p95": 395.0,
-   "phone_harness": 5523.3,
-   "phone_harness_p95": 6409.6,
-   "adb": 4840.9,
-   "adb_p95": 5631.2,
+   "phonedriver": 158.3,
+   "phonedriver_p95": 426.6,
+   "phone_harness": 3928.7,
+   "phone_harness_p95": 10064.9,
+   "adb": 3638.4,
+   "adb_p95": 9234.2,
    "adb_ratio_ci": [
-    17.06,
-    22.41
+    19.74,
+    25.12
    ],
-   "headline_adb": 17.06,
+   "headline_adb": 19.74,
    "phone_harness_ratio_ci": [
-    19.41,
-    25.17
+    21.24,
+    26.86
    ]
   },
   {
    "id": "tap_diff",
    "label": "Tap, then what changed",
-   "phonedriver": 586.9,
-   "phonedriver_p95": 704.8,
+   "phonedriver": 514.0,
+   "phonedriver_p95": 612.0,
    "phone_harness": null,
    "phone_harness_p95": null,
-   "adb": 2725.8,
-   "adb_p95": 2853.9,
+   "adb": 2477.2,
+   "adb_p95": 5460.4,
    "adb_ratio_ci": [
-    4.46,
-    4.72
+    4.69,
+    5.19
    ],
-   "headline_adb": 4.64
+   "headline_adb": 4.82
   }
  ]
 }

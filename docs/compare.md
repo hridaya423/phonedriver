@@ -10,21 +10,21 @@ phonedriver is an open-source MCP server and CLI that lets AI agents like Claude
 | Platforms | Android, iOS Simulator, iPhone and iPad | Android only | Android via adb, iPhone via Mac mirroring | Android, iOS, cloud devices |
 | Screen as text | Pruned, numbered tree (`@e10 switch "Dark theme" off`) | Raw XML from `uiautomator dump` | OCR text and `uiautomator dump` | One line per element with position and size |
 | After a tap | The lines that changed, once the screen settles | Nothing; the caller dumps and diffs | Nothing measured; "tap, then what changed" is not supported | No wait after actions in `server.ts`; the agent lists elements again |
-| Read a 1,000-row UI tree (p50) | 24.0 ms | 2,352.4 ms (98x slower) | 2,653.7 ms (111x slower) | not measured |
-| Screenshot (p50) | 11.6 ms | 476.3 ms (41x slower) | 570.5 ms (49x slower) | not measured |
-| Type 100 characters (p50) | 251.1 ms | 4,840.9 ms (19x slower) | 5,523.3 ms (22x slower) | not measured |
-| Tap and see what changed (p50) | 586.9 ms | 2,725.8 ms (4.6x slower; tap, dump and diff in the caller) | not supported | not measured |
+| Read a 1,000-row UI tree (p50) | 12.7 ms | 2,163.7 ms (170x slower) | 2,362.5 ms (186x slower) | not measured |
+| Screenshot (p50) | 9.1 ms | 291.2 ms (32x slower) | 348.3 ms (38x slower) | not measured |
+| Type 100 characters (p50) | 158.3 ms | 3,638.4 ms (23x slower) | 3,928.7 ms (25x slower) | not measured |
+| Tap and see what changed (p50) | 514.0 ms | 2,477.2 ms (4.8x slower; tap, dump and diff in the caller) | not supported | not measured |
 | Tokens, three agent tasks (sum of medians) | 218,357, all passed | one task failed | 330,375, all passed | 0 of 3 passed; an environment failure, not comparable |
 | Approval before a tap that spends money | Yes (the approval guard, D27) | No | Not checked | Not checked |
 | Shell on the device | Yes (`shell`, D21) | Yes (`adb shell`) | Not checked | Not documented in the sources read |
-| Unicode typing | Yes (mixed-script text typed in 225.0 ms) | No (`input text` raises on non-ASCII) | No | Not checked |
+| Unicode typing | Yes (mixed-script text typed in 160.6 ms) | No (`input text` raises on non-ASCII) | No | Not checked |
 | License | AGPL-3.0-only | Part of the Android SDK | MIT | Apache-2.0 |
 
-Speed is p50 of 50 runs after 20 warm-ups on one Android 17 emulator (API 37), the three measured tools interleaved on the emulator's host. No physical Android phone and no iOS device is in this run. Method, p95 and confidence intervals: [`bench/speed.md`](bench/speed.md). Data: [`bench/speed.json`](bench/speed.json).
+Speed is from the run of 2026-11-11 with phonedriver 0.1.1: p50 of 50 runs after 20 warm-ups on one Android 17 emulator (API 37), the three measured tools interleaved on the emulator's host. No physical Android phone and no iOS device is in this run. Method, p95 and confidence intervals: [`bench/speed.md`](bench/speed.md). Data: [`bench/speed.json`](bench/speed.json).
 
 ## Speed
 
-phonedriver is faster than adb and phone-harness on every operation measured. Against adb the ratio runs from 1.1x (taps sent back to back) to 98x (reading a 1,000-row list; 95% interval on the ratio 92.2 to 106.0). Against phone-harness it runs from 1.3x to 111x. The bare tap is the closest row: 175.6 ms for phonedriver and 199.5 ms for adb, host to reply. adb returns raw XML and a tap that returns before the app reacts. phonedriver returns a pruned tree and waits for the app, so the two outputs differ. See [`bench/speed.md`](bench/speed.md), "What this does not show".
+phonedriver is faster than adb and phone-harness on every operation measured. Against adb the ratio runs from 1.9x (cold start) to 170x (reading a 1,000-row list; 95% interval on the ratio 162.0 to 177.4). Against phone-harness it runs from 2.4x to 186x. The bare tap is the closest warm row: 28.7 ms for phonedriver and 69.4 ms for adb when taps are 1.5 s apart, host to reply. adb returns raw XML and a tap that returns before the app reacts. phonedriver returns a pruned tree and waits for the app, so the two outputs differ. See [`bench/speed.md`](bench/speed.md), "What this does not show".
 
 ## Tokens
 
