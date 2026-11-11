@@ -39,10 +39,10 @@ Three tasks (set an alarm, read a birth date on Wikipedia, submit a web form), `
 
 ## Limits of phonedriver
 
-It is not published yet; build it from source. Android phones are untested on hardware (the emulator suite passes on API 26 and 37). On iPhone and iPad a tap takes 454 to 534 ms at p50, over its 80 ms budget. The approval guard matches fixed English labels, so an unlabeled button is not guarded. See the README's [Supported devices](../README.md#supported-devices).
+One Android phone is tested on hardware, a HONOR X8 on Android 13; the emulator suite passes on API 26 and 37. On iPhone and iPad a tap takes 454 to 534 ms at p50, over its 80 ms budget. The approval guard matches fixed English labels, so an unlabeled button is not guarded. See the README's [Supported devices](../README.md#supported-devices).
 
 ## Sources
 
 - phonedriver, adb, phone-harness: [`bench/speed.md`](bench/speed.md), [`bench/tokens.md`](bench/tokens.md).
-- mobile-mcp and phone-harness features: [`research/competitors.md`](research/competitors.md), [`research/competitor-teardown.md`](research/competitor-teardown.md).
+- mobile-mcp and phone-harness features: read from their source and documentation in November 2026 (phone-harness at commit `4bebff1`).
 - Guard: `decisions.md` D27. Shell: D21.

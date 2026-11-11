@@ -1,13 +1,12 @@
 # phonedriver: rules for agents working in this repo
 
-phonedriver lets AI agents see and operate Android and iOS devices. The design is in `docs/`. The work is in `docs/plans/`.
+phonedriver lets AI agents see and operate Android and iOS devices. The design is in `docs/`.
 
 ## Start here
 
 1. Read `progress.md`. It says where the last session stopped.
-2. Read `docs/plans/2026-11-05-00-master-plan.md`, then the current phase's plan.
-3. Read `docs/architecture.md` sections the current task names. Read `docs/decisions.md` before changing any design choice.
-4. Execute with the `executing-plans` skill, task by task.
+2. Read `docs/architecture.md` sections the current task names. Read `docs/decisions.md` before changing any design choice.
+3. Execute with the `executing-plans` skill, task by task.
 
 ## Rules
 

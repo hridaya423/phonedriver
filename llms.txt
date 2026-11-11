@@ -24,7 +24,3 @@ phonedriver returns the screen as numbered text and, after each tap, type or swi
 - [Architecture](docs/architecture.md)
 - [Protocol](docs/protocol.md)
 - [Decisions](docs/decisions.md)
-
-## Optional
-
-- [Competitor research](docs/research/competitors.md)
