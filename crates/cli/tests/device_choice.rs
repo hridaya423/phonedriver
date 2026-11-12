@@ -103,6 +103,12 @@ async fn two_drivable_devices_or_none_stay_ambiguous() {
 }
 
 #[tokio::test]
+async fn release_with_no_device_named_needs_no_choice_between_two_devices() {
+    let (d, _home) = daemon(&["sim:A", "sim:B"], &[]);
+    d.call("s", "release", json!({})).await.unwrap();
+}
+
+#[tokio::test]
 async fn a_bad_scroll_direction_says_the_valid_ones_not_that_the_daemon_is_old() {
     let (d, _home) = daemon(&["sim:A"], &[]);
     let e = d

@@ -198,6 +198,10 @@ impl Daemon {
             "release" | "snapshot" | "screenshot" | "act" | "wait" | "batch" | "find" | "apps"
             | "app" | "clipboard" | "health" | "shell" => {
                 let common: Common = rpc::params(params)?;
+                if method == "release" && common.device.is_none() {
+                    self.release_everywhere(session).await;
+                    return Ok(json!({}));
+                }
                 let call = match method {
                     "release" => Call::Release,
                     "snapshot" => Call::Snapshot(rpc::params(params)?),
