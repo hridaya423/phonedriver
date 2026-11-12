@@ -20,10 +20,10 @@ async-trait = "0.1.92"
 base64 = "0.23.1"
 clap = { version = "4.6.7", features = ["derive", "env"] }
 interprocess = { version = "2.4.7", features = ["tokio"] }
-phonedriver-android = { version = "0.1.1", path = "../android", optional = true }
-phonedriver-core = { version = "0.1.1", path = "../core" }
-phonedriver-video = { version = "0.1.1", path = "../video" }
-phonedriver-ios = { version = "0.1.1", path = "../ios" }
+phonedriver-android = { version = "0.1.2", path = "../android", optional = true }
+phonedriver-core = { version = "0.1.2", path = "../core" }
+phonedriver-video = { version = "0.1.2", path = "../video" }
+phonedriver-ios = { version = "0.1.2", path = "../ios" }
 rmcp = { version = "3.9.0", features = ["server", "macros", "transport-io", "elicitation"] }
 schemars = "1.2.3"
 serde = { version = "1.0.229", features = ["derive"] }

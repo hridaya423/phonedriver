@@ -1,6 +1,6 @@
 {
   "name": "phonedriver",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "MCP server and CLI that lets AI agents like Claude Code, Codex and Cursor see and control Android and iOS phones. 6.9x fewer tokens than mobile-mcp, asks before it pays, no telemetry.",
   "mcpName": "io.github.hridaya423/phonedriver",
   "license": "AGPL-3.0-only",

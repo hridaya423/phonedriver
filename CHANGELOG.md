@@ -2,6 +2,13 @@
 
 Every release of phonedriver, newest first. Binaries and checksums for each version are on [GitHub Releases](https://github.com/hridaya423/phonedriver/releases).
 
+## 0.1.2
+
+Released 12 November 2026.
+
+- **A path of taps in one call**: `tap` and `type` take `then`, a list of texts to tap next, in order. `tap {"target":"More options","then":["Settings","Dark theme"]}` opens the menu, taps Settings and taps Dark theme, and returns one numbered reply. A text that is not on the screen stops the path and returns that screen. A tap that needs approval is still held for the human, and `then` is refused together with `secret`.
+- The skill (`phonedriver skill`) tells agents to send a path they can predict as one call.
+
 ## 0.1.1
 
 Released 10 November 2026.
