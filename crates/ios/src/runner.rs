@@ -6,7 +6,7 @@ use std::sync::Mutex;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 
-use phonedriver_core::error::{Error, Op};
+use phonedriver_core::error::{Error, Op, UserAction};
 use serde::Deserialize;
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
@@ -246,6 +246,16 @@ pub async fn build(home: &Path) -> Result<Build> {
 
 /// With `team`, builds for physical devices signed with that Apple developer team, under `<home>/runner/<hash>-device`.
 pub async fn build_for(home: &Path, team: Option<&str>) -> Result<Build> {
+    build_signed(home, team, None).await
+}
+
+/// Builds the device runner again for the device `udid`, letting Xcode add that device to the team's Apple
+/// developer account, which is the only way its signing profile comes to include the device.
+pub async fn register(home: &Path, team: &str, udid: &str) -> Result<Build> {
+    build_signed(home, Some(team), Some(udid)).await
+}
+
+async fn build_signed(home: &Path, team: Option<&str>, register: Option<&str>) -> Result<Build> {
     let _one_at_a_time = BUILDING.lock().await;
     let hash = build_hash();
     let root = home.join("runner");
@@ -254,7 +264,9 @@ pub async fn build_for(home: &Path, team: Option<&str>) -> Result<Build> {
         None => hash.clone(),
     });
     let products = dir.join("dd").join("Build").join("Products");
-    if let Some(xctestrun) = find_xctestrun(&products) {
+    if register.is_none()
+        && let Some(xctestrun) = find_xctestrun(&products)
+    {
         return Ok(Build {
             xctestrun,
             hash,
@@ -305,12 +317,14 @@ pub async fn build_for(home: &Path, team: Option<&str>) -> Result<Build> {
                 .arg("ONLY_ACTIVE_ARCH=NO");
         }
         Some(team) => {
+            match register {
+                Some(udid) => xcodebuild
+                    .args(["-destination", &format!("id={udid}")])
+                    .arg("-allowProvisioningDeviceRegistration"),
+                None => xcodebuild.args(["-destination", "generic/platform=iOS"]),
+            };
             xcodebuild
-                .args([
-                    "-destination",
-                    "generic/platform=iOS",
-                    "-allowProvisioningUpdates",
-                ])
+                .arg("-allowProvisioningUpdates")
                 .arg(format!("DEVELOPMENT_TEAM={team}"))
                 .args([
                     "CODE_SIGN_STYLE=Automatic",
@@ -550,6 +564,19 @@ impl Runner {
     }
 }
 
+/// What xcodebuild's log says a person has to do before the runner can start, if anything. The two texts are from
+/// logs of an iPhone 13 Pro Max on iOS 27.0.1 (2026-11-12): the first when its signing profile did not list the
+/// device, the second when it was locked.
+fn blocked(log: &str) -> Option<UserAction> {
+    if log.contains("0xe8008012") {
+        Some(UserAction::RegisterDevice)
+    } else if log.contains("because the device is locked") {
+        Some(UserAction::UnlockDevice)
+    } else {
+        None
+    }
+}
+
 /// The runner's fixed port on a device; the host reaches it through usbmuxd, so nothing is claimed on the Mac.
 pub const DEVICE_PORT: u16 = PORT_BASE;
 
@@ -623,6 +650,9 @@ impl Runner {
                     _claim: None,
                 });
             }
+            if let Some(action) = blocked(&std::fs::read_to_string(&log).unwrap_or_default()) {
+                return Err(Error::NeedsUser { action });
+            }
             if let Ok(Some(status)) = child.try_wait() {
                 return Err(Error::Transport {
                     detail: format!(
@@ -645,6 +675,18 @@ impl Runner {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn an_unregistered_or_locked_device_in_the_log_is_a_user_action_and_a_clean_log_is_not() {
+        let unregistered = "Failed to install embedded profile for dev.phonedriver.runner.xctrunner : 0xe8008012 (This provisioning profile cannot be installed on this device.)";
+        assert_eq!(blocked(unregistered), Some(UserAction::RegisterDevice));
+        let locked = "NSLocalizedRecoverySuggestion=Xcode cannot launch PhonedriverRunner on the iPhone because the device is locked.";
+        assert_eq!(blocked(locked), Some(UserAction::UnlockDevice));
+        assert_eq!(
+            blocked("Test Case '-[PhonedriverRunnerTests testServe]' started."),
+            None
+        );
+    }
 
     #[test]
     fn every_runner_source_file_is_embedded() {

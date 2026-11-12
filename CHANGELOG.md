@@ -5,6 +5,9 @@ Every release of phonedriver, newest first. Binaries and checksums for each vers
 ## Unreleased
 
 - **iPhone without the cable**: `phonedriver ios wifi on` lets a physical iPhone or iPad answer over Wi-Fi. Unplug it and it stays in `phonedriver devices` while it shares a network with the Mac. Tested on an iPhone 13 Pro Max, iOS 27.0.1. `phonedriver doctor` says which link each device uses.
+- **An iPhone the signing team has never seen**: the first command used to wait 60 seconds and point at an Xcode log. It now says the device is not registered and names the fix, `phonedriver ios register`. A locked iPhone at runner start is reported as locked.
+- **Notification banners on iOS**: a tap that starts under a banner waits for the banner to leave, so it no longer opens the notification.
+- `phonedriver untether` stops at once when the Android phone is on mobile data only, and changes nothing on it.
 - `phonedriver ios setup` mounts the developer disk image again with Xcode 27, whose `devicectl` dropped the option the old command passed.
 
 ## 0.1.2

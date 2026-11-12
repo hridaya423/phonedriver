@@ -72,6 +72,11 @@ fn is_tailscale_range(ip: &str) -> bool {
     matches!((octets.next(), octets.next()), (Some(100), Some(64..=127)))
 }
 
+/// An address on the mobile network. No computer on a home network or a tailnet reaches it.
+pub fn is_mobile_data(addr: &NetAddr) -> bool {
+    addr.iface.starts_with("rmnet") || addr.iface.starts_with("ccmni")
+}
+
 pub fn iface_label(addr: &NetAddr) -> String {
     let iface = &addr.iface;
     let kind = if iface.starts_with("wlan") {
@@ -82,7 +87,7 @@ pub fn iface_label(addr: &NetAddr) -> String {
         } else {
             "VPN"
         }
-    } else if iface.starts_with("rmnet") || iface.starts_with("ccmni") {
+    } else if is_mobile_data(addr) {
         "mobile data"
     } else {
         return iface.clone();

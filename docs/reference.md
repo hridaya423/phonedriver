@@ -86,7 +86,7 @@ export PHONEDRIVER_TEAM=<your team ID>   # Xcode > Settings > Accounts, or: secu
 phonedriver --device ios:<udid> snapshot
 ```
 
-Without a team, the command stops with exit code 3 and says so. With a booted Simulator and an iPhone that has no team, the Simulator is the default device. The daemon reads `PHONEDRIVER_TEAM` when it starts, so run `phonedriver daemon stop` after setting it.
+Without a team, the command stops with exit code 3 and says so. If the device has never been used with that team, the command stops with exit code 3 and asks for `phonedriver ios register`, which lets Xcode add the device to the team's Apple developer account (an account holds 100 iPhones a year). With a booted Simulator and an iPhone that has no team, the Simulator is the default device. The daemon reads `PHONEDRIVER_TEAM` when it starts, so run `phonedriver daemon stop` after setting it.
 
 #### iPhone without the cable
 
@@ -98,7 +98,7 @@ phonedriver ios wifi on
 
 Unplug it. While the device and the Mac are on the same Wi-Fi network, `phonedriver devices` still lists it and every verb works. `phonedriver doctor` says `over Wi-Fi` or `over USB`. The device answers only computers it already trusts. `phonedriver ios wifi off` stops it.
 
-Tested on an iPhone 13 Pro Max (iOS 27.0.1) on one network. It needs iOS 26.4 or later. The experimental CoreDevice tier needs the cable.  See decision D47.
+Tested on an iPhone 13 Pro Max (iOS 27.0.1) on one network. The experimental CoreDevice tier needs the cable.  See decision D47.
 
 ## Environment variables
 
@@ -178,7 +178,7 @@ Wireless debugging works only on the Wi-Fi it was switched on for. To use a phon
 phonedriver untether
 ```
 
-It lists the phone's addresses (`wlan0 (Wi-Fi)`, `tun0 (Tailscale)`), runs `adb tcpip 5555`, connects to the first address that answers and prints `connected: android:<ip>:5555`. With more than one device pass `--device android:<serial>`. *Not yet tested on a physical phone.*
+It lists the phone's addresses (`wlan0 (Wi-Fi)`, `tun0 (Tailscale)`), stops if the phone is on mobile data only, runs `adb tcpip 5555`, connects to the first address that answers and prints `connected: android:<ip>:5555`. With more than one device pass `--device android:<serial>`. *Not yet tested on a physical phone.*
 
 This is opt-in on purpose. adb then listens on port 5555 on every network the phone joins, until it reboots. A new computer still has to be allowed on the phone's screen, but do this only on networks you trust, or with Tailscale on both ends and the phone's other networks untrusted. `adb -s <ip>:5555 usb` or a reboot turns it off. See decision D30.
 

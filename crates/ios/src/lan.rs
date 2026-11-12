@@ -57,16 +57,28 @@ pub fn forget(home: &Path, udid: &str) -> Result<(), Error> {
     write(home, &udids)
 }
 
-/// What a device announces: an identifier, tags that only a computer it trusts can recompute, and its addresses.
+/// What a device announces. From iOS 26.4: an identifier and tags that only a computer it trusts can recompute.
+/// Before that: no tags, and its Wi-Fi hardware address at the start of the service name.
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct Advert {
+    mac: String,
     identifier: Vec<u8>,
     tags: Vec<Vec<u8>>,
     addrs: Vec<(IpAddr, Option<u32>)>,
 }
 
 fn advert(service: &ResolvedService) -> Option<Advert> {
-    let identifier = service.get_property_val("identifier")??.to_vec();
+    let mac = service
+        .fullname
+        .split('@')
+        .next()
+        .unwrap_or_default()
+        .to_string();
+    let identifier = service
+        .get_property_val("identifier")
+        .flatten()
+        .unwrap_or_default()
+        .to_vec();
     let tags = service
         .txt_properties
         .iter()
@@ -82,15 +94,27 @@ fn advert(service: &ResolvedService) -> Option<Advert> {
         })
         .collect();
     Some(Advert {
+        mac,
         identifier,
         tags,
         addrs,
     })
 }
 
-fn is_from(advert: &Advert, host_id: &str) -> bool {
+/// What the cable pairing left on this computer that tells its device apart on the network.
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct Known {
+    udid: String,
+    host_id: String,
+    mac: String,
+}
+
+fn is_from(advert: &Advert, known: &Known) -> bool {
+    if advert.tags.is_empty() {
+        return !known.mac.is_empty() && advert.mac.eq_ignore_ascii_case(&known.mac);
+    }
     let tags: Vec<&[u8]> = advert.tags.iter().map(Vec::as_slice).collect();
-    idevice::mdns::txt_record_matches(host_id.as_bytes(), &advert.identifier, &tags)
+    idevice::mdns::txt_record_matches(known.host_id.as_bytes(), &advert.identifier, &tags)
 }
 
 /// IPv4 first: it needs no interface to be named.
@@ -103,13 +127,13 @@ fn address(advert: &Advert) -> Option<(IpAddr, Option<u32>)> {
         .copied()
 }
 
-fn find(adverts: &[Advert], udid: &str, host_id: &str) -> Option<Attached> {
+fn find(adverts: &[Advert], known: &Known) -> Option<Attached> {
     let (addr, scope) = adverts
         .iter()
-        .filter(|a| is_from(a, host_id))
+        .filter(|a| is_from(a, known))
         .find_map(address)?;
     Some(Attached {
-        udid: udid.to_string(),
+        udid: known.udid.clone(),
         link: Link::Network { addr, scope },
     })
 }
@@ -159,30 +183,31 @@ impl Lan {
         &self.udids
     }
 
-    fn now(&self, host_ids: &[(String, String)]) -> Vec<Attached> {
+    fn now(&self, known: &[Known]) -> Vec<Attached> {
         let adverts: Vec<Advert> = self
             .seen
             .lock()
             .map(|s| s.values().cloned().collect())
             .unwrap_or_default();
-        host_ids
-            .iter()
-            .filter_map(|(udid, host_id)| find(&adverts, udid, host_id))
-            .collect()
+        known.iter().filter_map(|k| find(&adverts, k)).collect()
     }
 
     /// The remembered devices that answer on the network now. A browse younger than 2 s waits for its first
     /// answers, so a one-shot command sees a device that is there.
     pub async fn attached(&self) -> Vec<Attached> {
-        let mut host_ids = Vec::new();
+        let mut known = Vec::new();
         for udid in &self.udids {
             if let Ok(pairing) = transport::pair_record(udid).await {
-                host_ids.push((udid.clone(), pairing.host_id));
+                known.push(Known {
+                    udid: udid.clone(),
+                    host_id: pairing.host_id,
+                    mac: pairing.wifi_mac_address,
+                });
             }
         }
         loop {
-            let found = self.now(&host_ids);
-            if found.len() == host_ids.len() || self.started.elapsed() >= FIRST_ANSWERS {
+            let found = self.now(&known);
+            if found.len() == known.len() || self.started.elapsed() >= FIRST_ANSWERS {
                 return found;
             }
             tokio::time::sleep(POLL).await;
@@ -208,6 +233,7 @@ mod tests {
     fn advert_for(host_id: &str, identifier: &str, addrs: &[(&str, Option<u32>)]) -> Advert {
         let tag = idevice::mdns::derive_auth_tag(host_id.as_bytes(), identifier.as_bytes());
         Advert {
+            mac: "aa:bb:cc:dd:ee:ff".into(),
             identifier: identifier.as_bytes().to_vec(),
             tags: vec![
                 STANDARD.encode([0u8; 8]).into_bytes(),
@@ -220,6 +246,26 @@ mod tests {
         }
     }
 
+    fn known(host_id: &str, mac: &str) -> Known {
+        Known {
+            udid: "UDID".into(),
+            host_id: host_id.into(),
+            mac: mac.into(),
+        }
+    }
+
+    #[test]
+    fn an_older_ios_with_no_tags_is_found_by_its_wifi_address_and_never_a_tagged_one() {
+        let mut old = advert_for(HOST, "", &[("192.168.0.50", None)]);
+        old.tags.clear();
+        old.mac = "A6:F0:1F:00:00:01".into();
+        assert!(find(&[old.clone()], &known("x", "a6:f0:1f:00:00:01")).is_some());
+        assert!(find(&[old.clone()], &known("x", "a6:f0:1f:00:00:02")).is_none());
+        assert!(find(&[old], &known("x", "")).is_none());
+        let tagged = advert_for("someone-else", "ID", &[("192.168.0.9", None)]);
+        assert!(find(&[tagged], &known(HOST, "aa:bb:cc:dd:ee:ff")).is_none());
+    }
+
     #[test]
     fn a_device_is_found_by_the_tag_only_its_trusted_computer_can_compute() {
         let adverts = [
@@ -227,7 +273,7 @@ mod tests {
             advert_for(HOST, "ID-2", &[("192.168.0.136", None)]),
         ];
         assert_eq!(
-            find(&adverts, "UDID", HOST),
+            find(&adverts, &known(HOST, "")),
             Some(Attached {
                 udid: "UDID".into(),
                 link: Link::Network {
@@ -236,7 +282,7 @@ mod tests {
                 },
             })
         );
-        assert_eq!(find(&adverts[..1], "UDID", HOST), None);
+        assert_eq!(find(&adverts[..1], &known(HOST, "")), None);
     }
 
     #[test]

@@ -227,7 +227,7 @@ pub enum Error {
 }
 ```
 
-`UserAction` is closed: `UnlockDevice`, `AcceptUsbDebugging`, `EnableUsbDebugging`, `AllowXiaomiInjection`, `TrustComputer`, `EnableDeveloperMode`, `MountDeveloperImage`, `ResignRunner`, `SetSigningTeam`, `ApproveSystemPrompt { text }` (a biometric or OS prompt only a person may answer). Each has one message that tells the user exactly what to do on which device.
+`UserAction` is closed: `UnlockDevice`, `AcceptUsbDebugging`, `EnableUsbDebugging`, `AllowXiaomiInjection`, `TrustComputer`, `EnableDeveloperMode`, `MountDeveloperImage`, `ResignRunner`, `SetSigningTeam`, `RegisterDevice`, `ApproveSystemPrompt { text }` (a biometric or OS prompt only a person may answer). Each has one message that tells the user exactly what to do on which device.
 
 Every variant serializes as `{ code, message, hint }`. `hint` names the next command to run.
 

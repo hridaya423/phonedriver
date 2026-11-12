@@ -6,7 +6,8 @@ use std::time::Duration;
 
 use phonedriver_android::adb::{Adb, AdbDevice, DeviceState};
 use phonedriver_android::wireless::{
-    MdnsService, ServiceKind, iface_label, parse_ip_addrs, parse_mdns_services, qr_payload,
+    MdnsService, NetAddr, ServiceKind, iface_label, is_mobile_data, parse_ip_addrs,
+    parse_mdns_services, qr_payload,
 };
 use qrcode::QrCode;
 use qrcode::render::unicode::Dense1x2;
@@ -187,6 +188,17 @@ pub fn pair() -> ExitCode {
     }
 }
 
+/// The addresses worth trying. A phone on mobile data only is stopped before adb is switched to TCP: on a HONOR X8
+/// with Wi-Fi off, both of its addresses were mobile data and each cost an 8 s connect that could not succeed
+/// (observed 2026-11-12).
+fn reachable(addrs: &[NetAddr]) -> Result<Vec<&NetAddr>, String> {
+    let reachable: Vec<&NetAddr> = addrs.iter().filter(|a| !is_mobile_data(a)).collect();
+    if reachable.is_empty() {
+        return Err("the phone is on mobile data only, and this computer cannot reach it there. Turn on Wi-Fi or Tailscale on the phone, then run this again. Nothing was changed on the phone".into());
+    }
+    Ok(reachable)
+}
+
 async fn untether_flow(adb: &Adb, device: Option<&str>) -> Result<String, String> {
     let devices = adb.devices().await.map_err(|e| e.to_string())?;
     let serial = pick_device(&devices, device)?;
@@ -202,11 +214,12 @@ async fn untether_flow(adb: &Adb, device: Option<&str>) -> Result<String, String
     for a in &addrs {
         println!("  {}  {}", a.ip, iface_label(a));
     }
+    let reachable = reachable(&addrs)?;
     adb.tcpip(&serial, TCPIP_PORT)
         .await
         .map_err(|e| e.to_string())?;
     let mut answers = Vec::new();
-    for a in &addrs {
+    for a in reachable {
         let target = format!("{}:{TCPIP_PORT}", a.ip);
         println!("trying {target}");
         let answer = match tokio::time::timeout(CONNECT_ATTEMPT, adb.connect_device(&target)).await
@@ -355,6 +368,24 @@ mod tests {
             text.lines()
                 .all(|l| l.starts_with("\x1b[30;47m") && l.ends_with("\x1b[0m"))
         );
+    }
+
+    #[test]
+    fn a_phone_on_mobile_data_only_is_stopped_and_mobile_addresses_are_not_tried() {
+        let addr = |iface: &str, ip: &str| NetAddr {
+            iface: iface.into(),
+            ip: ip.into(),
+        };
+        let mobile = [
+            addr("rmnet_data2", "10.202.58.11"),
+            addr("rmnet_data3", "10.155.228.231"),
+        ];
+        assert!(reachable(&mobile).unwrap_err().contains("mobile data only"));
+        let mixed = [
+            addr("rmnet_data2", "10.202.58.11"),
+            addr("wlan0", "192.168.1.20"),
+        ];
+        assert_eq!(reachable(&mixed).unwrap(), vec![&mixed[1]]);
     }
 
     #[test]

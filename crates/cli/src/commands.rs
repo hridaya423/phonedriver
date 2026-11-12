@@ -478,6 +478,10 @@ pub enum IosCommand {
     /// Check each attached device and do what needs no one at the device: show the Developer Mode switch, mount the
     /// developer disk image with Xcode's tool (the only step that talks to Apple). Prints `ok` for steps already done.
     Setup,
+    /// Add a device to the Apple developer account of `PHONEDRIVER_TEAM` and build the runner for it.
+    ///
+    /// Needed once for a device that team has never signed for; the error that asks for it says so. Xcode does the registration. An account holds 100 iPhones a year. With more than one device pass `--device ios:<udid>`.
+    Register,
     /// Let a device answer this computer over Wi-Fi, so the cable can come off (`on`), or stop that (`off`).
     ///
     /// `on` needs the device on the cable once. It sets the switch Finder shows as "Show this iPhone when on Wi-Fi". The device then answers only computers it already trusts, on the networks it joins. With more than one device pass `--device ios:<udid>`.
@@ -523,6 +527,15 @@ pub fn run(cli: Cli) -> ExitCode {
             command: IosCommand::Setup,
         } => {
             if crate::doctor::ios_setup(&socket::home()) {
+                ExitCode::SUCCESS
+            } else {
+                ExitCode::from(1)
+            }
+        }
+        Verb::Ios {
+            command: IosCommand::Register,
+        } => {
+            if crate::ios_wifi::register(&socket::home(), cli.device.as_deref()) {
                 ExitCode::SUCCESS
             } else {
                 ExitCode::from(1)

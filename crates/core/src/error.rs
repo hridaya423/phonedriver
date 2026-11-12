@@ -224,6 +224,7 @@ pub enum UserAction {
     MountDeveloperImage,
     ResignRunner,
     SetSigningTeam,
+    RegisterDevice,
     ApproveSystemPrompt { text: String },
 }
 
@@ -253,6 +254,10 @@ impl UserAction {
                 "Running on an iPhone or iPad needs an Apple developer team to sign the runner, and PHONEDRIVER_TEAM is not set."
                     .into()
             }
+            UserAction::RegisterDevice => {
+                "This iPhone or iPad is not registered with the Apple developer team that signs the runner, so the runner cannot be installed on it."
+                    .into()
+            }
             UserAction::ApproveSystemPrompt { text } => {
                 format!("The device shows a prompt only a person may answer: \"{text}\".")
             }
@@ -279,6 +284,9 @@ impl UserAction {
             }
             UserAction::SetSigningTeam => {
                 "Set PHONEDRIVER_TEAM to your team ID: ten letters and digits, shown in Xcode > Settings > Accounts, or in parentheses after your name in `security find-identity -v -p codesigning`. Export it in the shell that starts the daemon and run `phonedriver daemon stop` if one is already running. `phonedriver ios setup` checks pairing and Developer Mode first."
+            }
+            UserAction::RegisterDevice => {
+                "Run `phonedriver ios register` with the device connected and unlocked. It adds the device to your Apple developer account, then retry the command."
             }
             UserAction::ApproveSystemPrompt { .. } => {
                 "Answer the prompt on the device, then retry."
@@ -721,6 +729,7 @@ mod tests {
             UserAction::MountDeveloperImage,
             UserAction::ResignRunner,
             UserAction::SetSigningTeam,
+            UserAction::RegisterDevice,
             UserAction::ApproveSystemPrompt {
                 text: "Use Face ID?".into(),
             },

@@ -604,5 +604,17 @@ Not changed, on the user's word that the hero is finished: the critic's first tw
 
 **Rejected.** Listing through usbmuxd (the first attempt, unreliable as above). idevice's `remote_pairing` (a second pairing with its own approval on the device, and its own record to keep safe; it would bring the CoreDevice tunnel, which the default tier does not need). Remembering an address or a `.local` name (both change).
 
-**Limits.** Tested on one iPhone, iOS 27.0.1, one Wi-Fi network, with a Mac. The `authTag` match needs iOS 26.4 or later; an older iOS announces its Wi-Fi address in the service name and is not matched. The CoreDevice tier (`PHONEDRIVER_IOS_TIER=coredevice`) needs the cable. Browsing sends multicast DNS on the local network; it starts only when `ios-wifi` names a device, so a machine that never ran `ios wifi on` sends none and D25's test is unchanged.
+**Limits.** Tested on one iPhone, iOS 27.0.1, one Wi-Fi network, with a Mac. An iOS before 26.4 announces no `authTag`; it is matched by the Wi-Fi hardware address at the start of its service name against `WiFiMACAddress` in the pair record. That match has unit tests and was not run on a device. The CoreDevice tier (`PHONEDRIVER_IOS_TIER=coredevice`) needs the cable. Browsing sends multicast DNS on the local network; it starts only when `ios-wifi` names a device, so a machine that never ran `ios wifi on` sends none and D25's test is unchanged.
+
+## D48. A touch that starts under a notification banner waits for the banner to leave
+
+**Choice.** Before the iOS runner synthesizes a gesture, it looks at each pointer's first point. If the point is in the top 200 pt of the screen, the runner asks SpringBoard for the element with the identifier `NotificationShortLookView`. While that element's frame holds the point, the runner waits, up to 8 s. After 8 s it fails with "a notification banner covers this point and did not leave in 8 s; nothing was touched".
+
+**Why.** A banner belongs to SpringBoard, so the snapshot of the app does not hold it, and the agent cannot know it is there. On an iPhone 13 Pro Max a tap on a text field at (188, 104) opened Health from a banner (2026-11-12). On the iPhone 17 simulator (iOS 26.5), with a banner pushed by `xcrun simctl push booted com.apple.MobileSMS`, `tap "Plain"` at (201, 123) opened Messages before this change. After it, the same tap took 7.2 s, the field got focus, and the app in front stayed the testbed.
+
+**Cost.** The look at SpringBoard took 40 ms in the runner's log (`Checking existence` at t = 49.74 s, the next step at 49.78 s). Only a touch that starts in the top 200 pt pays it; the banner on that simulator spans y = 59 to 125.
+
+**Rejected.** Adding the banner to every snapshot (every snapshot would pay for the look, and the agent has nothing to do about a banner except wait). Telling people to turn on Do Not Disturb (it is still good advice, and the site says so, but an agent's user will not have read it).
+
+**Limits.** Tested on the simulator only. The identifier match is by name with the element type left open, because the type is `BannerNotification` on iOS 26.5 and was `Other` before. A banner that slides in after the look and before the touch, a few milliseconds, is not caught. The 8 s failure was not triggered in a test. Android heads-up notifications are not handled.
 

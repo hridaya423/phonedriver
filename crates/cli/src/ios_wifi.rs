@@ -1,4 +1,4 @@
-//! `phonedriver ios wifi`: lets a physical iOS device answer this computer over Wi-Fi, so the cable can come off.
+//! `phonedriver ios wifi` and `phonedriver ios register`: one-time steps for a physical iOS device.
 
 use std::path::Path;
 
@@ -82,7 +82,36 @@ async fn flow(home: &Path, on: bool, wanted: Option<&str>) -> Result<String, Str
     Ok(done(device, on))
 }
 
+async fn register_flow(home: &Path, wanted: Option<&str>) -> Result<String, String> {
+    let team = std::env::var("PHONEDRIVER_TEAM").map_err(|_| {
+        let e = phonedriver_core::error::UserAction::SetSigningTeam;
+        format!("{} {}", e.message(), e.hint())
+    })?;
+    let attached = attached(home).await?;
+    let device = pick(&attached, wanted)?;
+    println!(
+        "registering {} with team {team}: Xcode adds the device to that Apple developer account and builds the runner for it",
+        name(device)
+    );
+    phonedriver_ios::runner::register(home, &team, &device.udid)
+        .await
+        .map_err(|e| format!("{e}. {}", e.hint()))?;
+    Ok(format!(
+        "{} is registered. Retry the command that asked for this.",
+        name(device)
+    ))
+}
+
+/// `phonedriver ios register`.
+pub fn register(home: &Path, wanted: Option<&str>) -> bool {
+    report(|rt| rt.block_on(register_flow(home, wanted)))
+}
+
 pub fn run(home: &Path, on: bool, wanted: Option<&str>) -> bool {
+    report(|rt| rt.block_on(flow(home, on, wanted)))
+}
+
+fn report(run: impl FnOnce(&tokio::runtime::Runtime) -> Result<String, String>) -> bool {
     let Ok(rt) = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
@@ -90,7 +119,7 @@ pub fn run(home: &Path, on: bool, wanted: Option<&str>) -> bool {
         eprintln!("error: cannot start the async runtime");
         return false;
     };
-    match rt.block_on(flow(home, on, wanted)) {
+    match run(&rt) {
         Ok(message) => {
             println!("{message}");
             true

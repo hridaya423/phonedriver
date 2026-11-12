@@ -31,6 +31,38 @@ static CGPoint PUPortraitPoint(CGPoint p)
     }
 }
 
+// A notification banner is SpringBoard's, so the app's snapshot does not hold it, and it lies over the top of the
+// app for about 5 s. A touch that starts under it opens the notification (observed 2026-11-12 on an iPhone 13 Pro
+// Max: a tap on a text field at (188, 104) opened Health). Only a touch that starts in the top of the screen pays
+// for the look at SpringBoard.
+static const CGFloat PUBannerZone = 200;
+static const NSTimeInterval PUBannerWait = 8;
+
+static BOOL PUBannerCovers(CGPoint p)
+{
+    static XCUIApplication *springboard;
+    if (!springboard) springboard = [[XCUIApplication alloc] initWithBundleIdentifier:@"com.apple.springboard"];
+    // The banner's element type is BannerNotification on iOS 26.5, so the type is left open.
+    XCUIElement *banner = [[springboard descendantsMatchingType:XCUIElementTypeAny] matchingIdentifier:@"NotificationShortLookView"].firstMatch;
+    return banner.exists && CGRectContainsPoint(banner.frame, p);
+}
+
+static BOOL PUClearOfBanner(NSArray *pointers, NSError **error)
+{
+    for (id pointer in pointers) {
+        NSArray *points = [pointer isKindOfClass:NSDictionary.class] ? pointer[@"path"] : nil;
+        NSDictionary *first = [points isKindOfClass:NSArray.class] ? points.firstObject : nil;
+        NSNumber *x = [first isKindOfClass:NSDictionary.class] ? first[@"x"] : nil, *y = [first isKindOfClass:NSDictionary.class] ? first[@"y"] : nil;
+        if (![x isKindOfClass:NSNumber.class] || ![y isKindOfClass:NSNumber.class] || y.doubleValue > PUBannerZone) continue;
+        CGPoint p = CGPointMake(x.doubleValue, y.doubleValue);
+        if (!PUSpinUntil(^BOOL { return !PUBannerCovers(p); }, PUBannerWait)) {
+            if (error) *error = PUError(PURunnerErrorFailed, @"a notification banner covers this point and did not leave in 8 s; nothing was touched");
+            return NO;
+        }
+    }
+    return YES;
+}
+
 static XCPointerEventPath *PUPath(id pointer, double *end, NSError **error)
 {
     NSArray *points = [pointer isKindOfClass:NSDictionary.class] ? pointer[@"path"] : nil;
@@ -67,6 +99,7 @@ BOOL PUGesture(NSArray *pointers, NSError **error)
         if (error) *error = PUError(PURunnerErrorBadRequest, @"pointers must hold 1 to 5 paths");
         return NO;
     }
+    if (!PUClearOfBanner(pointers, error)) return NO;
     XCSynthesizedEventRecord *record = [[XCSynthesizedEventRecord alloc] initWithName:@"phonedriver gesture"
                                                                  interfaceOrientation:UIInterfaceOrientationPortrait];
     double end = 0;
