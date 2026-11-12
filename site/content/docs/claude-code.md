@@ -26,6 +26,17 @@ claude mcp add --env PHONEDRIVER_DEVICE=android:emulator-5554 phonedriver -- npx
 
 `phonedriver devices` lists the ids. `PHONEDRIVER_DEVICE` is optional when one device is connected.
 
+## Or install the plugin
+
+The plugin adds the same server and the phonedriver skill, so Claude Code has the full instructions without you pasting them. Remove a server you added with `claude mcp add` first (`claude mcp remove phonedriver`), or the tools are listed twice.
+
+```sh
+claude plugin marketplace add hridaya423/phonedriver
+claude plugin install phonedriver@phonedriver
+```
+
+Inside a session the same two steps are `/plugin marketplace add hridaya423/phonedriver` and `/plugin install phonedriver@phonedriver`. The tools are then named `mcp__plugin_phonedriver_phonedriver__tap` and so on, and the skill is `phonedriver:phonedriver`. To choose a device, set `PHONEDRIVER_DEVICE` in the environment you start Claude Code from.
+
 ## Ask it
 
 Boot a device, then ask Claude Code in plain language:

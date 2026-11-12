@@ -564,3 +564,14 @@ Not changed, on the user's word that the hero is finished: the critic's first tw
 
 **Reopen if.** A recorded real-phone capture exists for the read, or the page gains a stop: every stop needs a spoken line, a landing target and one animation.
 
+## D45. The plugin is one folder in Claude Code's format, and Codex installs the same folder
+
+**Choice.** `packaging/plugin/` holds a manifest (`.claude-plugin/plugin.json`), an MCP file (`.mcp.json`) that starts `npx -y phonedriver mcp`, a copy of `SKILL.md` at `skills/phonedriver/SKILL.md` and an icon. `.claude-plugin/marketplace.json` at the repository root lists it, so the repository is its own marketplace: `claude plugin marketplace add hridaya423/phonedriver`, then `claude plugin install phonedriver@phonedriver`. Codex 0.167.0 reads the same two files: `codex plugin marketplace add`, then `codex plugin add phonedriver@phonedriver`. `mcp add` stays the first line of the README; the plugin is the install that also brings the skill.
+
+**Why.** With `mcp add` an agent gets the tools and the server's short instructions, and the skill only if someone pastes it. A plugin installs both. The plugin starts the npm launcher (D29), so it adds no second way to get the binary and makes no new connection (D9).
+
+**Kept in step by a test.** `packaging/test/plugin.test.js` fails when the bundled skill differs from `SKILL.md` by a byte, when the manifest's version is not the one in `Cargo.toml`, when the MCP file starts anything but the launcher, or when a file that is not part of the plugin lands in its folder (the whole folder is copied to each user's machine). CI runs it. The skill is a copy because a plugin is installed by copying its folder, and a link out of the folder would not survive that.
+
+**Rejected.** A root `plugin.json` and `mcp.json` in the Agent Plugins format and a Codex marketplace file at `.agents/plugins/marketplace.json`: Codex installed the plugin, its MCP server and its skill without any of them, so they would be three files nothing here has been seen to read. A `.cursor-plugin/` manifest: no Cursor session was run, and the Cursor button in the README already adds the server. A separate marketplace repository: one more place to keep in step for one plugin.
+
+**Reopen if.** Someone runs a Cursor session and can watch its plugin load (then add the manifest Cursor needs), or a directory that lists plugins needs a file this folder does not have.

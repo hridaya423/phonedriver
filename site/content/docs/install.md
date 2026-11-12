@@ -27,6 +27,20 @@ npx -y phonedriver --version
 claude mcp add phonedriver -- npx -y phonedriver mcp
 ```
 
+## As a plugin
+
+In Claude Code and Codex, the plugin adds the MCP server and the skill in one step. It starts the same `npx -y phonedriver mcp`. Use the plugin or `mcp add`, not both, or the tools are listed twice.
+
+```sh
+# Claude Code
+claude plugin marketplace add hridaya423/phonedriver
+claude plugin install phonedriver@phonedriver
+
+# Codex
+codex plugin marketplace add hridaya423/phonedriver
+codex plugin add phonedriver@phonedriver
+```
+
 ## Permanent install
 
 These put `phonedriver` on your `PATH`.

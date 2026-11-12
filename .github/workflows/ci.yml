@@ -20,3 +20,4 @@ jobs:
           echo "PHONEDRIVER_AGENT_JAR=$GITHUB_WORKSPACE/android-agent/build/phonedriver-agent.jar" >> "$GITHUB_ENV"
       - run: cargo clippy --all-targets -- -D warnings
       - run: cargo test --workspace --no-fail-fast
+      - run: node --test packaging/test/plugin.test.js

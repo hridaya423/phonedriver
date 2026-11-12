@@ -487,7 +487,7 @@ The approval guard in the MCP server (decision D27): `tap` and `type` call `guar
 
 ### 10.3 Skill
 
-`SKILL.md` at the repo root, printed by `phonedriver skill`: the loop (snapshot, act on refs, read the diff), when to use pixels, how to handle `NeedsUser`, and the rule that the agent never enters passwords or payment details without the user's explicit instruction.
+`SKILL.md` at the repo root, printed by `phonedriver skill`: the loop (snapshot, act on refs, read the diff), when to use pixels, how to handle `NeedsUser`, and the rule that the agent never enters passwords or payment details without the user's explicit instruction. The Claude Code and Codex plugin (`packaging/plugin/`, D45) carries a byte-identical copy next to the MCP entry, so installing the plugin installs the skill.
 
 ## 11. Development environment
 
