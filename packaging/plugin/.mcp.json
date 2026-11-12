@@ -4,7 +4,7 @@
       "command": "npx",
       "args": [
         "-y",
-        "phonedriver",
+        "phonedriver@0.1.2",
         "mcp"
       ]
     }

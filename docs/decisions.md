@@ -586,3 +586,5 @@ Not changed, on the user's word that the hero is finished: the critic's first tw
 
 **Not proven.** No Cursor session has loaded the plugin: the Cursor command-line tool on the MacBook does not start, and GUIs are not driven there. Cursor's own template validator passes. The README does not name Cursor as a plugin host until someone has watched it load.
 
+**The launcher is pinned (added the same day).** Anthropic's plugin directory refused the plugin with "Can't confirm which code runs": the MCP file must pin every package `npx` fetches to an exact version. `.mcp.json` and `mcp.json` now start `npx -y phonedriver@<release> mcp`, and the test fails when that version is not the one in `Cargo.toml`. So a plugin user stays on the version the plugin was released with until the plugin updates. The directory also noted that the skill's `description` could be misread as YAML because it holds a colon; it is in double quotes now.
+

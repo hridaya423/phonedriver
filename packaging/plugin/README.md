@@ -22,7 +22,7 @@ If you already added the server with `mcp add`, remove it first. If you keep bot
 
 ## What it needs
 
-- Node.js 18 or later. The plugin starts the server with `npx -y phonedriver mcp`, which downloads the phonedriver binary for your system from GitHub Releases on its first run.
+- Node.js 18 or later. The plugin starts the server with `npx -y phonedriver@<version> mcp`, at the version the plugin was released with. That downloads the phonedriver binary for your system from GitHub Releases on its first run.
 - A device: an Android emulator, an Android phone with USB debugging on, or the iOS Simulator. iOS needs a Mac with Xcode.
 
 ## Use

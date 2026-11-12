@@ -10,7 +10,7 @@ const plugin = path.join(repo, "packaging", "plugin");
 const read = (...p) => fs.readFileSync(path.join(...p), "utf8");
 const json = (...p) => JSON.parse(read(...p));
 const release = /^version = "([^"]+)"/m.exec(read(repo, "Cargo.toml"))[1];
-const launch = { command: "npx", args: ["-y", "phonedriver", "mcp"] };
+const launch = { command: "npx", args: ["-y", `phonedriver@${release}`, "mcp"] };
 
 test("the bundled skill is the repository's SKILL.md, byte for byte", () => {
   assert.strictEqual(read(plugin, "skills", "phonedriver", "SKILL.md"), read(repo, "SKILL.md"));
@@ -48,7 +48,7 @@ test("the icon the Codex and Cursor manifests name is the plugin's icon", () => 
   assert.strictEqual(json(plugin, ".cursor-plugin", "plugin.json").logo, "assets/icon.png");
 });
 
-test("the MCP file starts the published launcher", () => {
+test("the MCP file starts the published launcher at the release version", () => {
   const s = json(plugin, ".mcp.json").mcpServers.phonedriver;
   assert.strictEqual(s.command, launch.command);
   assert.deepStrictEqual(s.args, launch.args);
