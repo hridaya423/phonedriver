@@ -196,7 +196,7 @@ Each decision records the choice, the alternatives it beat, and the evidence tha
 
 ## D18. A device that cannot be driven yet is not the default; a missing signing team is a user action
 
-**Choice.** With several devices connected and none named, the daemon picks the one device that has no blocker. Only the physical iOS source reports a blocker: a Runner-tier iPhone or iPad while `PHONEDRIVER_TEAM` is unset. So a paired iPhone with no team no longer makes a booted Simulator "ambiguous", and a Simulator is chosen over it. With one device connected it is still the default, because the error that follows (`NeedsUser(SetSigningTeam)`, exit 3) is the useful answer. With two ready devices, or none ready, the answer stays `AmbiguousDevice`.
+**Choice.** With several devices connected and none named, the daemon picks the one device that has no blocker. Only the physical iOS source reports a blocker: a Runner-tier iPhone or iPad while no signing team is found (`PHONEDRIVER_TEAM` unset and, since D49, no single team among this Mac's certificates). So a paired iPhone with no team no longer makes a booted Simulator "ambiguous", and a Simulator is chosen over it. With one device connected it is still the default, because the error that follows (`NeedsUser(SetSigningTeam)`, exit 3) is the useful answer. With two ready devices, or none ready, the answer stays `AmbiguousDevice`.
 
 **Why.** The audit (dx-ux finding 3) showed a newcomer with one paired iPhone and a README written for the Simulator getting a failure about a signing team. Choosing the device that works costs nothing when the user has said nothing; naming a device is still how to pick the iPhone. The missing team was a `Transport` error ("connection error", hint `doctor`) and quoted a team id that looked real; it is now `NeedsUser(SetSigningTeam)` with no example id, where to find the id, and the `ios setup` and `daemon stop` steps.
 
@@ -620,3 +620,10 @@ Not changed, on the user's word that the hero is finished: the critic's first tw
 
 **Limits.** Tested on the simulator only. The identifier match is by name with the element type left open, because the type is `BannerNotification` on iOS 26.5 and was `Other` before. A banner that slides in after the look and before the touch, a few milliseconds, is not caught. The 8 s failure was not triggered in a test. Android heads-up notifications are not handled.
 
+## D49. The signing team comes from this Mac's Apple Development certificate
+
+**Choice.** `phonedriver_ios::team::signing_team` returns `PHONEDRIVER_TEAM` when it is set. Otherwise it lists the valid identities with `security find-identity -v -p codesigning`, keeps those named "Apple Development", reads each one's certificate with `security find-certificate -a -c "Apple Development" -Z -p` and `/usr/bin/openssl x509 -subject`, and takes the organizational unit of the subject as the team. One team is used. No team is `NeedsUser(SetSigningTeam)`. Several teams are `NeedsUser(ChooseSigningTeam)`, which lists them. The daemon keeps a team it found and looks again after a failure, so a certificate made later needs no restart.
+
+**Why.** The variable was the one step of the iPhone setup with no command to run, and the hint for it was wrong. On this Mac (2026-11-12) `security find-identity` prints `Apple Development: <name> (HSLSDPZZDT)`. That ID belongs to the developer. The team is `DV6NC6KRYL`, the organizational unit of the same certificate, and a build signed with the first ID fails. Xcode's `IDEProvisioningTeams` default, the other place a team could come from, does not exist on this Mac.
+
+**Limits.** Only "Apple Development" identities count: a "Developer ID Application" or "Apple Distribution" certificate cannot sign a test runner for a device. The several-teams case is unit-tested only.

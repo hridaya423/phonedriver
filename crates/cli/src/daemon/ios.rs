@@ -1,12 +1,12 @@
 //! Booted iOS simulators, driven through the PhonedriverRunner (Simulator tier).
 
 use std::path::PathBuf;
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 use std::time::Duration;
 
 use async_trait::async_trait;
 use phonedriver_core::device::Device;
-use phonedriver_core::error::{Error, UserAction};
+use phonedriver_core::error::Error;
 use phonedriver_ios::coredevice::CoreDevice;
 use phonedriver_ios::device::IosDevice;
 use phonedriver_ios::lan::Lan;
@@ -101,12 +101,13 @@ fn tier_of(found: discovery::Tier) -> discovery::Tier {
 }
 
 /// Physical devices usbmuxd lists (ids `ios:<udid>`), driven through the PhonedriverRunner signed with the Apple developer
-/// team in `PHONEDRIVER_TEAM`.
+/// team `phonedriver_ios::team::signing_team` finds.
 pub struct PhysicalSource {
     home: PathBuf,
     described: Mutex<Vec<discovery::Found>>,
     attached: Mutex<Option<Listing>>,
     browse: Mutex<Browse>,
+    team: OnceLock<String>,
 }
 
 #[derive(Default)]
@@ -136,7 +137,17 @@ impl PhysicalSource {
             described: Mutex::new(Vec::new()),
             attached: Mutex::new(None),
             browse: Mutex::new(Browse::default()),
+            team: OnceLock::new(),
         }
+    }
+
+    /// A team once found is kept. A failure is not, so a certificate made later is seen without a restart.
+    fn team(&self) -> Result<String, Error> {
+        if let Some(team) = self.team.get() {
+            return Ok(team.clone());
+        }
+        let team = phonedriver_ios::team::signing_team()?;
+        Ok(self.team.get_or_init(|| team).clone())
     }
 
     async fn attached(&self) -> Result<Vec<transport::Attached>, Error> {
@@ -223,8 +234,7 @@ impl DeviceSource for PhysicalSource {
                 .find(|f| f.udid == udid)
                 .is_none_or(|f| tier_of(f.tier) == discovery::Tier::Runner)
         });
-        (runner_tier && std::env::var_os("PHONEDRIVER_TEAM").is_none())
-            .then_some("PHONEDRIVER_TEAM is not set")
+        (runner_tier && self.team().is_err()).then_some("no signing team")
     }
 
     async fn connect(&self, id: &str) -> Result<Arc<dyn Device>, Error> {
@@ -240,9 +250,7 @@ impl DeviceSource for PhysicalSource {
                 CoreDevice::connect(&attached, &found.model).await?,
             ));
         }
-        let team = std::env::var("PHONEDRIVER_TEAM").map_err(|_| Error::NeedsUser {
-            action: UserAction::SetSigningTeam,
-        })?;
+        let team = self.team()?;
         let connecting = IosDevice::connect_physical(&attached, &found.model, &team, &self.home);
         let device =
             after_a_second(|| starting_runner(&found.model, &self.home), connecting).await?;

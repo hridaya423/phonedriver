@@ -81,12 +81,13 @@ phonedriver wait settled
 A physical iOS device needs the runner signed with your Apple developer team (a free Apple ID works and expires every 7 days). Plug the device in, unlock it, then:
 
 ```sh
-phonedriver ios setup                  # pairing, Developer Mode, developer disk image
-export PHONEDRIVER_TEAM=<your team ID>   # Xcode > Settings > Accounts, or: security find-identity -v -p codesigning
+phonedriver ios setup                  # signing team, pairing, Developer Mode, developer disk image
 phonedriver --device ios:<udid> snapshot
 ```
 
-Without a team, the command stops with exit code 3 and says so. If the device has never been used with that team, the command stops with exit code 3 and asks for `phonedriver ios register`, which lets Xcode add the device to the team's Apple developer account (an account holds 100 iPhones a year). With a booted Simulator and an iPhone that has no team, the Simulator is the default device. The daemon reads `PHONEDRIVER_TEAM` when it starts, so run `phonedriver daemon stop` after setting it.
+phonedriver reads the team from this Mac's Apple Development certificate. To make one, sign in under Xcode > Settings > Accounts, choose Manage Certificates and add an Apple Development certificate. With certificates for several teams, set `PHONEDRIVER_TEAM` to the ID of the one to use. The ID is the certificate's organizational unit. It is not the ID in parentheses that `security find-identity` prints after your name.
+
+Without a team, the command stops with exit code 3 and says so. If the device has never been used with that team, the command stops with exit code 3 and asks for `phonedriver ios register`, which lets Xcode add the device to the team's Apple developer account (an account holds 100 iPhones a year). With a booted Simulator and an iPhone that has no team, the Simulator is the default device. If you set `PHONEDRIVER_TEAM`, run `phonedriver daemon stop` afterwards: the daemon reads it when it starts.
 
 #### iPhone without the cable
 
@@ -109,7 +110,7 @@ Tested on an iPhone 13 Pro Max (iOS 27.0.1) on one network. The experimental Cor
 | `PHONEDRIVER_DEVICE` | none | The device to use when `--device` is not given. Also read by `phonedriver mcp`. |
 | `PHONEDRIVER_DISPLAY` | `main` | `hidden` makes the Android agent work on a second screen the person holding the phone cannot see (Android 13 and later; `--display hidden` does the same). Read by the CLI, `phonedriver mcp` and `doctor`. A call in the other mode restarts the agent, which takes a few seconds. Not tried on a physical phone yet, and some makers' builds may refuse it. |
 | `PHONEDRIVER_SESSION` | `default` | The session name, as `--session`. |
-| `PHONEDRIVER_TEAM` | none | Apple developer team ID that signs the iOS runner on a physical device. |
+| `PHONEDRIVER_TEAM` | the team of this Mac's Apple Development certificate | Apple developer team ID that signs the iOS runner on a physical device. Needed only with certificates for several teams. |
 | `PHONEDRIVER_IOS_TIER` | `runner` | `coredevice` selects the CoreDevice tier on iOS 27 devices. Experimental. |
 | `PHONEDRIVER_GUARD` | on | `off` stops phonedriver asking the human before a tap that spends money or cannot be undone (`Place order`, `Pay`, `Delete account`). Set it for `phonedriver mcp` or the CLI only when you grant the agent full autonomy. |
 | `PHONEDRIVER_ASK` | none | A comma list of more kinds of tap to ask the human about, besides payments and account deletion: `send` (Send, Reply, Post, Share), `delete` (Delete, Remove, Erase, Clear all) and `install` (Install, Uninstall). For example `PHONEDRIVER_ASK=send,delete`. Read by `phonedriver mcp` and the CLI; a name that is not one of these stops the command with exit code 2. `PHONEDRIVER_GUARD=off` and `autonomous: true` skip these questions too. |

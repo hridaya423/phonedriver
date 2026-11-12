@@ -513,6 +513,15 @@ pub async fn physical(home: &Path, only: Option<&str>) -> Vec<Check> {
         return Vec::new();
     };
     let mut checks = Vec::new();
+    if attached
+        .iter()
+        .any(|d| wants(only, &format!("ios:{}", d.udid)))
+    {
+        checks.push(match phonedriver_ios::team::signing_team() {
+            Ok(team) => Check::ok("ios signing team", team),
+            Err(e) => Check::bad(Status::Fail, "ios signing team", e.to_string(), e.hint()),
+        });
+    }
     for device in attached {
         let name = format!("ios:{}", device.udid);
         if !wants(only, &name) {
@@ -608,7 +617,7 @@ fn runner_expiry(name: &str, home: &Path) -> Check {
             Status::Warn,
             label,
             "not built for devices yet",
-            "Set PHONEDRIVER_TEAM to your Apple developer team ID (Xcode > Settings > Accounts, or `security find-identity -v -p codesigning`) and run any phonedriver command on the device; the first one builds and signs the runner. `phonedriver ios setup` checks pairing and Developer Mode.",
+            "Run any phonedriver command on the device; the first one builds and signs the runner. `phonedriver ios setup` checks the signing team, pairing and Developer Mode first.",
         );
     };
     let decoded = std::process::Command::new("security")
@@ -644,10 +653,20 @@ pub fn ios_setup(home: &Path) -> bool {
         return false;
     };
     rt.block_on(async {
+        let mut all_ok = match phonedriver_ios::team::signing_team() {
+            Ok(team) => {
+                println!("ok    signing team {team}");
+                true
+            }
+            Err(e) => {
+                println!("need  signing team: {e} {}", e.hint());
+                false
+            }
+        };
         let attached = match crate::ios_wifi::attached(home).await {
             Ok(w) if !w.is_empty() => w,
             Ok(_) => {
-                println!("no iOS device is attached. Plug one in; after `phonedriver ios wifi on` it also shows over Wi-Fi");
+                println!("need  a device: plug in an iPhone or iPad, unlock it and tap Trust, then run this again");
                 return false;
             }
             Err(e) => {
@@ -655,9 +674,10 @@ pub fn ios_setup(home: &Path) -> bool {
                 return false;
             }
         };
-        let mut all_ok = true;
+        let remembered = phonedriver_ios::lan::remembered(home);
         for device in attached {
             let name = device.udid.clone();
+            let cabled = matches!(device.link, phonedriver_ios::transport::Link::Usb { .. });
             let status = match phonedriver_ios::setup::status(&device).await {
                 Ok(s) => {
                     println!("ok    {name} paired");
@@ -694,9 +714,16 @@ pub fn ios_setup(home: &Path) -> bool {
                     Err(e) => {
                         println!("fail  {name} developer disk image: {e:?}");
                         all_ok = false;
+                        continue;
                     }
                 }
             }
+            if status.developer_mode && cabled && !remembered.contains(&name) {
+                println!("tip   {name}: `phonedriver ios wifi on` lets you unplug the cable");
+            }
+        }
+        if all_ok {
+            println!("ready. Run `phonedriver snapshot`; the first command on a device builds and installs the runner, which takes a few minutes once.");
         }
         all_ok
     })

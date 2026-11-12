@@ -13,12 +13,13 @@ I tested an iPhone 14 Plus (iOS 26.1) and an iPad Pro (iOS 27.0) through the CLI
 Plug the device in and unlock it, then:
 
 ```sh
-phonedriver ios setup                    # pairing, Developer Mode, developer disk image
-export PHONEDRIVER_TEAM=<your team ID>   # Xcode > Settings > Accounts, or: security find-identity -v -p codesigning
+phonedriver ios setup                    # signing team, pairing, Developer Mode, developer disk image
 phonedriver --device ios:<udid> snapshot
 ```
 
-Without a team, the command stops with exit code 3 and says so. If the iPhone has never been used with that team, the command asks for `phonedriver ios register`. That lets Xcode add the iPhone to the team's Apple developer account, which holds 100 iPhones a year. The daemon reads `PHONEDRIVER_TEAM` when it starts, so run `phonedriver daemon stop` after setting it.
+`ios setup` prints one line for each step and says what to do for a step that needs you. The runner on the iPhone is signed with your Apple developer team. phonedriver reads the team from this Mac's Apple Development certificate. To make one, sign in under Xcode > Settings > Accounts, choose Manage Certificates and add an Apple Development certificate. With certificates for several teams, set `PHONEDRIVER_TEAM` to the ID of the one to use.
+
+Without a team, the command stops with exit code 3 and says so. If the iPhone has never been used with that team, the command asks for `phonedriver ios register`. That lets Xcode add the iPhone to the team's Apple developer account, which holds 100 iPhones a year. If you set `PHONEDRIVER_TEAM`, run `phonedriver daemon stop` afterwards: the daemon reads it when it starts.
 
 Mounting the developer disk image is the one thing phonedriver does that talks to Apple. Nothing else leaves your machine.
 

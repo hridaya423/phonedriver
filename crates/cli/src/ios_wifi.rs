@@ -83,10 +83,7 @@ async fn flow(home: &Path, on: bool, wanted: Option<&str>) -> Result<String, Str
 }
 
 async fn register_flow(home: &Path, wanted: Option<&str>) -> Result<String, String> {
-    let team = std::env::var("PHONEDRIVER_TEAM").map_err(|_| {
-        let e = phonedriver_core::error::UserAction::SetSigningTeam;
-        format!("{} {}", e.message(), e.hint())
-    })?;
+    let team = phonedriver_ios::team::signing_team().map_err(|e| format!("{e}. {}", e.hint()))?;
     let attached = attached(home).await?;
     let device = pick(&attached, wanted)?;
     println!(

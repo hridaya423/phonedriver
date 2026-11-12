@@ -109,7 +109,7 @@ Connect it to an agent: [Claude Code](/docs/claude-code/) or [Cursor and other M
 | `PHONEDRIVER_DEVICE` | none | The device to use when `--device` is not given. Also read by `phonedriver mcp`. |
 | `PHONEDRIVER_DISPLAY` | `main` | `hidden` makes the Android agent work on a second screen that the person holding the phone cannot see (Android 13 and later; `--display hidden` does the same). See [the Android phone page](/docs/android-phone/#a-hidden-screen-for-the-agent). |
 | `PHONEDRIVER_SESSION` | `default` | The session name, as `--session`. |
-| `PHONEDRIVER_TEAM` | none | Apple developer team ID that signs the iOS runner on a physical device. |
+| `PHONEDRIVER_TEAM` | the team of this Mac's Apple Development certificate | Apple developer team ID that signs the iOS runner on a physical device. Needed only with certificates for several teams. |
 | `PHONEDRIVER_GUARD` | on | `off` stops the [approval guard](/docs/approval-guard/). |
 | `PHONEDRIVER_ASK` | none | More taps to ask about, besides payments and account deletion: `send`, `delete`, `install`, comma separated. See the [approval guard](/docs/approval-guard/). |
 | `PHONEDRIVER_SECRET` | none | The text for `type --secret`, instead of stdin. |

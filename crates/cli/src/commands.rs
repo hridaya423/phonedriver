@@ -475,10 +475,10 @@ pub(crate) enum DaemonCommand {
 
 #[derive(Subcommand, Debug)]
 pub enum IosCommand {
-    /// Check each attached device and do what needs no one at the device: show the Developer Mode switch, mount the
+    /// Check the signing team and each attached device, and do what needs no one at the device: show the Developer Mode switch, mount the
     /// developer disk image with Xcode's tool (the only step that talks to Apple). Prints `ok` for steps already done.
     Setup,
-    /// Add a device to the Apple developer account of `PHONEDRIVER_TEAM` and build the runner for it.
+    /// Add a device to the Apple developer account of the signing team and build the runner for it.
     ///
     /// Needed once for a device that team has never signed for; the error that asks for it says so. Xcode does the registration. An account holds 100 iPhones a year. With more than one device pass `--device ios:<udid>`.
     Register,
