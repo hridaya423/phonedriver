@@ -575,3 +575,14 @@ Not changed, on the user's word that the hero is finished: the critic's first tw
 **Rejected.** A root `plugin.json` and `mcp.json` in the Agent Plugins format and a Codex marketplace file at `.agents/plugins/marketplace.json`: Codex installed the plugin, its MCP server and its skill without any of them, so they would be three files nothing here has been seen to read. A `.cursor-plugin/` manifest: no Cursor session was run, and the Cursor button in the README already adds the server. A separate marketplace repository: one more place to keep in step for one plugin.
 
 **Reopen if.** Someone runs a Cursor session and can watch its plugin load (then add the manifest Cursor needs), or a directory that lists plugins needs a file this folder does not have.
+
+## D46. The plugin folder also carries a Codex manifest, a Cursor manifest and its own LICENSE, README and SECURITY
+
+**Choice.** `packaging/plugin/` gains `.codex-plugin/plugin.json` (with the `interface` block Codex shows), `.cursor-plugin/plugin.json`, `mcp.json` (a copy of `.mcp.json`, the name Cursor looks for), `assets/icon.png` (a copy of the icon, at the path both manifests name), and `LICENSE`, `README.md` and `SECURITY.md`. The repository root gains `.cursor-plugin/marketplace.json` and `SECURITY.md`. GitHub Actions are pinned to commit hashes and Dependabot proposes their updates monthly.
+
+**Why.** D45 said to reopen when a directory that lists plugins needs a file the folder does not have. Two do. The awesome-codex-plugins catalog takes only a repository with a Codex or Agent Plugins manifest, a security policy and a score of 75 on its scanner; the repository scored 76 and the folder now scores 95. Cursor's marketplace reads `.cursor-plugin/`. A catalog copies the folder without the repository around it, so the folder carries its own licence and readme.
+
+**Kept in step by the same test.** `packaging/test/plugin.test.js` fails when any of the three manifests has another version or description, when `mcp.json`, the icon or `LICENSE` differ from their originals by a byte, or when a file it does not list lands in the folder.
+
+**Not proven.** No Cursor session has loaded the plugin: the Cursor command-line tool on the MacBook does not start, and GUIs are not driven there. Cursor's own template validator passes. The README does not name Cursor as a plugin host until someone has watched it load.
+
