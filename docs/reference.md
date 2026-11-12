@@ -88,6 +88,18 @@ phonedriver --device ios:<udid> snapshot
 
 Without a team, the command stops with exit code 3 and says so. With a booted Simulator and an iPhone that has no team, the Simulator is the default device. The daemon reads `PHONEDRIVER_TEAM` when it starts, so run `phonedriver daemon stop` after setting it.
 
+#### iPhone without the cable
+
+After the setup above, with the device still on the cable:
+
+```sh
+phonedriver ios wifi on
+```
+
+Unplug it. While the device and the Mac are on the same Wi-Fi network, `phonedriver devices` still lists it and every verb works. `phonedriver doctor` says `over Wi-Fi` or `over USB`. The device answers only computers it already trusts. `phonedriver ios wifi off` stops it.
+
+Tested on an iPhone 13 Pro Max (iOS 27.0.1) on one network. It needs iOS 26.4 or later. The experimental CoreDevice tier needs the cable.  See decision D47.
+
 ## Environment variables
 
 | Name | Default | Meaning |

@@ -3,6 +3,7 @@
 pub mod coredevice;
 pub mod device;
 pub mod discovery;
+pub mod lan;
 pub mod map;
 pub mod offer;
 pub mod runner;

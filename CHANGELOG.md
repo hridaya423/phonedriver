@@ -2,6 +2,11 @@
 
 Every release of phonedriver, newest first. Binaries and checksums for each version are on [GitHub Releases](https://github.com/hridaya423/phonedriver/releases).
 
+## Unreleased
+
+- **iPhone without the cable**: `phonedriver ios wifi on` lets a physical iPhone or iPad answer over Wi-Fi. Unplug it and it stays in `phonedriver devices` while it shares a network with the Mac. Tested on an iPhone 13 Pro Max, iOS 27.0.1. `phonedriver doctor` says which link each device uses.
+- `phonedriver ios setup` mounts the developer disk image again with Xcode 27, whose `devicectl` dropped the option the old command passed.
+
 ## 0.1.2
 
 Released 12 November 2026.

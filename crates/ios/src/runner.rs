@@ -554,7 +554,7 @@ impl Runner {
 pub const DEVICE_PORT: u16 = PORT_BASE;
 
 impl Runner {
-    /// Starts the runner on a wired device with `xcodebuild test-without-building` (signed build from
+    /// Starts the runner on a attached device with `xcodebuild test-without-building` (signed build from
     /// `build_for(home, Some(team))`) or reuses one that answers `hello` with this udid and build.
     pub async fn start_device(
         provider: &dyn idevice::provider::IdeviceProvider,

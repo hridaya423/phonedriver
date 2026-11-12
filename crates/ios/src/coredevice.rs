@@ -33,7 +33,7 @@ use tokio::time::Instant;
 
 use crate::offer;
 use crate::touch::{self, MOD_GUI, MOD_SHIFT, USAGE_V};
-use crate::transport::{self, Tunnel, Wired};
+use crate::transport::{self, Attached, Tunnel};
 
 type Socket = Box<dyn ReadWrite>;
 
@@ -131,7 +131,7 @@ impl CoreDevice {
     /// Opens the tunnel, starts the stream and connects the services. The work runs on a blocking thread under
     /// `Handle::block_on` because rustc cannot prove the `Send` bound of idevice's `RsdService` futures for the
     /// daemon's `async_trait` caller ("implementation of `RsdService` is not general enough").
-    pub async fn connect(device: &Wired, model: &str) -> Result<CoreDevice> {
+    pub async fn connect(device: &Attached, model: &str) -> Result<CoreDevice> {
         let (device, model) = (device.clone(), model.to_string());
         let handle = tokio::runtime::Handle::current();
         tokio::task::spawn_blocking(move || handle.block_on(CoreDevice::open(&device, &model)))
@@ -141,7 +141,7 @@ impl CoreDevice {
             })?
     }
 
-    async fn open(device: &Wired, model: &str) -> Result<CoreDevice> {
+    async fn open(device: &Attached, model: &str) -> Result<CoreDevice> {
         let id = format!("ios:{}", device.udid);
         let lost = |e: idevice::IdeviceError| transport::classify(&id, &e);
         let mut tunnel = Tunnel::open(device).await.map_err(lost)?;

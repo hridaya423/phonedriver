@@ -6,6 +6,7 @@ pub mod daemon;
 #[cfg(windows)]
 mod detach;
 pub mod doctor;
+mod ios_wifi;
 mod lean;
 pub mod mcp;
 pub mod ocr;

@@ -8,7 +8,7 @@ license.workspace = true
 async-trait = "0.1.92"
 base64 = "0.22"
 flate2 = "1.1.10"
-idevice = { version = "=0.1.68", default-features = false, features = ["ring", "usbmuxd", "pair", "amfi", "mobile_image_mounter", "core_device", "display_stream", "xctest", "tunnel_tcp_stack"] }
+idevice = { version = "=0.1.68", default-features = false, features = ["ring", "usbmuxd", "tcp", "mdns", "pair", "amfi", "mobile_image_mounter", "core_device", "display_stream", "xctest", "tunnel_tcp_stack"] }
 plist = "1.10.3"
 phonedriver-core = { version = "0.1.2", path = "../core" }
 phonedriver-video = { version = "0.1.2", path = "../video" }
@@ -17,6 +17,7 @@ serde_json = "1.0.154"
 sha2 = "0.11.1"
 uuid = { version = "1.29.0", features = ["v4"] }
 tokio = { version = "1.54.1", features = ["net", "io-util", "rt", "macros", "time", "process", "sync"] }
+mdns-sd = "0.21.7"
 
 [features]
 testing = []

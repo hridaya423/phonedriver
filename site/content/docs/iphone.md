@@ -22,6 +22,18 @@ Without a team, the command stops with exit code 3 and says so. The daemon reads
 
 Mounting the developer disk image is the one thing phonedriver does that talks to Apple. Nothing else leaves your machine.
 
+## Without the cable
+
+After the setup, with the device still on the cable:
+
+```sh
+phonedriver ios wifi on
+```
+
+Unplug it. While the iPhone and the Mac are on the same Wi-Fi network, `phonedriver devices` still lists it and every verb works. `phonedriver doctor` says `over Wi-Fi` or `over USB`. The iPhone answers only computers it already trusts, and `phonedriver ios wifi off` stops it.
+
+I tested this on an iPhone 13 Pro Max (iOS 27.0.1) on one network. The app on the phone logged the taps and the typed text with no cable attached. It needs iOS 26.4 or later.
+
 ## What differs from Android
 
 - There is no shell on a physical iPhone.

@@ -53,13 +53,13 @@ async fn coredevice_tier_streams_the_screen_and_a_tap_reaches_the_testbed() {
     use phonedriver_core::device::{Device, Gesture, TimedPoint};
     use phonedriver_core::geometry::Point;
     let udid = std::env::var("PHONEDRIVER_TEST_IOS_UDID").expect("PHONEDRIVER_TEST_IOS_UDID");
-    let wired = phonedriver_ios::transport::wired()
+    let attached = phonedriver_ios::transport::attached(None)
         .await
         .unwrap()
         .into_iter()
         .find(|w| w.udid == udid)
         .unwrap();
-    let device = phonedriver_ios::coredevice::CoreDevice::connect(&wired, "iPad17,3")
+    let device = phonedriver_ios::coredevice::CoreDevice::connect(&attached, "iPad17,3")
         .await
         .unwrap();
     let shot = device
@@ -93,13 +93,13 @@ async fn coredevice_tier_types_into_a_focused_field() {
     use phonedriver_core::device::{Device, Gesture, TextInput, TimedPoint};
     use phonedriver_core::geometry::Point;
     let udid = std::env::var("PHONEDRIVER_TEST_IOS_UDID").expect("PHONEDRIVER_TEST_IOS_UDID");
-    let wired = phonedriver_ios::transport::wired()
+    let attached = phonedriver_ios::transport::attached(None)
         .await
         .unwrap()
         .into_iter()
         .find(|w| w.udid == udid)
         .unwrap();
-    let device = phonedriver_ios::coredevice::CoreDevice::connect(&wired, "iPad17,3")
+    let device = phonedriver_ios::coredevice::CoreDevice::connect(&attached, "iPad17,3")
         .await
         .unwrap();
     let tap = async |x: f32, y: f32| {
@@ -137,13 +137,13 @@ async fn coredevice_tier_types_into_a_focused_field() {
 async fn coredevice_tier_home_button_backgrounds_the_app() {
     use phonedriver_core::device::{Button, Device};
     let udid = std::env::var("PHONEDRIVER_TEST_IOS_UDID").expect("PHONEDRIVER_TEST_IOS_UDID");
-    let wired = phonedriver_ios::transport::wired()
+    let attached = phonedriver_ios::transport::attached(None)
         .await
         .unwrap()
         .into_iter()
         .find(|w| w.udid == udid)
         .unwrap();
-    let device = phonedriver_ios::coredevice::CoreDevice::connect(&wired, "iPad17,3")
+    let device = phonedriver_ios::coredevice::CoreDevice::connect(&attached, "iPad17,3")
         .await
         .unwrap();
     device.button(Button::Home).await.unwrap();

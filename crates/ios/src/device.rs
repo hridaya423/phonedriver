@@ -23,7 +23,7 @@ use tokio::task::JoinHandle;
 use tokio::time::Instant;
 
 use idevice::IdeviceService;
-use idevice::provider::UsbmuxdProvider;
+use idevice::provider::IdeviceProvider;
 use idevice::services::installation_proxy::InstallationProxyClient;
 
 use crate::map;
@@ -31,6 +31,7 @@ use crate::runner::{Client, Runner};
 use crate::simulator::{
     Simulator, privacy_service, shell_args, simctl, simctl_shell, simctl_with_input,
 };
+use crate::transport::Link;
 
 /// Luma pixels per point for settle polls: one sample per 4x4 points, as architecture 4.6 measures change.
 const POLL_SCALE: f32 = 0.25;
@@ -51,7 +52,10 @@ const PASTE_SPEED: u32 = 5000;
 
 enum Host {
     Simulator,
-    Physical(UsbmuxdProvider),
+    Cable(Arc<dyn IdeviceProvider>),
+    /// Over the network the device closes every lockdown service after the TLS handshake (observed 2026-11-12,
+    /// iOS 27.0.1: amfi, the image mounter, the installation proxy), so only the runner's own port is used.
+    Network,
 }
 
 pub struct IosDevice {
@@ -140,23 +144,25 @@ impl IosDevice {
         )
     }
 
-    /// The Runner tier on a wired physical device: builds the runner signed with `team`, starts it and reaches it
-    /// through usbmuxd.
+    /// The Runner tier on a attached physical device: builds the runner signed with `team`, starts it and reaches its
+    /// port over the cable or the network.
     pub async fn connect_physical(
-        device: &crate::transport::Wired,
+        device: &crate::transport::Attached,
         model: &str,
         team: &str,
         home: &Path,
     ) -> Result<IosDevice> {
-        let provider = device.provider();
-        let runner = Runner::start_device(&provider, &device.udid, team, home).await?;
-        IosDevice::with_runner(
-            Host::Physical(provider),
-            format!("ios:{}", device.udid),
-            &device.udid,
-            model,
-            runner,
-        )
+        let id = format!("ios:{}", device.udid);
+        let provider = device
+            .provider()
+            .await
+            .map_err(|e| crate::transport::classify(&id, &e))?;
+        let runner = Runner::start_device(provider.as_ref(), &device.udid, team, home).await?;
+        let host = match device.link {
+            Link::Usb { .. } => Host::Cable(provider),
+            Link::Network { .. } => Host::Network,
+        };
+        IosDevice::with_runner(host, id, &device.udid, model, runner)
     }
 
     fn with_runner(
@@ -228,7 +234,7 @@ impl IosDevice {
     fn simulator_only(&self) -> Result<()> {
         match self.host {
             Host::Simulator => Ok(()),
-            Host::Physical(_) => Err(Error::Unsupported {
+            Host::Cable(_) | Host::Network => Err(Error::Unsupported {
                 op: Op::App,
                 reason: "installing, stopping or removing apps on a physical iPhone is not implemented",
             }),
@@ -325,7 +331,7 @@ fn luma_frame(reply: &Value) -> Option<Frame> {
     ))
 }
 
-async fn installed_apps(provider: &UsbmuxdProvider, id: &str) -> Result<Vec<App>> {
+async fn installed_apps(provider: &dyn IdeviceProvider, id: &str) -> Result<Vec<App>> {
     let gone = |e| crate::transport::classify(&id.to_string(), &e);
     let socket =
         crate::transport::lockdown_service(provider, InstallationProxyClient::service_name())
@@ -510,7 +516,7 @@ impl Device for IosDevice {
     }
 
     async fn clipboard(&self, op: ClipboardOp) -> Result<Option<String>> {
-        if matches!(self.host, Host::Physical(_)) {
+        if !matches!(self.host, Host::Simulator) {
             return Err(Error::Unsupported {
                 op: Op::Clipboard,
                 reason: "the runner tier has no clipboard access on a physical device",
@@ -526,8 +532,17 @@ impl Device for IosDevice {
     }
 
     async fn apps(&self) -> Result<Vec<App>> {
-        if let Host::Physical(provider) = &self.host {
-            return Box::pin(installed_apps(provider, &self.info.id)).await;
+        match &self.host {
+            Host::Cable(provider) => {
+                return Box::pin(installed_apps(provider.as_ref(), &self.info.id)).await;
+            }
+            Host::Network => {
+                let json =
+                    crate::setup::devicectl(&["info", "apps", "--include-all-apps"], &self.udid)
+                        .await?;
+                return Ok(map::devicectl_apps(&json));
+            }
+            Host::Simulator => {}
         }
         let plist = simctl(&["listapps", &self.udid]).await?;
         let json = crate::simulator::plist_to_json(&plist).await?;
@@ -541,7 +556,7 @@ impl Device for IosDevice {
                 Host::Simulator => {
                     simctl(&["launch", &self.udid, &app.0]).await?;
                 }
-                Host::Physical(_) => {
+                Host::Cable(_) | Host::Network => {
                     self.client()
                         .request(Op::Launch, json!({"op": "activate", "bundle_id": app.0}))
                         .await?;
@@ -571,7 +586,7 @@ impl Device for IosDevice {
     }
 
     async fn shell(&self, req: &ShellRequest) -> Result<ShellReply> {
-        if matches!(self.host, Host::Physical(_)) {
+        if !matches!(self.host, Host::Simulator) {
             return Err(Error::Unsupported {
                 op: Op::Shell,
                 reason: "an iPhone or iPad has no shell for anyone to run commands in; use launch, open, type and the other verbs, or a Simulator",

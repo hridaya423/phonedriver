@@ -588,3 +588,21 @@ Not changed, on the user's word that the hero is finished: the critic's first tw
 
 **The launcher is pinned (added the same day).** Anthropic's plugin directory refused the plugin with "Can't confirm which code runs": the MCP file must pin every package `npx` fetches to an exact version. `.mcp.json` and `mcp.json` now start `npx -y phonedriver@<release> mcp`, and the test fails when that version is not the one in `Cargo.toml`. So a plugin user stays on the version the plugin was released with until the plugin updates. The directory also noted that the skill's `description` could be misread as YAML because it holds a colon; it is in double quotes now.
 
+## D47. A physical iPhone on Wi-Fi is reached straight at its lockdown port, found by Bonjour, and only the runner tier drives it
+
+**Choice.** `phonedriver ios wifi on` sets lockdown's `EnableWifiConnections` (the switch Finder shows as "Show this iPhone when on Wi-Fi") while the device is on the cable, and writes the udid to `ios-wifi` in the phonedriver home. For the udids in that file, phonedriver browses `_apple-mobdev2._tcp` (`crates/ios/src/lan.rs`, the `mdns-sd` crate), picks the announcement whose `authTag` matches the `HostID` of the pair record usbmuxd keeps for that udid, and connects to the announced address with that pair record. A device on the cable and on the network is one entry, and the cable wins. Over the network the runner tier is the only tier: the runner starts with the same `xcodebuild test-without-building -destination id=<udid>` and is reached at its own port on the device's address. The app list and the Developer Mode and disk image state come from `xcrun devicectl` there.
+
+**Why.** Measured on an iPhone 13 Pro Max, iOS 27.0.1, macOS 27, on 2026-11-12:
+
+- macOS usbmuxd lists a Wi-Fi device only sometimes. It listed the phone as `Network` right after the switch was set. After the phone restarted on the cable, usbmuxd logged the announcement, released it for the cable interface and never listed the phone again, with the cable off and the announcement still on the network. So the listing is not used.
+- Lockdown itself answers on the device's address, port 62078, and accepts the cable pair record: `StartSession` succeeds and `UniqueDeviceID` reads back.
+- Every lockdown service started over that link completes TLS and then closes: amfi, the image mounter, the installation proxy and `CoreDeviceProxy` each returned `UnexpectedEof` on the first request, three runs. So there is no CoreDevice tunnel over the network, and the app list cannot come from lockdown.
+- `xcodebuild` and `devicectl` reach the same phone over the network through Xcode's own pairing. The runner answered on `<address>:27753` 6.2 s after `xcodebuild` started.
+
+- Pulling the cable in the middle of a session: the phone withdraws the announcement it made on the cable's own network interface, the browse dropped the phone, and the daemon answered "no device" until the browse asked again, up to 45 s later. The daemon now starts a new browse when a cabled device leaves the usbmuxd listing. With that, the first command after the pull took 6.95 s (the runner starts again over Wi-Fi) and the next two 1.04 s and 1.18 s.
+- Same phone, whole `tap` command: 1.26 to 1.28 s on the cable, 1.04 to 1.88 s over Wi-Fi. `snapshot`: 0.16 to 0.21 s on the cable, 0.19 to 0.30 s over Wi-Fi. A cold start over Wi-Fi, runner included: 8.2 s.
+
+**Rejected.** Listing through usbmuxd (the first attempt, unreliable as above). idevice's `remote_pairing` (a second pairing with its own approval on the device, and its own record to keep safe; it would bring the CoreDevice tunnel, which the default tier does not need). Remembering an address or a `.local` name (both change).
+
+**Limits.** Tested on one iPhone, iOS 27.0.1, one Wi-Fi network, with a Mac. The `authTag` match needs iOS 26.4 or later; an older iOS announces its Wi-Fi address in the service name and is not matched. The CoreDevice tier (`PHONEDRIVER_IOS_TIER=coredevice`) needs the cable. Browsing sends multicast DNS on the local network; it starts only when `ios-wifi` names a device, so a machine that never ran `ios wifi on` sends none and D25's test is unchanged.
+

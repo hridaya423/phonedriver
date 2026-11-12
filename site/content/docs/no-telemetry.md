@@ -16,6 +16,7 @@ phonedriver sends no telemetry: no install id, no usage events, no crash reports
 | The local daemon socket | Every command | No |
 | The local adb server and the Android device | Android devices | No, unless the device is remote |
 | usbmuxd and the iPhone | Physical iPhones and iPads | No |
+| Multicast DNS on the local network, and the iPhone's address | Only after `phonedriver ios wifi on`, to find and reach that iPhone | No |
 | The iOS Simulator | Simulators | No |
 | Apple's signing server | Mounting a developer disk image on a physical iPhone | Yes, to Apple |
 | GitHub Releases | The first `npx -y phonedriver` run of a version, to download the binary | Yes, to GitHub |

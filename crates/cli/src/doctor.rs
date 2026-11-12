@@ -505,16 +505,15 @@ async fn runner_answers(id: &str) -> Check {
     }
 }
 
-/// Each wired iOS device: paired, Developer Mode, developer disk image, tier and services, and the runner with the
+/// Each attached iOS device: paired, Developer Mode, developer disk image, tier and services, and the runner with the
 /// expiry of the profile that signed the local build.
 pub async fn physical(home: &Path, only: Option<&str>) -> Vec<Check> {
     use phonedriver_core::error::{Error, UserAction};
-    let wired = match phonedriver_ios::transport::wired().await {
-        Ok(w) => w,
-        Err(_) => return Vec::new(),
+    let Ok(attached) = crate::ios_wifi::attached(home).await else {
+        return Vec::new();
     };
     let mut checks = Vec::new();
-    for device in wired {
+    for device in attached {
         let name = format!("ios:{}", device.udid);
         if !wants(only, &name) {
             continue;
@@ -537,7 +536,7 @@ pub async fn physical(home: &Path, only: Option<&str>) -> Vec<Check> {
                     Status::Fail,
                     format!("{name} reachable"),
                     format!("{e:?}"),
-                    "Unlock the device and reconnect the cable; `phonedriver ios setup` shows what is missing.",
+                    "Unlock the device. If it is on Wi-Fi, put it on the same network as this computer or plug it in; `phonedriver ios setup` shows what is missing.",
                 ));
                 continue;
             }
@@ -545,11 +544,15 @@ pub async fn physical(home: &Path, only: Option<&str>) -> Vec<Check> {
         checks.push(Check::ok(
             format!("{name} paired"),
             format!(
-                "{} ({}) iOS {}, tier {}",
+                "{} ({}) iOS {}, tier {}, over {}",
                 found.name,
                 found.model,
                 found.os,
-                found.tier.name()
+                found.tier.name(),
+                match device.link {
+                    phonedriver_ios::transport::Link::Usb { .. } => "USB",
+                    phonedriver_ios::transport::Link::Network { .. } => "Wi-Fi",
+                }
             ),
         ));
         match phonedriver_ios::setup::status(&device).await {
@@ -629,9 +632,9 @@ fn runner_expiry(name: &str, home: &Path) -> Check {
     }
 }
 
-/// `phonedriver ios setup`: for each wired device, check pairing, Developer Mode and the developer disk image, and do
+/// `phonedriver ios setup`: for each attached device, check pairing, Developer Mode and the developer disk image, and do
 /// what needs no one at the device. Prints `ok` for a step already done.
-pub fn ios_setup() -> bool {
+pub fn ios_setup(home: &Path) -> bool {
     use phonedriver_core::error::{Error, UserAction};
     let Ok(rt) = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -641,19 +644,19 @@ pub fn ios_setup() -> bool {
         return false;
     };
     rt.block_on(async {
-        let wired = match phonedriver_ios::transport::wired().await {
+        let attached = match crate::ios_wifi::attached(home).await {
             Ok(w) if !w.is_empty() => w,
             Ok(_) => {
-                println!("no iOS device is connected over USB");
+                println!("no iOS device is attached. Plug one in; after `phonedriver ios wifi on` it also shows over Wi-Fi");
                 return false;
             }
             Err(e) => {
-                println!("cannot list devices: {e}");
+                println!("{e}");
                 return false;
             }
         };
         let mut all_ok = true;
-        for device in wired {
+        for device in attached {
             let name = device.udid.clone();
             let status = match phonedriver_ios::setup::status(&device).await {
                 Ok(s) => {

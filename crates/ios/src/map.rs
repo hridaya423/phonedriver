@@ -446,9 +446,52 @@ pub fn apps(json: &Value) -> Vec<App> {
     out
 }
 
+/// Parses `devicectl device info apps --json-output`. An app the person cannot remove counts as a system app.
+pub fn devicectl_apps(json: &Value) -> Vec<App> {
+    let mut out: Vec<App> = json["result"]["apps"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(|app| {
+            let id = app["bundleIdentifier"].as_str()?;
+            Some(App {
+                id: AppId(id.to_string()),
+                name: app["name"].as_str().unwrap_or(id).to_string(),
+                system: app["removable"] == false,
+            })
+        })
+        .collect();
+    out.sort_by(|a, b| a.id.0.cmp(&b.id.0));
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn devicectl_apps_are_sorted_by_id_and_an_app_that_cannot_be_removed_is_a_system_app() {
+        let json = json!({"result": {"apps": [
+            {"bundleIdentifier": "dev.phonedriver.testbed", "name": "Testbed", "removable": true},
+            {"bundleIdentifier": "com.apple.Preferences", "name": "Settings", "removable": false},
+            {"name": "no id"},
+        ]}});
+        assert_eq!(
+            devicectl_apps(&json),
+            vec![
+                App {
+                    id: AppId("com.apple.Preferences".into()),
+                    name: "Settings".into(),
+                    system: true
+                },
+                App {
+                    id: AppId("dev.phonedriver.testbed".into()),
+                    name: "Testbed".into(),
+                    system: false
+                },
+            ]
+        );
+    }
 
     const TESTBED_MAIN: &str = include_str!("../../core/tests/fixtures/ios/testbed_main.json");
     const SCREEN: Size = Size { w: 402.0, h: 874.0 };

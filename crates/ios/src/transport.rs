@@ -2,32 +2,59 @@
 //! `core::Error` and the single reconnect (architecture 7.1).
 
 use idevice::core_device_proxy::CoreDeviceProxy;
-use idevice::provider::{IdeviceProvider, UsbmuxdProvider};
+use std::net::IpAddr;
+use std::sync::Arc;
+
+use idevice::pairing_file::PairingFile;
+use idevice::provider::{IdeviceProvider, TcpProvider, UsbmuxdProvider};
 use idevice::rsd::RsdHandshake;
 use idevice::services::lockdown::LockdownClient;
 use idevice::tcp::handle::AdapterHandle;
-use idevice::usbmuxd::{Connection, UsbmuxdAddr};
+use idevice::usbmuxd::{Connection, UsbmuxdAddr, UsbmuxdDevice};
 use idevice::{IdeviceError, IdeviceService};
 use phonedriver_core::error::{DeviceId, Error, UserAction};
 
+use crate::lan::Lan;
+
 const LABEL: &str = "phonedriver";
 
-/// A device usbmuxd sees over USB. Network-only devices are left out: their pairing needs a separate approval
-/// on the device, which v1 does not ask for (`docs/spikes/ios.md`, "Device access probe").
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Wired {
-    pub udid: String,
-    pub mux_id: u32,
+/// How this computer reaches a device.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Link {
+    Usb {
+        mux_id: u32,
+    },
+    /// Straight to the device's lockdown port. macOS usbmuxd also lists Wi-Fi devices, but it dropped an iPhone
+    /// that restarted on the cable and never listed it again (observed 2026-11-12, iOS 27.0.1), so it is not used.
+    Network {
+        addr: IpAddr,
+        scope: Option<u32>,
+    },
 }
 
-impl Wired {
-    pub fn provider(&self) -> UsbmuxdProvider {
-        idevice::usbmuxd::UsbmuxdDevice {
-            connection_type: Connection::Usb,
-            udid: self.udid.clone(),
-            device_id: self.mux_id,
-        }
-        .to_provider(usbmuxd_addr(), LABEL)
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Attached {
+    pub udid: String,
+    pub link: Link,
+}
+
+impl Attached {
+    pub async fn provider(&self) -> Result<Arc<dyn IdeviceProvider>, IdeviceError> {
+        Ok(match self.link {
+            Link::Usb { mux_id } => Arc::new(UsbmuxdProvider {
+                addr: usbmuxd_addr(),
+                tag: mux_id,
+                udid: self.udid.clone(),
+                device_id: mux_id,
+                label: LABEL.to_string(),
+            }),
+            Link::Network { addr, scope } => Arc::new(TcpProvider {
+                addr,
+                scope_id: scope,
+                pairing_file: pair_record(&self.udid).await?,
+                label: LABEL.to_string(),
+            }),
+        })
     }
 }
 
@@ -35,18 +62,81 @@ fn usbmuxd_addr() -> UsbmuxdAddr {
     UsbmuxdAddr::from_env_var().unwrap_or_default()
 }
 
-pub async fn wired() -> Result<Vec<Wired>, IdeviceError> {
-    let mut mux = usbmuxd_addr().connect(0).await?;
-    let mut out: Vec<Wired> = Vec::new();
-    for d in mux.get_devices().await? {
-        if d.connection_type == Connection::Usb && !out.iter().any(|w| w.udid == d.udid) {
-            out.push(Wired {
+/// The record the cable pairing left with usbmuxd; it also opens a session over the network.
+pub async fn pair_record(udid: &str) -> Result<PairingFile, IdeviceError> {
+    usbmuxd_addr().connect(0).await?.get_pair_record(udid).await
+}
+
+fn cabled_of(listed: Vec<UsbmuxdDevice>) -> Vec<Attached> {
+    let mut out: Vec<Attached> = Vec::new();
+    for d in listed {
+        if d.connection_type == Connection::Usb && !out.iter().any(|a| a.udid == d.udid) {
+            out.push(Attached {
                 udid: d.udid,
-                mux_id: d.device_id,
+                link: Link::Usb {
+                    mux_id: d.device_id,
+                },
             });
         }
     }
-    Ok(out)
+    out
+}
+
+/// One entry per device; the cable wins over the network.
+fn merge(mut cabled: Vec<Attached>, lan: Vec<Attached>) -> Vec<Attached> {
+    for device in lan {
+        if !cabled.iter().any(|a| a.udid == device.udid) {
+            cabled.push(device);
+        }
+    }
+    cabled
+}
+
+pub async fn cabled() -> Result<Vec<Attached>, IdeviceError> {
+    let mut mux = usbmuxd_addr().connect(0).await?;
+    Ok(cabled_of(mux.get_devices().await?))
+}
+
+/// `cabled` and, with a browse, the remembered devices that answer on the network.
+pub async fn with_network(cabled: Vec<Attached>, lan: Option<&Lan>) -> Vec<Attached> {
+    match lan {
+        Some(lan) => merge(cabled, lan.attached().await),
+        None => cabled,
+    }
+}
+
+pub async fn attached(lan: Option<&Lan>) -> Result<Vec<Attached>, IdeviceError> {
+    Ok(with_network(cabled().await?, lan).await)
+}
+
+const WIRELESS_DOMAIN: &str = "com.apple.mobile.wireless_lockdown";
+const WIFI_KEY: &str = "EnableWifiConnections";
+
+/// Whether the device accepts this computer over Wi-Fi.
+pub async fn network_allowed(device: &Attached) -> Result<bool, IdeviceError> {
+    let mut lockdown = session(device.provider().await?.as_ref()).await?;
+    Ok(lockdown
+        .get_value(Some(WIFI_KEY), Some(WIRELESS_DOMAIN))
+        .await
+        .ok()
+        .and_then(|v| v.as_boolean())
+        .unwrap_or(false))
+}
+
+/// Sets the switch Finder shows as "Show this iPhone when on Wi-Fi". The device then answers computers it
+/// already trusts on the networks it joins.
+pub async fn allow_network(device: &Attached, on: bool) -> Result<(), IdeviceError> {
+    let mut lockdown = session(device.provider().await?.as_ref()).await?;
+    lockdown
+        .set_value(WIFI_KEY, on.into(), Some(WIRELESS_DOMAIN))
+        .await
+}
+
+async fn session(provider: &dyn IdeviceProvider) -> Result<LockdownClient, IdeviceError> {
+    let mut lockdown = LockdownClient::connect(provider).await?;
+    let pairing = provider.get_pairing_file().await?;
+    lockdown.start_session(&pairing).await?;
+    Ok(lockdown)
 }
 
 /// What lockdown says about a device before any session: these keys need no pairing.
@@ -66,8 +156,8 @@ async fn text(lockdown: &mut LockdownClient, key: &str) -> Result<String, Idevic
         .to_string())
 }
 
-pub async fn identity(device: &Wired) -> Result<Identity, IdeviceError> {
-    let mut lockdown = LockdownClient::connect(&device.provider()).await?;
+pub async fn identity(device: &Attached) -> Result<Identity, IdeviceError> {
+    let mut lockdown = LockdownClient::connect(device.provider().await?.as_ref()).await?;
     Ok(Identity {
         name: text(&mut lockdown, "DeviceName").await?,
         model: text(&mut lockdown, "ProductType").await?,
@@ -99,9 +189,9 @@ pub struct Tunnel {
 }
 
 impl Tunnel {
-    pub async fn open(device: &Wired) -> Result<Tunnel, IdeviceError> {
-        let provider = device.provider();
-        let socket = lockdown_service(&provider, CoreDeviceProxy::service_name()).await?;
+    pub async fn open(device: &Attached) -> Result<Tunnel, IdeviceError> {
+        let provider = device.provider().await?;
+        let socket = lockdown_service(provider.as_ref(), CoreDeviceProxy::service_name()).await?;
         let proxy = CoreDeviceProxy::new(socket).await?;
         let rsd_port = proxy.tunnel_info().server_rsd_port;
         let mut adapter = proxy.create_software_tunnel()?.to_async_handle();
@@ -177,6 +267,52 @@ mod tests {
 
     fn needs(action: UserAction) -> Error {
         Error::NeedsUser { action }
+    }
+
+    fn listed(udid: &str, mux_id: u32, connection_type: Connection) -> UsbmuxdDevice {
+        UsbmuxdDevice {
+            connection_type,
+            udid: udid.to_string(),
+            device_id: mux_id,
+        }
+    }
+
+    fn on_cable(udid: &str, mux_id: u32) -> Attached {
+        Attached {
+            udid: udid.to_string(),
+            link: Link::Usb { mux_id },
+        }
+    }
+
+    fn on_wifi(udid: &str) -> Attached {
+        Attached {
+            udid: udid.to_string(),
+            link: Link::Network {
+                addr: "192.168.1.20".parse().unwrap(),
+                scope: None,
+            },
+        }
+    }
+
+    #[test]
+    fn only_the_cable_listings_of_usbmuxd_count_and_each_device_once() {
+        let wifi = Connection::Network("192.168.1.20".parse().unwrap());
+        assert_eq!(
+            cabled_of(vec![
+                listed("A", 7, wifi),
+                listed("B", 3, Connection::Usb),
+                listed("B", 4, Connection::Usb),
+            ]),
+            vec![on_cable("B", 3)]
+        );
+    }
+
+    #[test]
+    fn a_device_found_only_on_the_network_is_attached_and_the_cable_wins_when_both_see_it() {
+        assert_eq!(
+            merge(vec![on_cable("A", 3)], vec![on_wifi("A"), on_wifi("B")]),
+            vec![on_cable("A", 3), on_wifi("B")]
+        );
     }
 
     #[test]

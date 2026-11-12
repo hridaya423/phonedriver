@@ -2,7 +2,7 @@
 
 use phonedriver_core::error::{Error, Op};
 
-use crate::transport::{self, Identity, Tunnel, Wired};
+use crate::transport::{self, Attached, Identity, Link, Tunnel};
 
 pub const HID_SERVICE: &str = "com.apple.coredevice.hid.universalhidservice";
 pub const DISPLAY_SERVICE: &str = "com.apple.coredevice.displayservice";
@@ -22,7 +22,7 @@ impl Tier {
     }
 }
 
-/// A wired physical device and the tier phonedriver drives it with.
+/// A attached physical device and the tier phonedriver drives it with.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Found {
     pub udid: String,
@@ -32,22 +32,24 @@ pub struct Found {
     pub tier: Tier,
 }
 
-/// Every device usbmuxd sees over USB. Only iOS 27 or later devices get a tunnel here, to read their services.
+/// Every device on a cable.
 pub async fn list() -> Result<Vec<Found>, Error> {
     let gone = |e: &idevice::IdeviceError| transport::classify(&"ios".to_string(), e);
     let mut out = Vec::new();
-    for device in transport::wired().await.map_err(|e| gone(&e))? {
+    for device in transport::attached(None).await.map_err(|e| gone(&e))? {
         out.push(describe(&device).await?);
     }
     Ok(out)
 }
 
-pub async fn describe(device: &Wired) -> Result<Found, Error> {
+/// Over the network the device closes the CoreDevice tunnel service (observed 2026-11-12, iOS 27.0.1), so only a
+/// device on the cable gets a tunnel to read its services, and a device on the network is driven by the runner.
+pub async fn describe(device: &Attached) -> Result<Found, Error> {
     let id = format!("ios:{}", device.udid);
     let Identity { name, model, os } = transport::identity(device)
         .await
         .map_err(|e| transport::classify(&id, &e))?;
-    let services = if major(&os)? >= 27 {
+    let services = if major(&os)? >= 27 && matches!(device.link, Link::Usb { .. }) {
         Tunnel::open(device)
             .await
             .map_err(|e| transport::classify(&id, &e))?

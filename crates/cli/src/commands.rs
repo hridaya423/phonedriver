@@ -442,7 +442,7 @@ pub(crate) enum Verb {
         #[arg(long, env = "PHONEDRIVER_TRACE_SCREENS", value_parser = BoolishValueParser::new())]
         trace_screens: bool,
     },
-    /// Check adb, Android devices and their agent, Xcode, booted simulators and their runners, wired iPhones, and the daemon socket; each line says ok, warn or fail, with a fix. With `--device`, only that device is probed.
+    /// Check adb, Android devices and their agent, Xcode, booted simulators and their runners, attached iPhones, and the daemon socket; each line says ok, warn or fail, with a fix. With `--device`, only that device is probed.
     Doctor,
     /// Pair an Android 11+ phone over Wi-Fi with a QR code.
     ///
@@ -475,9 +475,16 @@ pub(crate) enum DaemonCommand {
 
 #[derive(Subcommand, Debug)]
 pub enum IosCommand {
-    /// Check each wired device and do what needs no one at the device: show the Developer Mode switch, mount the
+    /// Check each attached device and do what needs no one at the device: show the Developer Mode switch, mount the
     /// developer disk image with Xcode's tool (the only step that talks to Apple). Prints `ok` for steps already done.
     Setup,
+    /// Let a device answer this computer over Wi-Fi, so the cable can come off (`on`), or stop that (`off`).
+    ///
+    /// `on` needs the device on the cable once. It sets the switch Finder shows as "Show this iPhone when on Wi-Fi". The device then answers only computers it already trusts, on the networks it joins. With more than one device pass `--device ios:<udid>`.
+    Wifi {
+        #[arg(value_parser = ["on", "off"])]
+        state: String,
+    },
 }
 
 pub fn run(cli: Cli) -> ExitCode {
@@ -514,7 +521,16 @@ pub fn run(cli: Cli) -> ExitCode {
         Verb::Ios {
             command: IosCommand::Setup,
         } => {
-            if crate::doctor::ios_setup() {
+            if crate::doctor::ios_setup(&socket::home()) {
+                ExitCode::SUCCESS
+            } else {
+                ExitCode::from(1)
+            }
+        }
+        Verb::Ios {
+            command: IosCommand::Wifi { state },
+        } => {
+            if crate::ios_wifi::run(&socket::home(), state == "on", cli.device.as_deref()) {
                 ExitCode::SUCCESS
             } else {
                 ExitCode::from(1)
