@@ -458,7 +458,7 @@ pub(crate) enum Verb {
     Mcp,
     /// Print SKILL.md, the instructions an agent reads before it uses phonedriver.
     Skill,
-    /// Prepare a physical iOS device: pairing, Developer Mode, the developer disk image.
+    /// Prepare a physical iOS device: `setup` checks the signing team, pairing, Developer Mode and the developer disk image; `wifi on` drops the cable; `register` adds a new device to the team.
     Ios {
         #[command(subcommand)]
         command: IosCommand,
