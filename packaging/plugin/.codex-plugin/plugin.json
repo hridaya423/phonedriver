@@ -40,6 +40,7 @@
     ],
     "brandColor": "#FF5C16",
     "composerIcon": "./assets/icon.png",
-    "logo": "./assets/icon.png"
+    "logo": "./assets/icon.png",
+    "privacyPolicyURL": "https://phonedriver.dev/docs/no-telemetry"
   }
 }

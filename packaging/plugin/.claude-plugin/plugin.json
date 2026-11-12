@@ -19,5 +19,9 @@
     "mobile",
     "mcp",
     "ui-automation"
-  ]
+  ],
+  "displayName": "phonedriver",
+  "supportUrl": "https://github.com/hridaya423/phonedriver/issues",
+  "documentationUrl": "https://phonedriver.dev/docs/claude-code",
+  "privacyPolicyUrl": "https://phonedriver.dev/docs/no-telemetry"
 }
