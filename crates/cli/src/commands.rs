@@ -482,6 +482,7 @@ pub enum IosCommand {
     ///
     /// `on` needs the device on the cable once. It sets the switch Finder shows as "Show this iPhone when on Wi-Fi". The device then answers only computers it already trusts, on the networks it joins. With more than one device pass `--device ios:<udid>`.
     Wifi {
+        /// `on` or `off`.
         #[arg(value_parser = ["on", "off"])]
         state: String,
     },
