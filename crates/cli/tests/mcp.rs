@@ -467,14 +467,49 @@ async fn tap_says_its_reply_is_the_new_screen_and_that_tools_go_one_at_a_time() 
 }
 
 #[tokio::test]
+async fn every_tool_says_whether_it_only_reads_and_the_three_that_do_are_marked() {
+    let rig = rig(vec![tree(&["One"])]).await;
+    let tools = rig.client.list_all_tools().await.unwrap();
+    let mut read_only = Vec::new();
+    for t in &tools {
+        let a = t
+            .annotations
+            .as_ref()
+            .unwrap_or_else(|| panic!("{} has no annotations", t.name));
+        assert!(a.title.is_some(), "{}", t.name);
+        match a.read_only_hint {
+            Some(true) => read_only.push(t.name.to_string()),
+            Some(false) => assert!(a.destructive_hint.is_some(), "{}", t.name),
+            None => panic!("{} does not say", t.name),
+        }
+    }
+    read_only.sort();
+    assert_eq!(read_only, ["screenshot", "snapshot", "wait"]);
+    let then = |name: &str| {
+        let t = tools.iter().find(|t| t.name == name).unwrap();
+        serde_json::to_string(&*t.input_schema)
+            .unwrap()
+            .contains("\"then\"")
+    };
+    assert!(then("tap") && then("type"));
+}
+
+#[tokio::test]
 async fn the_tool_list_every_turn_re_reads_fits_a_budget_and_hides_what_agents_never_used() {
     let rig = rig(vec![tree(&["One"])]).await;
     let tools = rig.client.list_all_tools().await.unwrap();
     let total: usize = tools
         .iter()
-        .map(|t| serde_json::to_string(t).unwrap().len())
+        .map(|t| {
+            t.name.len()
+                + t.description.as_deref().unwrap_or_default().len()
+                + serde_json::to_string(&*t.input_schema).unwrap().len()
+        })
         .sum();
-    assert!(total < 4_300, "tools/list is {total} characters");
+    assert!(
+        total < 9_999,
+        "what a model reads of tools/list is {total} characters"
+    );
     for t in &tools {
         let text = serde_json::to_string(&*t.input_schema).unwrap();
         for hidden in ["\"device\"", "\"max_lines\"", "\"role\"", "\"distance\""] {

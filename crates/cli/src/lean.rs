@@ -1,6 +1,7 @@
 //! The part of each tool's argument schema the model sees on every turn. The server still accepts every argument;
 //! the ones left out here were never used by an agent in the audited runs (`docs/audits/token-audit.md`), and the
-//! hints that need one name it.
+//! hints that need one name it. `then` is shown: it saves whole model turns, and without it only an agent that
+//! loaded the skill could know it.
 
 use serde_json::{Map, Value};
 
@@ -9,8 +10,8 @@ const HIDDEN: &[(&str, &[&str])] = &[
         "snapshot",
         &["diff", "interactive", "within", "max_lines", "pixels"],
     ),
-    ("tap", &["role", "count", "then", "autonomous"]),
-    ("type", &["mode", "append", "then", "autonomous"]),
+    ("tap", &["role", "count", "autonomous"]),
+    ("type", &["mode", "append", "autonomous"]),
     ("swipe", &["distance", "fast"]),
     ("scroll", &["in", "max"]),
     ("shell", &["grep", "head", "settle", "force", "secret"]),

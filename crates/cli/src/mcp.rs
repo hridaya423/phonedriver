@@ -172,7 +172,7 @@ struct TapArgs {
     /// Tap this many times; 2 is a double tap.
     count: Option<u32>,
     long: Option<u32>,
-    /// Texts to tap next, in order; stops at the first one missing.
+    /// Texts to tap next on the screens that follow, in order (a menu path in one call); stops at the first one missing.
     #[serde(default, deserialize_with = "texts")]
     then: Option<Vec<String>>,
     #[serde(default, deserialize_with = "flag")]
@@ -193,7 +193,7 @@ struct TypeArgs {
     /// With `into`, add to the field's text instead of replacing it.
     append: Option<bool>,
     secret: Option<bool>,
-    /// Texts to tap after typing, in order.
+    /// Texts to tap after typing, in order (pick a suggestion).
     #[serde(default, deserialize_with = "texts")]
     then: Option<Vec<String>>,
     #[serde(default, deserialize_with = "flag")]
@@ -1054,7 +1054,14 @@ fn bad(message: &str) -> CallToolResult {
 #[tool_router]
 impl Mcp {
     #[tool(
-        description = "List devices (id, model, OS, holder). With several, pass an id as `device` to the other tools. `release` gives up this session's hold."
+        description = "List devices (id, model, OS, holder). With several, pass an id as `device` to the other tools. `release` gives up this session's hold.",
+        annotations(
+            title = "List devices",
+            read_only_hint = false,
+            destructive_hint = false,
+            idempotent_hint = true,
+            open_world_hint = false
+        )
     )]
     async fn devices(&self, Parameters(a): Parameters<DevicesArgs>) -> CallToolResult {
         if a.release.unwrap_or(false) {
@@ -1064,7 +1071,14 @@ impl Mcp {
     }
 
     #[tool(
-        description = "Run a device shell command: exit code, output, screen change. Prefer it for settings: `cmd uimode night yes`, `settings put system screen_brightness 20`, `am start -a android.intent.action.VIEW -d <url>`. Simulator: `simctl ui appearance dark`. A physical iPhone has no shell."
+        description = "Run a device shell command: exit code, output, screen change. Prefer it for settings: `cmd uimode night yes`, `settings put system screen_brightness 20`, `am start -a android.intent.action.VIEW -d <url>`. Simulator: `simctl ui appearance dark`. A physical iPhone has no shell.",
+        annotations(
+            title = "Run a shell command",
+            read_only_hint = false,
+            destructive_hint = true,
+            idempotent_hint = false,
+            open_world_hint = true
+        )
     )]
     async fn shell(&self, Parameters(a): Parameters<ShellArgs>) -> CallToolResult {
         let secret = a.secret.unwrap_or(false);
@@ -1086,7 +1100,16 @@ impl Mcp {
             .await
     }
 
-    #[tool(description = "Read the clipboard, or `set` it.")]
+    #[tool(
+        description = "Read the clipboard, or `set` it.",
+        annotations(
+            title = "Clipboard",
+            read_only_hint = false,
+            destructive_hint = false,
+            idempotent_hint = true,
+            open_world_hint = false
+        )
+    )]
     async fn clipboard(&self, Parameters(a): Parameters<ClipboardArgs>) -> CallToolResult {
         let verb = Verb::Clipboard {
             action: a.set.as_ref().map(|_| "set".to_string()),
@@ -1096,7 +1119,14 @@ impl Mcp {
     }
 
     #[tool(
-        description = "List apps (`name  id`), or `action` install (file in `app`), stop, clear (data) or uninstall."
+        description = "List apps (`name  id`), or `action` install (file in `app`), stop, clear (data) or uninstall.",
+        annotations(
+            title = "Apps",
+            read_only_hint = false,
+            destructive_hint = true,
+            idempotent_hint = false,
+            open_world_hint = true
+        )
     )]
     async fn apps(&self, Parameters(a): Parameters<AppsArgs>) -> CallToolResult {
         let verb = Verb::Apps {
@@ -1107,7 +1137,12 @@ impl Mcp {
     }
 
     #[tool(
-        description = "The screen as lines like `@e4 button \"Save\"`; refs name elements for other tools. `find` lists matching lines (`A|B` for either). `under-keyboard` = hidden by the keyboard."
+        description = "The screen as lines like `@e4 button \"Save\"`; refs name elements for other tools. `find` lists matching lines (`A|B` for either). `under-keyboard` = hidden by the keyboard.",
+        annotations(
+            title = "Read the screen",
+            read_only_hint = true,
+            open_world_hint = true
+        )
     )]
     async fn snapshot(&self, Parameters(a): Parameters<SnapshotArgs>) -> CallToolResult {
         if let Some(text) = a.find {
@@ -1128,7 +1163,8 @@ impl Mcp {
     }
 
     #[tool(
-        description = "Image of the screen, for what the snapshot lacks (canvas, map, photo). `marks` boxes tappable elements with their @ref."
+        description = "Image of the screen, for what the snapshot lacks (canvas, map, photo). `marks` boxes tappable elements with their @ref.",
+        annotations(title = "Screenshot", read_only_hint = true, open_world_hint = true)
     )]
     async fn screenshot(&self, Parameters(a): Parameters<ScreenshotArgs>) -> CallToolResult {
         let marks = a.marks.unwrap_or(false);
@@ -1166,7 +1202,14 @@ impl Mcp {
     }
 
     #[tool(
-        description = "Tap by @ref, text or x,y point (from a screenshot). `long` holds the press that many ms (context menus). The reply is the new screen: read it, and call tools one at a time (they share one screen)."
+        description = "Tap by @ref, text or x,y point (from a screenshot). `long` holds the press that many ms (context menus). The reply is the new screen: read it, and call tools one at a time (they share one screen).",
+        annotations(
+            title = "Tap",
+            read_only_hint = false,
+            destructive_hint = true,
+            idempotent_hint = false,
+            open_world_hint = true
+        )
     )]
     async fn tap(
         &self,
@@ -1196,7 +1239,14 @@ impl Mcp {
 
     #[tool(
         name = "type",
-        description = "Put text in a field (replaces its content) and report what it shows; empty text clears. `secret` for any password or code."
+        description = "Put text in a field (replaces its content) and report what it shows; empty text clears. `secret` for any password or code.",
+        annotations(
+            title = "Type text",
+            read_only_hint = false,
+            destructive_hint = true,
+            idempotent_hint = false,
+            open_world_hint = true
+        )
     )]
     async fn r#type(
         &self,
@@ -1237,7 +1287,14 @@ impl Mcp {
     }
 
     #[tool(
-        description = "A finger gesture: flip pages, dismiss. `to` drags `from` to a target; `pinch` (in, out) zooms. Use `scroll` for lists."
+        description = "A finger gesture: flip pages, dismiss. `to` drags `from` to a target; `pinch` (in, out) zooms. Use `scroll` for lists.",
+        annotations(
+            title = "Swipe",
+            read_only_hint = false,
+            destructive_hint = true,
+            idempotent_hint = false,
+            open_world_hint = true
+        )
     )]
     async fn swipe(&self, Parameters(a): Parameters<SwipeArgs>) -> CallToolResult {
         let device = a.device.clone();
@@ -1247,21 +1304,44 @@ impl Mcp {
         }
     }
 
-    #[tool(description = "Scroll toward more content, or until the text or @ref in `until` shows.")]
+    #[tool(
+        description = "Scroll toward more content, or until the text or @ref in `until` shows.",
+        annotations(
+            title = "Scroll",
+            read_only_hint = false,
+            destructive_hint = false,
+            idempotent_hint = false,
+            open_world_hint = true
+        )
+    )]
     async fn scroll(&self, Parameters(a): Parameters<ScrollArgs>) -> CallToolResult {
         let device = a.device.clone();
         self.run(device, a.verb(), None).await
     }
 
     #[tool(
-        description = "Press home, back, recents, notifications, lock, volume-up, volume-down, enter or hide-keyboard."
+        description = "Press home, back, recents, notifications, lock, volume-up, volume-down, enter or hide-keyboard.",
+        annotations(
+            title = "Press a key",
+            read_only_hint = false,
+            destructive_hint = false,
+            idempotent_hint = false,
+            open_world_hint = true
+        )
     )]
     async fn press(&self, Parameters(a): Parameters<PressArgs>) -> CallToolResult {
         self.run(a.device, Verb::Press { key: a.key }, None).await
     }
 
     #[tool(
-        description = "Open an app (any part of its name, or its id) or a `url` (with `app`, opened in that app); returns the screen it shows, which is where the app was left unless `restart`. `grant` pre-allows permissions (`camera`, `notifications`)."
+        description = "Open an app (any part of its name, or its id) or a `url` (with `app`, opened in that app); returns the screen it shows, which is where the app was left unless `restart`. `grant` pre-allows permissions (`camera`, `notifications`).",
+        annotations(
+            title = "Open an app",
+            read_only_hint = false,
+            destructive_hint = false,
+            idempotent_hint = false,
+            open_world_hint = true
+        )
     )]
     async fn launch(&self, Parameters(a): Parameters<LaunchArgs>) -> CallToolResult {
         let device = a.device.clone();
@@ -1272,7 +1352,14 @@ impl Mcp {
     }
 
     #[tool(
-        description = "Run steps in order, one diff back; stops at the first failure. A step is {\"tool\":\"tap\",\"target\":\"@e3\"}: tap, type, swipe, scroll, press, launch or wait."
+        description = "Run steps in order, one diff back; stops at the first failure. A step is {\"tool\":\"tap\",\"target\":\"@e3\"}: tap, type, swipe, scroll, press, launch or wait.",
+        annotations(
+            title = "Run steps",
+            read_only_hint = false,
+            destructive_hint = true,
+            idempotent_hint = false,
+            open_world_hint = true
+        )
     )]
     async fn batch(
         &self,
@@ -1289,7 +1376,8 @@ impl Mcp {
     }
 
     #[tool(
-        description = "Wait for `settled`, a text (`A|B` for either) or @ref to appear, or `gone:<text>`."
+        description = "Wait for `settled`, a text (`A|B` for either) or @ref to appear, or `gone:<text>`.",
+        annotations(title = "Wait", read_only_hint = true, open_world_hint = true)
     )]
     async fn wait(&self, Parameters(a): Parameters<WaitArgs>) -> CallToolResult {
         let mut globals = self.globals(a.device);
@@ -1303,7 +1391,7 @@ impl Mcp {
 
 #[tool_handler(
     name = "phonedriver",
-    instructions = "Operate an Android or iOS device. System settings: `shell`. App UI: `launch` takes an app name (no `devices` or `apps` first), then `snapshot` once and act on its @refs; each action returns what changed. Send calls one at a time on the shared screen. If an error needs the user to act on the device, say so and go on when they are done. Passwords, payments, sending and deleting need the user's word for this task."
+    instructions = "Operate an Android or iOS device. System settings: `shell`. App UI: `launch` takes an app name (no `devices` or `apps` first), then `snapshot` once and act on its @refs; each action returns what changed. A path of taps you can predict goes in one `tap` with `then`. Send calls one at a time on the shared screen. If an error needs the user to act on the device, say so and go on when they are done. Passwords, payments, sending and deleting need the user's word for this task."
 )]
 impl ServerHandler for Mcp {
     async fn call_tool(
@@ -1359,6 +1447,9 @@ fn slim_value(m: &mut serde_json::Map<String, serde_json::Value>) {
     }
     if m.get("minimum") == Some(&json!(0)) {
         m.remove("minimum");
+    }
+    if m.get("default") == Some(&serde_json::Value::Null) {
+        m.remove("default");
     }
     if let Some(serde_json::Value::Array(types)) = m.get("type")
         && let [only, serde_json::Value::String(null)] = types.as_slice()
