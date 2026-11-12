@@ -228,6 +228,10 @@ pub async fn android(adb: &Adb, only: Option<&str>) -> Vec<Check> {
             return checks;
         }
     };
+    let devices = match only {
+        Some(_) => devices,
+        None => phonedriver_android::wireless::connections_per_phone(adb, devices).await,
+    };
     if devices.is_empty() {
         checks.push(Check::bad(
             Status::Warn,
