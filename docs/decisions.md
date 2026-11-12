@@ -627,3 +627,22 @@ Not changed, on the user's word that the hero is finished: the critic's first tw
 **Why.** The variable was the one step of the iPhone setup with no command to run, and the hint for it was wrong. On this Mac (2026-11-12) `security find-identity` prints `Apple Development: <name> (HSLSDPZZDT)`. That ID belongs to the developer. The team is `DV6NC6KRYL`, the organizational unit of the same certificate, and a build signed with the first ID fails. Xcode's `IDEProvisioningTeams` default, the other place a team could come from, does not exist on this Mac.
 
 **Limits.** Only "Apple Development" identities count: a "Developer ID Application" or "Apple Distribution" certificate cannot sign a test runner for a device. The several-teams case is unit-tested only.
+
+## D50. On a slow link the video stream is 400 kbit/s at 10 frames a second
+
+**Choice.** The host opens the control stream first and times the agent's hello. At 120 ms or more it opens the video stream with `bit_rate` 400,000 and `fps` 10 in its first frame; the agent's defaults stay 8 Mbit/s and 30. The video stream used to open at the same time as the control stream, so a fast link now waits for the hello first: 9 to 14 ms over USB, 31 to 34 ms through an ssh tunnel.
+
+**Why.** Settle reads frames from the stream (D10), so on a link slower than the stream every action waits behind video. Measured on the Pixel API 37 emulator through a proxy shaped to 3G (780 kbit/s down, 330 up, 100 ms each way), the testbed, medians, 2026-11-12:
+
+| | direct | 3G before | 3G after |
+|---|---|---|---|
+| tap (9) | 710 ms | 2,761 ms | 2,237 ms |
+| type (3) | 619 ms | 4,638 ms | 1,995 ms |
+| snapshot (5) | 30 to 66 ms | 345 ms | 332 ms |
+| screenshot (5) | 13 ms | 227 ms | 213 ms |
+| bytes from the device, whole run | | 2.54 MB | 1.40 MB |
+
+The hello on the shaped link took 433 to 481 ms, so 120 ms separates the links seen. A screenshot taken at 400 kbit/s was looked at: every label of the testbed reads.
+
+**Limits.** One emulator, one run of each. The largest tap got no better (3.9 s before, 4.2 s after). A tap on 3G is still three times a direct one because it makes about five round trips of 200 ms: the power state (`prepare`), the tree (`resolve`), the touch, settle and the tree again. The hello time is latency, not bandwidth: a fast link with a long delay also gets the small stream. Not tried on a phone over a real mobile network.
+

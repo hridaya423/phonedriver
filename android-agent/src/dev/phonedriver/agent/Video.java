@@ -24,13 +24,19 @@ final class Video {
     private static final int OUTPUT_WAIT_US = 10_000;
     private static volatile boolean syncRequested;
     private static final ConcurrentLinkedQueue<Long> barriers = new ConcurrentLinkedQueue<>();
+    private static final int BIT_RATE = 8_000_000;
+    private static final int FPS = 30;
+    private static volatile int bitRate = BIT_RATE;
+    private static volatile int fps = FPS;
 
     private final DataOutputStream out;
     private int maxSize;
 
-    Video(DataOutputStream out, int maxSize) {
+    Video(DataOutputStream out, int maxSize, int bitRate, int fps) {
         this.out = out;
         this.maxSize = maxSize;
+        Video.bitRate = bitRate > 0 ? bitRate : BIT_RATE;
+        Video.fps = fps > 0 ? fps : FPS;
     }
 
     static void requestSyncFrame() {
@@ -53,7 +59,7 @@ final class Video {
     static MediaFormat format(int w, int h) {
         MediaFormat f = new MediaFormat();
         f.setString(MediaFormat.KEY_MIME, "video/avc");
-        f.setInteger(MediaFormat.KEY_BIT_RATE, 8_000_000);
+        f.setInteger(MediaFormat.KEY_BIT_RATE, bitRate);
         f.setInteger(MediaFormat.KEY_FRAME_RATE, 60);
         f.setInteger(MediaFormat.KEY_COLOR_FORMAT, MediaCodecInfo.CodecCapabilities.COLOR_FormatSurface);
         f.setInteger(MediaFormat.KEY_COLOR_RANGE, MediaFormat.COLOR_RANGE_LIMITED);
@@ -61,7 +67,7 @@ final class Video {
         f.setLong(MediaFormat.KEY_REPEAT_PREVIOUS_FRAME_AFTER, 100_000);
         f.setInteger(MediaFormat.KEY_PRIORITY, 0);
         f.setInteger(MediaFormat.KEY_LATENCY, 1);
-        f.setFloat("max-fps-to-encoder", 30f);
+        f.setFloat("max-fps-to-encoder", (float) fps);
         f.setInteger(MediaFormat.KEY_WIDTH, w);
         f.setInteger(MediaFormat.KEY_HEIGHT, h);
         return f;

@@ -146,7 +146,7 @@ public final class Main {
             if (kind == 'C') {
                 new Control(in, out).run(first);
             } else {
-                new Video(out, first.optInt("max_size", 0)).run();
+                new Video(out, first.optInt("max_size", 0), first.optInt("bit_rate", 0), first.optInt("fps", 0)).run();
             }
         } catch (Throwable t) {
             System.err.println("stream " + (char) kind + " ended: " + t);

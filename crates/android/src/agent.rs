@@ -448,26 +448,28 @@ async fn open_stream(
     Ok(stream)
 }
 
+const SLOW_LINK: Duration = Duration::from_millis(120);
+
+/// The bit rate and frame rate to ask for on a slow link, told by how long the agent's hello took (two round
+/// trips: 9 to 14 ms over USB, 31 to 34 ms through an ssh tunnel, 433 to 481 ms on a link shaped to 3G, 780 kbit/s
+/// down and 100 ms each way). The agent's own 8 Mbit/s is ten times what that link carries, and the frames that
+/// tell a tap has settled queue behind the stream (2026-11-12).
+fn video_for(hello: Duration) -> Option<(u32, u32)> {
+    (hello >= SLOW_LINK).then_some((400_000, 10))
+}
+
 impl Agent {
     pub async fn start(adb: &Adb, serial: &str, display: DisplayMode) -> Result<Agent> {
         let launched = launch(adb, serial, display).await?;
-        let (control, video) = tokio::try_join!(
-            open_stream(
-                adb,
-                serial,
-                &launched,
-                b'C',
-                json!({"id": 0, "op": "hello", "version": VERSION, "token": launched.token})
-            ),
-            open_stream(
-                adb,
-                serial,
-                &launched,
-                b'V',
-                json!({"token": launched.token})
-            ),
-        )?;
-        let mut control = control;
+        let asked = std::time::Instant::now();
+        let mut control = open_stream(
+            adb,
+            serial,
+            &launched,
+            b'C',
+            json!({"id": 0, "op": "hello", "version": VERSION, "token": launched.token}),
+        )
+        .await?;
         let reply = read_reply(&mut control, 0).await.map_err(|e| {
             let lines = launched.log.recent().join("\n");
             transport(format!("no hello from the agent ({e}); agent log: {lines}"))
@@ -475,6 +477,12 @@ impl Agent {
         if reply["ok"] != true {
             return Err(transport(format!("the agent refused hello: {reply}")));
         }
+        let mut first = json!({"token": launched.token});
+        if let Some((bit_rate, fps)) = video_for(asked.elapsed()) {
+            first["bit_rate"] = json!(bit_rate);
+            first["fps"] = json!(fps);
+        }
+        let video = open_stream(adb, serial, &launched, b'V', first).await?;
         let hello = serde_json::from_value(reply)
             .map_err(|e| transport(format!("the agent's hello was malformed: {e}")))?;
         Ok(Agent {
@@ -490,6 +498,12 @@ impl Agent {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn only_a_slow_link_gets_the_small_stream() {
+        assert_eq!(video_for(Duration::from_millis(34)), None);
+        assert_eq!(video_for(Duration::from_millis(433)), Some((400_000, 10)));
+    }
 
     #[test]
     fn hello_carries_the_hidden_display_id_when_there_is_one() {

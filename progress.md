@@ -2051,3 +2051,12 @@ The README on main described `then`, but 0.1.1 did not have it. Version 0.1.2 ev
 - One agent run (`claude -p`, sonnet, subscription, MCP tools only, no skill) on the Pixel API 37 emulator: it turned Dark theme on through Settings in 13 turns and 112 s, `cmd uimode night` then printed `Night mode: yes`. It did not use `then`. The emulator showed "System UI isn't responding" and "Settings isn't responding" during the run, so the run does not show whether agents take up `then` from the schema.
 - Found in that run: `phonedriver release` with two devices connected fails with "2 devices are connected; pick one", and a lease held by a terminal command blocked the agent. Not fixed in this commit.
 - `release` with no device named now gives up every device the session holds (`release_everywhere`, which the MCP disconnect already used). Before, with the HONOR X8 and the emulator both connected: `error: 2 devices are connected; pick one`. After, same two devices, the emulator leased by `default`: `released`, and `devices` shows `-` under LEASE for both. Test `release_with_no_device_named_needs_no_choice_between_two_devices`.
+
+## 2026-11-12: commands over a slow link (D50)
+
+- Asked by the user: make Wi-Fi commands fast and test at 3G. HONOR X8, read-only commands (the phone was locked): snapshot 96 to 132 ms and screenshot 16 to 31 ms over Wi-Fi (port 5555), against 62 to 144 ms and 11 to 49 ms over USB earlier today. Wi-Fi costs nothing measurable.
+- 3G is a TCP proxy that delays each direction 100 ms and limits it to 780 kbit/s down, 330 up. On the HONOR through it: snapshot 534 to 715 ms, 23 KB down for a lock screen whose text is 548 bytes; waking the screen sent 354 KB of video.
+- Taps were measured on the Pixel API 37 emulator on win-pc (its adb port through ssh, then the same proxy). The table and the change are in D50: the stream is 400 kbit/s at 10 frames a second when the agent's hello takes 120 ms or more.
+- Mac mini: `cargo clippy -p phonedriver-android -p phonedriver --all-targets` prints nothing; `cargo test -p phonedriver-android`: 37, 13, 2 and 4 passed, the live tests ignored.
+- Left for later, in order of what they would save on 3G: fewer round trips in a tap (the power-state read is reused for only 1 s, so an agent pays it on every tap), and compressing the tree on the wire (23 KB a snapshot is 240 ms of a 780 kbit/s link).
+- Seen once and not reproduced: `type` took 3.1 s on the direct link in the first run after the emulator restarted (`text` phase 3,098 ms); the next run took 619 ms.
