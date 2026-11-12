@@ -2016,4 +2016,4 @@ The README on main described `then`, but 0.1.1 did not have it. Version 0.1.2 ev
 - `phonedriver ios wifi off` then `on`, on the cable: each printed its line, and `ios-wifi` in the home went from empty to the udid.
 - The cable pulled in the middle of a session, after the fix in D47: `tap "B9"` 6.95 s, `"B14"` 1.04 s, `"B21"` 1.18 s, all three in the testbed's log. Before the fix the same pull gave `no device` for up to 45 s.
 - Not tested: an iOS older than 26.4, a second network, Linux or Windows, an iPad, a locked phone over Wi-Fi, the approval guard on this phone (its code is unchanged and `--test guard` passes). One tap of mine landed on a Health notification banner and opened Health; the user was told.
-
+- `phonedriver ios wifi off` over Wi-Fi (cable off) set the switch, then failed with `cannot read the setting back: device socket io failed` and left the udid in `ios-wifi`. The phone had stopped announcing itself and `phonedriver devices` printed `no devices`, so the switch was off. Fixed: the read-back runs only on the cable. Not rerun on the phone, which no longer answers over Wi-Fi.

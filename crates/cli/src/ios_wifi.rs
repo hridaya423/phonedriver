@@ -54,6 +54,8 @@ fn done(device: &Attached, on: bool) -> String {
     }
 }
 
+/// The setting is read back only on the cable: turned off over Wi-Fi, the device drops the connection that would
+/// read it (observed 2026-11-12, "device socket io failed", with the setting off).
 async fn flow(home: &Path, on: bool, wanted: Option<&str>) -> Result<String, String> {
     let attached = attached(home).await?;
     let device = pick(&attached, wanted)?;
@@ -61,14 +63,16 @@ async fn flow(home: &Path, on: bool, wanted: Option<&str>) -> Result<String, Str
         let e = transport::classify(&name(device), &e);
         format!("{e}. {}", e.hint())
     })?;
-    let is = transport::network_allowed(device)
-        .await
-        .map_err(|e| format!("cannot read the setting back: {e}"))?;
-    if is != on {
-        return Err(format!(
-            "{} did not keep the setting. Open Finder, select the device and set \"Show this iPhone when on Wi-Fi\" there.",
-            name(device)
-        ));
+    if matches!(device.link, Link::Usb { .. }) {
+        let is = transport::network_allowed(device)
+            .await
+            .map_err(|e| format!("cannot read the setting back: {e}"))?;
+        if is != on {
+            return Err(format!(
+                "{} did not keep the setting. Open Finder, select the device and set \"Show this iPhone when on Wi-Fi\" there.",
+                name(device)
+            ));
+        }
     }
     match on {
         true => lan::remember(home, &device.udid),
