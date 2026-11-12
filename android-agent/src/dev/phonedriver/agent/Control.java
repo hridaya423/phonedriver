@@ -35,6 +35,24 @@ final class Control {
         });
     }
 
+    // A screen tree is 20 KB or more of JSON, which is 240 ms of a 780 kbit/s link. A frame this long goes
+    // deflated, with the top bit of its length set.
+    private static final int DEFLATE_FROM = 1024;
+    private static final int DEFLATED = 0x80000000;
+
+    private static byte[] deflate(byte[] frame) {
+        java.util.zip.Deflater d = new java.util.zip.Deflater(java.util.zip.Deflater.BEST_SPEED);
+        d.setInput(frame);
+        d.finish();
+        java.io.ByteArrayOutputStream small = new java.io.ByteArrayOutputStream(frame.length / 4 + 64);
+        byte[] chunk = new byte[8192];
+        while (!d.finished()) {
+            small.write(chunk, 0, d.deflate(chunk));
+        }
+        d.end();
+        return small.toByteArray();
+    }
+
     void event(JSONObject event) {
         outbox.add(Json.bytes(event));
     }
@@ -46,8 +64,14 @@ final class Control {
                 if (frame == CLOSE) {
                     return;
                 }
-                out.writeInt(frame.length);
-                out.write(frame);
+                if (frame.length >= DEFLATE_FROM) {
+                    byte[] small = deflate(frame);
+                    out.writeInt(small.length | DEFLATED);
+                    out.write(small);
+                } else {
+                    out.writeInt(frame.length);
+                    out.write(frame);
+                }
                 out.flush();
             }
         } catch (IOException | InterruptedException e) {

@@ -391,16 +391,32 @@ pub async fn read_reply<R: AsyncRead + Unpin>(s: &mut R, id: u64) -> Result<Valu
     }
 }
 
+/// The agent deflates a frame of 1 KB or more and sets this bit of its length.
+const DEFLATED: u32 = 0x8000_0000;
+
 pub async fn read_frame<R: AsyncRead + Unpin>(s: &mut R) -> Result<Value> {
     let broke = |e: std::io::Error| transport(format!("the agent connection broke: {e}"));
     let mut len = [0u8; 4];
     s.read_exact(&mut len).await.map_err(broke)?;
-    let n = u32::from_be_bytes(len) as usize;
+    let len = u32::from_be_bytes(len);
+    let n = (len & !DEFLATED) as usize;
     if n > MAX_FRAME {
         return Err(transport(format!("the agent sent a {n} byte frame")));
     }
     let mut body = vec![0u8; n];
     s.read_exact(&mut body).await.map_err(broke)?;
+    if len & DEFLATED != 0 {
+        let mut plain = Vec::new();
+        std::io::Read::read_to_end(
+            &mut std::io::Read::take(
+                flate2::read::ZlibDecoder::new(body.as_slice()),
+                MAX_FRAME as u64,
+            ),
+            &mut plain,
+        )
+        .map_err(|e| transport(format!("the agent sent a frame that does not inflate: {e}")))?;
+        body = plain;
+    }
     serde_json::from_slice(&body).map_err(|e| transport(format!("the agent sent bad JSON: {e}")))
 }
 
@@ -498,6 +514,18 @@ impl Agent {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn a_deflated_frame_reads_as_the_same_json() {
+        use std::io::Write;
+        let v = json!({"id": 7, "nodes": vec!["row"; 400]});
+        let mut z = flate2::write::ZlibEncoder::new(Vec::new(), flate2::Compression::fast());
+        z.write_all(&serde_json::to_vec(&v).unwrap()).unwrap();
+        let small = z.finish().unwrap();
+        let mut wire = (small.len() as u32 | DEFLATED).to_be_bytes().to_vec();
+        wire.extend(small);
+        assert_eq!(read_frame(&mut wire.as_slice()).await.unwrap(), v);
+    }
 
     #[test]
     fn only_a_slow_link_gets_the_small_stream() {

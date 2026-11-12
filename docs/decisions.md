@@ -634,13 +634,15 @@ Not changed, on the user's word that the hero is finished: the critic's first tw
 
 **Why.** Settle reads frames from the stream (D10), so on a link slower than the stream every action waits behind video. Measured on the Pixel API 37 emulator through a proxy shaped to 3G (780 kbit/s down, 330 up, 100 ms each way), the testbed, medians, 2026-11-12:
 
-| | direct | 3G before | 3G after |
-|---|---|---|---|
-| tap (9) | 710 ms | 2,761 ms | 2,237 ms |
-| type (3) | 619 ms | 4,638 ms | 1,995 ms |
-| snapshot (5) | 30 to 66 ms | 345 ms | 332 ms |
-| screenshot (5) | 13 ms | 227 ms | 213 ms |
-| bytes from the device, whole run | | 2.54 MB | 1.40 MB |
+| | direct | 3G before | 3G, small stream | 3G, small stream and deflated frames |
+|---|---|---|---|---|
+| tap (9) | 710 ms | 2,761 ms | 2,237 ms | 2,174 ms |
+| type (3) | 619 ms | 4,638 ms | 1,995 ms | 1,712 ms |
+| snapshot (5) | 30 to 66 ms | 345 ms | 332 ms | 276 ms |
+| screenshot (5) | 13 ms | 227 ms | 213 ms | 215 ms |
+| bytes from the device, whole run | | 2.54 MB | 1.40 MB | 0.78 MB |
+
+The last column adds a second change: the agent deflates every control frame of 1 KB or more (a screen tree is 20 KB or more of JSON) and sets the top bit of the frame's length; the host inflates it. This is on for every link. With it the direct link measured snapshot 36 ms and tap 569 ms, and the HONOR X8 over USB snapshot 92 to 123 ms (62 to 144 ms before), so it costs a fast link nothing measurable.
 
 The hello on the shaped link took 433 to 481 ms, so 120 ms separates the links seen. A screenshot taken at 400 kbit/s was looked at: every label of the testbed reads.
 
