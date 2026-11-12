@@ -253,6 +253,31 @@ impl Adb {
         Ok(os_label(&String::from_utf8_lossy(&out.stdout)))
     }
 
+    /// The phone's own serial number, the same over every connection to it.
+    pub async fn hardware_serial(&self, serial: &str) -> Result<String> {
+        let out = self.shell(serial, "getprop ro.serialno").await?;
+        Ok(String::from_utf8_lossy(&out.stdout).trim().to_string())
+    }
+
+    /// Stops the local server and starts it again as a child of this process, so it runs with this process's
+    /// permissions. False for a server named by `ADB_SERVER_SOCKET`, which is not ours to restart.
+    pub async fn restart_server(&self) -> Result<bool> {
+        let Server::Local { program } = &self.server else {
+            return Ok(false);
+        };
+        for arg in ["kill-server", "start-server"] {
+            tokio::process::Command::new(program)
+                .arg(arg)
+                .stdin(std::process::Stdio::null())
+                .stdout(std::process::Stdio::null())
+                .stderr(std::process::Stdio::null())
+                .status()
+                .await
+                .map_err(|e| transport(format!("cannot run `{program} {arg}`: {e}")))?;
+        }
+        Ok(true)
+    }
+
     pub async fn track_devices(&self) -> Result<DeviceTracker> {
         let mut s = self.connect().await?;
         self.request(&mut s, "host:track-devices-l").await?;

@@ -178,7 +178,7 @@ Wireless debugging works only on the Wi-Fi it was switched on for. To use a phon
 phonedriver untether
 ```
 
-It lists the phone's addresses (`wlan0 (Wi-Fi)`, `tun0 (Tailscale)`), stops if the phone is on mobile data only, runs `adb tcpip 5555`, connects to the first address that answers and prints `connected: android:<ip>:5555`. With more than one device pass `--device android:<serial>`. Tested on a HONOR X8 (Android 13). On a Mac, adb's background server can be blocked from the local network; both commands say so and name the fix (`adb kill-server`, then `adb nodaemon server` in a terminal you leave open).
+It lists the phone's addresses (`wlan0 (Wi-Fi)`, `tun0 (Tailscale)`), stops if the phone is on mobile data only, runs `adb tcpip 5555`, connects to the first address that answers and prints `connected: android:<ip>:5555`. With more than one device pass `--device android:<serial>`. Tested on a HONOR X8 (Android 13). On a Mac, an adb server that macOS keeps off the local network is restarted by both commands. A phone connected in more than one way (cable, Wi-Fi, port 5555) is one line in `phonedriver devices`; the cable wins, and any of its ids still works with `--device`.
 
 This is opt-in on purpose. adb then listens on port 5555 on every network the phone joins, until it reboots. A new computer still has to be allowed on the phone's screen, but do this only on networks you trust, or with Tailscale on both ends and the phone's other networks untrusted. `adb -s <ip>:5555 usb` or a reboot turns it off. See decision D30.
 

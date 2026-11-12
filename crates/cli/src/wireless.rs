@@ -6,8 +6,8 @@ use std::time::Duration;
 
 use phonedriver_android::adb::{Adb, AdbDevice, DeviceState};
 use phonedriver_android::wireless::{
-    MdnsService, NetAddr, ServiceKind, iface_label, is_mobile_data, parse_ip_addrs,
-    parse_mdns_services, qr_payload,
+    MdnsService, NetAddr, ServiceKind, connections_per_phone, iface_label, is_mobile_data,
+    parse_ip_addrs, parse_mdns_services, qr_payload,
 };
 use qrcode::QrCode;
 use qrcode::render::unicode::Dense1x2;
@@ -17,6 +17,7 @@ const SCAN_WINDOW: Duration = Duration::from_secs(120);
 const CONNECT_WINDOW: Duration = Duration::from_secs(30);
 const TCPIP_PORT: u16 = 5555;
 const CONNECT_ATTEMPT: Duration = Duration::from_secs(8);
+const RESTART_WINDOW: Duration = Duration::from_secs(8);
 
 fn find_pairing<'a>(services: &'a [MdnsService], name: &str) -> Option<&'a MdnsService> {
     services
@@ -116,6 +117,7 @@ async fn pair_flow(adb: &Adb) -> Result<String, (u8, String)> {
             "adb's mDNS is not available ({why}), so the phone cannot be found by QR code. Pair with the code instead: on the phone choose Pair device with pairing code, then run `adb pair <ip:port>` and `adb connect <ip:port>` (docs/reference.md, Android over Wi-Fi)."
         )));
     }
+    reach_local_network(adb).await.map_err(fail)?;
     let name = format!("phonedriver-{}", random_text(6));
     let password = random_text(12);
     let color = std::io::stdout().is_terminal();
@@ -195,11 +197,8 @@ pub fn pair() -> ExitCode {
     }
 }
 
-/// What to do when macOS keeps adb off the local network. adb's server runs in the background, outside the Local
-/// Network permission of the terminal that started it: `adb connect` to a phone on the same Wi-Fi answered "No route
-/// to host" and `adb mdns services` listed nothing, while `nc` reached the same port and a server started with
-/// `adb nodaemon server` in the same shell connected at once (observed 2026-11-12, macOS 27, adb 37.0.1).
-const MACOS_BLOCK: &str = " macOS may be keeping adb off your local network. Run `adb kill-server`, then `adb nodaemon server` in a terminal window that you leave open, and run this again.";
+/// What is left to do when macOS still keeps adb off the local network after its server was restarted.
+const MACOS_BLOCK: &str = " macOS is keeping adb off your local network. Allow your terminal app under System Settings > Privacy & Security > Local Network, then run this again.";
 
 fn macos_block(answers: &str, macos: bool) -> &'static str {
     if macos && answers.contains("No route to host") {
@@ -207,6 +206,66 @@ fn macos_block(answers: &str, macos: bool) -> &'static str {
     } else {
         ""
     }
+}
+
+/// The router's address in the output of `route -n get default`.
+fn gateway_in(route: &str) -> Option<&str> {
+    route
+        .lines()
+        .find_map(|l| l.trim().strip_prefix("gateway:"))
+        .map(str::trim)
+}
+
+/// Whether macOS keeps this adb server off the local network. An adb server that had run since the afternoon
+/// answered "No route to host" for every address on the Wi-Fi network, the router included, and listed no mDNS
+/// services, while a server started a moment earlier from the same shell answered "Connection refused" for the
+/// router and connected to the phone (observed 2026-11-12, macOS 27, adb 37.0.1). So the router is asked at a port
+/// nothing serves.
+async fn off_local_network(adb: &Adb) -> bool {
+    if !cfg!(target_os = "macos") {
+        return false;
+    }
+    let Ok(route) = tokio::process::Command::new("route")
+        .args(["-n", "get", "default"])
+        .output()
+        .await
+    else {
+        return false;
+    };
+    let route = String::from_utf8_lossy(&route.stdout);
+    let Some(gateway) = gateway_in(&route) else {
+        return false;
+    };
+    let target = format!("{gateway}:9");
+    let answer = match tokio::time::timeout(CONNECT_ATTEMPT, adb.connect_device(&target)).await {
+        Ok(Ok(answer)) => answer,
+        Ok(Err(e)) => e.to_string(),
+        Err(_) => String::new(),
+    };
+    answer.contains("No route to host")
+}
+
+/// Restarts a local adb server that macOS keeps off the local network, and waits for the cabled devices to come
+/// back.
+async fn reach_local_network(adb: &Adb) -> Result<(), String> {
+    if !off_local_network(adb).await {
+        return Ok(());
+    }
+    let before = adb.devices().await.map(|d| d.len()).unwrap_or(0);
+    if !adb.restart_server().await.map_err(|e| e.to_string())? {
+        return Ok(());
+    }
+    println!("adb's server could not reach your local network; restarted it.");
+    let deadline = tokio::time::Instant::now() + RESTART_WINDOW;
+    while adb.devices().await.map(|d| d.len()).unwrap_or(0) < before
+        && tokio::time::Instant::now() < deadline
+    {
+        tokio::time::sleep(POLL).await;
+    }
+    if off_local_network(adb).await {
+        return Err(MACOS_BLOCK.trim_start().to_string());
+    }
+    Ok(())
 }
 
 /// The addresses worth trying. A phone on mobile data only is stopped before adb is switched to TCP: on a HONOR X8
@@ -221,7 +280,12 @@ fn reachable(addrs: &[NetAddr]) -> Result<Vec<&NetAddr>, String> {
 }
 
 async fn untether_flow(adb: &Adb, device: Option<&str>) -> Result<String, String> {
+    reach_local_network(adb).await?;
     let devices = adb.devices().await.map_err(|e| e.to_string())?;
+    let devices = match device {
+        Some(_) => devices,
+        None => connections_per_phone(adb, devices).await,
+    };
     let serial = pick_device(&devices, device)?;
     let out = adb
         .shell(&serial, "ip -o -4 addr show")
@@ -276,7 +340,7 @@ pub fn untether(device: Option<&str>) -> ExitCode {
                 "Warning: adb on this phone now listens on every network it joins, until it reboots. Each new computer still has to be allowed on the phone's screen, but only do this on networks you trust, or with Tailscale. `adb -s {target} usb` or a reboot turns it off."
             );
             println!(
-                "A phone still on the cable now shows up twice in `phonedriver devices`; unplug it or pass --device android:{target}."
+                "While the cable is in, `phonedriver devices` shows the cabled connection. Unplug it to use android:{target}."
             );
             ExitCode::SUCCESS
         }
@@ -393,11 +457,21 @@ mod tests {
     }
 
     #[test]
-    fn no_route_to_host_on_a_mac_names_the_local_network_block() {
+    fn no_route_to_host_on_a_mac_names_the_local_network_setting() {
         let answer = "failed to connect to '192.168.1.20:5555': No route to host";
-        assert!(macos_block(answer, true).contains("adb nodaemon server"));
+        assert!(macos_block(answer, true).contains("Local Network"));
         assert_eq!(macos_block(answer, false), "");
         assert_eq!(macos_block("no answer in 8 s", true), "");
+    }
+
+    #[test]
+    fn the_router_is_read_from_the_route_command() {
+        let route = "   route to: default\ndestination: default\n       mask: default\n    gateway: 192.168.0.1\n  interface: en0\n";
+        assert_eq!(gateway_in(route), Some("192.168.0.1"));
+        assert_eq!(
+            gateway_in("route: writing to routing socket: not in table"),
+            None
+        );
     }
 
     #[test]

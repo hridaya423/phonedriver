@@ -6,6 +6,7 @@ use std::sync::{Arc, Mutex};
 use async_trait::async_trait;
 use phonedriver_android::adb::{Adb, AdbDevice, DeviceState};
 use phonedriver_android::device::AndroidDevice;
+use phonedriver_android::wireless::{one_per_phone, serial_in_name};
 use phonedriver_core::device::{Capabilities, Device, DisplayMode};
 use phonedriver_core::error::Error;
 
@@ -24,6 +25,7 @@ pub struct AdbSource {
     adb: Adb,
     tracked: Arc<Mutex<Tracked>>,
     os: Mutex<HashMap<OsKey, Option<String>>>,
+    hardware: Mutex<HashMap<OsKey, Option<String>>>,
 }
 
 impl AdbSource {
@@ -36,6 +38,7 @@ impl AdbSource {
             adb,
             tracked: Arc::default(),
             os: Mutex::default(),
+            hardware: Mutex::default(),
         }
     }
 
@@ -78,6 +81,37 @@ impl AdbSource {
             .filter(|d| d.state == DeviceState::Device)
             .collect();
         let key = |d: &AdbDevice| (d.serial.clone(), d.transport_id);
+        let devices = if with_os && devices.len() > 1 {
+            let mut identified = Vec::new();
+            for d in devices {
+                let hardware = match serial_in_name(&d.serial) {
+                    Some(s) => Some(s.to_string()),
+                    None => {
+                        let known = self
+                            .hardware
+                            .lock()
+                            .unwrap_or_else(|e| e.into_inner())
+                            .get(&key(&d))
+                            .cloned();
+                        match known {
+                            Some(h) => h,
+                            None => {
+                                let h = self.adb.hardware_serial(&d.serial).await.ok();
+                                self.hardware
+                                    .lock()
+                                    .unwrap_or_else(|e| e.into_inner())
+                                    .insert(key(&d), h.clone());
+                                h
+                            }
+                        }
+                    }
+                };
+                identified.push((d, hardware));
+            }
+            one_per_phone(identified)
+        } else {
+            devices
+        };
         if with_os {
             let unknown: Vec<OsKey> = {
                 let known = self.os.lock().unwrap_or_else(|e| e.into_inner());
@@ -122,6 +156,8 @@ impl DeviceSource for AdbSource {
         self.listed(true).await
     }
 
+    /// A request that names a device sees every connection, so an id that the unnamed listing folded into
+    /// another connection of the same phone still resolves.
     async fn list_for(&self, requested: Option<&str>) -> Result<Vec<Listed>, Error> {
         self.listed(requested.is_none()).await
     }

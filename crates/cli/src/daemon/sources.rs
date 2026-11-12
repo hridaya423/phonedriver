@@ -49,13 +49,13 @@ impl DeviceSource for Sources {
             .iter()
             .find(|(prefix, _)| requested.starts_with(prefix))
         {
-            return owner.list().await;
+            return owner.list_for(Some(requested)).await;
         }
         let mut out = Vec::new();
         let mut first_error = None;
         let mut answered = false;
         for (_, source) in &self.0 {
-            match source.list().await {
+            match source.list_for(Some(requested)).await {
                 Ok(list) => {
                     answered = true;
                     let found = list.iter().any(|l| super::names(&l.id, requested));

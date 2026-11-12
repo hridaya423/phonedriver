@@ -1,6 +1,8 @@
 //! The pure parts of cable-free setup: the QR payload Android's "Pair device with QR code" reads, the lines of
 //! `host:mdns:services`, and the addresses in `ip -o -4 addr show`.
 
+use crate::adb::{Adb, AdbDevice, DeviceState};
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ServiceKind {
     Pairing,
@@ -93,6 +95,54 @@ pub fn iface_label(addr: &NetAddr) -> String {
         return iface.clone();
     };
     format!("{iface} ({kind})")
+}
+
+/// The phone's serial number when adb's name for the connection already holds it: a cable (`AS6N6R2223005087`) or
+/// the name adb gives a phone it found by mDNS (`adb-AS6N6R2223005087-TCBc5w._adb-tls-connect._tcp`). An
+/// `<ip>:<port>` connection has to be asked.
+pub fn serial_in_name(serial: &str) -> Option<&str> {
+    if let Some(name) = serial.strip_suffix("._adb-tls-connect._tcp") {
+        return name.strip_prefix("adb-")?.rsplit_once('-').map(|(s, _)| s);
+    }
+    (!serial.contains(':')).then_some(serial)
+}
+
+/// One connection per phone, for a listing nobody named a device in: after `pair` and `untether` adb listed a HONOR
+/// X8 three times (its TLS port, port 5555 and its mDNS name; observed 2026-11-12), and one phone then looked like
+/// three. The cable wins, then an `<ip>:<port>` connection, then the mDNS name. A device whose serial number is
+/// unknown is kept.
+pub fn one_per_phone(devices: Vec<(AdbDevice, Option<String>)>) -> Vec<AdbDevice> {
+    let rank = |d: &AdbDevice| match serial_in_name(&d.serial) {
+        Some(s) if s == d.serial => 0,
+        None => 1,
+        Some(_) => 2,
+    };
+    let mut out: Vec<(AdbDevice, Option<String>)> = Vec::new();
+    for (device, hardware) in devices {
+        let same = out
+            .iter_mut()
+            .find(|(_, h)| hardware.is_some() && *h == hardware);
+        match same {
+            Some(kept) if rank(&device) < rank(&kept.0) => kept.0 = device,
+            Some(_) => {}
+            None => out.push((device, hardware)),
+        }
+    }
+    out.into_iter().map(|(d, _)| d).collect()
+}
+
+/// `one_per_phone` for a command that runs once: an `<ip>:<port>` connection is asked for its serial number.
+pub async fn connections_per_phone(adb: &Adb, devices: Vec<AdbDevice>) -> Vec<AdbDevice> {
+    let mut identified = Vec::new();
+    for d in devices {
+        let hardware = match serial_in_name(&d.serial) {
+            Some(s) => Some(s.to_string()),
+            None if d.state == DeviceState::Device => adb.hardware_serial(&d.serial).await.ok(),
+            None => None,
+        };
+        identified.push((d, hardware));
+    }
+    one_per_phone(identified)
 }
 
 #[cfg(test)]
@@ -200,5 +250,54 @@ mod tests {
             "rmnet_data1 (mobile data)"
         );
         assert_eq!(label("eth0", "10.0.2.15"), "eth0");
+    }
+
+    fn device(serial: &str) -> AdbDevice {
+        AdbDevice {
+            serial: serial.into(),
+            state: DeviceState::Device,
+            model: None,
+            transport_id: None,
+        }
+    }
+
+    const MDNS: &str = "adb-AS6N6R2223005087-TCBc5w._adb-tls-connect._tcp";
+
+    #[test]
+    fn the_serial_is_read_from_a_cable_name_and_an_mdns_name_and_not_from_an_address() {
+        assert_eq!(serial_in_name("AS6N6R2223005087"), Some("AS6N6R2223005087"));
+        assert_eq!(serial_in_name(MDNS), Some("AS6N6R2223005087"));
+        assert_eq!(serial_in_name("192.168.1.20:5555"), None);
+        assert_eq!(serial_in_name("emulator-5554"), Some("emulator-5554"));
+    }
+
+    #[test]
+    fn a_phone_listed_three_times_is_one_entry_and_the_cable_wins() {
+        let phone = Some("AS6N6R2223005087".to_string());
+        let listed = |names: &[&str]| {
+            one_per_phone(names.iter().map(|n| (device(n), phone.clone())).collect())
+                .into_iter()
+                .map(|d| d.serial)
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(
+            listed(&["192.168.1.20:42949", "192.168.1.20:5555", MDNS]),
+            ["192.168.1.20:42949"]
+        );
+        assert_eq!(
+            listed(&[MDNS, "192.168.1.20:5555", "AS6N6R2223005087"]),
+            ["AS6N6R2223005087"]
+        );
+    }
+
+    #[test]
+    fn two_phones_and_a_device_with_no_known_serial_all_stay() {
+        let out = one_per_phone(vec![
+            (device("A"), Some("A".into())),
+            (device("10.0.0.2:5555"), None),
+            (device("10.0.0.3:5555"), None),
+            (device("B"), Some("B".into())),
+        ]);
+        assert_eq!(out.len(), 4);
     }
 }
