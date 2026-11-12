@@ -30,7 +30,9 @@ adb connect 192.168.1.20:41233
 phonedriver devices
 ```
 
-The first address and the six-digit code are on the pairing screen. The second address is on the Wireless debugging screen, and its port changes each time wireless debugging is switched on. The phone then appears as `android:192.168.1.20:41233`. If it shows `offline`, `phonedriver doctor` says what to check. I tested this pairing flow between an emulator and a host over TCP, not on a real network.
+The first address and the six-digit code are on the pairing screen. The second address is on the Wireless debugging screen, and its port changes each time wireless debugging is switched on. The phone then appears as `android:192.168.1.20:41233`. If it shows `offline`, `phonedriver doctor` says what to check.
+
+`phonedriver pair` does the same with one scan: it shows a QR code, and you choose Pair device with QR code on the phone. `phonedriver untether` switches a phone that is on the cable to adb over TCP, for networks such as Tailscale. I tested both on the HONOR X8 on one Wi-Fi network. On a Mac, adb's background server can be blocked from the local network; both commands say so and name the fix.
 
 ## A hidden screen for the agent
 
@@ -40,7 +42,7 @@ Typing into an app's own fields leaves no trace on your screen. Typing into a we
 
 ## What has been tested
 
-I have tested one physical Android phone, a HONOR X8 (MagicOS, Android 13) over USB. On it, reading the screen took 78.5 ms against 2,506.6 ms for adb's `uiautomator dump` (32 times faster), and a screenshot took 16.4 ms against 1,005.7 ms for `screencap` (61 times faster). On the phone's main Settings page `uiautomator dump` failed with "could not get idle state" after 11.5 s, and phonedriver read it in 110 ms. That pass covered two operations, not typing or taps, and the full suite of scenarios was run on emulators. Other phones use the same path, and bug reports from them are welcome. The iOS devices I tested are covered on [the iPhone page](/docs/iphone/).
+I have tested one physical Android phone, a HONOR X8 (MagicOS, Android 13), over USB and over Wi-Fi. On it, reading the screen took 78.5 ms against 2,506.6 ms for adb's `uiautomator dump` (32 times faster), and a screenshot took 16.4 ms against 1,005.7 ms for `screencap` (61 times faster). On the phone's main Settings page `uiautomator dump` failed with "could not get idle state" after 11.5 s, and phonedriver read it in 110 ms. That pass covered two operations, not typing or taps, and the full suite of scenarios was run on emulators. Other phones use the same path, and bug reports from them are welcome. The iOS devices I tested are covered on [the iPhone page](/docs/iphone/).
 
 ## What stays with you
 

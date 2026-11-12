@@ -446,12 +446,12 @@ pub(crate) enum Verb {
     Doctor,
     /// Pair an Android 11+ phone over Wi-Fi with a QR code.
     ///
-    /// Shows a QR code. On the phone open Developer options > Wireless debugging > Pair device with QR code and scan it; the phone is paired and connected. Needs adb's mDNS and the phone on the same Wi-Fi; otherwise pair with the code (see docs/reference.md). Not yet tested on a physical phone.
+    /// Shows a QR code. On the phone open Developer options > Wireless debugging > Pair device with QR code and scan it; the phone is paired and connected. Needs adb's mDNS and the phone on the same Wi-Fi; otherwise pair with the code (see docs/reference.md).
     #[cfg(feature = "android")]
     Pair,
     /// Make an Android phone reachable over any network, such as Tailscale.
     ///
-    /// Runs `adb tcpip 5555` on the phone (USB or Wi-Fi), lists its addresses by interface and connects to the first that answers. adb then listens on every network the phone joins until it reboots, so use it only on networks you trust or with Tailscale; `adb usb` or a reboot turns it off. Not yet tested on a physical phone.
+    /// Runs `adb tcpip 5555` on the phone (USB or Wi-Fi), lists its addresses by interface and connects to the first that answers. adb then listens on every network the phone joins until it reboots, so use it only on networks you trust or with Tailscale; `adb usb` or a reboot turns it off.
     #[cfg(feature = "android")]
     Untether,
     /// Serve the tools over MCP on stdio.

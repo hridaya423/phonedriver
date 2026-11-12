@@ -158,7 +158,7 @@ An Android 11 or later phone on the same network needs no cable. On the phone, t
 phonedriver pair
 ```
 
-On the phone choose Wireless debugging, then Pair device with QR code, and scan it. phonedriver finds the phone on the network, pairs, connects, and prints `connected: android:192.168.1.20:41233`. It waits 2 minutes for the scan. Exit code 3 means nobody scanned; 1 means adb's mDNS is unavailable or pairing failed, and the message says what to do. *Not yet tested on a physical phone.*
+On the phone choose Wireless debugging, then Pair device with QR code, and scan it. phonedriver finds the phone on the network, pairs, connects, and prints `connected: android:192.168.1.20:41233`. It waits 2 minutes for the scan. Exit code 3 means nobody scanned; 1 means adb's mDNS is unavailable or pairing failed, and the message says what to do. Tested on a HONOR X8 (Android 13).
 
 If the QR does not work (the phone and computer are on different networks, a guest network, or a router that blocks mDNS), pair with the code instead. On the phone choose Pair device with pairing code. Then:
 
@@ -178,7 +178,7 @@ Wireless debugging works only on the Wi-Fi it was switched on for. To use a phon
 phonedriver untether
 ```
 
-It lists the phone's addresses (`wlan0 (Wi-Fi)`, `tun0 (Tailscale)`), stops if the phone is on mobile data only, runs `adb tcpip 5555`, connects to the first address that answers and prints `connected: android:<ip>:5555`. With more than one device pass `--device android:<serial>`. *Not yet tested on a physical phone.*
+It lists the phone's addresses (`wlan0 (Wi-Fi)`, `tun0 (Tailscale)`), stops if the phone is on mobile data only, runs `adb tcpip 5555`, connects to the first address that answers and prints `connected: android:<ip>:5555`. With more than one device pass `--device android:<serial>`. Tested on a HONOR X8 (Android 13). On a Mac, adb's background server can be blocked from the local network; both commands say so and name the fix (`adb kill-server`, then `adb nodaemon server` in a terminal you leave open).
 
 This is opt-in on purpose. adb then listens on port 5555 on every network the phone joins, until it reboots. A new computer still has to be allowed on the phone's screen, but do this only on networks you trust, or with Tailscale on both ends and the phone's other networks untrusted. `adb -s <ip>:5555 usb` or a reboot turns it off. See decision D30.
 

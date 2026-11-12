@@ -133,7 +133,14 @@ async fn pair_flow(adb: &Adb) -> Result<String, (u8, String)> {
         if tokio::time::Instant::now() >= deadline {
             return Err((
                 3,
-                "no phone scanned the code within 2 minutes. Check that the phone is on the same Wi-Fi as this computer (guest networks and routers with client isolation block it; some routers block mDNS). If it still fails, pair with the code: choose Pair device with pairing code on the phone, then run `adb pair <ip:port>` and `adb connect <ip:port>` (docs/reference.md, Android over Wi-Fi).".into(),
+                format!(
+                    "no phone scanned the code within 2 minutes. Check that the phone is on the same Wi-Fi as this computer (guest networks and routers with client isolation block it; some routers block mDNS). If it still fails, pair with the code: choose Pair device with pairing code on the phone, then run `adb pair <ip:port>` and `adb connect <ip:port>` (docs/reference.md, Android over Wi-Fi).{}",
+                    if cfg!(target_os = "macos") {
+                        MACOS_BLOCK
+                    } else {
+                        ""
+                    }
+                ),
             ));
         }
         tokio::time::sleep(POLL).await;
@@ -188,6 +195,20 @@ pub fn pair() -> ExitCode {
     }
 }
 
+/// What to do when macOS keeps adb off the local network. adb's server runs in the background, outside the Local
+/// Network permission of the terminal that started it: `adb connect` to a phone on the same Wi-Fi answered "No route
+/// to host" and `adb mdns services` listed nothing, while `nc` reached the same port and a server started with
+/// `adb nodaemon server` in the same shell connected at once (observed 2026-11-12, macOS 27, adb 37.0.1).
+const MACOS_BLOCK: &str = " macOS may be keeping adb off your local network. Run `adb kill-server`, then `adb nodaemon server` in a terminal window that you leave open, and run this again.";
+
+fn macos_block(answers: &str, macos: bool) -> &'static str {
+    if macos && answers.contains("No route to host") {
+        MACOS_BLOCK
+    } else {
+        ""
+    }
+}
+
 /// The addresses worth trying. A phone on mobile data only is stopped before adb is switched to TCP: on a HONOR X8
 /// with Wi-Fi off, both of its addresses were mobile data and each cost an 8 s connect that could not succeed
 /// (observed 2026-11-12).
@@ -233,8 +254,9 @@ async fn untether_flow(adb: &Adb, device: Option<&str>) -> Result<String, String
         answers.push(answer);
     }
     Err(format!(
-        "adb on the phone now listens on port {TCPIP_PORT}, but this computer reached none of its addresses ({}). Put this computer on the same network as the phone, or on the same Tailscale tailnet, then run `adb connect <ip>:{TCPIP_PORT}`.",
-        answers.join("; ")
+        "adb on the phone now listens on port {TCPIP_PORT}, but this computer reached none of its addresses ({}). Put this computer on the same network as the phone, or on the same Tailscale tailnet, then run `adb connect <ip>:{TCPIP_PORT}`.{}",
+        answers.join("; "),
+        macos_block(&answers.join("; "), cfg!(target_os = "macos"))
     ))
 }
 
@@ -368,6 +390,14 @@ mod tests {
             text.lines()
                 .all(|l| l.starts_with("\x1b[30;47m") && l.ends_with("\x1b[0m"))
         );
+    }
+
+    #[test]
+    fn no_route_to_host_on_a_mac_names_the_local_network_block() {
+        let answer = "failed to connect to '192.168.1.20:5555': No route to host";
+        assert!(macos_block(answer, true).contains("adb nodaemon server"));
+        assert_eq!(macos_block(answer, false), "");
+        assert_eq!(macos_block("no answer in 8 s", true), "");
     }
 
     #[test]
