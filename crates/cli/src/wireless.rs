@@ -18,6 +18,8 @@ const CONNECT_WINDOW: Duration = Duration::from_secs(30);
 const TCPIP_PORT: u16 = 5555;
 const CONNECT_ATTEMPT: Duration = Duration::from_secs(8);
 const RESTART_WINDOW: Duration = Duration::from_secs(8);
+const LISTEN_WINDOW: Duration = Duration::from_secs(6);
+const LISTEN_POLL: Duration = Duration::from_millis(300);
 
 fn find_pairing<'a>(services: &'a [MdnsService], name: &str) -> Option<&'a MdnsService> {
     services
@@ -84,6 +86,29 @@ fn pick_device(devices: &[AdbDevice], wanted: Option<&str>) -> Result<String, St
                 .collect::<Vec<_>>()
                 .join(", ")
         )),
+    }
+}
+
+/// adb on the phone restarts to listen on the port, and a connect that arrives during the restart fails. Seen on a
+/// HONOR X8 in 2 of 11 runs of `untether` (2026-11-12): once "Connection refused", once the adb server answered
+/// the connect with bytes that are no length ("adb sent a bad length [23, 3, 3, 0]"). The same command run again
+/// connected both times.
+fn not_listening_yet(answer: &str) -> bool {
+    answer.contains("Connection refused") || answer.contains("adb sent a bad length")
+}
+
+async fn connect_once_listening(adb: &Adb, target: &str) -> String {
+    let asked = tokio::time::Instant::now();
+    loop {
+        let answer = match tokio::time::timeout(CONNECT_ATTEMPT, adb.connect_device(target)).await {
+            Ok(Ok(answer)) => answer,
+            Ok(Err(e)) => e.to_string(),
+            Err(_) => format!("no answer from {target} in {} s", CONNECT_ATTEMPT.as_secs()),
+        };
+        if !not_listening_yet(&answer) || asked.elapsed() >= LISTEN_WINDOW {
+            return answer;
+        }
+        tokio::time::sleep(LISTEN_POLL).await;
     }
 }
 
@@ -307,11 +332,7 @@ async fn untether_flow(adb: &Adb, device: Option<&str>) -> Result<String, String
     for a in reachable {
         let target = format!("{}:{TCPIP_PORT}", a.ip);
         println!("trying {target}");
-        let answer = match tokio::time::timeout(CONNECT_ATTEMPT, adb.connect_device(&target)).await
-        {
-            Ok(answer) => answer.map_err(|e| e.to_string())?,
-            Err(_) => format!("no answer from {target} in {} s", CONNECT_ATTEMPT.as_secs()),
-        };
+        let answer = connect_once_listening(adb, &target).await;
         if is_connected(&answer) {
             return Ok(target);
         }
@@ -516,6 +537,15 @@ mod tests {
 
     #[test]
     fn adb_connect_answers_are_told_apart() {
+        assert!(not_listening_yet(
+            "failed to connect to '192.168.1.20:5555': Connection refused"
+        ));
+        assert!(not_listening_yet(
+            "connection error: adb sent a bad length [23, 3, 3, 0]"
+        ));
+        assert!(!not_listening_yet(
+            "failed to connect to '192.168.1.20:5555': No route to host"
+        ));
         assert!(is_connected("connected to 192.168.1.20:5555"));
         assert!(is_connected("already connected to 192.168.1.20:5555"));
         assert!(!is_connected(

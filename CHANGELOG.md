@@ -9,6 +9,7 @@ Every release of phonedriver, newest first. Binaries and checksums for each vers
 - **Notification banners on iOS**: a tap that starts under a banner waits for the banner to leave, so it no longer opens the notification.
 - **No team ID to look up**: phonedriver reads the signing team from this Mac's Apple Development certificate, so `PHONEDRIVER_TEAM` is needed only with certificates for several teams. The old hint pointed at the ID in parentheses after your name, which is not the team. `phonedriver ios setup` and `phonedriver doctor` print the team they found.
 - `phonedriver untether` stops at once when the Android phone is on mobile data only, and changes nothing on it.
+- `phonedriver untether` waits for adb on the phone to restart. It used to fail about one run in five on a HONOR X8 and work when run again.
 - `phonedriver pair` and `phonedriver untether` are now tested on a physical phone (HONOR X8). On a Mac, both restart an adb server that macOS keeps off the local network.
 - A phone connected in more than one way (cable, Wi-Fi, port 5555) is one line in `phonedriver devices`, so one phone no longer asks which device you mean.
 - `phonedriver ios setup` mounts the developer disk image again with Xcode 27, whose `devicectl` dropped the option the old command passed.
