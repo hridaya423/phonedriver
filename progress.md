@@ -2110,3 +2110,9 @@ The README on main described `then`, but 0.1.1 did not have it. Version 0.1.2 ev
 - The live test on the iPhone 13 Pro Max did not run: the phone locked before it started and the user stopped the test. The experiment is reverted; nothing shipped.
 - Docs now tell the reader to set Auto-Lock to Never for a long task (`site/content/docs/iphone.md`, `docs/reference.md`).
 - Open: whether any of the five holds a real iPhone awake.
+
+## 2026-11-13: release 0.1.3
+
+- The user said to release. README now covers `ios setup`, the detected team, the cable-free iPhone and Android, the slow-link numbers, the read-only tools, the 30 s terminal hand-over, and Auto-Lock.
+- Version 0.1.3 in the same files as the 0.1.2 bump, except the two under `site/`, which the user is reworking.
+- Mac mini: `cargo clippy --locked --workspace --all-targets -- -D warnings` exit 0. `cargo test --locked --workspace --no-fail-fast`: every binary `ok` except `no_device_exits_4_with_the_message_then_the_hint`, which fails only there because a simulator is booted. `target/debug/phonedriver --version` printed `phonedriver 0.1.3`.

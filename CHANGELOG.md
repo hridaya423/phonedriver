@@ -2,9 +2,11 @@
 
 Every release of phonedriver, newest first. Binaries and checksums for each version are on [GitHub Releases](https://github.com/hridaya423/phonedriver/releases).
 
-## Unreleased
+## 0.1.3
 
-- **iPhone without the cable**: `phonedriver ios wifi on` lets a physical iPhone or iPad answer over Wi-Fi. Unplug it and it stays in `phonedriver devices` while it shares a network with the Mac. Tested on an iPhone 13 Pro Max, iOS 27.0.1. `phonedriver doctor` says which link each device uses.
+Released 13 November 2026.
+
+- **iPhone without the cable**: `phonedriver ios wifi on` lets a physical iPhone or iPad answer over Wi-Fi. Unplug it and it stays in `phonedriver devices` while it shares a network with the Mac. Driven on an iPhone 13 Pro Max, iOS 27.0.1; an iPhone 14 Plus on iOS 26.1 was found and answered, with no taps run. A sleeping iPhone stops answering until it wakes. `phonedriver doctor` says which link each device uses.
 - **An iPhone the signing team has never seen**: the first command used to wait 60 seconds and point at an Xcode log. It now says the device is not registered and names the fix, `phonedriver ios register`. A locked iPhone at runner start is reported as locked.
 - **A locked iPhone says so**: an action on a locked iPhone used to answer "no element matches". It now answers that the device is locked, as Android does.
 - **Notification banners on iOS**: a tap that starts under a banner waits for the banner to leave, so it no longer opens the notification.

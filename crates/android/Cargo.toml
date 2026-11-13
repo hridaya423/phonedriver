@@ -9,10 +9,10 @@ serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.154"
 async-trait = "0.1.92"
 getrandom = "0.4.3"
-phonedriver-core = { version = "0.1.2", path = "../core" }
+phonedriver-core = { version = "0.1.3", path = "../core" }
 sha2 = "0.11.1"
 tokio = { version = "1.54.1", features = ["net", "io-util", "rt", "macros", "time", "process", "sync"] }
-phonedriver-video = { version = "0.1.2", path = "../video" }
+phonedriver-video = { version = "0.1.3", path = "../video" }
 flate2 = "1.1.11"
 
 [lints]
