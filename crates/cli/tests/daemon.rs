@@ -3131,8 +3131,24 @@ async fn the_power_state_is_read_once_for_taps_in_quick_succession() {
 }
 
 #[tokio::test(start_paused = true)]
-async fn the_power_state_is_read_again_after_a_window_event_a_pause_or_a_lock_press() {
+async fn a_device_that_pushes_its_power_state_is_asked_once_and_again_only_after_it_says_so() {
     let (source, fake) = FakeSource::with(vec![tree(&["One"])]);
+    let (d, _home) = daemon(source);
+    ok(&d, "default", "act", tap_point(10.0, 10.0)).await;
+    fake.emit(phonedriver_core::device::DeviceEvent::WindowChanged { package: None });
+    tokio::time::sleep(std::time::Duration::from_secs(30)).await;
+    ok(&d, "default", "act", tap_point(10.0, 10.0)).await;
+    assert_eq!(fake.screen_reads(), 1);
+    fake.emit(phonedriver_core::device::DeviceEvent::Locked(false));
+    tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+    ok(&d, "default", "act", tap_point(10.0, 10.0)).await;
+    assert_eq!(fake.screen_reads(), 2);
+}
+
+#[tokio::test(start_paused = true)]
+async fn the_power_state_is_read_again_after_a_window_event_a_pause_or_a_lock_press() {
+    let (source, fake) =
+        FakeSource::of(FakeDevice::new(vec![tree(&["One"])]).lacking(Capabilities::POWER_EVENTS));
     let (d, _home) = daemon(source);
     ok(&d, "default", "act", tap_point(10.0, 10.0)).await;
     fake.emit(phonedriver_core::device::DeviceEvent::WindowChanged { package: None });

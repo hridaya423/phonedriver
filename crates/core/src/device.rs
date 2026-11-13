@@ -31,6 +31,8 @@ bitflags! {
         const LAUNCH = 1 << 13;
         const FOREGROUND = 1 << 14;
         const SHELL = 1 << 15;
+        /// The device sends `DeviceEvent::Locked` whenever its screen turns on or off or its lock state changes.
+        const POWER_EVENTS = 1 << 16;
     }
 }
 

@@ -25,6 +25,7 @@ final class Monitor {
     private static void loop() {
         DisplayInfo last = null;
         Boolean locked = null;
+        Boolean screenOn = null;
         long keyguardAt = 0;
         while (true) {
             try {
@@ -39,11 +40,17 @@ final class Monitor {
                     emit(e);
                 }
                 last = now;
-                if (SystemClock.uptimeMillis() - keyguardAt >= KEYGUARD_POLL_MS) {
+                // The host reads the power state once and then trusts these events, so every change of the
+                // screen or the lock is sent.
+                boolean on = Hidden.active() || ServiceManager.getPowerManager().isScreenOn(0);
+                boolean changed = screenOn != null && on != screenOn;
+                screenOn = on;
+                if (changed || SystemClock.uptimeMillis() - keyguardAt >= KEYGUARD_POLL_MS) {
                     keyguardAt = SystemClock.uptimeMillis();
                     boolean l = Keyguard.locked();
-                    if (locked != null && l != locked) {
-                        emit(Json.put(Json.put(new JSONObject(), "ev", "state"), "locked", l));
+                    if (changed || (locked != null && l != locked)) {
+                        JSONObject e = Json.put(new JSONObject(), "ev", "state");
+                        emit(Json.put(Json.put(e, "locked", l), "screen_on", on));
                     }
                     locked = l;
                 }

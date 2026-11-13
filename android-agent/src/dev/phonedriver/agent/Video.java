@@ -28,6 +28,7 @@ final class Video {
     private static final int FPS = 30;
     private static volatile int bitRate = BIT_RATE;
     private static volatile int fps = FPS;
+    private static volatile boolean constantRate;
 
     private final DataOutputStream out;
     private int maxSize;
@@ -60,6 +61,9 @@ final class Video {
         MediaFormat f = new MediaFormat();
         f.setString(MediaFormat.KEY_MIME, "video/avc");
         f.setInteger(MediaFormat.KEY_BIT_RATE, bitRate);
+        if (bitRate != BIT_RATE && constantRate) {
+            f.setInteger(MediaFormat.KEY_BITRATE_MODE, MediaCodecInfo.EncoderCapabilities.BITRATE_MODE_CBR);
+        }
         f.setInteger(MediaFormat.KEY_FRAME_RATE, 60);
         f.setInteger(MediaFormat.KEY_COLOR_FORMAT, MediaCodecInfo.CodecCapabilities.COLOR_FormatSurface);
         f.setInteger(MediaFormat.KEY_COLOR_RANGE, MediaFormat.COLOR_RANGE_LIMITED);
@@ -90,6 +94,9 @@ final class Video {
         MediaCodecInfo.VideoCapabilities caps =
                 codec.getCodecInfo().getCapabilitiesForType("video/avc").getVideoCapabilities();
         int align = Math.max(caps.getWidthAlignment(), caps.getHeightAlignment());
+        // Asked for 400 kbit/s without a rate mode, the HONOR X8's encoder sent 853 kbit/s of its lock screen.
+        constantRate = codec.getCodecInfo().getCapabilitiesForType("video/avc").getEncoderCapabilities()
+                .isBitrateModeSupported(MediaCodecInfo.EncoderCapabilities.BITRATE_MODE_CBR);
         boolean first = true;
         int fallback = -1;
         while (true) {

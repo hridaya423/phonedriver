@@ -470,8 +470,8 @@ const SLOW_LINK: Duration = Duration::from_millis(120);
 /// trips: 9 to 14 ms over USB, 31 to 34 ms through an ssh tunnel, 433 to 481 ms on a link shaped to 3G, 780 kbit/s
 /// down and 100 ms each way). The agent's own 8 Mbit/s is ten times what that link carries, and the frames that
 /// tell a tap has settled queue behind the stream (2026-11-12).
-fn video_for(hello: Duration) -> Option<(u32, u32)> {
-    (hello >= SLOW_LINK).then_some((400_000, 10))
+fn video_for(hello: Duration) -> Option<(u32, u32, u32)> {
+    (hello >= SLOW_LINK).then_some((400_000, 10, 1280))
 }
 
 impl Agent {
@@ -494,9 +494,10 @@ impl Agent {
             return Err(transport(format!("the agent refused hello: {reply}")));
         }
         let mut first = json!({"token": launched.token});
-        if let Some((bit_rate, fps)) = video_for(asked.elapsed()) {
+        if let Some((bit_rate, fps, max_size)) = video_for(asked.elapsed()) {
             first["bit_rate"] = json!(bit_rate);
             first["fps"] = json!(fps);
+            first["max_size"] = json!(max_size);
         }
         let video = open_stream(adb, serial, &launched, b'V', first).await?;
         let hello = serde_json::from_value(reply)
@@ -530,7 +531,10 @@ mod tests {
     #[test]
     fn only_a_slow_link_gets_the_small_stream() {
         assert_eq!(video_for(Duration::from_millis(34)), None);
-        assert_eq!(video_for(Duration::from_millis(433)), Some((400_000, 10)));
+        assert_eq!(
+            video_for(Duration::from_millis(433)),
+            Some((400_000, 10, 1280))
+        );
     }
 
     #[test]

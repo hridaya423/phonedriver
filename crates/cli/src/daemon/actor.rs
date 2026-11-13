@@ -222,13 +222,12 @@ enum Signal {
     Frame(FrameRef),
     Window,
     Display(Size),
+    Power,
     Gone,
-    Ignored,
 }
 
-/// A screen found on and unlocked stays that way for this long unless a window or display event says otherwise:
-/// reading the power state costs an agent round trip on every action, and on the bare tap it is most of what is
-/// not the app handling the event.
+/// On a device that does not push its power state, a screen found on and unlocked stays that way for this long
+/// unless a window or display event says otherwise: reading the power state costs a round trip on every action.
 const AWAKE_REUSE: Duration = Duration::from_secs(1);
 /// How long the screen read for a point tap's guard check may serve the next point tap, while no window change or
 /// repaint of a quarter of the screen has arrived since.
@@ -275,7 +274,7 @@ async fn next_signal(live: &mut Option<Live>) -> Signal {
             Ok(DeviceEvent::WindowChanged { .. }) | Err(broadcast::error::RecvError::Lagged(_)) => Signal::Window,
             Ok(DeviceEvent::DisplayChanged { screen, .. }) => Signal::Display(screen),
             Ok(DeviceEvent::Gone | DeviceEvent::DensityChanged) => Signal::Gone,
-            Ok(DeviceEvent::Locked(_)) => Signal::Ignored,
+            Ok(DeviceEvent::Locked(_)) => Signal::Power,
             Err(broadcast::error::RecvError::Closed) => pending().await,
         },
     }
@@ -362,7 +361,9 @@ impl Actor {
                 changed_box: f.changed_box.unwrap_or_else(zero),
             },
             Signal::Window => {
-                self.awake = None;
+                if !self.power_is_pushed() {
+                    self.awake = None;
+                }
                 Input::WindowChanged
             }
             Signal::Display(screen) => {
@@ -377,7 +378,10 @@ impl Actor {
                 self.awake = None;
                 return None;
             }
-            Signal::Ignored => return None,
+            Signal::Power => {
+                self.awake = None;
+                return None;
+            }
         };
         let significant = match input {
             Input::WindowChanged => true,
@@ -498,6 +502,17 @@ impl Actor {
             self.live = None;
         }
         result
+    }
+
+    /// Whether the device tells when its screen or lock changes (Android's agent does), so a screen once found
+    /// awake stays so until it says otherwise.
+    fn power_is_pushed(&self) -> bool {
+        self.live.as_ref().is_some_and(|l| {
+            l.device
+                .info()
+                .capabilities
+                .contains(Capabilities::POWER_EVENTS)
+        })
     }
 
     fn device(&self) -> Result<Arc<dyn Device>, Error> {
@@ -887,7 +902,11 @@ impl Actor {
     fn begin_action(&mut self) -> Duration {
         if let Some(l) = &mut self.live {
             l.frames.borrow_and_update();
-            while l.events.try_recv().is_ok() {}
+            while let Ok(event) = l.events.try_recv() {
+                if matches!(event, DeviceEvent::Locked(_)) {
+                    self.awake = None;
+                }
+            }
         }
         self.now()
     }
@@ -1261,7 +1280,7 @@ impl Actor {
         }
         if self
             .awake
-            .is_some_and(|at| self.now().saturating_sub(at) < AWAKE_REUSE)
+            .is_some_and(|at| self.power_is_pushed() || self.now().saturating_sub(at) < AWAKE_REUSE)
         {
             return Ok((false, false));
         }
