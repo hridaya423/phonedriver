@@ -118,6 +118,19 @@ struct DialogsScreen: View {
                 }
             }
             .accessibilityIdentifier("dialogs.permission")
+            Button("Notify in 8 s") {
+                let content = UNMutableNotificationContent()
+                content.title = "Testbed banner"
+                content.body = "A tap under this banner must wait."
+                let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 8, repeats: false)
+                UNUserNotificationCenter.current().add(
+                    UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: trigger)
+                )
+                Log.event("notification", ["state": "scheduled"])
+            }
+            .accessibilityIdentifier("dialogs.notify")
+            Button("Place order \u{00b7} $12.00") { Log.event("tap", ["id": "order"]) }
+                .accessibilityIdentifier("dialogs.order")
         }
         .alert("Testbed alert", isPresented: $alert) {
             Button("OK") { Log.event("dialog", ["choice": "ok"]) }
