@@ -1,6 +1,6 @@
 # The home page below the hero: one route
 
-The hero is fixed. This file is the plan for everything under it. Decision D44 in `docs/decisions.md` is the short form.
+This file is the plan for everything under the hero. Decision D44 in `docs/decisions.md` is the short form. The hero itself (centred copy, the stage, the chauffeur drawn in characters) is decision D54.
 
 ## Brief
 
@@ -55,7 +55,7 @@ Setup moves from second place to the end: the route starts with someone else's o
 - Shape: square corners. Dots are the only round thing.
 - Route: 3px round dots at 7px pitch, mono 600 15px words knocked out of the line, arrowhead, a packet that falls the last stretch.
 - Weave: the hero's ribbon of glyph points, one per stop, in the air above the stop. It unfurls as the line travels and twists with scroll.
-- Chauffeur: the open palm at the approval stop, the full mark at the last stop.
+- Chauffeur, drawn in characters (D55): it taps the winning row at the tokens and speed stops, raises a palm at the approval stop and holds a phone up at the last stop.
 - Motion: `--out` for arrivals, `--spring` for settles, linear for travel. Every stop plays once, when its line lands.
 
 ## Engine

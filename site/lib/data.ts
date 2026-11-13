@@ -148,3 +148,10 @@ export const JOBS = [
 
 export const DEMO_CAPTION = "One real Claude Code (Opus 5.5) session on an Android emulator, ordering on dominos.co.uk. The run took 6.5 minutes and is shown at 15x; the approval prompt plays at real speed. Nothing was ordered.";
 
+
+export const NPX = "npx -y phonedriver mcp";
+export const MCP_CONFIG = `{
+  "mcpServers": {
+    "phonedriver": { "command": "npx", "args": ["-y", "phonedriver", "mcp"] }
+  }
+}`;

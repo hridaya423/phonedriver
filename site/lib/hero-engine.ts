@@ -1,3 +1,4 @@
+import { mountFigure, type Figure, type HandPose, type Scene } from "./chauffeur-gl";
 import { scrolled } from "./frame";
 
 export const SAY = "Order me a large pepperoni pizza from the Domino's nearest Leicester Square";
@@ -9,17 +10,47 @@ type Ribbon = { w: number; s: number; pts: Pt[] };
 
 const RIBBONS: Record<"wide" | "narrow", Ribbon[]> = {
   wide: [
-    { w: 0.12, s: 44, pts: [[-0.14, 0.62], [0.06, 0.4], [0.26, 0.27], [0.46, 0.21], [0.64, 0.15], [0.8, 0.06], [1.14, -0.04]] },
-    { w: 0.14, s: 46, pts: [[0.5, -0.16], [0.72, 0.0], [0.9, 0.16], [0.99, 0.44], [0.92, 0.72], [0.76, 0.94], [0.56, 1.16]] },
-    { w: 0.11, s: 39, pts: [[-0.14, 1.04], [0.12, 0.93], [0.36, 0.88], [0.56, 0.82], [0.76, 0.74], [0.94, 0.7], [1.16, 0.74]] },
-    { w: 0.06, s: 24, pts: [[0.64, -0.16], [0.57, 0.1], [0.52, 0.34], [0.56, 0.58], [0.6, 0.8], [0.52, 1.16]] },
+    { w: 0.12, s: 44, pts: [[-0.14, 0.52], [0.03, 0.36], [0.13, 0.2], [0.22, 0.1], [0.36, 0.03], [0.6, -0.05], [1.1, -0.16]] },
+    { w: 0.14, s: 46, pts: [[0.62, -0.16], [0.8, 0.04], [0.9, 0.2], [0.97, 0.42], [1.0, 0.64], [0.95, 0.86], [0.84, 1.1]] },
+    { w: 0.06, s: 24, pts: [[0.8, -0.16], [0.76, 0.1], [0.84, 0.3], [0.9, 0.5], [1.14, 0.62]] },
   ],
   narrow: [
-    { w: 0.07, s: 30, pts: [[-0.3, 0.5], [0.0, 0.4], [0.4, 0.37], [0.8, 0.4], [1.3, 0.5]] },
-    { w: 0.07, s: 30, pts: [[-0.3, 1.02], [0.04, 0.86], [0.2, 0.72], [0.5, 0.64], [1.0, 0.66], [1.3, 0.74]] },
-    { w: 0.05, s: 22, pts: [[-0.3, 0.92], [0.3, 1.0], [0.8, 0.93], [1.3, 0.99]] },
+    { w: 0.07, s: 30, pts: [[-0.3, 0.3], [0.0, 0.2], [0.4, 0.13], [0.8, 0.12], [1.3, 0.02]] },
+    { w: 0.06, s: 26, pts: [[-0.3, 0.86], [0.1, 0.95], [0.5, 0.9], [0.9, 0.97], [1.3, 0.9]] },
   ],
 };
+
+const curl = (thumb: number[], ...f: number[][]) => [...thumb, ...[0, 1, 2, 3].flatMap((i) => f[Math.min(i, f.length - 1)])];
+type Pose = { at: number[]; pin: number[]; fingers: number[]; palm: number[]; curl: number[] };
+const POINT = curl([0.5, 0, 0, 0.4, 0.4], [0, 0.05, 0.1, 0.05], [0, 1.4, 1.5, 0.9]);
+const POSES: Record<string, Pose> = {
+  cradle: { at: [330, 1150, 0], pin: [209, 904], fingers: [-0.5, -0.1, 0.86], palm: [0, -0.85, 0.52], curl: curl([0.3, 0.4, 0, 0.2, 0.2], [0, 0.4, 0.8, 0.5]) },
+  offer: { at: [-390, 44, 40], pin: [209, 0], fingers: [0.8, -0.1, 0.55], palm: [-0.1, -0.85, 0.5], curl: curl([0, 0, 0, 0.1, 0.1], [0, 0.15, 0.25, 0.15]) },
+  hold: { at: [-382, 32, 40], pin: [209, 0], fingers: [0.8, -0.16, 0.55], palm: [-0.1, -0.85, 0.5], curl: curl([0.45, 0, 0, 0.3, 0.3], [0, 0.7, 0.9, 0.5]) },
+  point: { at: [0, 0, 0], pin: [0, 0], fingers: [0.9, -0.12, -0.42], palm: [0.05, 0.85, -0.5], curl: POINT },
+  press: { at: [0, 0, 0], pin: [0, 0], fingers: [0.9, -0.07, -0.44], palm: [0.05, 0.85, -0.5], curl: curl([0.5, 0, 0, 0.4, 0.4], [0, 0.16, 0.2, 0.1], [0, 1.4, 1.5, 0.9]) },
+  stop: { at: [-330, 610, 60], pin: [0, 600], fingers: [0.12, -0.97, 0.1], palm: [0.25, 0, 0.97], curl: curl([0, 0, 0, 0, 0], [-0.08, 0, 0.05, 0.03], [0, 0, 0.05, 0.03], [0.06, 0, 0.05, 0.03], [0.14, 0, 0.05, 0.03]) },
+  tip: { at: [0, 0, 0], pin: [0, 0], fingers: [0.62, -0.74, 0.2], palm: [0.75, 0.6, 0.2], curl: curl([0.45, 0.2, -0.4, 0.3, 0.2], [0, 0.36, 0.5, 0.3], [0, 1.0, 1.1, 0.7]) },
+  tipped: { at: [0, 0, 0], pin: [0, 0], fingers: [0.62, -0.74, 0.2], palm: [0.75, 0.6, 0.2], curl: curl([0.6, 0.2, -0.5, 0.4, 0.3], [0, 0.5, 0.7, 0.4], [0, 1.1, 1.2, 0.8]) },
+  catch: { at: [-388, 62, 40], pin: [209, 0], fingers: [0.8, -0.04, 0.55], palm: [-0.1, -0.85, 0.5], curl: curl([0.25, 0, 0, 0.2, 0.2], [0, 0.4, 0.55, 0.3]) },
+  below: { at: [-412, 86, 40], pin: [209, 0], fingers: [0.82, 0.26, 0.5], palm: [0.08, -0.78, 0.62], curl: curl([0, 0.3, 0, 0.05, 0.05], [-0.04, 0.06, 0.1, 0.06], [0, 0.1, 0.16, 0.08], [0.04, 0.16, 0.22, 0.12], [0.1, 0.24, 0.3, 0.16]) },
+};
+const CAPS: Record<string, { at: number[]; turn: number[] }> = {
+  rest: { at: [209, -62, 70], turn: [-6, -16, -7] },
+  look: { at: [209, -52, 70], turn: [17, -6, -3] },
+  halt: { at: [209, -76, 70], turn: [-2, 0, 0] },
+  tip: { at: [203, -78, 70], turn: [8, -12, -15] },
+};
+const QUIPS: Record<string, { text: string; key?: boolean }> = {
+  on: { text: "On it." },
+  call: { text: "Your call.", key: true },
+  sure: { text: "Of course." },
+  paste: { text: "Copied. Paste it into your agent." },
+  go: { text: "After you." },
+};
+const QUIP_AT = [462, -206];
+const TIP = [0.34, 0.94, 1.26];
+const tipping = (t: number) => (t < 0 || t >= TIP[2] ? null : t < TIP[0] || t >= TIP[1] ? { act: "tip", wear: "rest" } : { act: "tipped", wear: "tip" });
 
 const VS = `
 attribute vec4 a0;attribute vec4 a1;attribute vec2 a2;
@@ -126,15 +157,16 @@ export function mountHero(hero: HTMLElement): () => void {
   const run = JSON.parse(hero.dataset.run!) as Run;
   const q = <T extends Element = HTMLElement>(s: string) => hero.querySelector<T>(s) as T;
   const canvas = q<HTMLCanvasElement>(".hx-weave");
+  const board = q<HTMLCanvasElement>(".hx-fig");
   const ip = q(".ip");
   const rig = q(".hx-rig");
-  const glove = q<SVGSVGElement>(".ch-tap");
   const screen = q(".ip-screen");
   const video = q<HTMLVideoElement>(".ip-video");
   const touch = q(".ip-touch");
-  const copy = q(".hx-copy");
-  const pane = q(".hx-log");
+  const title = q("h1");
+  const set = q(".hx-set");
   const view = q(".lg-view");
+  const quip = q(".hx-quip");
   const rows = [...view.querySelectorAll<HTMLElement>("li")];
   const rowTimes = rows.map((r) => Number(r.dataset.t));
   const ask = q(".lg-ask");
@@ -151,7 +183,7 @@ export function mountHero(hero: HTMLElement): () => void {
   const head = q<SVGPathElement>(".hx-head");
   const packet = q<SVGCircleElement>(".hx-packet");
   const marks = document.querySelectorAll<HTMLElement>(".brand .wm");
-  const family = getComputedStyle(q("h1")).fontFamily;
+  const family = getComputedStyle(title).fontFamily;
   const timers = new Set<number>();
   const cleanups: (() => void)[] = [];
   const on = <E extends Event = Event>(el: EventTarget, type: string, fn: (e: E) => void) => {
@@ -159,15 +191,21 @@ export function mountHero(hero: HTMLElement): () => void {
     cleanups.push(() => el.removeEventListener(type, fn as EventListener));
   };
 
-  let W = 0, H = 0, wide = true, textStart = 0, total = 0, shown = 0, turn = 0, dead = false;
-  let line = SAY, started = false, parked = false, playRaf = 0;
+  let W = 0, H = 0, WH = 0, wide = true, textStart = 0, total = 0, shown = 0, turn = 0, dead = false;
+  let line = SAY, started = false, parked = false, seen = false, caught = false, waiting = false, playRaf = 0;
+  let fig: Figure | null = null;
+  let box: Box = { x: 0, y: 0, w: 1, h: 1 };
+  let act = "offer", wear = "rest", nudge = 0, size = 1, quick = false;
+  let aside: { t0: number; capOnly: boolean } | null = null;
+  let caughtAt = -9e9, typing = 0;
+  let note: { key: string; until: number } | null = null;
   let ripple = { x: 0, y: 0, t0: -99, amp: 0 };
   const mouse = { x: -9999, y: -9999, tx: -9999, ty: -9999, z: 0, tz: 0 };
-  const tilt = { x: 0, y: 0, tx: 0, ty: 0 };
-  const drawn = { rows: -1, pose: "", focus: "", chapter: "", clock: "", rate: "", said: "" };
+  const gaze = { x: 0, y: 0, tx: 0, ty: 0 };
+  const drawn = { rows: -1, pose: "", focus: "", chapter: "", clock: "", rate: "", said: "", quip: "" };
 
-  const rel = (el: Element): Box => {
-    const h = hero.getBoundingClientRect(), r = el.getBoundingClientRect();
+  const rel = (el: Element, to: Element = hero): Box => {
+    const h = to.getBoundingClientRect(), r = el.getBoundingClientRect();
     return { x: r.left - h.left, y: r.top - h.top, w: r.width, h: r.height };
   };
   const sleep = (ms: number) =>
@@ -203,25 +241,52 @@ export function mountHero(hero: HTMLElement): () => void {
   const asked = film(run.asked), declined = film(run.declined), reached = film(run.reached);
 
   const pt = () => ip.offsetWidth / 419;
-  function pose(x: number, y: number, rotate: number, scale: number) {
-    const w = pt() * 201.6;
-    glove.style.translate = `${x - w / 3}px ${y - (w * 12) / 126}px`;
-    glove.style.rotate = `${wide ? rotate : -rotate}deg`;
-    glove.style.scale = wide ? String(scale) : `${-scale} ${scale}`;
-  }
-  function spot(x: number, y: number) {
-    return { x: screen.offsetLeft + (x / run.screen[0]) * screen.offsetWidth, y: screen.offsetTop + (y / run.screen[1]) * screen.offsetHeight };
-  }
-  function at(T: { x: number; y: number }, dx: number, dy: number, rotate: number, scale: number) {
+  const spot = (x: number, y: number) => ({
+    x: box.x + screen.offsetLeft + (x / run.screen[0]) * screen.offsetWidth,
+    y: box.y + screen.offsetTop + (y / run.screen[1]) * screen.offsetHeight,
+  });
+  function place(p: Pose): HandPose {
     const k = pt();
-    pose(T.x + (wide ? dx : -dx) * k, T.y + dy * k, rotate, scale);
+    return { at: [box.x + (p.pin[0] + (p.at[0] - p.pin[0]) * size + (p === POSES.cradle ? 0 : nudge)) * k, box.y + (p.pin[1] + (p.at[1] - p.pin[1]) * size) * k, p.at[2] * k * size], fingers: p.fingers as HandPose["fingers"], palm: p.palm as HandPose["palm"], curl: p.curl };
   }
-  function palm() {
-    const k = pt(), turn = wide ? -8 : -10, size = wide ? 1 : 0.8;
-    const c = wide ? { x: 476 * k, y: 690 * k } : { x: -36 * k, y: 850 * k };
-    const a = (turn * Math.PI) / 180, u = 1.6 * k * size;
-    const vx = (33.5 * Math.cos(a) - 88 * Math.sin(a)) * u, vy = (33.5 * Math.sin(a) + 88 * Math.cos(a)) * u;
-    pose(c.x - (wide ? vx : -vx), c.y - vy, turn, size);
+  function finger(p: Pose, T: { x: number; y: number }, lift: number): HandPose {
+    const k = pt();
+    const posed = place(p);
+    const off = fig!.reach(posed, "left");
+    return { ...posed, at: [T.x - off[0], T.y - off[1], lift * k - off[2]] };
+  }
+  function scene(): Scene {
+    const k = pt();
+    const now = performance.now();
+    const extra = aside ? tipping((now - aside.t0) / 1000) : null;
+    const pose = extra && !aside!.capOnly ? extra.act : act === "hold" && now - caughtAt < 180 ? "catch" : act;
+    const [kind, which] = pose.split(":");
+    let left: HandPose;
+    if (kind === "hover" || kind === "press") {
+      const T = which === "held" ? spot(run.held[0], run.held[1]) : spot(taps[+which].x, taps[+which].y);
+      left = kind === "press" ? finger(POSES.press, T, 2) : finger(POSES.point, { x: T.x - 7 * k, y: T.y + 9 * k }, which === "held" ? 30 : 46);
+    } else if (kind === "over") {
+      const T = spot(taps[+which].x, taps[+which].y);
+      left = finger(POSES.point, { x: T.x - 26 * k, y: T.y + 30 * k }, 96);
+    } else if (kind === "below") {
+      const a = place(POSES.hold), b = place(POSES.below);
+      const s = Math.max(0, Math.sin(now / 520)) ** 0.6;
+      const mix = (u: number[], w: number[]) => u.map((n, i) => lerp(n, w[i], s));
+      left = { at: mix(a.at, b.at) as HandPose["at"], fingers: mix(a.fingers, b.fingers) as HandPose["fingers"], palm: mix(a.palm, b.palm) as HandPose["palm"], curl: mix(a.curl, b.curl) };
+    } else if (kind === "ready") left = finger(POSES.point, { x: box.x - 40 * k, y: box.y + 600 * k }, 120);
+    else left = place(POSES[kind]);
+    const c = CAPS[extra ? extra.wear : wear];
+    const cap = [box.x + (209 + (c.at[0] - 209) * size) * k, box.y + c.at[1] * size * k, c.at[2] * k];
+    if (kind === "tip" || kind === "tipped") {
+      const a = -c.turn[2] * (Math.PI / 180), r = 150 * size * k;
+      const off = fig!.reach(left, "left");
+      left.at = [cap[0] + r * (-1.04 * Math.cos(a) - 0.1 * Math.sin(a)) - off[0], cap[1] + r * (-1.04 * Math.sin(a) + 0.1 * Math.cos(a)) - off[1], cap[2] + 0.2 * r - off[2]];
+    }
+    return {
+      left,
+      right: place(POSES.cradle),
+      cap: { at: cap as HandPose["at"], turn: [c.turn[0] + gaze.y * 7, c.turn[1] + gaze.x * 13, c.turn[2]] },
+    };
   }
   function ring(x: number, y: number) {
     touch.style.left = `${(x / run.screen[0]) * 100}%`;
@@ -231,35 +296,47 @@ export function mountHero(hero: HTMLElement): () => void {
     touch.dataset.go = "";
     const s = rel(screen);
     ripple = { x: s.x + (x / run.screen[0]) * s.w, y: s.y + (y / run.screen[1]) * s.h, t0: performance.now() / 1000, amp: 0.5 };
+    const at = spot(x, y);
+    fig?.pulse(at.x, at.y);
+    rig.dataset.tap = "";
+    sleep(130).then(() => delete rig.dataset.tap);
   }
 
   function hand(v: number): string {
-    if (v >= declined) return "away";
-    if (v >= asked) return "palm";
+    if (v >= declined + 0.4 + TIP[2] + 0.1) return "offer";
+    const bow = tipping(v - declined - 0.4);
+    if (bow) return bow.act;
+    if (v >= asked) return "stop";
     if (v >= reached) return v >= asked - 0.22 ? "press:held" : "hover:held";
-    if (!taps.length || v < taps[0].v - 0.9) return "away";
+    if (!taps.length || v < taps[0].v - 0.9) return "ready";
     let i = 0;
     for (let n = 1; n < taps.length; n++) if (Math.abs(taps[n].v - v) < Math.abs(taps[i].v - v)) i = n;
     const d = v - taps[i].v;
     if (d >= -0.04 && d < 0.1) return `press:${i}`;
-    if (d >= -0.3 && d < 0.26) return `hover:${i}`;
-    return "ready";
+    if (d >= -0.34 && d < 0.2) return `hover:${i}`;
+    if (looks.some(([a, b]) => v >= a && v < b)) return "ready";
+    return d >= 0.2 && d < 0.46 ? `over:${i}` : "ready";
   }
-  function setHand(key: string) {
-    const [kind, which] = key.split(":");
-    const T = which === "held" ? spot(run.held[0], run.held[1]) : which ? spot(taps[+which].x, taps[+which].y) : null;
-    const k = pt();
-    flag(glove, "in", kind !== "away");
-    flag(rig, "reach", kind !== "away");
-    flag(glove, "open", kind === "palm");
-    flag(glove, "quick", kind !== "palm" && which !== "held");
-    flag(glove, "press", kind === "press");
-    flag(rig, "brace", kind === "press");
-    if (kind === "palm") palm();
-    else if (kind === "press" && T) at(T, which === "held" ? 4 : 0, which === "held" ? 7 : 0, which === "held" ? -64 : -40, which === "held" ? 0.84 : 0.72);
-    else if (kind === "hover" && T) at(T, 12, 19, which === "held" ? -62 : -38, which === "held" ? 0.88 : 0.78);
-    else pose(wide ? ip.offsetWidth + 26 * k : -26 * k, 660 * k, -58, kind === "ready" ? 0.78 : 0.7);
-    if (kind === "press" && which !== "held" && !reduce) ring(taps[+which].x, taps[+which].y);
+  function speak(key: string) {
+    if (key === drawn.quip) return;
+    drawn.quip = key;
+    const say = QUIPS[key];
+    flag(quip, "on", !!say);
+    clearInterval(typing);
+    if (!say) return;
+    flag(quip, "key", !!say.key);
+    quip.textContent = say.text;
+    const k = pt(), s = rel(board);
+    const x = Math.max(14, Math.min(W - quip.offsetWidth - 14, s.x + box.x + (209 + (QUIP_AT[0] - 209) * size) * k));
+    quip.style.left = `${x - s.x}px`;
+    quip.style.top = `${box.y + QUIP_AT[1] * size * k}px`;
+    if (reduce) return;
+    let n = 0;
+    quip.textContent = "";
+    typing = window.setInterval(() => {
+      quip.textContent = say.text.slice(0, ++n);
+      if (n >= say.text.length) clearInterval(typing);
+    }, 26);
   }
 
   const stamp = (r: number) => `${Math.floor(r / 60)}:${String(Math.floor(r % 60)).padStart(2, "0")}`;
@@ -278,9 +355,9 @@ export function mountHero(hero: HTMLElement): () => void {
     for (const [t, where] of run.focus) if (r >= t) focus = where;
     if (focus !== drawn.focus) ask.dataset.focus = drawn.focus = focus;
     flag(ask, "closed", r >= run.declined);
-    let title = run.chapters[0][1];
-    for (const [t, name] of run.chapters) if (r >= t) title = name;
-    if (title !== drawn.chapter) chapter.textContent = drawn.chapter = title;
+    let name = run.chapters[0][1];
+    for (const [t, c] of run.chapters) if (r >= t) name = c;
+    if (name !== drawn.chapter) chapter.textContent = drawn.chapter = name;
     flag(chapter, "key", r >= run.asked);
     const time = stamp(Math.max(0, r));
     if (time !== drawn.clock) clock.textContent = drawn.clock = time;
@@ -288,13 +365,20 @@ export function mountHero(hero: HTMLElement): () => void {
     if (speed !== drawn.rate) rate.textContent = drawn.rate = speed;
     range.style.setProperty("--p", `${(v / run.length) * 100}%`);
     if (document.activeElement !== range || !video.paused) range.value = String(v);
-    const said = `${time} of ${stamp(real(run.length))}, ${title}`;
+    const said = `${time} of ${stamp(real(run.length))}, ${name}`;
     if (said !== drawn.said) range.setAttribute("aria-valuetext", (drawn.said = said));
-    flag(hero, "held", started && v >= asked && v < declined);
-    flag(rig, "halt", started && v >= asked && v < declined);
-    flag(rig, "look", started && (looks.some(([a, b]) => v >= a && v < b) || (v >= declined && v < declined + 0.8)));
-    const key = started ? hand(v) : "away";
-    if (key !== drawn.pose || force) setHand((drawn.pose = key));
+    const held = started && v >= asked && v < declined;
+    flag(hero, "held", held);
+    const key = started ? hand(v) : waiting ? "below" : caught ? "hold" : "offer";
+    if (key !== drawn.pose || force) {
+      const [kind, which] = key.split(":");
+      if (kind === "press" && which !== "held" && !reduce && key !== drawn.pose) ring(taps[+which].x, taps[+which].y);
+      quick = (kind === "hover" || kind === "press" || kind === "over" || kind === "ready") && which !== "held";
+      act = drawn.pose = key;
+    }
+    wear = held ? "halt" : key === "tipped" ? "tip" : key === "below" ? "look" : started && (looks.some(([a, b]) => v >= a && v < b) || (v >= declined && v < declined + 0.4)) ? "look" : "rest";
+    const live = note && note.until > performance.now() ? note.key : "";
+    speak(held ? "call" : started && (key === "tip" || key === "tipped") ? "sure" : live || (key === "below" ? "go" : ""));
   }
 
   function setReveal(L: number) {
@@ -303,24 +387,15 @@ export function mountHero(hero: HTMLElement): () => void {
   }
 
   function geometry() {
-    const p = rel(pane.firstElementChild!), f = rel(ip);
-    let E = { x: p.x + Math.min(54, p.w * 0.2), y: p.y - 9 };
-    let d: string, lead: string;
-    if (wide) {
-      lead = `M-24,${H * 0.44} L${W * 0.012},${H * 0.412}`;
-      d = `${lead} C${W * 0.1},${H * 0.27} ${W * 0.25},${H * 0.15} ${W * 0.37},${H * 0.175} C${W * 0.45},${H * 0.19} ${E.x},${E.y - H * 0.11} ${E.x},${E.y}`;
-    } else if (W >= 700) {
-      E = { x: p.x + p.w - 44, y: p.y - 9 };
-      const y = E.y - 64;
-      lead = `M-24,${y + 18} L8,${y + 11}`;
-      d = `${lead} C${E.x * 0.4},${y - 16} ${E.x - 110},${y - 20} ${E.x - 34},${y - 4} C${E.x - 8},${y + 3} ${E.x},${y + 22} ${E.x},${E.y}`;
-    } else {
-      E = { x: f.x + f.w + 9, y: f.y + f.h * 0.085 };
-      const c = rel(copy);
-      const y = c.y + c.h + 46;
-      lead = `M-24,${y + 12} L6,${y + 5}`;
-      d = `${lead} C${W * 0.36},${y - 30} ${W * 0.7},${y - 30} ${W * 0.84},${y + 8} C${W * 0.99},${y + 50} ${W * 0.99},${E.y - 10} ${E.x},${E.y}`;
-    }
+    const k = pt(), b = rel(board), bottom = rel(set).y + rel(set).h;
+    const o = POSES.offer;
+    const E = { x: b.x + box.x + (o.pin[0] + (o.at[0] + 150 - o.pin[0]) * size + nudge) * k, y: b.y + box.y + (o.at[1] - 96) * size * k };
+    const far = E.x > 330;
+    const y = far ? Math.min(E.y - 40, Math.max(bottom + 34, E.y - 150 * k)) : bottom + 30;
+    const lead = `M-24,${y + 12} L${Math.max(6, W * 0.012)},${y + 5}`;
+    const d = far
+      ? `${lead} C${E.x * 0.34},${y - 34} ${E.x - 150},${y - 46} ${E.x - 46},${y - 6} C${E.x - 12},${y + 8} ${E.x},${E.y - 44} ${E.x},${E.y}`
+      : `${lead} C${W * 0.35},${y - 24} ${W * 0.62},${y - 24} ${W * 0.76},${y - 8} C${W * 0.87},${y + 6} ${W * 0.84},${y + 30} ${W * 0.7},${y + 30} L${E.x + 50},${y + 30} C${E.x + 14},${y + 30} ${E.x},${y + 44} ${E.x},${Math.max(E.y, y + 60)}`;
     path.setAttribute("d", d);
     const m = document.createElementNS("http://www.w3.org/2000/svg", "path");
     m.setAttribute("d", lead);
@@ -329,10 +404,10 @@ export function mountHero(hero: HTMLElement): () => void {
     total = path.getTotalLength();
     const before = tp.textContent ?? "";
     tp.textContent = SAY + "…";
-    line = wide && textStart + say.getComputedTextLength() + 36 < total ? SAY + "…" : BRIEF + "…";
-    tp.textContent = started || reduce ? line : before;
+    line = far && textStart + say.getComputedTextLength() + 60 < total ? SAY + "…" : BRIEF + "…";
+    tp.textContent = started || caught || reduce ? line : before;
     reveal.style.strokeDasharray = `${total} ${total + 40}`;
-    setReveal(started || reduce ? total : shown);
+    setReveal(started || caught || reduce ? total : shown);
     const end = path.getPointAtLength(total), pre = path.getPointAtLength(total - 2);
     head.setAttribute("transform", `translate(${end.x} ${end.y}) rotate(${(Math.atan2(end.y - pre.y, end.x - pre.x) * 180) / Math.PI})`);
   }
@@ -346,6 +421,8 @@ export function mountHero(hero: HTMLElement): () => void {
   function begin() {
     turn++;
     started = true;
+    caught = true;
+    waiting = false;
     tp.textContent = line;
     setReveal(total);
     head.style.opacity = "1";
@@ -362,6 +439,11 @@ export function mountHero(hero: HTMLElement): () => void {
       render(video.currentTime, true);
     }
   }
+  function remark(key: string, ms: number) {
+    note = { key, until: performance.now() + ms };
+    render(video.currentTime);
+    sleep(ms + 20).then(() => !dead && render(video.currentTime));
+  }
 
   async function intro() {
     const id = ++turn;
@@ -369,15 +451,18 @@ export function mountHero(hero: HTMLElement): () => void {
     render(0, true);
     head.style.opacity = "0";
     // Chrome reports a new largest contentful paint each time this line grows, so it keeps its full width from the first frame.
-    tp.textContent = "\u00a0".repeat(line.length);
+    tp.textContent = " ".repeat(line.length);
     setReveal(0);
-    await sleep(250);
+    await Promise.race([ready, sleep(1600)]);
+    await sleep(750);
     if (!live()) return;
-    drum();
+    aside = { t0: performance.now(), capOnly: false };
+    await sleep(TIP[1] * 1000);
+    if (!live()) return;
     await tween(350, (k) => setReveal(k * textStart));
     for (let i = 1; i <= line.length; i++) {
       if (!live()) return;
-      tp.textContent = line.slice(0, i) + "\u00a0".repeat(line.length - i);
+      tp.textContent = line.slice(0, i) + " ".repeat(line.length - i);
       setReveal(textStart + say.getSubStringLength(0, i) + 4);
       await sleep(line[i - 1] === " " ? 34 : 15 + Math.random() * 14);
     }
@@ -395,13 +480,27 @@ export function mountHero(hero: HTMLElement): () => void {
       },
       easeInOut,
     );
-    if (live()) play();
+    if (!live()) return;
+    packet.style.opacity = "0";
+    head.style.opacity = "1";
+    caught = true;
+    caughtAt = performance.now();
+    const end = path.getPointAtLength(total), b = rel(board);
+    fig?.pulse(end.x - b.x, end.y - b.y);
+    remark("on", 1700);
+    await sleep(650);
+    if (!live()) return;
+    if (seen) return void play();
+    parked = true;
+    await sleep(1500);
+    if (!live() || started) return;
+    waiting = true;
+    render(0, true);
   }
 
   const drum = () => {
     if (!visible || document.hidden || reduce) return;
-    rig.dataset.drum = "";
-    sleep(900).then(() => delete rig.dataset.drum);
+    fig?.drum();
   };
   async function idle() {
     const id = turn;
@@ -443,10 +542,16 @@ export function mountHero(hero: HTMLElement): () => void {
     render(Number(range.value));
   });
   on(rig, "click", () => {
-    if (!started) return;
     parked = false;
     if (video.paused) play();
     else video.pause();
+  });
+  on<MouseEvent>(set, "click", (e) => {
+    if (!(e.target as HTMLElement).closest("[data-copy]")) return;
+    const busy = started && !video.paused;
+    aside = { t0: performance.now() - (busy ? TIP[0] * 1000 : 0), capOnly: busy };
+    if (!busy && !hero.dataset.held) remark("paste", 2400);
+    kick();
   });
 
   let gl: WebGLRenderingContext | null = null;
@@ -518,16 +623,16 @@ export function mountHero(hero: HTMLElement): () => void {
   function buildWeave(g: WebGLRenderingContext) {
     const dpr = Math.min(devicePixelRatio || 1, 2);
     canvas.width = Math.round(W * dpr);
-    canvas.height = Math.round(H * dpr);
+    canvas.height = Math.round(WH * dpr);
     g.viewport(0, 0, canvas.width, canvas.height);
     const small = W < 600;
     const sp = small ? 4.2 : 3.6;
     const data: number[] = [];
     RIBBONS[wide ? "wide" : "narrow"].forEach((rb, ri) => {
-      const line = resample(spline(rb.pts.map(([x, y]) => [x * W, y * H] as Pt), 40), sp);
+      const line = resample(spline(rb.pts.map(([x, y]) => [x * W, y * WH] as Pt), 40), sp);
       const n = line.length;
       const strands = small ? Math.round(rb.s * 0.8) : rb.s;
-      const wid = rb.w * (wide ? H : Math.max(H, 900));
+      const wid = rb.w * (wide ? WH : Math.max(WH, 900));
       for (let j = 0; j < strands; j++) {
         const v = j / (strands - 1);
         const seed = Math.random();
@@ -550,52 +655,80 @@ export function mountHero(hero: HTMLElement): () => void {
       g.vertexAttribPointer(l, size, g.FLOAT, false, 40, offset);
     }
     g.uniform1f(U.dpr, dpr);
-    const cr = rel(copy);
-    const pad = wide ? 20 : 12;
-    g.uniform4f(U.clr, cr.x + cr.w / 2, cr.y + cr.h / 2, cr.w / 2 + pad, cr.h / 2 + pad);
+    const top = rel(title), low = rel(set);
+    const pad = wide ? 30 : 12, half = Math.max(top.w, low.w) / 2 + pad;
+    g.uniform4f(U.clr, W / 2, (top.y + low.y + low.h) / 2, half, (low.y + low.h - top.y) / 2 + pad);
     colors(g);
+  }
+
+  function stage() {
+    if (!fig) return;
+    const b = board.getBoundingClientRect(), k = pt();
+    const page = rgb(getComputedStyle(document.body).backgroundColor);
+    fig.layout({
+      w: b.width,
+      h: b.height,
+      dpr: Math.min(devicePixelRatio || 1, 2),
+      cell: W < 700 ? 4.5 : 5,
+      hand: 3400 * size * k,
+      cap: 150 * size * k,
+      phone: { ...box, r: 56 * k },
+      ink: rgb(getComputedStyle(hero).color),
+      accent: rgb(getComputedStyle(hero).getPropertyValue("--or").trim() || "#ff5b14"),
+      page,
+      inverse: page[0] + page[1] + page[2] > 1.5,
+    });
+    fig.snap(scene());
   }
 
   function layout() {
     const r = hero.getBoundingClientRect();
     W = r.width;
     H = r.height;
+    WH = canvas.clientHeight;
     wide = W >= 1020;
+    box = rel(ip, board);
+    size = W < 700 ? 0.8 : 1;
+    nudge = Math.max(0, (W < 700 ? 330 : 250) * size - (rel(ip).x - 24) / pt());
     svg.setAttribute("width", String(W));
     svg.setAttribute("height", String(H));
     svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
     geometry();
+    drawn.quip = "";
     render(video.currentTime, true);
     if (gl) buildWeave(gl);
+    stage();
   }
 
   let visible = true, raf = 0, enterT0: number | null = null;
   const t0 = performance.now();
   function frame(now: number) {
     raf = 0;
-    if (!gl || !atlasReady || dead) return;
-    const t = (now - t0) / 1000;
-    if (enterT0 === null) enterT0 = now;
-    const enter = reduce ? 1 : easeOut(Math.min(1, (now - enterT0) / 2200));
-    mouse.x = lerp(mouse.x, mouse.tx, 0.12);
-    mouse.y = lerp(mouse.y, mouse.ty, 0.12);
-    mouse.z = lerp(mouse.z, mouse.tz, 0.06);
-    gl.clearColor(0, 0, 0, 0);
-    gl.clear(gl.COLOR_BUFFER_BIT);
-    gl.uniform2f(U.res, W, H);
-    gl.uniform1f(U.t, reduce ? 3 : t);
-    gl.uniform1f(U.enter, enter);
-    gl.uniform1f(U.scroll, reduce ? 0 : Math.min(1.5, scrolled() / Math.max(1, H)));
-    gl.uniform3f(U.mouse, mouse.x, mouse.y, reduce ? 0 : mouse.z);
-    gl.uniform4f(U.rip, ripple.x, ripple.y, now / 1000 - ripple.t0, ripple.amp);
-    gl.uniform1i(U.atlas, 0);
-    gl.drawArrays(gl.POINTS, 0, count);
-    if (!reduce) {
-      tilt.x = lerp(tilt.x, tilt.tx, 0.07);
-      tilt.y = lerp(tilt.y, tilt.ty, 0.07);
-      if (Math.abs(tilt.x - tilt.tx) + Math.abs(tilt.y - tilt.ty) > 0.001) {
-        rig.style.transform = `rotateX(${tilt.x}deg) rotateY(${tilt.y}deg)`;
-      }
+    if (dead) return;
+    if (gl && atlasReady) {
+      const t = (now - t0) / 1000;
+      if (enterT0 === null) enterT0 = now;
+      const enter = reduce ? 1 : easeOut(Math.min(1, (now - enterT0) / 2200));
+      mouse.x = lerp(mouse.x, mouse.tx, 0.12);
+      mouse.y = lerp(mouse.y, mouse.ty, 0.12);
+      mouse.z = lerp(mouse.z, mouse.tz, 0.06);
+      gl.clearColor(0, 0, 0, 0);
+      gl.clear(gl.COLOR_BUFFER_BIT);
+      gl.uniform2f(U.res, W, WH);
+      gl.uniform1f(U.t, reduce ? 3 : t);
+      gl.uniform1f(U.enter, enter);
+      gl.uniform1f(U.scroll, reduce ? 0 : Math.min(1.5, scrolled() / Math.max(1, WH)));
+      gl.uniform3f(U.mouse, mouse.x, mouse.y, reduce ? 0 : mouse.z);
+      gl.uniform4f(U.rip, ripple.x, ripple.y, now / 1000 - ripple.t0, ripple.amp);
+      gl.uniform1i(U.atlas, 0);
+      gl.drawArrays(gl.POINTS, 0, count);
+    }
+    if (fig) {
+      gaze.x = lerp(gaze.x, gaze.tx, 0.08);
+      gaze.y = lerp(gaze.y, gaze.ty, 0.08);
+      if (reduce) fig.snap(scene());
+      else fig.goal(scene(), quick ? 24 : act === "stop" ? 15 : 11);
+      fig.draw(now, reduce);
     }
     if (visible && !document.hidden && !reduce) raf = requestAnimationFrame(frame);
   }
@@ -612,47 +745,42 @@ export function mountHero(hero: HTMLElement): () => void {
       mouse.y = mouse.ty;
     }
     mouse.tz = e.pointerType === "mouse" ? 1 : 0.7;
-    if (wide && e.pointerType === "mouse") {
-      tilt.ty = (mouse.tx / W - 0.5) * 7;
-      tilt.tx = -(mouse.ty / H - 0.5) * 4;
+    if (e.pointerType === "mouse") {
+      const c = ip.getBoundingClientRect();
+      gaze.tx = Math.max(-1, Math.min(1, (e.clientX - (c.left + c.width / 2)) / (W * 0.4)));
+      gaze.ty = Math.max(-1, Math.min(1, (e.clientY - c.top) / 420));
     }
   });
   on(hero, "pointerleave", () => {
     mouse.tz = 0;
-    tilt.tx = tilt.ty = 0;
+    gaze.tx = gaze.ty = 0;
   });
 
   const io = new IntersectionObserver(([e]) => {
     visible = e.isIntersecting;
-    if (visible) delete hero.dataset.off;
-    else hero.dataset.off = "";
     if (visible) kick();
   });
   io.observe(hero);
-  let met = reduce;
   const watch = new IntersectionObserver(
     ([e]) => {
-      if (e.isIntersecting && !met) {
-        met = true;
-        intro();
-      } else if (!e.isIntersecting && !video.paused) {
+      seen = e.intersectionRatio >= 0.5;
+      if (e.intersectionRatio < 0.2 && !video.paused) {
         parked = true;
         video.pause();
-      } else if (e.isIntersecting && parked) {
+      } else if (seen && parked) {
         parked = false;
         play();
       }
     },
-    { threshold: 0.3 },
+    { threshold: [0.2, 0.5] },
   );
   watch.observe(ip);
   document.addEventListener("visibilitychange", kick);
   const scheme = matchMedia("(prefers-color-scheme: dark)");
   const recolor = () => {
-    if (gl) {
-      colors(gl);
-      kick();
-    }
+    if (gl) colors(gl);
+    stage();
+    kick();
   };
   scheme.addEventListener("change", recolor);
   let rt = 0;
@@ -668,6 +796,12 @@ export function mountHero(hero: HTMLElement): () => void {
   initGL();
   layout();
   if (gl) atlas(gl).then(kick);
+  const ready = mountFigure(board, "/assets/hand.glb", family).then((f) => {
+    if (dead) return f?.destroy();
+    fig = f;
+    stage();
+    kick();
+  });
   if (reduce) {
     video.poster = "/assets/run-poster.jpg";
     begin();
@@ -677,6 +811,7 @@ export function mountHero(hero: HTMLElement): () => void {
     const show = () => (hero.dataset.live = "");
     if (video.readyState >= 2) show();
     else on(video, "loadeddata", show);
+    intro();
   }
 
   return () => {
@@ -687,10 +822,12 @@ export function mountHero(hero: HTMLElement): () => void {
     cancelAnimationFrame(playRaf);
     video.pause();
     timers.forEach(clearTimeout);
+    clearInterval(typing);
     cleanups.forEach((f) => f());
     io.disconnect();
     watch.disconnect();
     ro.disconnect();
+    fig?.destroy();
     document.removeEventListener("visibilitychange", kick);
     scheme.removeEventListener("change", recolor);
     if (still) delete document.documentElement.dataset.still;

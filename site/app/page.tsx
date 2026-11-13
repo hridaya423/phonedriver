@@ -1,11 +1,11 @@
 import Link from "next/link";
 import { Arrow, Html, JsonLd, Pane, Star } from "@/components/Bits";
-import { DotsEngine, JourneyEngine, RaceEngine, TypeEngine, ViewsEngine } from "@/components/Engines";
+import { DotsEngine, EndEngine, JourneyEngine, PalmEngine, PointEngine, RaceEngine, TypeEngine, ViewsEngine } from "@/components/Engines";
 import { Hero } from "@/components/Hero";
 import { Route } from "@/components/Route";
 import { HARNESSES, PHONE, TASKS, VERSIONS, board, minutes, ms, op, ratio, short, tokens, type Cell, type Harness } from "@/lib/bench";
-import { HAND, hand, mark, PAINT } from "@/lib/chauffeur";
-import { DEMO_CAPTION, FAQ, FAQ_MORE, HOME_DESC, JOBS } from "@/lib/data";
+import { mark, PAINT } from "@/lib/chauffeur";
+import { DEMO_CAPTION, FAQ, FAQ_MORE, HOME_DESC, JOBS, MCP_CONFIG, NPX } from "@/lib/data";
 import { softwareLd } from "@/lib/ld";
 import { inline, plain } from "@/lib/md";
 import { meta } from "@/lib/meta";
@@ -15,12 +15,7 @@ import { BOOT, PUBLISHED, REPO, raw, url } from "@/lib/site";
 import "./charts.css";
 import "./home.css";
 
-const NPX = "npx -y phonedriver mcp";
-const CONFIG = `{
-  "mcpServers": {
-    "phonedriver": { "command": "npx", "args": ["-y", "phonedriver", "mcp"] }
-  }
-}`;
+const CONFIG = MCP_CONFIG;
 const CURSOR = `https://cursor.com/en/install-mcp?name=phonedriver&config=${Buffer.from(JSON.stringify({ command: "npx", args: ["-y", "phonedriver", "mcp"] })).toString("base64")}`;
 const SLOW = 25;
 const UNIT = 10000;
@@ -42,8 +37,6 @@ const STOPS = [
   ["limits", "Limits"],
   ["install", "Set up"],
 ];
-
-const PALM = hand({ line: "#0b0b0c", fill: "#fff", accent: "#ff5b14" }, "open");
 
 const ASKS = [
   "Open my app, sign up with a new account, and tell me every bug you find on the way. Give me steps to reproduce each one.",
@@ -172,7 +165,7 @@ export default function Home() {
               {fewer}
             </p>
           </div>
-          <div className="df" data-life="" data-unit={UNIT}>
+          <div className="df" data-life="" data-unit={UNIT} data-point=".df-row.us .df-field" data-point-x=".df-row.us .df-field i:last-child" data-point-at="760" data-point-edge="page">
             {totals.map(({ h, t }) => {
               const n = Math.round(t.tokens / UNIT);
               return (
@@ -201,7 +194,10 @@ export default function Home() {
               );
             })}
             <p className="df-key">One dot is {tokens(UNIT)} tokens. Totals are sums of per-job medians over the nine jobs.</p>
+            <canvas className="pf" aria-hidden="true" />
+            <i className="pf-ring" aria-hidden="true" />
             <DotsEngine />
+            <PointEngine host=".df" />
           </div>
           <details className="jl">
             <summary>
@@ -277,9 +273,22 @@ export default function Home() {
       <section className="stop" id="what-the-model-sees">
         <Route n={2} say="How is it that cheap?" />
         <div className="wrap">
-          <div className="hm-head">
-            <h2>It reads the screen as text.</h2>
-            <p className="lede">Each screen arrives as a short numbered list, and the model taps by number. It takes a screenshot only when it needs to see a picture.</p>
+          <div className="hm-stat">
+            <div>
+              <h2>It reads the screen as text.</h2>
+              <p className="lede">Each screen arrives as a short numbered list, and the model taps by number. It takes a screenshot only when it needs to see a picture.</p>
+            </div>
+            <p className="hm-pair" aria-hidden="true">
+              <span>
+                {screen.nodes}
+                <small>nodes on the screen</small>
+              </span>
+              <i>→</i>
+              <b>
+                {screen.lines.length}
+                <small>lines for the model</small>
+              </b>
+            </p>
           </div>
           <div className="tv" data-on={REST} data-life="">
             <figure className="tv-shot">
@@ -358,7 +367,7 @@ export default function Home() {
               is one call, out to the phone and back.
             </p>
           </div>
-          <figure className="race pane" data-slow={SLOW} data-land="" data-at=".72">
+          <figure className="race pane" data-slow={SLOW} data-land="" data-at=".72" data-life="" data-point="li:first-child .race-lane.us .race-ms" data-point-at="900">
             <figcaption className="pane-head">
               <span>four calls, slowed down {SLOW} times</span>
               <button type="button" className="race-btn" hidden>
@@ -394,7 +403,10 @@ export default function Home() {
               median of 50 runs on an Android 17 emulator. adb is <code>adb shell uiautomator dump</code>, <code>screencap</code> and <code>input</code>.{" "}
               <Link href="/benchmarks/#speed">Method and raw data</Link>
             </p>
+            <canvas className="pf" aria-hidden="true" />
+            <i className="pf-ring" aria-hidden="true" />
             <RaceEngine />
+            <PointEngine host=".race" />
           </figure>
           <dl className="hm-phone">
             <dt>
@@ -462,7 +474,8 @@ export default function Home() {
                   </p>
                 </div>
               </Pane>
-              <svg className="palm" viewBox={`${HAND.x} ${HAND.y} ${HAND.w} ${HAND.h}`} aria-hidden="true" style={at(1100)} dangerouslySetInnerHTML={{ __html: PALM }} />
+              <canvas className="ask-fig" aria-hidden="true" />
+              <PalmEngine />
             </div>
             <p className="tv-cap">
               From the run at the top of this page. phonedriver held the tap on Buy with GPay, the human said no, and nothing was charged.{" "}
@@ -470,6 +483,9 @@ export default function Home() {
             </p>
           </div>
           </div>
+            <p className="hm-say">
+              The human said no. <b>Nothing was charged.</b>
+            </p>
             <dl className="hm-facts">
               <div>
                 <dt>You answer</dt>
@@ -606,7 +622,9 @@ export default function Home() {
                 </table>
               </div>
               <div>
-                <h3 className="hm-kick">Fourteen tools, as an MCP server and a CLI</h3>
+                <h3 className="hm-count">
+                  <b>{TOOLS.length}</b> tools, as an MCP server and a CLI
+                </h3>
                 <ul className="tools">
                   {TOOLS.map((t) => (
                     <li key={t}>{t}</li>
@@ -678,7 +696,8 @@ export default function Home() {
             </p>
           </div>
           <div className="end-pane">
-            <div className="end-mark" aria-hidden="true" dangerouslySetInnerHTML={{ __html: mark("full", PAINT.dark, 200) }} />
+            <canvas className="end-fig" aria-hidden="true" />
+            <EndEngine />
             <div className="ins" role="group" aria-label="Your client" data-land="">
               <div className="ins-tabs">
                 {CLIENTS.map((c, i) => (
