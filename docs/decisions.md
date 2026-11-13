@@ -685,7 +685,7 @@ Over USB the HONOR's median tap is 456 ms before and 471 ms now, which is noise.
 
 **Why.** On an iPhone 13 Pro Max, locked with the side button while the runner was up (2026-11-13, over Wi-Fi), `tap B5` answered `no element matches "B5"` and `snapshot` printed the lock screen. Android answers `The device is locked` in the same case. A first version asked the runner before each action; that request took 170 to 210 ms over Wi-Fi because it waits behind the screenshot in flight, so the state was moved onto the screenshot replies.
 
-**Evidence.** iPhone 17 simulator, iOS 26.5: with `notifyutil -s com.apple.springboard.lockstate 1`, `tap B5` answered `The device is locked. Unlock it by hand`, with no `prepare` time in the trace; set back to 0, `tap B7` tapped in 754 ms.
+**Evidence.** iPhone 17 simulator, iOS 26.5: with `notifyutil -s com.apple.springboard.lockstate 1`, `tap B5` answered `The device is locked. Unlock it by hand`, with no `prepare` time in the trace; set back to 0, `tap B7` tapped in 754 ms. iPhone 13 Pro Max, iOS 27.0.1, over Wi-Fi: three taps with the new runner (`Last tap: b7` in the app, no `prepare` time), then the side button, then `tap B5` and `type x` each answered `The device is locked`, exit 3, in 0.09 s.
 
 **Limits.** The state is at most half a second old. A snapshot of a locked iPhone still prints the lock screen.
 
