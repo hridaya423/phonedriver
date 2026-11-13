@@ -122,22 +122,24 @@ The model can't type plain text into a password field or a one-time code field. 
 | Android emulator | adb |
 | Android phone or tablet | adb and USB debugging |
 | iOS Simulator | a Mac with Xcode |
-| iPhone or iPad | a Mac with Xcode and an Apple developer team ([setup](docs/reference.md#iphone-or-ipad)) |
+| iPhone or iPad | a Mac with Xcode and an Apple Development certificate ([setup](docs/reference.md#iphone-or-ipad)) |
 
-On Android there is no app to install. phonedriver pushes its helper over adb when it connects. On iOS it builds a small XCTest runner on your Mac.
+On Android there is no app to install. phonedriver pushes its helper over adb when it connects. On iOS it builds a small XCTest runner on your Mac. For a real iPhone, plug it in and run `phonedriver ios setup`. It reads the signing team from your certificate, checks the phone, and builds, installs and starts the runner, so there is no team ID to look up.
+
+The cable can come off after setup. For an iPhone, run `phonedriver ios wifi on` and unplug it; it stays in `phonedriver devices` while it shares a Wi-Fi network with the Mac. For an Android phone, `phonedriver pair` or `phonedriver untether` does the same ([Android over Wi-Fi](docs/reference.md#android-over-wi-fi)). When the phone is far away, on a tunnel or a mobile network, phonedriver sends a smaller screen stream and compressed screen trees. On a link shaped to 3G, the median tap on an emulator took 1.4 s, down from 2.8 s.
 
 On Android 13 and later, the agent can work on a hidden second screen, so your own screen stays yours. Set `PHONEDRIVER_DISPLAY=hidden` in the MCP config, or pass `--display hidden` to the CLI. It has been tested on an emulator and on a HONOR X8 (Android 13). Typing into an app's own fields leaves no trace on your screen. Typing into a web page shows the system's clipboard note, and your clipboard is put back after.
 
-The MCP server has 14 tools: `devices`, `apps`, `snapshot`, `screenshot`, `tap`, `type`, `swipe`, `scroll`, `press`, `launch`, `wait`, `batch`, `clipboard` and `shell`. The `phonedriver` CLI has the same commands, for scripts and for agents that prefer a shell.
+The MCP server has 14 tools: `devices`, `apps`, `snapshot`, `screenshot`, `tap`, `type`, `swipe`, `scroll`, `press`, `launch`, `wait`, `batch`, `clipboard` and `shell`. `snapshot`, `screenshot` and `wait` are marked read-only, so a client can run them without a permission prompt. The `phonedriver` CLI has the same commands, for scripts and for agents that prefer a shell. A device you used from a terminal goes to your agent after 30 seconds idle.
 
 One call can tap a whole path: `tap {"target":"More options","then":["Settings","Dark theme"]}`. Models tap one step at a time unless told otherwise, so give your agent the skill (`phonedriver skill` prints it), which tells it to send paths.
 
 ## Limits
 
-- Tested on Android emulators (API 26 and 37), a HONOR X8 (Android 13), the iOS Simulator, an iPhone 14 Plus and an iPad Pro. Other Android phones use the same path. Bug reports from them are welcome.
+- Tested on Android emulators (API 26 and 37), a HONOR X8 (Android 13), the iOS Simulator, an iPhone 13 Pro Max, an iPhone 14 Plus and an iPad Pro. Other Android phones use the same path. Bug reports from them are welcome.
 - A tap alone takes 29 to 39 ms on an Android emulator and 450 to 530 ms on a real iPhone. The 514 ms in the Speed chart is a tap, the wait until the screen stops changing, and the list of what changed.
 - The model can do anything on the phone you could do with your finger. For unattended runs, use an emulator or a spare phone.
-- phonedriver never enters a passcode and can't pass Face ID or a fingerprint check. Screens that block screenshots, as some banking apps do, come out black in a screenshot, though their text can still be read.
+- phonedriver never enters a passcode and can't pass Face ID or a fingerprint check. On a locked phone a command stops and says the device is locked. Before a long task on an iPhone, set Auto-Lock to Never; a sleeping iPhone also stops answering over Wi-Fi. Screens that block screenshots, as some banking apps do, come out black in a screenshot, though their text can still be read.
 
 ## Other clients
 
@@ -169,7 +171,7 @@ phonedriver sends no telemetry. After the first download from GitHub, it connect
 
 **How do I let Claude control my Android phone?** Run `claude mcp add phonedriver -- npx -y phonedriver mcp`, turn on USB debugging, and plug the phone in.
 
-**Does it work with an iPhone?** Yes, from a Mac with Xcode, on the Simulator or on an iPhone or iPad signed with your Apple developer team.
+**Does it work with an iPhone?** Yes, from a Mac with Xcode, on the Simulator or on an iPhone or iPad. `phonedriver ios setup` signs the runner with your Apple developer team, and `phonedriver ios wifi on` lets you unplug the cable.
 
 **Can my agent buy things with it?** Not without your answer, unless you have told it to run autonomously. See [Asking before it pays](#asking-before-it-pays).
 
