@@ -44,7 +44,12 @@ static BOOL PUBannerCovers(CGPoint p)
     if (!springboard) springboard = [[XCUIApplication alloc] initWithBundleIdentifier:@"com.apple.springboard"];
     // The banner's element type is BannerNotification on iOS 26.5, so the type is left open.
     XCUIElement *banner = [[springboard descendantsMatchingType:XCUIElementTypeAny] matchingIdentifier:@"NotificationShortLookView"].firstMatch;
-    return banner.exists && CGRectContainsPoint(banner.frame, p);
+    if (!banner.exists) return NO;
+    // `banner.frame` records a test failure when the banner leaves between the two reads, and the reply then said
+    // the gesture failed although the touch landed (observed 2026-11-13 on an iPhone 13 Pro Max). A snapshot that
+    // cannot be taken returns nil instead.
+    id<XCUIElementSnapshot> shown = [banner snapshotWithError:NULL];
+    return shown && CGRectContainsPoint(shown.frame, p);
 }
 
 static BOOL PUClearOfBanner(NSArray *pointers, NSError **error)
