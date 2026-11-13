@@ -13,7 +13,7 @@ I tested an iPhone 14 Plus (iOS 26.1) and an iPad Pro (iOS 27.0) through the CLI
 Plug the device in and unlock it, then:
 
 ```sh
-phonedriver ios setup                    # signing team, pairing, Developer Mode, developer disk image
+phonedriver ios setup                    # signing team, pairing, Developer Mode, developer disk image, then the runner
 phonedriver --device ios:<udid> snapshot
 ```
 

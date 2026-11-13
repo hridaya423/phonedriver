@@ -2074,3 +2074,11 @@ The README on main described `then`, but 0.1.1 did not have it. Version 0.1.2 ev
 
 - Approved by the user. `Lease.terminal`, `TERMINAL_HOLD`, the daemon remembers which sessions are MCP from `hello`. Tests `an_agent_takes_a_device_a_terminal_session_left_idle_for_30_seconds_and_not_before` and `an_mcp_session_keeps_its_device_for_the_whole_lease`. Mac mini: `cargo test -p phonedriver --no-fail-fast` fails only `cli::no_device_exits_4...` (booted simulator there). Live evidence is in D52.
 - `ios setup` with the iPhone 13 Pro Max on the cable and `PHONEDRIVER_TEAM` unset printed the lines not seen before: `ok signing team`, `ok paired`, `ok developer mode`, `ok developer disk image`, the `ios wifi on` tip and the `ready.` line.
+
+## 2026-11-13: `ios setup` starts the runner; the detected team on a phone
+
+- iPhone 13 Pro Max, iOS 27.0.1, cable, `PHONEDRIVER_TEAM` unset. `phonedriver ios setup` printed `ok signing team DV6NC6KRYL`, the three device checks, `ok <udid> runner`, the Wi-Fi tip and `ready.`, exit 0. Then `tap B7` printed `ok tapped @e11 "B7"`, and the app's own label read `Last tap: b0` after the next keep-awake tap on B0. So the team read from the certificate signs a runner the phone accepts.
+- The next command after setup took 3.6 s at first: setup released the device and the daemon dropped its connection (`connect` 3,176 ms in the trace). Setup now uses the command line's session and keeps the device: 0.33 s.
+- With the phone locked, setup printed `need <udid> runner: The device is locked. Unlock it by hand...` in 3 s.
+- Not measured: setup with no runner built. Deleting the build folder gave 6 s, because the runner was still alive on the phone.
+- The phone auto-locked twice during this. The user asked me to keep it awake: a loop taps B0 in the testbed every 20 s.

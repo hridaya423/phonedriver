@@ -647,6 +647,18 @@ fn runner_expiry(name: &str, home: &Path) -> Check {
 
 /// `phonedriver ios setup`: for each attached device, check pairing, Developer Mode and the developer disk image, and do
 /// what needs no one at the device. Prints `ok` for a step already done.
+/// The first command on a device builds, installs and starts the runner. `ios setup` does it through the daemon, in
+/// the session the next command line uses, and keeps the device: after a `release` the daemon drops its connection
+/// and the next command spent 3.2 s connecting again (iPhone 13 Pro Max, 2026-11-13).
+async fn start_runner(id: &str) -> Result<(), Failure> {
+    let session = std::env::var("PHONEDRIVER_SESSION").unwrap_or_else(|_| "default".into());
+    let mut client = Client::connect(session).await?;
+    client
+        .call("snapshot", json!({"device": id, "no_settle": true}))
+        .await
+        .map(|_| ())
+}
+
 pub fn ios_setup(home: &Path) -> bool {
     use phonedriver_core::error::{Error, UserAction};
     let Ok(rt) = tokio::runtime::Builder::new_current_thread()
@@ -667,6 +679,7 @@ pub fn ios_setup(home: &Path) -> bool {
                 false
             }
         };
+        let team_ok = all_ok;
         let attached = match crate::ios_wifi::attached(home).await {
             Ok(w) if !w.is_empty() => w,
             Ok(_) => {
@@ -722,12 +735,29 @@ pub fn ios_setup(home: &Path) -> bool {
                     }
                 }
             }
-            if status.developer_mode && cabled && !remembered.contains(&name) {
+            if !status.developer_mode || !team_ok {
+                continue;
+            }
+            println!("      {name} runner: building, installing and starting it (a few minutes the first time)");
+            match start_runner(&format!("ios:{name}")).await {
+                Ok(()) => println!("ok    {name} runner"),
+                Err(e) => {
+                    let word = if e.exit_code() == 3 { "need" } else { "fail" };
+                    println!(
+                        "{word}  {name} runner: {} {}",
+                        e.message(),
+                        e.hint().unwrap_or_default()
+                    );
+                    all_ok = false;
+                    continue;
+                }
+            }
+            if cabled && !remembered.contains(&name) {
                 println!("tip   {name}: `phonedriver ios wifi on` lets you unplug the cable");
             }
         }
         if all_ok {
-            println!("ready. Run `phonedriver snapshot`; the first command on a device builds and installs the runner, which takes a few minutes once.");
+            println!("ready. `phonedriver snapshot` shows the screen.");
         }
         all_ok
     })

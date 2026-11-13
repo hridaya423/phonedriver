@@ -81,7 +81,7 @@ phonedriver wait settled
 A physical iOS device needs the runner signed with your Apple developer team (a free Apple ID works and expires every 7 days). Plug the device in, unlock it, then:
 
 ```sh
-phonedriver ios setup                  # signing team, pairing, Developer Mode, developer disk image
+phonedriver ios setup                  # signing team, pairing, Developer Mode, developer disk image, then the runner
 phonedriver --device ios:<udid> snapshot
 ```
 
