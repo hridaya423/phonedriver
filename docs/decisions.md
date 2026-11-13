@@ -654,7 +654,7 @@ The hello on the shaped link took 433 to 481 ms, so 120 ms separates the links s
 
 **Why.** The power state was reused for 1 s and cleared by every window change, so an agent, whose calls are seconds apart, paid one round trip before every action: 13 ms over USB, 294 ms on a link shaped to 3G.
 
-**Evidence, HONOR X8, 2026-11-13.** Over USB: a tap, 5 s pause, a tap: `prepare` 0 ms on the second (13 ms before). Then `adb shell input keyevent 223` put the phone to sleep, and 2 s later `tap b7` answered `The device is locked. Unlock it by hand`, exit 3, with `prepare` 64 ms in the trace: the state was read again. The testbed's log holds the `b3` tap and no `b7`.
+**Evidence, HONOR X8, 2026-11-13.** Over USB: a tap, 5 s pause, a tap: `prepare` 0 ms on the second (13 ms before). Then `adb shell input keyevent 223` put the phone to sleep, and 2 s later `tap b7` answered `The device is locked. Unlock it by hand`, exit 3, with `prepare` 64 ms in the trace: the state was read again. The testbed's log holds the `b3` tap and no `b7`. The screen's own timeout gives the same: a tap on `b9`, 45 s with no input (the phone's timeout is 30 s, `mWakefulness=Asleep`), then `tap b10` answered that the device is locked, `prepare` 43 ms, and the log holds `b9` and no `b10`.
 
 **D50 on a phone, same day.** The HONOR's encoder did not keep to 400 kbit/s: asked for it with no rate mode, it sent 853 kbit/s of its lock screen. On a slow link the host now also asks for a frame of at most 1280 px on the long side, and the agent sets constant bit rate where the encoder supports it. Eleven taps 2 s apart, link shaped to 3G:
 
@@ -667,5 +667,5 @@ The hello on the shaped link took 433 to 481 ms, so 120 ms separates the links s
 
 Over USB the HONOR's median tap is 456 ms before and 471 ms now, which is noise. Screenshots at the smaller frame were looked at on both devices: every label reads.
 
-**Limits.** On the phone the median did not move; what improved is the slow first taps and the bytes. A tap on 3G still makes three round trips (the tree, the touch, the frames after it). A screen that turns off by its own timeout was not tried: the test used the sleep key.
+**Limits.** On the phone the median did not move; what improved is the slow first taps and the bytes. A tap on 3G still makes three round trips (the tree, the touch, the frames after it).
 
