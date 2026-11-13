@@ -132,6 +132,8 @@ pub struct Hello {
     pub udid: Option<String>,
     #[serde(default)]
     pub build: Option<String>,
+    #[serde(default)]
+    pub locked: bool,
 }
 
 /// One connection to a runner. Requests run one at a time, as the runner serves them.

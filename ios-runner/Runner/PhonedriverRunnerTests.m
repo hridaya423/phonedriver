@@ -1,4 +1,5 @@
 #import <XCTest/XCTest.h>
+#import <notify.h>
 #import <sys/utsname.h>
 
 #import "Buttons.h"
@@ -31,6 +32,18 @@ static NSString *PUModel(void)
 
 // The runner's own process runs letterboxed (it has no launch screen), so UIScreen reports
 // 320 x 480 there; SpringBoard's frame is the real screen in points.
+// SpringBoard posts its lock state under this name. The tree of a locked iPhone is the lock screen's, which reads
+// like any other screen, so a tap sent to a locked iPhone 13 Pro Max answered "no element matches" (2026-11-13).
+static BOOL PULocked(void)
+{
+    static int token;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{ notify_register_check("com.apple.springboard.lockstate", &token); });
+    uint64_t state = 0;
+    notify_get_state(token, &state);
+    return state != 0;
+}
+
 static NSDictionary *PUHello(void)
 {
     CGRect bounds = [[XCUIApplication alloc] initWithBundleIdentifier:@"com.apple.springboard"].frame;
@@ -44,6 +57,7 @@ static NSDictionary *PUHello(void)
     NSString *udid = env[@"SIMULATOR_UDID"] ?: env[@"PHONEDRIVER_UDID"];
     if (udid) hello[@"udid"] = udid;
     if (env[@"PHONEDRIVER_BUILD"]) hello[@"build"] = env[@"PHONEDRIVER_BUILD"];
+    hello[@"locked"] = @(PULocked());
     return hello;
 }
 
@@ -79,7 +93,10 @@ static NSDictionary *PUPerform(NSDictionary *request, NSError **error)
             if (error) *error = PUError(PURunnerErrorBadRequest, @"format must be a string, quality and scale numbers");
             return nil;
         }
-        return PUScreenshot(format, quality.integerValue, scale.doubleValue, error);
+        // The host polls screenshots all the time, so the lock state rides on them at no extra request.
+        NSMutableDictionary *shot = [PUScreenshot(format, quality.integerValue, scale.doubleValue, error) mutableCopy];
+        shot[@"locked"] = @(PULocked());
+        return shot;
     }
     if ([op isEqualToString:@"type"]) {
         NSString *text = PUStringField(request, @"text", error);

@@ -1,7 +1,7 @@
 //! `IosDevice`: the `Device` port over the PhonedriverRunner, Simulator tier (architecture 7, 7.3).
 
 use std::path::Path;
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
@@ -9,8 +9,8 @@ use async_trait::async_trait;
 use base64::Engine;
 use phonedriver_core::device::{
     App, AppId, AppOp, Button, Capabilities, ClipboardOp, Device, DeviceEvent, DeviceInfo,
-    FrameRef, Gesture, Image, ImageFormat, Key, Quality, Result, ShellReply, ShellRequest,
-    TextInput, Url,
+    FrameRef, Gesture, Image, ImageFormat, Key, Quality, Result, ScreenState, ShellReply,
+    ShellRequest, TextInput, Url,
 };
 use phonedriver_core::element::Role;
 use phonedriver_core::error::{Error, Op};
@@ -74,6 +74,8 @@ struct Activity {
     last: Mutex<Instant>,
     kick: Notify,
     inputs: AtomicUsize,
+    /// The lock state in the runner's last hello or screenshot reply.
+    locked: AtomicBool,
 }
 
 /// While an input runs, settle polls wait: a poll between the requests of one input (the tree read and the tap of
@@ -130,7 +132,8 @@ impl IosDevice {
         .union(Capabilities::APPS)
         .union(Capabilities::LAUNCH)
         .union(Capabilities::FOREGROUND)
-        .union(Capabilities::SHELL);
+        .union(Capabilities::SHELL)
+        .union(Capabilities::POWER_EVENTS);
 
     /// Starts or reuses the runner on `sim` (task 5.4) and starts settle polling. `home` holds the runner build.
     pub async fn connect(sim: &Simulator, home: &Path) -> Result<IosDevice> {
@@ -184,6 +187,7 @@ impl IosDevice {
             last: Mutex::new(Instant::now()),
             kick: Notify::new(),
             inputs: AtomicUsize::new(0),
+            locked: AtomicBool::new(hello.locked),
         });
         let poller = tokio::spawn(poll(
             runner.clone(),
@@ -298,6 +302,11 @@ async fn poll(
                 json!({"op": "screenshot", "format": "luma", "scale": POLL_SCALE}),
             )
             .await;
+        if let Ok(locked) = reply.as_ref().map(|r| r["locked"] == true)
+            && activity.locked.swap(locked, Ordering::Relaxed) != locked
+        {
+            let _ = events.send(DeviceEvent::Locked(locked));
+        }
         match reply.as_ref().map(luma_frame) {
             Ok(Some(frame)) => {
                 if store.publish(frame).changed_area_pt2 > ACTIVE_CHANGE_PT2 {
@@ -636,6 +645,19 @@ impl Device for IosDevice {
             simctl(&["privacy", &self.udid, "grant", service, &app.0]).await?;
         }
         Ok(())
+    }
+
+    /// The lock state comes with every screenshot the poller takes (twice a second when idle), so this costs no
+    /// request. A locked iPhone is the user's to open: past the lock screen is the passcode, which phonedriver never
+    /// enters, so a locked screen is reported as secure whether or not a passcode is set.
+    async fn screen_state(&self) -> Result<ScreenState> {
+        let locked = self.activity.locked.load(Ordering::Relaxed);
+        Ok(ScreenState {
+            on: true,
+            locked,
+            secure: locked,
+            focused: true,
+        })
     }
 
     async fn foreground(&self) -> Result<Option<AppId>> {

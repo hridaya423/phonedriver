@@ -2082,3 +2082,10 @@ The README on main described `then`, but 0.1.1 did not have it. Version 0.1.2 ev
 - With the phone locked, setup printed `need <udid> runner: The device is locked. Unlock it by hand...` in 3 s.
 - Not measured: setup with no runner built. Deleting the build folder gave 6 s, because the runner was still alive on the phone.
 - The phone auto-locked twice during this. The user asked me to keep it awake: a loop taps B0 in the testbed every 20 s.
+
+## 2026-11-13: the stall after the cable, and a locked iPhone (D53)
+
+- The stall, iPhone 13 Pro Max, timing lines in a throwaway build: after the unplug the first tap took 6.7 s, the next two 1.15 s. `connect` was 5,390 ms: 1.0 s finding that the old runner is gone, then 4.4 s starting it again over Wi-Fi (`xcodebuild test-without-building`). The runner started over the cable ends with the cable. Not changed. Traces now carry a `device` phase for the device lookup (366 ms on that first tap).
+- Taps over Wi-Fi 60 to 90 s apart took 0.95 to 1.15 s: a pause costs nothing.
+- Locked with the side button, runner up, over Wi-Fi: `tap B5` answered `no element matches "B5"`. Fixed as D53; proven on the simulator, not yet on the phone. A locked phone at runner start already answered `The device is locked` (47 s, most of it the runner rebuild).
+- During this the user was using the phone: three test taps of mine (`B3`, `B5`, `B7`) ran while the Google app was in front. They matched nothing, so nothing was touched. A snapshot printed lines of that screen to my terminal and I saved a screenshot, which I deleted without opening.

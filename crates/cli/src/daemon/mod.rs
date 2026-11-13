@@ -256,9 +256,14 @@ impl Daemon {
                     }
                     _ => Call::Wait(rpc::params(params)?),
                 };
-                let id = self.resolve(common.device.as_deref()).await?;
+                let looked = Instant::now();
+                let id = self.resolve(common.device.as_deref()).await;
+                let _ = PHASES.try_with(|p| {
+                    p.borrow_mut()
+                        .push(("device", looked.elapsed().as_micros() as u32))
+                });
                 Ok(self
-                    .send(&id, session, common.share, common.display, call)
+                    .send(&id?, session, common.share, common.display, call)
                     .await?)
             }
             _ => Err(RpcError::new(

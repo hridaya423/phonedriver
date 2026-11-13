@@ -679,3 +679,13 @@ Over USB the HONOR's median tap is 456 ms before and 471 ms now, which is noise.
 
 **Evidence, HONOR X8, 2026-11-13.** `phonedriver snapshot`, then at once `phonedriver --session agent snapshot`: `leased by session default ... (idle 2s, lease expires in 27s)`. After 31 s the same command printed the screen and `devices` showed `agent` under LEASE.
 
+## D53. A locked iPhone says it is locked; the state rides on the screenshots the host polls
+
+**Choice.** The runner reads SpringBoard's lock state (the Darwin notification state `com.apple.springboard.lockstate`) and puts `locked` in its hello and in every screenshot reply. The host's poller already asks for a screenshot twice a second when idle, so it keeps the last value, sends `DeviceEvent::Locked` when it changes, and `screen_state` answers from it with no request. iOS devices on the runner now declare `POWER_EVENTS` (D51). A locked screen is reported as secure whether or not a passcode is set: phonedriver does not swipe an iPhone open.
+
+**Why.** On an iPhone 13 Pro Max, locked with the side button while the runner was up (2026-11-13, over Wi-Fi), `tap B5` answered `no element matches "B5"` and `snapshot` printed the lock screen. Android answers `The device is locked` in the same case. A first version asked the runner before each action; that request took 170 to 210 ms over Wi-Fi because it waits behind the screenshot in flight, so the state was moved onto the screenshot replies.
+
+**Evidence.** iPhone 17 simulator, iOS 26.5: with `notifyutil -s com.apple.springboard.lockstate 1`, `tap B5` answered `The device is locked. Unlock it by hand`, with no `prepare` time in the trace; set back to 0, `tap B7` tapped in 754 ms.
+
+**Limits.** The state is at most half a second old. A snapshot of a locked iPhone still prints the lock screen.
+

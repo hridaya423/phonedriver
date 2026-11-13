@@ -6,6 +6,7 @@ Every release of phonedriver, newest first. Binaries and checksums for each vers
 
 - **iPhone without the cable**: `phonedriver ios wifi on` lets a physical iPhone or iPad answer over Wi-Fi. Unplug it and it stays in `phonedriver devices` while it shares a network with the Mac. Tested on an iPhone 13 Pro Max, iOS 27.0.1. `phonedriver doctor` says which link each device uses.
 - **An iPhone the signing team has never seen**: the first command used to wait 60 seconds and point at an Xcode log. It now says the device is not registered and names the fix, `phonedriver ios register`. A locked iPhone at runner start is reported as locked.
+- **A locked iPhone says so**: an action on a locked iPhone used to answer "no element matches". It now answers that the device is locked, as Android does.
 - **Notification banners on iOS**: a tap that starts under a banner waits for the banner to leave, so it no longer opens the notification.
 - **No team ID to look up**: phonedriver reads the signing team from this Mac's Apple Development certificate, so `PHONEDRIVER_TEAM` is needed only with certificates for several teams. The old hint pointed at the ID in parentheses after your name, which is not the team. `phonedriver ios setup` and `phonedriver doctor` print the team they found.
 - **`phonedriver ios setup` finishes the job**: after its checks it builds, installs and starts the runner, so the next command answers at once (0.3 s on an iPhone 13 Pro Max) instead of starting the runner itself.
