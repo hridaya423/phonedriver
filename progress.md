@@ -2103,3 +2103,10 @@ The README on main described `then`, but 0.1.1 did not have it. Version 0.1.2 ev
 - Not done: no runner on that phone (it would register the device with the team), so no tap. Docs now say so.
 - The 13 Pro Max did the same: gone from the list while locked and asleep, back when woken. Its announcement changed address between wakes (private address) and still matched by `authTag`.
 - A snapshot of the 13 Pro Max to start the keep-awake test found another app in front, in use. I had not asked whether the phone was free. I read the two header lines only, sent no input, saved nothing, and stopped the daemon.
+
+## 2026-11-13: keep-awake for iPhones, not built
+
+- Tried in a throwaway runner op, iPhone 17 simulator, iOS 26.5: `IOPMAssertionDeclareUserActivity`, `BKSHIDServicesResetUserEventTimer`, `SBSUndimScreen` (all three resolve through `dlsym` and return), a modifier-only key event and an off-screen touch (both synthesize with no visible effect on the testbed). The simulator never auto-locks, so this proves nothing about the idle timer.
+- The live test on the iPhone 13 Pro Max did not run: the phone locked before it started and the user stopped the test. The experiment is reverted; nothing shipped.
+- Docs now tell the reader to set Auto-Lock to Never for a long task (`site/content/docs/iphone.md`, `docs/reference.md`).
+- Open: whether any of the five holds a real iPhone awake.

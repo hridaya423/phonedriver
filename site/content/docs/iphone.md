@@ -37,6 +37,12 @@ I tested this on an iPhone 13 Pro Max (iOS 27.0.1) on one network. The app on th
 
 A sleeping iPhone stops answering on Wi-Fi. Both phones left the list when the screen went off and came back when woken.
 
+## A locked iPhone
+
+phonedriver does not unlock an iPhone and never enters a passcode. On a locked iPhone each command stops with `The device is locked` and you unlock it by hand.
+
+Before a long task, set Settings > Display & Brightness > Auto-Lock to Never. An iPhone that locks mid-task stops the task, and over Wi-Fi it also leaves `phonedriver devices` until it wakes. Set Auto-Lock back when the task ends.
+
 ## What differs from Android
 
 - There is no shell on a physical iPhone.

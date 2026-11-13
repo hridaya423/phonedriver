@@ -99,7 +99,7 @@ phonedriver ios wifi on
 
 Unplug it. While the device and the Mac are on the same Wi-Fi network, `phonedriver devices` still lists it and every verb works. `phonedriver doctor` says `over Wi-Fi` or `over USB`. The device answers only computers it already trusts. `phonedriver ios wifi off` stops it.
 
-Tested on an iPhone 13 Pro Max (iOS 27.0.1) on one network. An iPhone 14 Plus (iOS 26.1) was found and answered over Wi-Fi; taps on it were not run. A sleeping device stops answering on Wi-Fi until it wakes. The experimental CoreDevice tier needs the cable.  See decision D47.
+Tested on an iPhone 13 Pro Max (iOS 27.0.1) on one network. An iPhone 14 Plus (iOS 26.1) was found and answered over Wi-Fi; taps on it were not run. A sleeping device stops answering on Wi-Fi until it wakes. phonedriver does not keep an iPhone awake or unlock it: for a long task set Settings > Display & Brightness > Auto-Lock to Never. The experimental CoreDevice tier needs the cable.  See decision D47.
 
 ## Environment variables
 
