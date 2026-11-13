@@ -139,7 +139,7 @@ One call can tap a whole path: `tap {"target":"More options","then":["Settings",
 - Tested on Android emulators (API 26 and 37), a HONOR X8 (Android 13), the iOS Simulator, an iPhone 13 Pro Max, an iPhone 14 Plus and an iPad Pro. Other Android phones use the same path. Bug reports from them are welcome.
 - A tap alone takes 29 to 39 ms on an Android emulator and 450 to 530 ms on a real iPhone. The 514 ms in the Speed chart is a tap, the wait until the screen stops changing, and the list of what changed.
 - The model can do anything on the phone you could do with your finger. For unattended runs, use an emulator or a spare phone.
-- phonedriver never enters a passcode and can't pass Face ID or a fingerprint check. On a locked phone a command stops and says the device is locked. Before a long task on an iPhone, set Auto-Lock to Never; a sleeping iPhone also stops answering over Wi-Fi. Screens that block screenshots, as some banking apps do, come out black in a screenshot, though their text can still be read.
+- phonedriver never enters a passcode and can't pass Face ID or a fingerprint check. On a locked phone a command stops and says the device is locked. On `main`, phonedriver keeps an iPhone awake while an agent is using it; in 0.1.3, set Auto-Lock to Never before a long task. Screens that block screenshots, as some banking apps do, come out black in a screenshot, though their text can still be read.
 
 ## Other clients
 

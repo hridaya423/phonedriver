@@ -106,6 +106,9 @@ static NSDictionary *PUPerform(NSDictionary *request, NSError **error)
         NSString *key = PUStringField(request, @"key", error);
         return key && PUKey(key, request[@"modifiers"] ?: @[], error) ? @{} : nil;
     }
+    if ([op isEqualToString:@"awake"]) {
+        return PUAwake(error) ? @{} : nil;
+    }
     if ([op isEqualToString:@"button"]) {
         NSString *name = PUStringField(request, @"name", error);
         return name && PUButton(name, error) ? @{} : nil;

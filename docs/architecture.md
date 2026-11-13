@@ -398,6 +398,7 @@ Signing: built with Xcode automatic signing for the user's team. A free Apple ID
 | State | Behavior |
 |---|---|
 | Locked with passcode | `NeedsUser(UnlockDevice)` |
+| Auto-Lock while in use | The poller sends the runner `awake` (Shift down and up) every 10 s for 10 minutes after the host's last request, and never to a locked device (decision D56) |
 | Developer Mode off | `NeedsUser(EnableDeveloperMode)`; idevice `amfi` reveals the toggle in Settings |
 | Not paired | `NeedsUser(TrustComputer)` |
 | Runner expired | `NeedsUser(ResignRunner)` with the exact command |

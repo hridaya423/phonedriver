@@ -38,6 +38,15 @@ const POLL_SCALE: f32 = 0.25;
 /// After an input or a visible change, settle polls back to back for this long; after that, at `IDLE_POLL`.
 const ACTIVE_WINDOW: Duration = Duration::from_secs(3);
 const IDLE_POLL: Duration = Duration::from_millis(500);
+/// For this long after the host last used the device, the poller keeps its screen awake (decision D56). It is the
+/// length of a session's hold on a device, so a phone does not lock under an agent that still holds it.
+const KEEP_AWAKE: Duration = Duration::from_secs(600);
+/// Auto-Lock's shortest setting is 30 s; a nudge every 10 s held an iPhone 13 Pro Max awake at that setting.
+const NUDGE_EVERY: Duration = Duration::from_secs(10);
+
+fn nudge_is_due(since_use: Duration, since_nudge: Duration, locked: bool) -> bool {
+    !locked && since_use < KEEP_AWAKE && since_nudge >= NUDGE_EVERY
+}
 const ACTIVE_CHANGE_PT2: f32 = 128.0;
 const EVENT_BACKLOG: usize = 16;
 /// While an app starts, the runner's snapshot fails with `kAXErrorServerNotFound` until the app's accessibility
@@ -72,6 +81,8 @@ pub struct IosDevice {
 
 struct Activity {
     last: Mutex<Instant>,
+    /// When the host last asked the device for something; screen changes do not count.
+    used: Mutex<Instant>,
     kick: Notify,
     inputs: AtomicUsize,
     /// The lock state in the runner's last hello or screenshot reply.
@@ -85,6 +96,7 @@ struct Busy<'a>(&'a Activity);
 impl<'a> Busy<'a> {
     fn new(a: &'a Activity) -> Busy<'a> {
         a.inputs.fetch_add(1, Ordering::SeqCst);
+        a.used();
         a.touch();
         Busy(a)
     }
@@ -100,6 +112,10 @@ impl Drop for Busy<'_> {
 impl Activity {
     fn busy(&self) -> bool {
         self.inputs.load(Ordering::SeqCst) > 0
+    }
+
+    fn used(&self) {
+        *self.used.lock().unwrap_or_else(|e| e.into_inner()) = Instant::now();
     }
 
     fn touch(&self) {
@@ -185,6 +201,7 @@ impl IosDevice {
         let store = Arc::new(FrameStore::new(POLL_SCALE));
         let activity = Arc::new(Activity {
             last: Mutex::new(Instant::now()),
+            used: Mutex::new(Instant::now()),
             kick: Notify::new(),
             inputs: AtomicUsize::new(0),
             locked: AtomicBool::new(hello.locked),
@@ -255,6 +272,7 @@ impl IosDevice {
     }
 
     async fn snapshot(&self, max_depth: u32) -> Result<Value> {
+        self.activity.used();
         let deadline = Instant::now() + APP_START_WAIT;
         loop {
             let reply = self
@@ -284,10 +302,24 @@ async fn poll(
     activity: Arc<Activity>,
     events: broadcast::Sender<DeviceEvent>,
 ) {
+    let mut nudged = Instant::now();
     loop {
         if activity.busy() {
             activity.kick.notified().await;
             continue;
+        }
+        let since_use = activity
+            .used
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .elapsed();
+        if nudge_is_due(
+            since_use,
+            nudged.elapsed(),
+            activity.locked.load(Ordering::Relaxed),
+        ) {
+            nudged = Instant::now();
+            let _ = runner.client.request(Op::Key, json!({"op": "awake"})).await;
         }
         if !activity.active() {
             tokio::select! {
@@ -391,6 +423,7 @@ impl Device for IosDevice {
     }
 
     async fn screenshot(&self, _q: Quality) -> Result<Image> {
+        self.activity.used();
         let reply = self
             .client()
             .request(
@@ -674,5 +707,21 @@ impl Device for IosDevice {
             map.remove("ok");
         }
         Ok(Some(reply.to_string()))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_nudge_is_due_every_10_seconds_while_the_device_was_used_in_the_last_10_minutes_and_is_unlocked()
+     {
+        let s = Duration::from_secs;
+        assert!(nudge_is_due(s(0), s(10), false));
+        assert!(nudge_is_due(s(599), s(11), false));
+        assert!(!nudge_is_due(s(5), s(9), false));
+        assert!(!nudge_is_due(s(600), s(60), false));
+        assert!(!nudge_is_due(s(5), s(10), true));
     }
 }

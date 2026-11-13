@@ -24,6 +24,20 @@ BOOL PUType(NSString *text, NSUInteger speed, NSError **error)
     return PUSynthesize(record, (double)text.length / (speed ?: PUTypingSpeed) + 10, error);
 }
 
+// Shift down and up with no key: the idle timer counts it as use, and nothing else reacts. Observed 2026-11-13 on
+// an iPhone 13 Pro Max with Auto-Lock at 30 s: one every 10 s held the screen awake with Settings in front, the
+// on-screen keyboard stayed up, and text typed after it kept its case.
+BOOL PUAwake(NSError **error)
+{
+    XCSynthesizedEventRecord *record = [[XCSynthesizedEventRecord alloc] initWithName:@"phonedriver awake"
+                                                                 interfaceOrientation:UIInterfaceOrientationPortrait];
+    XCPointerEventPath *path = [[XCPointerEventPath alloc] initForTextInput];
+    [path setModifiers:XCUIKeyModifierShift mergeWithCurrentModifierFlags:NO atOffset:0];
+    [path setModifiers:0 mergeWithCurrentModifierFlags:NO atOffset:0.05];
+    [record addPointerEventPath:path];
+    return PUSynthesize(record, 10, error);
+}
+
 BOOL PUKey(NSString *key, NSArray *modifiers, NSError **error)
 {
     if (![key isKindOfClass:NSString.class] || key.length == 0 || ![modifiers isKindOfClass:NSArray.class]) {

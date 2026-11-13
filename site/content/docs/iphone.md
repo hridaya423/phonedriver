@@ -41,7 +41,7 @@ A sleeping iPhone stops answering on Wi-Fi. Both phones left the list when the s
 
 phonedriver does not unlock an iPhone and never enters a passcode. On a locked iPhone each command stops with `The device is locked` and you unlock it by hand.
 
-Before a long task, set Settings > Display & Brightness > Auto-Lock to Never. An iPhone that locks mid-task stops the task, and over Wi-Fi it also leaves `phonedriver devices` until it wakes. Set Auto-Lock back when the task ends.
+phonedriver keeps an iPhone awake while it is in use: for 10 minutes after each command it resets the Auto-Lock timer every 10 seconds, and `phonedriver release` stops that. This is on `main` and comes with the release after 0.1.3. In 0.1.3, set Settings > Display & Brightness > Auto-Lock to Never before a long task, and set it back after.
 
 ## What differs from Android
 

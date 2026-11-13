@@ -17,6 +17,7 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)typeKey:(NSString *)key modifiers:(unsigned long long)modifiers atOffset:(double)offset;
 - (void)moveToPoint:(CGPoint)point atOffset:(double)offset;
 - (void)liftUpAtOffset:(double)offset;
+- (void)setModifiers:(unsigned long long)modifiers mergeWithCurrentModifierFlags:(BOOL)merge atOffset:(double)offset;
 @end
 
 @interface XCSynthesizedEventRecord : NSObject
