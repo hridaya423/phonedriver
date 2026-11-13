@@ -2089,3 +2089,9 @@ The README on main described `then`, but 0.1.1 did not have it. Version 0.1.2 ev
 - Taps over Wi-Fi 60 to 90 s apart took 0.95 to 1.15 s: a pause costs nothing.
 - Locked with the side button, runner up, over Wi-Fi: `tap B5` answered `no element matches "B5"`. Fixed as D53; proven on the simulator and then on the phone (evidence in D53). A locked phone at runner start already answered `The device is locked` (47 s, most of it the runner rebuild).
 - During this the user was using the phone: three test taps of mine (`B3`, `B5`, `B7`) ran while the Google app was in front. They matched nothing, so nothing was touched. A snapshot printed lines of that screen to my terminal and I saved a screenshot, which I deleted without opening.
+
+## 2026-11-13: do agents use `then` without the skill?
+
+- Three runs, `claude -p`, sonnet, subscription, MCP tools only, no skill, healthy Pixel API 37 emulator. Task: open Settings, go to "Display & touch", turn on "Dark theme". All three finished with `Night mode: yes`: 3 phone calls in 16.2 s, then 2 calls in 7.5 s and 2 calls in 8.1 s (Settings reopened on the Display page in the last two).
+- None used `then`. Each tapped a ref from the screen the previous call returned. In the one run where `then` applied it would have saved one call of three.
+- Read: with the screen returned by every action, an agent already does this task in two or three calls, and it prefers a ref it can see to a text it has to guess. `then` stays in the schema; no wording was changed on three runs.
