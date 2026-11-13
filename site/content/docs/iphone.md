@@ -1,7 +1,7 @@
 ---
 title: How to control a real iPhone or iPad with phonedriver
 nav: Real iPhone
-description: Pair an iPhone or iPad, set up Developer Mode and a signing team, and let an agent drive it with phonedriver. Tested on an iPhone 14 Plus and an iPad Pro.
+description: Set up an iPhone or iPad and let an agent drive it with phonedriver, with or without the cable. Tested on an iPhone 13 Pro Max, a 14 Plus and an iPad Pro.
 ---
 
 A physical iOS device needs the runner signed with your Apple developer team. A free Apple ID works, and the signing expires every 7 days. phonedriver needs a Mac with Xcode.
@@ -33,7 +33,7 @@ phonedriver ios wifi on
 
 Unplug it. While the iPhone and the Mac are on the same Wi-Fi network, `phonedriver devices` still lists it and every verb works. `phonedriver doctor` says `over Wi-Fi` or `over USB`. The iPhone answers only computers it already trusts, and `phonedriver ios wifi off` stops it.
 
-I tested this on an iPhone 13 Pro Max (iOS 27.0.1) on one network. The app on the phone logged the taps and the typed text with no cable attached. An iPhone 14 Plus on iOS 26.1, which announces itself the older way, stayed in `phonedriver devices` and answered with the cable out. I did not install the runner on that phone, so taps on an iOS before 26.4 over Wi-Fi are not tested.
+I tested this on an iPhone 13 Pro Max (iOS 27.0.1) on one network. The app on the phone logged the taps and the typed text with no cable attached. An iPhone 14 Plus on iOS 26.1, which announces itself the older way, stayed in `phonedriver devices` and answered with the cable out. I did not run taps on that phone over Wi-Fi, so taps over Wi-Fi on an iOS before 26.4 are not tested.
 
 A sleeping iPhone stops answering on Wi-Fi. Both phones left the list when the screen went off and came back when woken.
 

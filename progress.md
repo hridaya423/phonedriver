@@ -2205,3 +2205,14 @@ The README on main described `then`, but 0.1.1 did not have it. Version 0.1.2 ev
 - `site/lib/chauffeur.ts`, `globals.css`: the flat glove and its styles are deleted; nothing drew them any more.
 - Proof, on the Mac mini: `tsc --noEmit` clean, `pnpm build` passes, `node scripts/check.mjs` ends `problems 0`. `rough.cjs` at 1280x800 dark and light and `sections.cjs` at 1280x800 and 390x844: looked at the hero's two hands at native resolution and at the approval stop in each, no page errors.
 - Not seen in Safari or Firefox or on a real phone.
+
+## 2026-11-13: the site says 0.1.3
+
+- Asked: bring the site up to the 0.1.3 release before the push.
+- `site/lib/site.ts`: `VERSION` is `0.1.3`. `site/content/docs/install.md`: the release line and the sample output.
+- `site/app/page.tsx`: the iPhone row asks for an Apple Development certificate and names `phonedriver ios setup`; the tested devices include the iPhone 13 Pro Max; the passcode limit says a locked phone stops the task and names Auto-Lock: Never; three new facts under "How it works": no cable, slow links, the 30-second hand-over. The wording and the numbers (1.4 s, down from 2.8 s; 30 seconds; 10 minutes) are the README's and the changelog's.
+- `site/lib/data.ts`: both iPhone answers name `ios setup`, no team ID, the cable coming off and the 13 Pro Max.
+- `site/content/docs/iphone.md`: the description names the 13 Pro Max and "with or without the cable" (154 characters; the first try was 162 and over the checker's 160). The sentence about the iPhone 14 Plus now says taps over Wi-Fi were not run on it. It used to say the runner was not installed, and that phone had been driven on the cable.
+- Rebased onto main first: the work moved to a branch from `origin/main` (`53b1626`). Main already had D45 to D53, so the two site decisions are D54 and D55.
+- Proof, on the Mac mini, from this branch with main's `CHANGELOG.md` and `docs/bench`: `tsc --noEmit` clean, `pnpm build` passes, `node scripts/check.mjs` ends `problems 0`. In `out/`: `changelog/index.html` has `<h2 id="0-1-3">0.1.3</h2>` first and "latest version is 0.1.3"; `index.html` has `softwareVersion":"0.1.3`, "iPhone 13 Pro Max", "Auto-Lock to Never" and the three facts; `docs/install/index.html` has "phonedriver 0.1.3" and no 0.1.2. Captured the new facts and the limits at 1440x900 dark and light and at 390x844: no horizontal overflow, no page errors; looked at each. `sections.cjs` again at 1440x900 and 390x844: the only console message is the 404 page's own status.
+- Not done: no deploy, so the live changelog page still shows 0.1.2 until the next one. `TODAY` in `site/lib/site.ts` is unchanged, because it also dates the benchmark data.

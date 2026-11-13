@@ -11,7 +11,7 @@ export const FAQ = [
   ],
   [
     "Does it work with an iPhone?",
-    "Yes, from a Mac with Xcode, on the Simulator or on an iPhone or iPad signed with your Apple developer team."
+    "Yes, from a Mac with Xcode, on the Simulator or on an iPhone or iPad. `phonedriver ios setup` reads the signing team from your Apple Development certificate, so there is no team ID to look up, and `phonedriver ios wifi on` lets you unplug the cable."
   ],
   [
     "Can my agent buy things with it?",
@@ -58,7 +58,7 @@ export const FAQ_MORE = [
   ],
   [
     "Does it work on a real iPhone and a real Android phone?",
-    "Yes for iPhone and iPad through the CLI and MCP, tested on an iPhone 14 Plus (iOS 26.1) and an iPad Pro (iOS 27.0); it needs a Mac with Xcode and a signing team. A real Android phone uses the same path as the emulator, over USB or Wi-Fi debugging; a HONOR X8 (Android 13) is the one phone tested so far. Android emulators (API 26 and 37) and the iOS Simulator are tested."
+    "Yes for iPhone and iPad through the CLI and MCP, tested on an iPhone 13 Pro Max (iOS 27.0.1), an iPhone 14 Plus (iOS 26.1) and an iPad Pro (iOS 27.0). It needs a Mac with Xcode and an Apple Development certificate: `phonedriver ios setup` reads the signing team from it, so there is no team ID to look up, then builds and starts the runner. After `phonedriver ios wifi on` the cable can come off while the iPhone shares a Wi-Fi network with the Mac. A real Android phone uses the same path as the emulator, over USB or Wi-Fi debugging; a HONOR X8 (Android 13) is the one phone tested so far. Android emulators (API 26 and 37) and the iOS Simulator are tested."
   ],
   [
     "What is the fastest way for an AI agent to control a phone?",

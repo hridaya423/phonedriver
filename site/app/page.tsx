@@ -67,7 +67,7 @@ const DEVICES: [string, React.ReactNode][] = [
   [
     "iPhone or iPad",
     <>
-      a Mac with Xcode and an Apple developer team (<Link href="/docs/iphone/">setup</Link>)
+      a Mac with Xcode and an Apple Development certificate. <code>phonedriver ios setup</code> sets up the phone (<Link href="/docs/iphone/">guide</Link>)
     </>,
   ],
 ];
@@ -637,6 +637,29 @@ export default function Home() {
                 </p>
               </div>
             </div>
+            <dl className="hm-facts">
+              <div>
+                <dt>No cable</dt>
+                <dd>
+                  The cable can come off after setup. <code>phonedriver ios wifi on</code> keeps an iPhone in reach while it shares a Wi-Fi network with the Mac.{" "}
+                  <code>phonedriver pair</code> or <code>phonedriver untether</code> does the same for an <Link href="/docs/android-phone/">Android phone</Link>.
+                </dd>
+              </div>
+              <div>
+                <dt>Slow links</dt>
+                <dd>
+                  When the phone is far away, on a tunnel or a mobile network, phonedriver sends a smaller screen stream and compressed screen trees. On a link shaped to
+                  3G, the median tap on an emulator took 1.4 s, down from 2.8 s.
+                </dd>
+              </div>
+              <div>
+                <dt>30-second hand-over</dt>
+                <dd>
+                  A device you used from a terminal goes to your agent after 30 seconds idle. Your own <code>phonedriver snapshot</code> no longer blocks the agent for 10
+                  minutes.
+                </dd>
+              </div>
+            </dl>
           </div>
         </div>
       </section>
@@ -648,16 +671,17 @@ export default function Home() {
           <div>
             <ul className="limits" data-land="">
               <li>
-                Tested on Android emulators (API 26 and 37), a {PHONE.name} ({PHONE.os}), the iOS Simulator, an iPhone 14 Plus and an iPad Pro. Other Android phones use
-                the same path. Bug reports from them are welcome.
+                Tested on Android emulators (API 26 and 37), a {PHONE.name} ({PHONE.os}), the iOS Simulator, an iPhone 13 Pro Max, an iPhone 14 Plus and an iPad Pro. Other
+                Android phones use the same path. Bug reports from them are welcome.
               </li>
               <li>
                 A tap takes {Math.round(op("tap_paced").phonedriver)} to {Math.round(op("tap").phonedriver)} ms on an Android emulator and 450 to 530 ms on a real iPhone.
               </li>
               <li>The model can do anything on the phone you could do with your finger. For unattended runs, use an emulator or a spare phone.</li>
               <li>
-                phonedriver never enters a passcode and can&apos;t pass Face ID or a fingerprint check. Screens that block screenshots, as some banking apps do, come out
-                black in a screenshot, though their text can still be read.
+                phonedriver never enters a passcode and can&apos;t pass Face ID or a fingerprint check. On a locked phone a command stops and says the device is locked, so
+                a phone that locks mid-task stops the task. Before a long task on an iPhone, set Auto-Lock to Never. Screens that block screenshots, as some banking
+                apps do, come out black in a screenshot, though their text can still be read.
               </li>
             </ul>
             <div className="faq" id="faq">

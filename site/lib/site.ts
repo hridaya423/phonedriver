@@ -2,7 +2,7 @@ import { join } from "node:path";
 
 export const SITE_URL = (process.env.PHONEDRIVER_SITE_URL ?? "https://phonedriver.dev").replace(/\/$/, "");
 export const REPO = "https://github.com/hridaya423/phonedriver";
-export const VERSION = "0.1.2";
+export const VERSION = "0.1.3";
 export const BOOT =
   "Set up phonedriver so you can use my phone. Run `npx -y phonedriver doctor` and help me fix what it flags. Add its MCP server to this client (the server command is `npx -y phonedriver mcp`). Then run `npx -y phonedriver skill`, follow it, and show me what is on my phone's screen.";
 export const TODAY = "2026-11-11";
