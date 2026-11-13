@@ -33,7 +33,9 @@ phonedriver ios wifi on
 
 Unplug it. While the iPhone and the Mac are on the same Wi-Fi network, `phonedriver devices` still lists it and every verb works. `phonedriver doctor` says `over Wi-Fi` or `over USB`. The iPhone answers only computers it already trusts, and `phonedriver ios wifi off` stops it.
 
-I tested this on an iPhone 13 Pro Max (iOS 27.0.1) on one network. The app on the phone logged the taps and the typed text with no cable attached. On an iOS before 26.4 the match works differently and has not been run on a device.
+I tested this on an iPhone 13 Pro Max (iOS 27.0.1) on one network. The app on the phone logged the taps and the typed text with no cable attached. An iPhone 14 Plus on iOS 26.1, which announces itself the older way, stayed in `phonedriver devices` and answered with the cable out. I did not install the runner on that phone, so taps on an iOS before 26.4 over Wi-Fi are not tested.
+
+A sleeping iPhone stops answering on Wi-Fi. Both phones left the list when the screen went off and came back when woken.
 
 ## What differs from Android
 

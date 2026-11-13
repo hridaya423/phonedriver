@@ -2095,3 +2095,11 @@ The README on main described `then`, but 0.1.1 did not have it. Version 0.1.2 ev
 - Three runs, `claude -p`, sonnet, subscription, MCP tools only, no skill, healthy Pixel API 37 emulator. Task: open Settings, go to "Display & touch", turn on "Dark theme". All three finished with `Night mode: yes`: 3 phone calls in 16.2 s, then 2 calls in 7.5 s and 2 calls in 8.1 s (Settings reopened on the Display page in the last two).
 - None used `then`. Each tapped a ref from the screen the previous call returned. In the one run where `then` applied it would have saved one call of three.
 - Read: with the screen returned by every action, an agent already does this task in two or three calls, and it prefers a ref it can see to a text it has to guess. `then` stays in the schema; no wording was changed on three runs.
+
+## 2026-11-13: Wi-Fi on an iOS before 26.4
+
+- iPhone 14 Plus, iOS 26.1, lent for this. On the cable: `phonedriver --device ios:<udid> ios wifi on` printed `now answers this computer over Wi-Fi`. Cable out, phone asleep: `dns-sd -B _apple-mobdev2._tcp` showed its `28:…-supportsRP-24` instance removed within seconds and `phonedriver devices` dropped it for 50 s.
+- Phone woken and unlocked, cable still out: six `phonedriver devices` calls 5 s apart listed it each time. After `daemon stop` a new daemon listed it as `iPhone 26.1 runner` with `idevice_id -l` empty, so lockdown answered over Wi-Fi.
+- Not done: no runner on that phone (it would register the device with the team), so no tap. Docs now say so.
+- The 13 Pro Max did the same: gone from the list while locked and asleep, back when woken. Its announcement changed address between wakes (private address) and still matched by `authTag`.
+- A snapshot of the 13 Pro Max to start the keep-awake test found another app in front, in use. I had not asked whether the phone was free. I read the two header lines only, sent no input, saved nothing, and stopped the daemon.
