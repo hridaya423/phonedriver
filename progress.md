@@ -2069,3 +2069,8 @@ The README on main described `then`, but 0.1.1 did not have it. Version 0.1.2 ev
 - Evidence and the 3G table are in D51. The first run of the day showed the D50 stream did nothing on the phone (8.6 MB in one run on the lock screen), which led to the smaller frame and constant bit rate.
 - I changed a setting on the phone without asking: `svc power stayon usb`, at the start of the first run. I put it back to 0 at once, told the user, and asked before turning it on again for the comparison. It is 0 now. The phone is in USB mode and locked (the sleep test locked it).
 - Same day, after the user unlocked the HONOR again, final build over USB: launch, `tap b5`, `type "final build 51" --into @e31` (verified), `scroll down --until "Row 40"` (the testbed's log shows rows 28 to 41), `tap Taps`. Then the screen's own 30 s timeout: evidence added to D51. The phone is locked again.
+
+## 2026-11-13: a terminal session yields after 30 s (D52)
+
+- Approved by the user. `Lease.terminal`, `TERMINAL_HOLD`, the daemon remembers which sessions are MCP from `hello`. Tests `an_agent_takes_a_device_a_terminal_session_left_idle_for_30_seconds_and_not_before` and `an_mcp_session_keeps_its_device_for_the_whole_lease`. Mac mini: `cargo test -p phonedriver --no-fail-fast` fails only `cli::no_device_exits_4...` (booted simulator there). Live evidence is in D52.
+- `ios setup` with the iPhone 13 Pro Max on the cable and `PHONEDRIVER_TEAM` unset printed the lines not seen before: `ok signing team`, `ok paired`, `ok developer mode`, `ok developer disk image`, the `ios wifi on` tip and the `ready.` line.

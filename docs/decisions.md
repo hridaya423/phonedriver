@@ -669,3 +669,13 @@ Over USB the HONOR's median tap is 456 ms before and 471 ms now, which is noise.
 
 **Limits.** On the phone the median did not move; what improved is the slow first taps and the bytes. A tap on 3G still makes three round trips (the tree, the touch, the frames after it).
 
+## D52. A terminal session gives up a device it has left idle for 30 s
+
+**Choice.** A lease held by a session that never said `hello` with `client: "mcp"` yields to another session once it has been idle 30 s (`TERMINAL_HOLD`). The new session takes the lease; the device stays connected. Before 30 s the other session gets `DeviceBusy` with the seconds left. An MCP session keeps the 10 minute lease.
+
+**Why.** A person tries `phonedriver snapshot` in a terminal and then starts an agent. The agent was refused for up to 10 minutes: in an agent run on 2026-11-12 it gave up with "leased by session default" until `phonedriver release` was run by hand.
+
+**Cost.** An agent that drives the command line is a terminal session too. If it thinks for more than 30 s between commands, a second agent can take its device. The user accepted this on 2026-11-13. Two agents on one device should use MCP, or `--share`.
+
+**Evidence, HONOR X8, 2026-11-13.** `phonedriver snapshot`, then at once `phonedriver --session agent snapshot`: `leased by session default ... (idle 2s, lease expires in 27s)`. After 31 s the same command printed the screen and `devices` showed `agent` under LEASE.
+

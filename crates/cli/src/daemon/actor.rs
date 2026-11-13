@@ -42,6 +42,11 @@ use crate::wire::{
 };
 
 pub const LEASE_TTL: Duration = Duration::from_secs(600);
+/// A session of command lines gives the device to another session once it has been idle this long. A person tries
+/// `phonedriver snapshot` in a terminal and then starts an agent: with the 10 minute lease the agent was refused
+/// ("leased by session default") until the person ran `phonedriver release` (seen in an agent run, 2026-11-12).
+/// The device stays connected, so the terminal's next command is not a cold start.
+pub const TERMINAL_HOLD: Duration = Duration::from_secs(30);
 const TICK: Duration = Duration::from_millis(5);
 const SCREEN_WAIT: Duration = Duration::from_secs(3);
 const KEYGUARD_WAIT: Duration = Duration::from_millis(1000);
@@ -129,6 +134,8 @@ pub type Phases = Vec<(&'static str, u32)>;
 
 pub struct Job {
     pub session: String,
+    /// The session is command lines, not an MCP server: its hold on the device yields after `TERMINAL_HOLD`.
+    pub terminal: bool,
     pub share: bool,
     pub display: DisplayMode,
     pub call: Call,
@@ -163,6 +170,7 @@ pub fn spawn(id: String, source: Arc<dyn DeviceSource>, home: PathBuf) -> mpsc::
 struct Lease {
     session: String,
     last_call: Instant,
+    terminal: bool,
 }
 
 struct Live {
@@ -296,7 +304,7 @@ impl Actor {
             tokio::select! {
                 job = rx.recv() => {
                     let Some(job) = job else { break };
-                    let result = self.handle(job.session, job.share, job.display, job.call)
+                    let result = self.handle(job.session, job.terminal, job.share, job.display, job.call)
                         .await;
                     let phases = std::mem::take(&mut self.phases);
                     let _ = job.reply.send((result, phases));
@@ -405,26 +413,31 @@ impl Actor {
         Some(input)
     }
 
-    fn acquire(&mut self, session: &str, share: bool) -> Result<(), Error> {
+    fn acquire(&mut self, session: &str, terminal: bool, share: bool) -> Result<(), Error> {
         let now = Instant::now();
+        let fresh = Lease {
+            session: session.to_string(),
+            last_call: now,
+            terminal,
+        };
         match &mut self.lease {
             Some(l) if l.session == session => l.last_call = now,
             Some(l) if share => l.last_call = now,
             Some(l) => {
                 let idle = now.saturating_duration_since(l.last_call);
+                let hold = if l.terminal { TERMINAL_HOLD } else { LEASE_TTL };
+                if l.terminal && idle >= hold {
+                    self.lease = Some(fresh);
+                    return Ok(());
+                }
                 return Err(Error::DeviceBusy {
                     id: self.id.clone(),
                     held_by: l.session.clone(),
                     idle_s: idle.as_secs(),
-                    expires_s: LEASE_TTL.saturating_sub(idle).as_secs(),
+                    expires_s: hold.saturating_sub(idle).as_secs(),
                 });
             }
-            None => {
-                self.lease = Some(Lease {
-                    session: session.to_string(),
-                    last_call: now,
-                });
-            }
+            None => self.lease = Some(fresh),
         }
         Ok(())
     }
@@ -466,6 +479,7 @@ impl Actor {
     async fn handle(
         &mut self,
         session: String,
+        terminal: bool,
         share: bool,
         display: DisplayMode,
         call: Call,
@@ -485,7 +499,7 @@ impl Actor {
             }
             return Ok(json!({}));
         }
-        self.acquire(&session, share)?;
+        self.acquire(&session, terminal, share)?;
         let t = Instant::now();
         let live = self.ensure_live(display).await;
         self.lap("connect", t);

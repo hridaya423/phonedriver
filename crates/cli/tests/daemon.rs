@@ -291,6 +291,38 @@ async fn sessions_outlive_connections() {
     serving.await.unwrap().unwrap();
 }
 
+#[tokio::test(start_paused = true)]
+async fn an_agent_takes_a_device_a_terminal_session_left_idle_for_30_seconds_and_not_before() {
+    let (source, _) = FakeSource::with(vec![tree(&["One"])]);
+    let (d, _home) = daemon(source);
+    ok(&d, "default", "snapshot", json!({})).await;
+    tokio::time::sleep(Duration::from_secs(29)).await;
+    let busy = err(&d, "agent", "snapshot", json!({})).await;
+    assert_eq!(busy.code, -32004);
+    assert!(busy.data["expires_s"].as_u64().unwrap() <= 1, "{busy:?}");
+    tokio::time::sleep(Duration::from_secs(2)).await;
+    ok(&d, "agent", "snapshot", json!({})).await;
+    let listed = ok(&d, "default", "devices", json!({})).await;
+    assert_eq!(listed[0]["leased_by"], "agent");
+}
+
+#[tokio::test(start_paused = true)]
+async fn an_mcp_session_keeps_its_device_for_the_whole_lease() {
+    let (source, _) = FakeSource::with(vec![tree(&["One"])]);
+    let (d, _home) = daemon(source);
+    ok(
+        &d,
+        "x",
+        "hello",
+        json!({"client": "mcp", "version": env!("CARGO_PKG_VERSION")}),
+    )
+    .await;
+    ok(&d, "x", "snapshot", json!({})).await;
+    tokio::time::sleep(Duration::from_secs(3 * 60)).await;
+    let busy = err(&d, "y", "snapshot", json!({})).await;
+    assert_eq!(busy.code, -32004);
+}
+
 #[tokio::test]
 async fn a_second_session_gets_device_busy_until_release_or_share() {
     let (source, _) = FakeSource::with(vec![tree(&["One"])]);
@@ -310,6 +342,13 @@ async fn a_second_session_gets_device_busy_until_release_or_share() {
 async fn device_busy_says_how_long_the_holder_has_been_idle_and_when_its_lease_ends() {
     let (source, _) = FakeSource::with(vec![tree(&["One"])]);
     let (d, _home) = daemon(source);
+    ok(
+        &d,
+        "x",
+        "hello",
+        json!({"client": "mcp", "version": env!("CARGO_PKG_VERSION")}),
+    )
+    .await;
     ok(&d, "x", "snapshot", json!({})).await;
     tokio::time::sleep(Duration::from_secs(3 * 60)).await;
     let busy = err(&d, "y", "snapshot", json!({})).await;
@@ -326,6 +365,13 @@ async fn device_busy_says_how_long_the_holder_has_been_idle_and_when_its_lease_e
 async fn a_lease_expires_after_ten_minutes_without_calls() {
     let (source, _) = FakeSource::with(vec![tree(&["One"])]);
     let (d, _home) = daemon(source);
+    ok(
+        &d,
+        "x",
+        "hello",
+        json!({"client": "mcp", "version": env!("CARGO_PKG_VERSION")}),
+    )
+    .await;
     ok(&d, "x", "snapshot", json!({})).await;
     tokio::time::sleep(Duration::from_secs(9 * 60)).await;
     assert_eq!(err(&d, "y", "snapshot", json!({})).await.code, -32004);

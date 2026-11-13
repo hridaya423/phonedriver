@@ -103,6 +103,7 @@ pub struct Daemon {
     actors: Mutex<HashMap<String, mpsc::Sender<Job>>>,
     traces: Traces,
     told: Mutex<HashMap<String, String>>,
+    agents: Mutex<std::collections::HashSet<String>>,
     connections: AtomicUsize,
     last_activity: Mutex<Instant>,
     stop: Notify,
@@ -126,6 +127,7 @@ impl Daemon {
             home: config.home,
             actors: Mutex::default(),
             told: Mutex::default(),
+            agents: Mutex::default(),
             connections: AtomicUsize::new(0),
             last_activity: Mutex::new(Instant::now()),
             stop: Notify::new(),
@@ -178,6 +180,12 @@ impl Daemon {
                         json!({"code_name": "version_mismatch", "daemon_version": VERSION,
                                "hint": "The CLI restarts the daemon on a version mismatch."}),
                     ));
+                }
+                if params["client"] == "mcp" {
+                    self.agents
+                        .lock()
+                        .unwrap_or_else(|e| e.into_inner())
+                        .insert(session.to_string());
                 }
                 Ok(json!({"version": VERSION, "pid": std::process::id()}))
             }
@@ -331,9 +339,15 @@ impl Daemon {
     ) -> Result<Value, Error> {
         let (reply, rx) = oneshot::channel();
         let gone = || Error::DeviceGone { id: id.to_string() };
+        let terminal = !self
+            .agents
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .contains(session);
         self.actor(id)
             .send(Job {
                 session: session.to_string(),
+                terminal,
                 share,
                 display,
                 call,
