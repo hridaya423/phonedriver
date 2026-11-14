@@ -2224,3 +2224,12 @@ The README on main described `then`, but 0.1.1 did not have it. Version 0.1.2 ev
 - Keep-awake, throwaway build first: the modifier-key nudge held the phone awake 82 s in Settings with Auto-Lock at 30 s. Shipped code: awake at 102 s; after `release`, locked within 65 s. Keyboard check in D56.
 - Mac mini: `cargo clippy --locked -p phonedriver-ios --all-targets -- -D warnings` exit 0; the new unit test passes.
 - Not run: the other four candidates on a device; an iPad; an iOS before 27.
+
+## 2026-11-14: Android 12 reads the screen again (issue #7)
+
+- Reported on GitHub (#7): on a Huawei TAS-AL00, Android 12 (API 31), every command that reads the screen failed with `NoSuchMethodException: android.view.accessibility.AccessibilityInteractionClient.clearCache [int]`. `6985be2` had sent API 31 to 33 to `clearCache(int)`, which exists on API 33 (the HONOR) but not on API 31.
+- `Accessibility.java`: below API 34 the agent uses `clearCache(int)` when the class has it and `clearCache()` when it does not, instead of choosing by API level. `docs/architecture.md` 6.2 says so.
+- New on win-pc: an API 31 emulator, `Pixel_API_31` (google_apis x86_64).
+- Before, main's agent jar on `Pixel_API_31`: `accessibility_tree_of_the_taps_tab_has_24_buttons` failed with `{"error":"java.lang.NoSuchMethodException: android.view.accessibility.AccessibilityInteractionClient.clearCache [int]","id":1,"ok":false}`.
+- After, `phonedriver` built on win-pc with the fixed jar, on `Pixel_API_31`: `launch Settings` and `snapshot` print the tree; `tap "Battery"` answers `new screen` and the next snapshot shows the Battery page; tapping the Battery percentage switch reads `off → on`, the next snapshot `switch on`, tapping again `switch off` (left as it was); `doctor` is all `ok`, including `uiautomation ... connected, the screen tree reads`.
+- Not resolved: the live suite on win-pc hung on its first request with the fixed jar (the agent was idle in its read loop; a thread dump showed no request in flight). The harness had never run on a Windows host (its `gradlew` call needed `gradlew.bat`, patched locally and not committed), so I could not tell a harness problem from an agent one there; the CLI runs above went through the same agent. API 26 and 37 were not run again: API 37 takes the unchanged `UiAutomation.clearCache()` branch, and API 26 reaches the same `clearCache()` call as before.

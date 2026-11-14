@@ -89,13 +89,19 @@ final class Accessibility {
             return;
         }
         Class<?> cls = Class.forName("android.view.accessibility.AccessibilityInteractionClient");
-        if (Build.VERSION.SDK_INT >= 31) {
-            java.lang.reflect.Field id = automation.getClass().getDeclaredField("mConnectionId");
-            id.setAccessible(true);
-            cls.getMethod("clearCache", int.class).invoke(cls.getMethod("getInstance").invoke(null), id.getInt(automation));
+        Object client = cls.getMethod("getInstance").invoke(null);
+        // API 33 (HONOR TFY-LX2) has only clearCache(int connectionId); API 26 and API 31 (Huawei TAS-AL00, issue #7)
+        // have only clearCache().
+        Method perConnection;
+        try {
+            perConnection = cls.getMethod("clearCache", int.class);
+        } catch (NoSuchMethodException e) {
+            cls.getMethod("clearCache").invoke(client);
             return;
         }
-        cls.getMethod("clearCache").invoke(cls.getMethod("getInstance").invoke(null));
+        java.lang.reflect.Field id = automation.getClass().getDeclaredField("mConnectionId");
+        id.setAccessible(true);
+        perConnection.invoke(client, id.getInt(automation));
     }
 
     private static List<AccessibilityWindowInfo> displayWindows() {
