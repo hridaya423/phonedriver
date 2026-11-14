@@ -10,11 +10,11 @@ name = "phonedriver-bench"
 path = "src/main.rs"
 
 [dependencies]
-phonedriver = { version = "0.1.3", path = "../crates/cli" }
-phonedriver-android = { version = "0.1.3", path = "../crates/android" }
+phonedriver = { version = "0.1.4", path = "../crates/cli" }
+phonedriver-android = { version = "0.1.4", path = "../crates/android" }
 serde = { version = "1.0.229", features = ["derive"] }
-phonedriver-core = { version = "0.1.3", path = "../crates/core" }
-phonedriver-ios = { version = "0.1.3", path = "../crates/ios" }
+phonedriver-core = { version = "0.1.4", path = "../crates/core" }
+phonedriver-ios = { version = "0.1.4", path = "../crates/ios" }
 serde_json = "1.0.154"
 serde_yaml = "0.9.34"
 tokio = { version = "1.54.1", features = ["rt-multi-thread", "macros", "time", "process", "io-util"] }

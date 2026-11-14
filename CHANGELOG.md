@@ -2,8 +2,11 @@
 
 Every release of phonedriver, newest first. Binaries and checksums for each version are on [GitHub Releases](https://github.com/hridaya423/phonedriver/releases).
 
-## Unreleased
+## 0.1.4
 
+Released 14 November 2026.
+
+- **Fixed on Android 12**: every command that reads the screen failed with `NoSuchMethodException: AccessibilityInteractionClient.clearCache [int]`. The agent now uses whichever `clearCache` the device has. Tested on an Android 12 (API 31) emulator. Reported in #7.
 - **An iPhone in use stays awake**: while phonedriver has used an iPhone in the last 10 minutes it resets the phone's Auto-Lock timer every 10 seconds, so the phone no longer locks while an agent thinks. `phonedriver release` stops it. Tested on an iPhone 13 Pro Max with Auto-Lock at 30 seconds.
 - **Fixed on iPhone**: a tap that waited for a notification banner could answer with an error although the touch had landed. It now answers `ok`.
 - The approval guard is now tested on a physical iPhone: a held, declined or unanswerable tap on Place order reached the app zero times.
