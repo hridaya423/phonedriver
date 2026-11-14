@@ -2239,3 +2239,9 @@ The README on main described `then`, but 0.1.1 did not have it. Version 0.1.2 ev
 - Added `README.zh-CN.md`, a machine translation of `README.md` with a notice that the English README is authoritative, and one line of language links under the links line in both READMEs. Nothing else in `README.md` changed.
 - Check: a script compared the two files. Fenced code blocks: 7 in each, byte-identical. Numbers: the same digit sequences, except that the English `27 of 27` is `27 次` in Chinese and the months, written `November` in English, are `11 月` three times. Relative link targets all exist and the three in-page anchors match the Chinese headings.
 - Not done: no native speaker has read it.
+
+## 2026-11-14: Japanese and Korean READMEs
+
+- Added `README.ja.md` and `README.ko.md`, machine translations of `README.md` in the structure of `README.zh-CN.md` (same header block, notice under the language links, badges and HTML kept, `alt` text and the demo caption translated). The language-links line in all four READMEs now lists English, 简体中文, 日本語 and 한국어. Nothing else in `README.md` or `README.zh-CN.md` changed.
+- Check: a script compared each new file with `README.md`. Fenced code blocks: 7 in each, byte-identical. Inline code spans: identical, except that each translation names `secret` once more (where the English says "it" in the sentence about password fields). Digits: every digit sequence of the English text is present; extra ones are number words written as digits (`9 つ`, `3 つ`, `1 つ目`, `2 回` in Japanese; `3`, `9` in Korean) and the month `11`, which the English spells `November` (three times). `658 thousand`, `4.6 million`, `1.1 million` in the chart alt text are written `658K`, `4.6M`, `1.1M`, as in the Chinese file. Relative link targets: all exist. The three in-page anchors resolve to the translated headings in each file.
+- Not done: no native speaker has read them.
