@@ -125,6 +125,14 @@ tr:last-child>*{border-bottom:0}
 .body blockquote p{margin:0}
 .body blockquote.mic p{font:600 clamp(20px,2.4vw,27px)/1.35 var(--jb);letter-spacing:-.02em}
 .body blockquote.mic b{color:var(--or)}
+.body details.receipts{margin:24px 0;border:1px solid var(--line);background:var(--panel);max-width:42rem}
+.body details.receipts>summary{list-style:none;cursor:pointer;padding:12px 16px;font:600 13.5px/1.3 var(--jb);letter-spacing:-.01em;color:var(--t2);display:flex;justify-content:space-between;align-items:center;gap:12px}
+.body details.receipts>summary::-webkit-details-marker{display:none}
+.body details.receipts>summary::after{content:"+";font:600 16px/1 var(--jb);color:var(--or)}
+.body details.receipts[open]>summary::after{content:"\2212"}
+.body details.receipts[open]>summary{border-bottom:1px solid var(--line);color:var(--t1)}
+.body .receipts-body{padding:14px 16px;font-size:15px;line-height:1.55;color:var(--t2)}
+.body .receipts-body p:last-child,.body .receipts-body ul:last-child{margin-bottom:0}
 .body>.small{margin-top:48px;padding-top:20px;border-top:1px solid var(--line)}
 .toc{margin:36px 0 0;padding:18px 0 0;border-top:1px solid var(--line2);max-width:42rem}
 .toc ol{margin:0;padding:0;list-style:none;counter-reset:t}

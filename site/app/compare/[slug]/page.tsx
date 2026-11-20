@@ -1,9 +1,11 @@
 import Link from "next/link";
 import { Fragment } from "react";
 import { Crumbs, Html, JsonLd, OnPage } from "@/components/Bits";
+import { BlogFigure } from "@/components/BlogFigures";
 import { COMPARE, faqLd, page } from "@/lib/content";
 import { meta } from "@/lib/meta";
 import { AUTHOR, PUBLISHED, PUBLISHER, REPO, ttl, url } from "@/lib/site";
+import "../../blog-figures.css";
 
 type Props = { params: Promise<{ slug: string }> };
 
@@ -49,7 +51,7 @@ export default async function Compare({ params }: Props) {
           <p className="lede">{p.meta.description}</p>
           <div className="article">
             <div className="body">
-              <Html html={p.html} />
+              {p.blocks.map((b, i) => (b.kind === "figure" ? <BlogFigure key={`f-${i}`} id={b.id} /> : <Html key={`h-${i}`} html={b.html} />))}
             <p className="small">
               By <a href="https://github.com/hridaya423">Hridya Agrawal</a>. Last updated <time dateTime={p.meta.updated ?? PUBLISHED}>{p.meta.updated ?? PUBLISHED}</time>. Other comparisons:{" "}
               {others.map(([s, l], i) => (

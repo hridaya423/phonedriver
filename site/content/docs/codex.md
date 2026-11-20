@@ -2,27 +2,27 @@
 title: How to use phonedriver with Codex
 seo: How to let Codex control an Android phone or iPhone
 nav: Codex
-description: Add phonedriver to OpenAI Codex as an MCP server with one command, a config.toml entry or a plugin, pick a device, and ask Codex to operate a phone.
+description: Add phonedriver to OpenAI Codex with one command, a config.toml entry, or the plugin—then point it at an Android or iOS device.
 updated: 2026-11-20
 date: 2026-11-14
 ---
 
-Codex can operate an Android phone or an iPhone through phonedriver. Run `codex mcp add phonedriver -- npx -y phonedriver mcp`, connect a device, and ask in plain language.
+OpenAI Codex drives Android and iOS through the same phonedriver MCP server. Run `npx -y phonedriver init` (or `codex mcp add` below), connect a device, and ask in plain English.
 
-phonedriver is tested with Claude Code. In Codex 0.167.0 I installed the plugin and saw its MCP server and its skill load. The benchmarks on this site were not run in Codex.
+I verified the plugin install, MCP server load, and skill load in Codex 0.167.0; the nine-job benchmarks on this site ran in Claude Code.
 
 ## Add the server
 
-With Node 18 or later and nothing installed first:
+With Node 18+ and nothing installed beforehand:
 
 ```sh
 codex mcp add phonedriver -- npx -y phonedriver mcp
 codex mcp list
 ```
 
-Inside a Codex session, `/mcp` shows the active servers. The first start downloads the binary once (see [Install](/docs/install/)). If you [installed phonedriver](/docs/install/#permanent-install), use `codex mcp add phonedriver -- phonedriver mcp`.
+Inside a session, `/mcp` confirms the server is live. The first launch caches the binary once ([Install](/docs/install/)). If you [installed phonedriver permanently](/docs/install/#permanent-install), pass `phonedriver mcp` instead.
 
-With more than one device connected, name the one to use. `phonedriver devices` lists the ids.
+With multiple devices connected, pin one with `PHONEDRIVER_DEVICE` (`phonedriver devices` lists IDs):
 
 ```sh
 codex mcp add phonedriver --env PHONEDRIVER_DEVICE=android:emulator-5554 -- npx -y phonedriver mcp
@@ -34,7 +34,7 @@ To keep a phone out of the agent's reach on a shared adb server, add `--env PHON
 
 ## Or edit config.toml
 
-Codex keeps its MCP servers in `~/.codex/config.toml`, or in `.codex/config.toml` inside a trusted project. The same server as a table:
+Codex stores MCP servers in `~/.codex/config.toml` (or `.codex/config.toml` in a trusted project):
 
 ```toml
 [mcp_servers.phonedriver]
@@ -45,11 +45,11 @@ args = ["-y", "phonedriver", "mcp"]
 PHONEDRIVER_DEVICE = "android:emulator-5554"
 ```
 
-Leave the `env` table out when one device is connected. The command and the file format are from [Codex's MCP documentation](https://developers.openai.com/codex/mcp), read on 14 November 2026.
+Skip the `env` block if you only have one device connected.
 
 ## Or install the plugin
 
-The plugin adds the same server and the phonedriver skill, so Codex has the instructions without you pasting them. Use the plugin or `mcp add`, not both, or the tools are listed twice.
+The plugin adds both the MCP server and the phonedriver skill in one step. Don't combine it with `mcp add`, or Codex will see every tool twice.
 
 ```sh
 codex plugin marketplace add hridaya423/phonedriver
@@ -58,11 +58,11 @@ codex plugin add phonedriver@phonedriver
 
 ## Ask it
 
-Start an [Android emulator](/docs/android-emulator/), plug in an [Android phone](/docs/android-phone/) with USB debugging on, or boot the [iOS Simulator](/docs/ios-simulator/). Then ask:
+Boot an [Android emulator](/docs/android-emulator/), plug in an [Android phone](/docs/android-phone/), or start the [iOS Simulator](/docs/ios-simulator/), then ask:
 
 > Open Settings and turn on dark mode.
 
-Codex gets the screen as a short numbered list and taps by number. Each action waits for the screen to settle and returns only the lines that changed:
+Every tap settles automatically and returns only the lines that changed:
 
 ```screen
 ok tapped @e10 "Dark theme"
@@ -71,29 +71,29 @@ ok tapped @e10 "Dark theme"
 
 ## Approval prompts in Codex
 
-The [approval guard](/docs/approval-guard/) holds a tap on Pay, Place order or Delete account and asks you through MCP elicitation. Codex's MCP documentation does not say whether Codex supports elicitation, and I have not tried the prompt there. In a client that cannot show the question, the tool replies `Needs the human's approval; nothing was tapped`, and the agent has to ask you in chat. Read [what the guard does not catch](/docs/approval-guard/#what-it-does-not-catch) before you give an agent a phone with a payment app on it.
+The [approval guard](/docs/approval-guard/) pauses taps on Pay, Place order, or Delete account and asks you via MCP elicitation. If your Codex version doesn't render elicitation prompts, phonedriver taps nothing and returns `Needs the human's approval; nothing was tapped` so Codex asks you in chat instead. Read [what the guard misses](/docs/approval-guard/#what-it-does-not-catch) before pointing it at a phone with saved payment methods.
 
 ## Without MCP
 
-An agent with a shell can run the same commands as a CLI, and the text is the same as the MCP tools return:
+Any agent with shell access can call the CLI directly for the exact same output:
 
 ```sh
 npx -y phonedriver snapshot
 npx -y phonedriver tap @e4
 ```
 
-`npx -y phonedriver skill` prints the instructions an agent should read first.
+Run `npx -y phonedriver skill` to print the agent instructions.
 
 ## Questions
 
 ### Can Codex control a real iPhone?
 
-Yes, from a Mac with Xcode. Plug the iPhone in, run `phonedriver ios setup` once, and Codex uses it through the same MCP server. `phonedriver ios wifi on` lets you unplug the cable afterwards. See [the iPhone guide](/docs/iphone/).
+Yes, from a Mac with Xcode. Plug the iPhone in, run `phonedriver ios setup` once, and optionally `phonedriver ios wifi on` to go wireless ([iPhone guide](/docs/iphone/)).
 
 ### Does Codex need the phonedriver skill?
 
-It helps. The MCP server carries a short version of the instructions, and the skill holds the full strategy, such as sending a path of taps in one call. The plugin installs the skill. With `codex mcp add`, `npx -y phonedriver skill` prints it.
+It helps. The MCP server includes a short built-in summary, while the skill teaches the full workflow (including multi-step tap paths). The plugin installs it automatically; with `codex mcp add`, `npx -y phonedriver skill` prints it.
 
 ### How many tokens do the tools cost?
 
-In Claude Code, the first turn of a one-word `claude -p` costs 5,606 tokens with phonedriver's 14 tools attached. I have not measured the same turn in Codex. See [the token benchmark](/benchmarks/#tokens).
+In Claude Code, turn one of a bare `claude -p` costs 5,606 tokens with the 14 tools it had then attached (it has 18 now). I haven't measured the Codex wrapper separately ([token benchmark](/benchmarks/#tokens)).
