@@ -37,7 +37,7 @@ main :where(p,li,dd,td,figcaption) a{padding-block:4px}
 .lede{font-size:clamp(19px,1.6vw,22px);line-height:1.45;color:var(--t2);max-width:36em;margin:0}
 
 code,pre,kbd{font-family:var(--jb);font-size:.84em;letter-spacing:-.015em}
-code{background:var(--well);padding:.1em .34em}
+code{background:var(--well);padding:.1em .34em;overflow-wrap:anywhere}
 a code{background:none;padding:0}
 .code{position:relative;margin:24px 0}
 pre{margin:0;background:var(--pane);color:var(--pane-fg);padding:18px 20px;overflow-x:auto;font-size:13.5px;line-height:1.65;white-space:pre;scrollbar-width:thin;scrollbar-color:var(--pane-rule) transparent}

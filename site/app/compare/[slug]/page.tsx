@@ -5,7 +5,6 @@ import { BlogFigure } from "@/components/BlogFigures";
 import { COMPARE, faqLd, page } from "@/lib/content";
 import { meta } from "@/lib/meta";
 import { AUTHOR, PUBLISHED, PUBLISHER, REPO, ttl, url } from "@/lib/site";
-import "../../blog-figures.css";
 
 type Props = { params: Promise<{ slug: string }> };
 

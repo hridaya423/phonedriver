@@ -4,7 +4,6 @@ import { BlogFigure } from "@/components/BlogFigures";
 import { POSTS, page, words } from "@/lib/content";
 import { meta } from "@/lib/meta";
 import { AUTHOR, PUBLISHER, REPO, ttl, url } from "@/lib/site";
-import "../../blog-figures.css";
 
 type Props = { params: Promise<{ slug: string }> };
 
