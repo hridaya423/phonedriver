@@ -5,13 +5,13 @@
   "description": "MCP server and CLI that lets AI agents see and control Android phones and iPhones (iOS) as text.",
   "repository": { "url": "https://github.com/hridaya423/phonedriver", "source": "github" },
   "websiteUrl": "https://phonedriver.dev",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "packages": [
     {
       "registryType": "npm",
       "registryBaseUrl": "https://registry.npmjs.org",
       "identifier": "phonedriver",
-      "version": "0.1.6",
+      "version": "0.1.7",
       "runtimeHint": "npx",
       "transport": { "type": "stdio" },
       "packageArguments": [{ "type": "positional", "value": "mcp" }]

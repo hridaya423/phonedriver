@@ -2,6 +2,22 @@
 
 Every release of phonedriver, newest first. Binaries and checksums for each version are on [GitHub Releases](https://github.com/hridaya423/phonedriver/releases).
 
+## 0.1.7
+
+Released 21 November 2026.
+
+A security release. It fixes seven privately reported problems and the items of a public review of 0.1.6, all by giulioc84 (#32, #33, #34, #35, #36, #38, #39). Update if you use the approval guard, `--secret`, an app scope or device list, a Simulator, or an iPhone over Wi-Fi.
+
+- **The approval guard holds every way to press a button**: a swipe, drag, pinch, gesture, scroll, `press enter` or clearing a field that would press "Pay", "Delete" or "Send" now asks first, as a tap does. An approval covers only the button and details the person was shown. Ordinary gestures read the screen no more often than before.
+- **Secrets stay secret**: a `--secret` text is masked before a reply is cut short, in traces and in replays; the daemon no longer inherits `PHONEDRIVER_SECRET_*`; a replayed secret goes only into a password or code field; screenshots, recordings and traces are readable by your account only.
+- **`shell` stays on the device**: on a Simulator, `defaults` and `log show` or `log stream` work as before, and other programs, `simctl spawn` and the `simctl` forms that read or write a Mac file need `PHONEDRIVER_HOST_SHELL=1`. On an emulator, the console commands that act on your computer need it too. `open` with a `file:` link on a Simulator needs it as well.
+- **iPhone**: the runner on the phone answers only the phonedriver that started it; from Windows its traffic goes through the encrypted tunnel; Wi-Fi pairing checks the phone's signature. Pair again with `phonedriver ios wifi on` if you paired over Wi-Fi with 0.1.6, and install this release's `PhonedriverRunner.ipa` (the 0.1.6 one is refused).
+- **App scope and device list**: about ten ways past them are closed, including links that open another app, `shell` under a scope, and recordings.
+- **Recordings** hold nothing from before `record start`, and a recording of a still screen shows that screen.
+- **Steadier replies**: a slow app start no longer leaves the screen unsettled (#36); a reply whose screen is still loading says so (#35); a batch stops before its next step when the text it typed plainly did not land (#38); a ref no longer moves to another app's dialog button with the same id (#38); a field the keyboard scrolled away is found by whole words (#39).
+- **Fewer tokens**: the tool list every turn re-reads is 7% shorter (#34).
+- **Release files**: the iOS runner has a checksum, and every file has a build attestation (`gh attestation verify`).
+
 ## 0.1.6
 
 Released 20 November 2026.

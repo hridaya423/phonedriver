@@ -191,7 +191,7 @@ The repository is also a GitHub Action that boots an emulator or a Simulator, in
 
 `devices`, `apps`, `snapshot`, `screenshot`, `tap`, `type`, `swipe`, `scroll`, `press`, `launch`, `wait`, `batch`, `clipboard`, `shell`, `setting`, `logs` and `replay`.
 
-`snapshot`, `screenshot`, `wait`, `logs` and `network` are marked read-only, so a client can run them without a permission prompt. The `phonedriver` CLI has the same commands, for scripts and for agents that prefer a shell. A device you used from a terminal goes to your agent after 30 seconds idle. Every command and argument is in the [reference](docs/reference.md), and everything new in 0.1.6 is in the [changelog](CHANGELOG.md).
+`snapshot`, `screenshot`, `wait`, `logs` and `network` are marked read-only, so a client can run them without a permission prompt. The `phonedriver` CLI has the same commands, for scripts and for agents that prefer a shell. A device you used from a terminal goes to your agent after 30 seconds idle. Every command and argument is in the [reference](docs/reference.md), and everything new in 0.1.7 is in the [changelog](CHANGELOG.md).
 
 </details>
 

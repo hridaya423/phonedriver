@@ -1793,7 +1793,7 @@ checksum = "9b4f627cb1b25917193a259e49bdad08f671f8d9708acfd5fe0a8c1455d87220"
 
 [[package]]
 name = "phonedriver"
-version = "0.1.6"
+version = "0.1.7"
 dependencies = [
  "assert_cmd",
  "async-trait",
@@ -1826,7 +1826,7 @@ dependencies = [
 
 [[package]]
 name = "phonedriver-android"
-version = "0.1.6"
+version = "0.1.7"
 dependencies = [
  "async-trait",
  "flate2",
@@ -1842,7 +1842,7 @@ dependencies = [
 
 [[package]]
 name = "phonedriver-bench"
-version = "0.1.6"
+version = "0.1.7"
 dependencies = [
  "phonedriver",
  "phonedriver-android",
@@ -1856,7 +1856,7 @@ dependencies = [
 
 [[package]]
 name = "phonedriver-core"
-version = "0.1.6"
+version = "0.1.7"
 dependencies = [
  "async-trait",
  "bitflags",
@@ -1870,7 +1870,7 @@ dependencies = [
 
 [[package]]
 name = "phonedriver-ios"
-version = "0.1.6"
+version = "0.1.7"
 dependencies = [
  "async-trait",
  "base64 0.22.1",
@@ -1893,7 +1893,7 @@ dependencies = [
 
 [[package]]
 name = "phonedriver-video"
-version = "0.1.6"
+version = "0.1.7"
 dependencies = [
  "openh264",
  "phonedriver-core",
