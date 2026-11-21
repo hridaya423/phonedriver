@@ -245,6 +245,16 @@ pub struct Recorded {
     pub early: Option<String>,
 }
 
+/// `PHONEDRIVER_HOST_SHELL=1` in the daemon's environment lets `shell` act on the computer as well as the device: on
+/// an iOS Simulator run programs and name the Mac's files, on an Android emulator send any console command (decision
+/// D108).
+pub const HOST_SHELL: &str = "PHONEDRIVER_HOST_SHELL";
+
+/// Whether the daemon was started with `PHONEDRIVER_HOST_SHELL=1`.
+pub fn host_shell() -> bool {
+    std::env::var_os(HOST_SHELL).is_some_and(|v| v == "1")
+}
+
 /// A command for the device's own shell. `Debug` never prints the command, because it may hold a secret.
 #[derive(Clone, PartialEq, Eq)]
 pub struct ShellRequest {

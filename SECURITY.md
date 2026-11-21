@@ -16,7 +16,7 @@ phonedriver runs on your computer and operates a phone that you connected to it.
 - A connection from phonedriver to anything except the device, Apple for iOS developer disk images, and the pinned disk image download that `phonedriver ios setup --download-ddi` makes when you ask for it.
 - A release file that does not match its published checksum or its build attestation.
 
-A model that is told to do something harmful and does it with the tools is not a phonedriver vulnerability, unless a guard above should have stopped it.
+A model that is told to do something harmful and does it with the tools is not a phonedriver vulnerability, unless a guard above should have stopped it. Neither is what `shell` does on the computer after you started the daemon with `PHONEDRIVER_HOST_SHELL=1`, which allows exactly that.
 
 ## Supported versions
 

@@ -1495,3 +1495,38 @@ async fn replay_takes_vars_and_refuses_a_file_whose_variables_are_not_all_given(
     assert_ne!(r.is_error, Some(true), "{text}");
     assert!(text.contains("1. tapped @e2 \"Two\""), "{text}");
 }
+
+#[tokio::test]
+async fn a_shell_tool_call_and_a_replayed_shell_step_hand_the_device_the_same_command() {
+    let fake = Arc::new(phonedriver_core::testing::FakeDevice::new(vec![tree(&[
+        "One",
+    ])]));
+    let info = phonedriver_core::device::Device::info(&*fake).clone();
+    let rig = rig_with(Arc::new(fakes::Pixels(fake.clone(), info))).await;
+    let command = "simctl io screenshot /Users/me/a.png";
+    let steps = rig.home.path().join("steps.jsonl");
+    std::fs::write(
+        &steps,
+        format!(
+            "{}\n",
+            json!({"method": "shell", "params": {"command": command}})
+        ),
+    )
+    .unwrap();
+    for (tool, args) in [
+        ("shell", json!({"command": command})),
+        ("replay", json!({"file": steps.to_str().unwrap()})),
+    ] {
+        let r = rig.call(tool, args).await;
+        assert_ne!(r.is_error, Some(true), "{tool}: {r:?}");
+    }
+    let sent: Vec<String> = fake
+        .calls()
+        .into_iter()
+        .filter_map(|c| match c {
+            phonedriver_core::testing::Call::Shell(s) => Some(s.command),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(sent, [command, command]);
+}

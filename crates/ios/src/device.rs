@@ -10,7 +10,7 @@ use base64::Engine;
 use phonedriver_core::device::{
     App, AppId, AppOp, Button, Capabilities, ClipboardOp, Device, DeviceEvent, DeviceInfo,
     FrameRef, Gesture, Image, ImageFormat, Key, Quality, Recorded, Result, ScreenState, ShellReply,
-    ShellRequest, TextInput, Url,
+    ShellRequest, TextInput, Url, host_shell,
 };
 use phonedriver_core::element::Role;
 use phonedriver_core::error::{Error, Op};
@@ -31,7 +31,7 @@ use crate::runner::{Client, Runner};
 use crate::simio::{Frames, Seen, SimIo};
 use crate::simulator::{
     PHYSICAL_PUSH, Simulator, check_push_payload, log_stream_command, privacy_service, shell_args,
-    simctl, simctl_follow, simctl_shell, simctl_with_input,
+    simctl, simctl_follow, simctl_shell, simctl_with_input, spawn_args,
 };
 use crate::transport::{Link, Services, Tunnel};
 
@@ -938,7 +938,7 @@ impl Device for IosDevice {
             .system
             .get_or_try_init(|| crate::simulator::runtime_root(&self.udid))
             .await?;
-        let args = shell_args(&self.udid, &req.command, system)
+        let args = shell_args(&self.udid, &req.command, system, host_shell())
             .map_err(|detail| Error::Refused { detail })?;
         let (exit, stdout, stderr, timed_out) = simctl_shell(&args, req.timeout).await?;
         Ok(ShellReply {
@@ -975,7 +975,7 @@ impl Device for IosDevice {
             .get_or_try_init(|| crate::simulator::runtime_root(&self.udid))
             .await?;
         let args =
-            shell_args(&self.udid, &command, system).map_err(|detail| Error::Refused { detail })?;
+            spawn_args(&self.udid, &command, system).map_err(|detail| Error::Refused { detail })?;
         simctl_follow(&args, req).await
     }
 

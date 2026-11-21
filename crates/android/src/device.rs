@@ -698,6 +698,8 @@ impl Device for AndroidDevice {
 
     async fn shell(&self, req: &ShellRequest) -> Result<ShellReply> {
         if let Some(command) = req.command.trim_start().strip_prefix("emu ") {
+            console::check(command.trim(), phonedriver_core::device::host_shell())
+                .map_err(|detail| Error::Refused { detail })?;
             let (stream, token) = self
                 .console(
                     Op::Shell,
