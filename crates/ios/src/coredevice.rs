@@ -553,7 +553,7 @@ impl Device for CoreDevice {
                 }
                 Ok(())
             }
-            TextInput::SetValue(_) => Err(Error::Unsupported {
+            TextInput::SetValue(_) | TextInput::SetSecret(_) => Err(Error::Unsupported {
                 op: Op::Text,
                 reason: "the CoreDevice tier cannot set a field's value; use paste or keys",
             }),

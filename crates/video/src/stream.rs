@@ -22,6 +22,14 @@ const QUEUE: usize = 8;
 const FRAME_US: u64 = 16_667;
 /// What the units a recording starts with last: they only bring the decoder to the picture at the start.
 const CATCH_UP_US: u64 = 12;
+/// How long a recording waits for the keyframe asked for at its start while other pictures keep coming, before it
+/// starts from the units kept since the last keyframe instead. An encoder that honours the request sends it with the
+/// next picture, and a screen that changed in the last second has one within about 100 ms (the agent repeats the
+/// last frame for about a second).
+const KEYFRAME_WAIT_US: u64 = 1_000_000;
+/// How long after a picture the agent's encoder repeats it while the screen stands still
+/// (`KEY_REPEAT_PREVIOUS_FRAME_AFTER`), and how much later than the one before each repeat is stamped.
+const REPEAT_US: u64 = 100_000;
 
 enum Item {
     Unit(Arc<AccessUnit>),
@@ -40,6 +48,14 @@ struct Live {
     began: Instant,
     /// The newest picture's time stamp, and where it sits in the video, in microseconds.
     newest: Option<(u64, u64)>,
+    /// Until the first keyframe after the start: the units kept from before it, and the pictures that came since,
+    /// with when.
+    waiting: Option<Waiting>,
+}
+
+struct Waiting {
+    kept: Vec<Arc<AccessUnit>>,
+    came: Vec<(Arc<AccessUnit>, u64)>,
 }
 
 impl Live {
@@ -47,12 +63,44 @@ impl Live {
         self.began.elapsed().as_micros() as u64
     }
 
+    /// Adds a picture that came at `now`: the first keyframe after the start opens the file, with nothing shown
+    /// before it. Without one in `KEYFRAME_WAIT_US` while pictures come, the file starts from the units kept, as it
+    /// did before a keyframe was asked for.
+    fn picture(&mut self, unit: &Arc<AccessUnit>, now: u64) -> io::Result<()> {
+        if let Some(waiting) = &mut self.waiting {
+            if unit.keyframe {
+                self.waiting = None;
+                self.rec.delay_start(now);
+            } else if now < KEYFRAME_WAIT_US {
+                waiting.came.push((unit.clone(), now));
+                return Ok(());
+            } else {
+                self.fall_back()?;
+            }
+        }
+        self.place(unit.pts_us, now);
+        self.rec.push(unit, FRAME_US)
+    }
+
+    fn fall_back(&mut self) -> io::Result<()> {
+        let Some(waiting) = self.waiting.take() else {
+            return Ok(());
+        };
+        for unit in &waiting.kept {
+            self.rec.push(unit, CATCH_UP_US)?;
+        }
+        for (unit, at) in &waiting.came {
+            self.place(unit.pts_us, *at);
+            self.rec.push(unit, FRAME_US)?;
+        }
+        Ok(())
+    }
+
     /// Where a picture stamped `pts_us` and read now sits in the video: after the one before it by the gap between
     /// their stamps, and never later than now. Observed on the API 37 emulator's software encoder: the stamps ran
     /// 0.6 s ahead of the clock over 5 s (frames repeated for an idle screen are stamped 100 ms apart), so a video
     /// timed by stamps alone outlasted its recording and ran ahead of the steps file.
-    fn place(&mut self, pts_us: u64) -> u64 {
-        let now = self.clock();
+    fn place(&mut self, pts_us: u64, now: u64) -> u64 {
         let at = match self.newest {
             Some((pts, at)) => (at + pts_us.saturating_sub(pts)).min(now).max(at),
             None => now,
@@ -62,6 +110,15 @@ impl Live {
         self.newest = Some((pts_us, at));
         at
     }
+}
+
+/// Whether the units kept show one picture: a keyframe and after it only the encoder's repeats of it. The agent asks
+/// for a keyframe when the screen stops changing, so a still screen's kept units are this.
+fn still(group: &[Arc<AccessUnit>]) -> bool {
+    group.first().is_some_and(|unit| unit.keyframe)
+        && group
+            .windows(2)
+            .all(|w| w[1].pts_us.checked_sub(w[0].pts_us) == Some(REPEAT_US))
 }
 
 /// What the reader keeps of the stream so a recording can start at any moment: the parameter sets and every unit
@@ -87,10 +144,13 @@ impl Tap {
             self.group.push(unit.clone());
         }
         let Some(live) = &mut self.live else { return };
-        if !unit.config {
-            live.place(unit.pts_us);
-        }
-        if let Err(e) = live.rec.push(unit, FRAME_US) {
+        let written = if unit.config {
+            live.rec.push(unit, FRAME_US)
+        } else {
+            let now = live.clock();
+            live.picture(unit, now)
+        };
+        if let Err(e) = written {
             self.live = None;
             self.ended = Some(Err(e));
         }
@@ -98,6 +158,18 @@ impl Tap {
 
     fn end(&mut self, why: Option<&'static str>) {
         if let Some(mut live) = self.live.take() {
+            let now = live.clock();
+            let ignored = live
+                .waiting
+                .as_ref()
+                .is_some_and(|w| !w.came.is_empty() && now >= KEYFRAME_WAIT_US);
+            if ignored && let Err(e) = live.fall_back() {
+                self.ended = Some(Err(e));
+                return;
+            }
+            if live.waiting.take().is_some() {
+                live.rec.delay_start(now);
+            }
             let shown = live.newest.map_or(0, |(_, at)| at);
             live.rec.stretch_last(live.clock().saturating_sub(shown));
             self.ended = Some(live.rec.finish().map(|recorded| Stopped {
@@ -195,7 +267,9 @@ impl VideoStream {
         self.tap.lock().unwrap_or_else(|e| e.into_inner())
     }
 
-    /// Starts writing the stream to an MP4 file at `path`. The file opens with the picture now on screen.
+    /// Starts writing the stream to an MP4 file at `path`. On a still screen the file opens with the picture on it
+    /// (see `still`); otherwise with the first keyframe that comes after this, which the caller asks the encoder for.
+    /// Either way it holds no picture from before the start; see `Live::picture` for the fallback.
     pub fn record_start(&self, path: &Path) -> io::Result<()> {
         let mut tap = self.tap();
         if tap.live.is_some() {
@@ -214,14 +288,21 @@ impl VideoStream {
         if let Some(config) = &tap.config {
             rec.push(config, CATCH_UP_US)?;
         }
-        for unit in &tap.group {
-            rec.push(unit, CATCH_UP_US)?;
+        let still = still(&tap.group);
+        if still {
+            for unit in &tap.group {
+                rec.push(unit, CATCH_UP_US)?;
+            }
         }
         tap.ended = None;
         tap.live = Some(Live {
             rec,
             began: Instant::now(),
             newest: None,
+            waiting: (!still).then(|| Waiting {
+                kept: tap.group.clone(),
+                came: Vec::new(),
+            }),
         });
         Ok(())
     }

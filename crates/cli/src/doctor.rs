@@ -174,14 +174,16 @@ impl Scope {
         self.hidden.iter().any(|h| h == id)
     }
 
+    /// A device named with `--device` is probed, held or not, unless the daemon could not say what the device list
+    /// hides: then nothing is, because the list may hide it.
     pub fn verdict(&self, id: &str) -> Verdict {
-        if self.only.is_some() {
-            return Verdict::Probe;
-        }
         if let Some(why) = &self.daemon {
             return Verdict::Skip(format!(
-                "the daemon did not answer ({why}), so doctor cannot tell whether a session holds it"
+                "the daemon did not answer ({why}), so doctor cannot tell whether the device list hides it or a session holds it"
             ));
+        }
+        if self.only.is_some() {
+            return Verdict::Probe;
         }
         if let Some(session) = self.held.get(id) {
             return Verdict::Skip(format!(
@@ -1203,6 +1205,16 @@ mod tests {
             ..Scope::default()
         };
         assert!(skipped(scope.verdict("android:emulator-5554")).contains("no daemon"));
+    }
+
+    #[test]
+    fn a_named_device_is_not_probed_when_the_device_list_could_not_be_read() {
+        let scope = Scope {
+            only: Some("ios:00008110-ABC".into()),
+            daemon: Some("the device list file cannot be used".into()),
+            ..Scope::default()
+        };
+        assert!(skipped(scope.verdict("ios:00008110-ABC")).contains("device list file"));
     }
 
     #[test]

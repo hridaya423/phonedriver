@@ -23,7 +23,7 @@ use tokio::sync::Mutex;
 
 use crate::client::{Client, Failure};
 use crate::commands::{Globals, Verb, ask_env, execute_with, run_batch};
-use crate::wire::{Approval, ScreenshotResult};
+use crate::wire::{Approval, Approved, ScreenshotResult};
 
 struct Shot {
     device: Option<String>,
@@ -41,6 +41,9 @@ pub struct Mcp {
     told: Told,
     /// The last screenshot this server returned, for `compare`.
     last_shot: Arc<Mutex<Option<Shot>>>,
+    /// Where `replay` reads a relative steps file and the only folder it saves one in; the working directory when
+    /// it is not set.
+    folder: Option<PathBuf>,
 }
 
 /// The question a 2026-07-28 call returned: the call it belongs to, the batch step it holds and what it asked.
@@ -49,6 +52,7 @@ struct Held {
     key: String,
     step: usize,
     asked: String,
+    shown: Approved,
 }
 
 /// The device line (`device <id> · <model> · <os> · <size> · <orientation>`) of the last reply this server sent. The
@@ -126,9 +130,7 @@ struct SettingArgs {
 struct DevicesArgs {
     device: Option<String>,
     release: Option<bool>,
-    /// Start a simulator or emulator that is off, by name.
     boot: Option<String>,
-    /// Send the other tools to this device from now on.
     #[serde(rename = "use")]
     use_device: Option<String>,
 }
@@ -138,9 +140,7 @@ struct DevicesArgs {
 struct ScreenshotArgs {
     device: Option<String>,
     marks: Option<bool>,
-    /// Reply with what changed since your last screenshot, as text and no image.
     compare: Option<bool>,
-    /// `start`, later `stop` (Android, iOS Simulator).
     record: Option<String>,
 }
 
@@ -149,11 +149,10 @@ struct ScreenshotArgs {
 struct ReplayArgs {
     device: Option<String>,
     file: String,
-    /// Write the file instead of running it.
     save: Option<bool>,
     /// Start at this step.
     from: Option<u32>,
-    /// Values for `{{name}}`. Not for secrets.
+    /// Not for secrets.
     vars: Option<std::collections::BTreeMap<String, String>>,
 }
 
@@ -286,6 +285,8 @@ struct SwipeArgs {
     distance: Option<f32>,
     /// A quick flick that may fling.
     fast: Option<bool>,
+    #[serde(default, deserialize_with = "flag")]
+    autonomous: Option<bool>,
 }
 
 #[derive(Deserialize, JsonSchema)]
@@ -300,6 +301,8 @@ struct ScrollArgs {
     until: Option<String>,
     /// Give up after this many scrolls. Default 30.
     max: Option<u32>,
+    #[serde(default, deserialize_with = "flag")]
+    autonomous: Option<bool>,
 }
 
 #[derive(Deserialize, JsonSchema)]
@@ -307,6 +310,8 @@ struct ScrollArgs {
 struct PressArgs {
     device: Option<String>,
     key: String,
+    #[serde(default, deserialize_with = "flag")]
+    autonomous: Option<bool>,
 }
 
 #[derive(Deserialize, JsonSchema)]
@@ -324,11 +329,8 @@ struct LaunchArgs {
 struct WaitArgs {
     device: Option<String>,
     condition: Option<String>,
-    /// `up` or `down`.
     vpn: Option<String>,
-    /// Text of a log line written from now on.
     log: Option<String>,
-    /// With `log`: this app's lines only.
     app: Option<String>,
     /// Default 5000.
     timeout_ms: Option<u64>,
@@ -410,12 +412,14 @@ impl SwipeArgs {
                     .from
                     .ok_or("`to` needs `from`: where the drag starts")?,
                 to,
+                autonomous: false,
             }),
             (_, None, Some(direction)) if direction == "in" || direction == "out" => {
                 Ok(Verb::Pinch {
                     direction,
                     at: self.from,
                     distance: self.distance,
+                    autonomous: false,
                 })
             }
             (_, None, Some(_)) => Err("`pinch` is `in` or `out`"),
@@ -424,6 +428,7 @@ impl SwipeArgs {
                 from: self.from,
                 distance: self.distance,
                 fast: self.fast.unwrap_or(false),
+                autonomous: false,
             }),
             (None, None, None) => Err("pass `direction`, `to` or `pinch`"),
             _ => Err("pass one of `direction`, `to` or `pinch`"),
@@ -438,6 +443,7 @@ impl ScrollArgs {
             within: self.r#in,
             until: self.until,
             max: self.max,
+            autonomous: false,
         }
     }
 }
@@ -484,6 +490,7 @@ fn step_verb(step: serde_json::Value) -> Result<Verb, String> {
             .verb()),
         "press" => Ok(Verb::Press {
             key: serde_json::from_value::<PressArgs>(rest).map_err(args)?.key,
+            autonomous: false,
         }),
         "wait" => serde_json::from_value::<WaitArgs>(rest)
             .map_err(args)?
@@ -496,7 +503,10 @@ fn step_verb(step: serde_json::Value) -> Result<Verb, String> {
             let a = serde_json::from_value::<TypeArgs>(rest).map_err(args)?;
             if a.text.is_empty() {
                 return match a.into {
-                    Some(target) => Ok(Verb::Clear { target }),
+                    Some(target) => Ok(Verb::Clear {
+                        target,
+                        autonomous: false,
+                    }),
                     None => Err("to clear a field pass `into`: the field to empty".into()),
                 };
             }
@@ -528,7 +538,14 @@ impl Mcp {
             held: Arc::default(),
             told: Told::default(),
             last_shot: Arc::default(),
+            folder: None,
         }
+    }
+
+    /// The same server, reading relative steps files from `folder` and saving them only there.
+    pub fn in_folder(mut self, folder: PathBuf) -> Mcp {
+        self.folder = Some(folder);
+        self
     }
 
     /// Also asks the human before the taps of these opt-in categories (decision D31).
@@ -589,6 +606,7 @@ impl Mcp {
                 &std::env::var("PHONEDRIVER_DISPLAY").unwrap_or_default(),
             ),
             approval: None,
+            approved: None,
             ask: self.ask.clone(),
         }
     }
@@ -634,6 +652,7 @@ impl Mcp {
                 Decision::Once => globals.approval = Some(Approval::Once),
                 Decision::Session => globals.approval = Some(Approval::Session),
             }
+            globals.approved = Some(held.shown);
         }
         let first = self
             .with_client(async |client| {
@@ -645,6 +664,7 @@ impl Mcp {
             return Outcome::Done(self.reply(&globals, first).await);
         };
         let asked = commitment(&label, app.as_deref(), category, &details);
+        let shown = Approved { label, details };
         let prompt = format!("Your agent wants to do this on your phone:\n{asked}\nAllow it?");
         let reply = match channel {
             Channel::Mrtr {
@@ -656,6 +676,7 @@ impl Mcp {
                         key,
                         step: 0,
                         asked,
+                        shown,
                     });
                     return Outcome::Ask(q);
                 }
@@ -681,6 +702,7 @@ impl Mcp {
                     Decision::Session => Approval::Session,
                     _ => Approval::Once,
                 });
+                globals.approved = Some(shown);
                 let second = self
                     .with_client(async |client| {
                         execute_with(client, verb(), secret, &globals).await
@@ -719,6 +741,7 @@ impl Mcp {
                 Decision::Session => globals.approval = Some(Approval::Session),
             }
             from = held.step;
+            globals.approved = Some(held.shown);
         }
         loop {
             let rest = steps[from..].to_vec();
@@ -726,6 +749,7 @@ impl Mcp {
                 .with_client(async |client| run_batch(client, rest, &globals).await)
                 .await;
             globals.approval = None;
+            globals.approved = None;
             let Some((label, app, category, details)) =
                 result.as_ref().err().and_then(approval_needed)
             else {
@@ -737,6 +761,7 @@ impl Mcp {
                 .and_then(held_step)
                 .map_or(from, |n| from + n - 1);
             let asked = commitment(&label, app.as_deref(), category, &details);
+            let shown = Approved { label, details };
             let prompt = format!("Your agent wants to do this on your phone:\n{asked}\nAllow it?");
             let reply = match &channel {
                 Channel::Mrtr {
@@ -748,6 +773,7 @@ impl Mcp {
                             key,
                             step: held,
                             asked,
+                            shown,
                         });
                         return Outcome::Ask(q);
                     }
@@ -773,6 +799,7 @@ impl Mcp {
                 Decision::Once => globals.approval = Some(Approval::Once),
                 Decision::Session => globals.approval = Some(Approval::Session),
             }
+            globals.approved = Some(shown);
             from = held;
         }
     }
@@ -838,6 +865,31 @@ impl Mcp {
                 }
                 Err(why) => Outcome::Done(bad(&why)),
             }
+        } else if request.name == "swipe" {
+            let a: SwipeArgs = serde_json::from_value(args).map_err(invalid)?;
+            let (device, autonomous) = (a.device.clone(), a.autonomous.unwrap_or(false));
+            match a.verb() {
+                Ok(verb) => {
+                    self.guarded(channel, key, device, || verb.clone(), None, autonomous)
+                        .await
+                }
+                Err(why) => Outcome::Done(bad(why)),
+            }
+        } else if request.name == "scroll" {
+            let a: ScrollArgs = serde_json::from_value(args).map_err(invalid)?;
+            let (device, autonomous) = (a.device.clone(), a.autonomous.unwrap_or(false));
+            let verb = a.verb();
+            self.guarded(channel, key, device, || verb.clone(), None, autonomous)
+                .await
+        } else if request.name == "press" {
+            let a: PressArgs = serde_json::from_value(args).map_err(invalid)?;
+            let autonomous = a.autonomous.unwrap_or(false);
+            let verb = Verb::Press {
+                key: a.key,
+                autonomous: false,
+            };
+            self.guarded(channel, key, a.device, || verb.clone(), None, autonomous)
+                .await
         } else if request.name == "tap" {
             let mut a: TapArgs = serde_json::from_value(args).map_err(invalid)?;
             let (device, autonomous) = (a.device.clone(), a.autonomous.unwrap_or(false));
@@ -1185,6 +1237,59 @@ fn for_mcp(hint: &str) -> String {
     out
 }
 
+/// Where MCP `replay` may save (decision D105): a `.steps` file inside `folder` (a relative path, or an absolute
+/// one inside it), reached through no `..` and no link out of it, that is new or already a steps file. An agent
+/// chooses the path, and without this a save could replace any file the server can write, such as a `.env`.
+fn savable(folder: &std::path::Path, file: &std::path::Path) -> Result<(), String> {
+    use std::path::Component;
+    let shown = file.display();
+    if file.components().any(|c| c == Component::ParentDir) {
+        return Err(format!(
+            "{shown} has `..` in it: save to a path inside {}",
+            folder.display()
+        ));
+    }
+    if file.extension().is_none_or(|e| e != "steps") {
+        return Err(format!(
+            "{shown} does not end in .steps: a saved run is a .steps file"
+        ));
+    }
+    let path = folder.join(file);
+    let inside = |p: &std::path::Path| {
+        let (Ok(p), Ok(f)) = (p.canonicalize(), folder.canonicalize()) else {
+            return true;
+        };
+        p.starts_with(f)
+    };
+    if !path.starts_with(folder) || path.parent().is_some_and(|p| p.exists() && !inside(p)) {
+        return Err(format!(
+            "{shown} is not inside {}: save to a relative path there",
+            folder.display()
+        ));
+    }
+    match std::fs::symlink_metadata(&path) {
+        Err(_) => Ok(()),
+        Ok(m) if m.file_type().is_symlink() => Err(format!(
+            "{shown} is a link: save to a new file or an earlier saved run"
+        )),
+        Ok(m) if !m.is_file() => Err(format!("{shown} is not a steps file: it is kept as it is")),
+        Ok(_) => {
+            let text = std::fs::read_to_string(&path).unwrap_or_default();
+            let steps = text.lines().filter(|l| !l.trim().is_empty()).all(|l| {
+                serde_json::from_str::<serde_json::Value>(l)
+                    .is_ok_and(|v| v.get("method").is_some() || v.get("manual").is_some())
+            });
+            if steps {
+                Ok(())
+            } else {
+                Err(format!(
+                    "{shown} is not a steps file: it is kept as it is; save to a new file"
+                ))
+            }
+        }
+    }
+}
+
 fn bad(message: &str) -> CallToolResult {
     CallToolResult::error(vec![ContentBlock::text(message)])
 }
@@ -1320,8 +1425,18 @@ impl Mcp {
         )
     )]
     async fn replay(&self, Parameters(a): Parameters<ReplayArgs>) -> CallToolResult {
-        let file = std::path::PathBuf::from(a.file);
+        let folder = match &self.folder {
+            Some(f) => f.clone(),
+            None => match std::env::current_dir() {
+                Ok(f) => f,
+                Err(e) => return bad(&format!("cannot read the working directory: {e}")),
+            },
+        };
+        let file = folder.join(&a.file);
         let verb = if a.save.unwrap_or(false) {
+            if let Err(why) = savable(&folder, std::path::Path::new(&a.file)) {
+                return bad(&why);
+            }
             Verb::Save { file }
         } else {
             Verb::Replay {
@@ -1421,7 +1536,7 @@ impl Mcp {
     }
 
     #[tool(
-        description = "Image of the screen, for what the snapshot lacks (canvas, map, photo). `marks` boxes tappable elements with their @ref. `compare` replies with what changed since your last screenshot, as text. `record` saves a video of the screen instead, with the actions done meanwhile.",
+        description = "Image of the screen, for what the snapshot lacks (canvas, map, photo). `marks` boxes tappable elements with their @ref. `compare`: what changed since your last screenshot, as text. `record` `start`, later `stop`: a video, with the actions done meanwhile (Android, Simulator).",
         annotations(title = "Screenshot", read_only_hint = true, open_world_hint = true)
     )]
     async fn screenshot(&self, Parameters(a): Parameters<ScreenshotArgs>) -> CallToolResult {
@@ -1466,7 +1581,13 @@ impl Mcp {
                 })
                 .await;
                 return match report {
-                    Ok(Ok(text)) => CallToolResult::success(vec![ContentBlock::text(text)]),
+                    Ok(Ok(text)) => match self
+                        .with_client(async |client| crate::commands::masked(client, &text).await)
+                        .await
+                    {
+                        Ok(text) => CallToolResult::success(vec![ContentBlock::text(text)]),
+                        Err(f) => failure(&f),
+                    },
                     Ok(Err(why)) => bad(&why),
                     Err(e) => bad(&format!("the comparison failed: {e}")),
                 };
@@ -1543,13 +1664,27 @@ impl Mcp {
                 .await
                 .complete();
         }
-        if a.text.is_empty() && !secret {
-            return match a.into {
-                Some(target) => self.run(a.device, Verb::Clear { target }, None).await,
-                None => bad("to clear a field pass `into`: the field to empty"),
-            };
-        }
         let autonomous = a.autonomous.unwrap_or(false);
+        if a.text.is_empty() && !secret {
+            let Some(target) = a.into else {
+                return bad("to clear a field pass `into`: the field to empty");
+            };
+            let verb = || Verb::Clear {
+                target: target.clone(),
+                autonomous: false,
+            };
+            return self
+                .guarded(
+                    Channel::Peer(&peer),
+                    String::new(),
+                    a.device,
+                    verb,
+                    None,
+                    autonomous,
+                )
+                .await
+                .complete();
+        }
         let device = a.device.clone();
         let text = secret.then(|| a.text.clone());
         let outcome = self
@@ -1575,12 +1710,26 @@ impl Mcp {
             open_world_hint = true
         )
     )]
-    async fn swipe(&self, Parameters(a): Parameters<SwipeArgs>) -> CallToolResult {
-        let device = a.device.clone();
-        match a.verb() {
-            Ok(verb) => self.run(device, verb, None).await,
-            Err(why) => bad(why),
-        }
+    async fn swipe(
+        &self,
+        peer: Peer<RoleServer>,
+        Parameters(a): Parameters<SwipeArgs>,
+    ) -> CallToolResult {
+        let (device, autonomous) = (a.device.clone(), a.autonomous.unwrap_or(false));
+        let verb = match a.verb() {
+            Ok(verb) => verb,
+            Err(why) => return bad(why),
+        };
+        self.guarded(
+            Channel::Peer(&peer),
+            String::new(),
+            device,
+            || verb.clone(),
+            None,
+            autonomous,
+        )
+        .await
+        .complete()
     }
 
     #[tool(
@@ -1593,9 +1742,23 @@ impl Mcp {
             open_world_hint = true
         )
     )]
-    async fn scroll(&self, Parameters(a): Parameters<ScrollArgs>) -> CallToolResult {
-        let device = a.device.clone();
-        self.run(device, a.verb(), None).await
+    async fn scroll(
+        &self,
+        peer: Peer<RoleServer>,
+        Parameters(a): Parameters<ScrollArgs>,
+    ) -> CallToolResult {
+        let (device, autonomous) = (a.device.clone(), a.autonomous.unwrap_or(false));
+        let verb = a.verb();
+        self.guarded(
+            Channel::Peer(&peer),
+            String::new(),
+            device,
+            || verb.clone(),
+            None,
+            autonomous,
+        )
+        .await
+        .complete()
     }
 
     #[tool(
@@ -1608,8 +1771,26 @@ impl Mcp {
             open_world_hint = true
         )
     )]
-    async fn press(&self, Parameters(a): Parameters<PressArgs>) -> CallToolResult {
-        self.run(a.device, Verb::Press { key: a.key }, None).await
+    async fn press(
+        &self,
+        peer: Peer<RoleServer>,
+        Parameters(a): Parameters<PressArgs>,
+    ) -> CallToolResult {
+        let autonomous = a.autonomous.unwrap_or(false);
+        let verb = || Verb::Press {
+            key: a.key.clone(),
+            autonomous: false,
+        };
+        self.guarded(
+            Channel::Peer(&peer),
+            String::new(),
+            a.device,
+            verb,
+            None,
+            autonomous,
+        )
+        .await
+        .complete()
     }
 
     #[tool(
@@ -1683,7 +1864,12 @@ impl ServerHandler for Mcp {
         let mrtr = context
             .protocol_version()
             .is_some_and(|v| v >= ProtocolVersion::V_2026_07_28);
-        if mrtr && matches!(request.name.as_ref(), "tap" | "type" | "batch") {
+        if mrtr
+            && matches!(
+                request.name.as_ref(),
+                "tap" | "type" | "batch" | "swipe" | "scroll" | "press"
+            )
+        {
             return self.call_guarded(request, &context).await;
         }
         let call = rmcp::handler::server::tool::ToolCallContext::new(self, request, context);

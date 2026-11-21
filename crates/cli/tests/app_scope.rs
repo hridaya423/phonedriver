@@ -721,3 +721,143 @@ async fn without_a_scope_nothing_changes() {
     let apps: Vec<App> = serde_json::from_value(ok(&d, "apps", json!({})).await).unwrap();
     assert_eq!(apps.len(), 4);
 }
+
+fn opens(fake: &FakeDevice) -> Vec<String> {
+    fake.calls()
+        .iter()
+        .filter_map(|c| match c {
+            Call::OpenUrl(u, _) => Some(u.0.clone()),
+            _ => None,
+        })
+        .collect()
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_scoped_open_of_an_intent_url_that_names_another_component_is_refused() {
+    let (d, fake, _home) = setup(vec![mine(&["Save"])]);
+    for url in [
+        "intent:#Intent;component=com.android.chrome/com.google.android.apps.chrome.Main;S.x=1;end",
+        "intent://x#Intent;scheme=mine;SEL;component=com.chat/.Main;end",
+        "INTENT:#Intent;component=com.chat/.Main;end",
+    ] {
+        let e = err(
+            &d,
+            "act",
+            act(json!({"kind": "open", "url": url, "app": "Mine"})),
+        )
+        .await;
+        assert_eq!(e.code, -32025, "{url}: {e:?}");
+        assert!(e.message.contains("component"), "{}", e.message);
+    }
+    assert!(opens(&fake).is_empty(), "{:?}", fake.calls());
+    ok(
+        &d,
+        "act",
+        act(json!({"kind": "open", "url": "intent://home#Intent;scheme=mine;end", "app": "Mine"})),
+    )
+    .await;
+    assert_eq!(opens(&fake), ["intent://home#Intent;scheme=mine;end"]);
+}
+
+#[tokio::test(start_paused = true)]
+async fn an_iphone_or_simulator_opens_no_link_under_a_scope_because_it_ignores_the_app() {
+    for id in ["ios:UDID", "sim:UDID"] {
+        let (d, fake, _home) = setup_as(id, vec![mine(&["Save"])], Some("com.mine"));
+        let e = err(
+            &d,
+            "act",
+            act(json!({"kind": "open", "url": "mine://home", "app": "Mine"})),
+        )
+        .await;
+        assert_eq!(e.code, -32025, "{id}: {e:?}");
+        assert!(e.message.contains("launch"), "{}", e.message);
+        assert!(opens(&fake).is_empty(), "{id}: {:?}", fake.calls());
+    }
+}
+
+#[tokio::test(start_paused = true)]
+async fn an_empty_tree_is_outside_the_scope_until_a_tree_names_the_app() {
+    let empty =
+        RawTree::from_android_json(r#"{"windows":[],"nodes":[]}"#, Scale { density: 1.0 }).unwrap();
+    let (d, fake, _home) = setup(vec![empty]);
+    let e = err(&d, "act", act(json!({"kind": "press", "key": "enter"}))).await;
+    assert_eq!(e.code, -32025, "{e:?}");
+    let e = err(&d, "act", tap_point()).await;
+    assert_eq!(e.code, -32025, "{e:?}");
+    let e = err(&d, "screenshot", json!({})).await;
+    assert_eq!(e.code, -32025, "{e:?}");
+    assert!(
+        !fake
+            .calls()
+            .iter()
+            .any(|c| matches!(c, Call::Gesture(_) | Call::Key(_))),
+        "{:?}",
+        fake.calls()
+    );
+    fake.set_tree(mine(&["Save"]));
+    ok(&d, "screenshot", json!({})).await;
+}
+
+#[tokio::test(start_paused = true)]
+async fn the_page_is_read_from_the_app_the_check_approved() {
+    let (d, fake, _home) = setup(vec![mine(&["Save"])]);
+    fake.show_page(phonedriver_core::device::WebPage {
+        title: "Mine".into(),
+        url: "https://mine".into(),
+        text: "hello".into(),
+    });
+    ok(&d, "page", json!({})).await;
+    let asked: Vec<Option<String>> = fake
+        .calls()
+        .iter()
+        .filter_map(|c| match c {
+            Call::Page(app) => Some(app.as_ref().map(|a| a.0.clone())),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(asked, [Some("com.mine".to_string())]);
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_bar_shaped_window_of_another_app_is_outside() {
+    let overlay = Win {
+        id: 4,
+        kind: "system",
+        package: "com.chat",
+        bounds: [0, 0, 360, 60],
+        labels: vec![SECRET],
+    };
+    let (d, fake, _home) = setup(vec![screen(vec![app(1, "com.mine", &["Save"]), overlay])]);
+    let e = err(&d, "screenshot", json!({})).await;
+    assert_eq!(e.code, -32025, "{e:?}");
+    assert!(e.message.contains("com.chat"), "{}", e.message);
+    let e = err(&d, "act", tap_point()).await;
+    assert_eq!(e.code, -32025, "{e:?}");
+    assert_eq!(gestures(&fake), 0);
+}
+
+#[tokio::test(start_paused = true)]
+async fn on_an_iphone_back_and_hiding_the_keyboard_are_refused_while_another_app_is_in_front() {
+    let (d, fake, _home) = setup_as("ios:UDID", vec![chat()], Some("com.mine"));
+    let e = err(&d, "act", act(json!({"kind": "press", "key": "back"}))).await;
+    assert_eq!(e.code, -32025, "{e:?}");
+    assert!(e.message.contains("press home"), "{}", e.message);
+    assert!(
+        !fake
+            .calls()
+            .iter()
+            .any(|c| matches!(c, Call::Gesture(_) | Call::Button(_))),
+        "{:?}",
+        fake.calls()
+    );
+    ok(&d, "act", act(json!({"kind": "press", "key": "home"}))).await;
+    fake.set_tree(mine(&["Save"]));
+    ok(&d, "act", act(json!({"kind": "press", "key": "back"}))).await;
+    assert!(
+        fake.calls()
+            .iter()
+            .any(|c| matches!(c, Call::Button(phonedriver_core::device::Button::Back))),
+        "{:?}",
+        fake.calls()
+    );
+}

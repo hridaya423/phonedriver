@@ -2,7 +2,7 @@
 title: How to install phonedriver
 nav: Install
 description: Set up phonedriver by pasting one prompt into your agent, or install the binary by hand on macOS, Linux or Windows and check it with phonedriver doctor.
-updated: 2026-11-20
+updated: 2026-11-21
 seo: Install phonedriver: npx, Homebrew, plugin or one prompt
 ---
 
@@ -121,7 +121,7 @@ Connect it to an agent: [Claude Code](/docs/claude-code/) or [Cursor and other M
 | `PHONEDRIVER_DEVICE` | none | The device to use when `--device` is not given. Also read by `phonedriver mcp`. |
 | `PHONEDRIVER_DISPLAY` | `main` | `hidden` makes the Android agent work on a second screen that the person holding the phone cannot see (Android 13 and later; `--display hidden` does the same). See [the Android phone page](/docs/android-phone/#a-hidden-screen-for-the-agent). |
 | `PHONEDRIVER_SESSION` | `default` | The session name, as `--session`. |
-| `PHONEDRIVER_ALLOW_DEVICES`, `PHONEDRIVER_DENY_DEVICES` | none | Comma lists of device ids (`android:emulator-5554`, `ios:<udid>`) or an Android phone's hardware serial. A device not allowed, or denied, is not listed, not probed by `doctor`, and never gets the agent; `--force` does not change that. The file `~/.phonedriver/devices` (`allow <id>` and `deny <id>` lines) does the same for every agent on the machine. Details in the [reference]({{REPO}}/blob/main/docs/reference.md#devices-an-agent-must-not-touch). |
+| `PHONEDRIVER_ALLOW_DEVICES`, `PHONEDRIVER_DENY_DEVICES` | none | Comma lists of device ids (`android:emulator-5554`, `ios:<udid>`) or an Android phone's hardware serial. A device not allowed, or denied, is not listed, not probed by `doctor`, not booted, and never gets the agent; `--force` does not change that. The file `~/.phonedriver/devices` (`allow <id>` and `deny <id>` lines) does the same for every agent on the machine. Details in the [reference]({{REPO}}/blob/main/docs/reference.md#devices-an-agent-must-not-touch). |
 | `PHONEDRIVER_TEAM` | the team of this Mac's Apple Development certificate | Apple developer team ID that signs the iOS runner on a physical device. Needed only with certificates for several teams. |
 | `PHONEDRIVER_GUARD` | on | `off` stops the [approval guard](/docs/approval-guard/). |
 | `PHONEDRIVER_ASK` | none | More taps to ask about, besides payments and account deletion: `send`, `delete`, `install`, comma separated. See the [approval guard](/docs/approval-guard/). |

@@ -42,6 +42,7 @@ final class Video {
     private final Lane lane = Lane.here();
     private long wroteAtUs;
     private long wrotePtsUs;
+    private boolean unsettled;
     private int maxSize;
     private final int bitRate;
     private final int fps;
@@ -275,11 +276,21 @@ final class Video {
         }
     }
 
-    private void wrote(long ptsUs) {
+    // An idle screen gives the encoder no input, so a keyframe asked for then comes only when something moves. Asked
+    // for at the first repeat after a change, it comes with the next repeat: the stream's last keyframe then shows
+    // the still screen, and a recording started on it can open with that picture and nothing from before (D107).
+    private void wrote(long ptsUs, boolean keyframe) {
         long now = System.nanoTime() / 1000;
         long lag = now - ptsUs;
         boolean timed = lag >= 0 && lag < CLOCK_LIMIT_US;
         lane.videoLagUs = timed ? lag : 0;
+        boolean repeat = ptsUs - wrotePtsUs == REPEAT_US;
+        if (!repeat) {
+            unsettled = !keyframe;
+        } else if (unsettled) {
+            unsettled = false;
+            lane.syncRequested = true;
+        }
         wrotePtsUs = ptsUs;
         wroteAtUs = now;
     }
@@ -304,7 +315,7 @@ final class Video {
                 out.write(data);
                 out.flush();
                 if ((flags & 1) == 0) {
-                    wrote(info.presentationTimeUs);
+                    wrote(info.presentationTimeUs, (flags & 2) != 0);
                 }
             }
         } finally {

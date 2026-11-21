@@ -3,16 +3,24 @@ title: How to keep an AI agent from spending your money on a phone
 nav: Approval guard
 meta: phonedriver holds taps on Pay, Place order and Delete account and asks you first. How it works, how to answer, full autonomy, and what it misses.
 description: phonedriver stops taps on Pay, Place order and Delete account and asks you first. How the guard works, how to answer, how to switch it off for full autonomy, and what it does not catch.
-updated: 2026-11-17
+updated: 2026-11-21
 ---
 
 The guard classifies the element the agent is about to tap and, for a button that spends money or cannot be undone, asks the human instead of tapping. It is on by default. The reasoning is in [Letting Claude order dinner without letting it spend your money](/blog/letting-claude-order-dinner-without-letting-it-spend-your-money/).
 
 ## What is guarded
 
-The guard reads the tapped element's label, in English, Spanish, Portuguese, French, German, Italian, Dutch, Japanese, Chinese (Simplified), Korean and Hindi. It matches whole-label phrases such as `Pay`, `Pagar`, `Jetzt kaufen`, `提交订单`, `Pay now`, `Buy now`, `Place order`, `Confirm payment`, `Send money`, `Transfer`, `Start subscription` and `Delete account`, labels that start with `Buy with`, such as `Buy with GPay`, and short labels that start with a money verb and hold an amount, such as `Place order · $34.10`, `Send $20.00 to Sam` or `Subscribe · $9.99/month`.
+The guard reads the label of the element the agent is about to touch, in English, Spanish, Portuguese, French, German, Italian, Dutch, Japanese, Chinese (Simplified), Korean and Hindi. It matches whole-label phrases such as `Pay`, `Pagar`, `Jetzt kaufen`, `提交订单`, `Pay now`, `Buy now`, `Place order`, `Confirm payment`, `Send money`, `Transfer`, `Start subscription` and `Delete account`, labels that start with `Buy with` or `Pay with`, such as `Buy with GPay`, sliders such as `Slide to pay` or `Swipe to confirm`, and short labels that start with a money verb and hold an amount, such as `Place order · $34.10`, `Pay 50 kr` or `Subscribe · $9.99/month`.
 
-It covers `tap` by ref, by text or by point, `type --submit` when a guarded button sits in the field's own form, and every step of a `batch`.
+It covers every way an agent can press such a button:
+
+- `tap` by ref, by text or by point, and a tap on a price or icon inside a guarded row.
+- `swipe`, `drag`, `pinch` and `gesture` when the finger goes down and lifts on the button, which the phone treats as a click; a drag that drops onto it; and any stroke along a `Slide to pay` control.
+- `type --into` and `clear` aimed at the button.
+- `type --submit` and `press enter` when the field's form holds a guarded button, even one the form only turns on once the field is filled.
+- Every step of a `batch`.
+
+An ordinary swipe, scroll or pinch is never asked about, and costs no extra time.
 
 Never guarded: tabs, menu items, text fields and switches; labels with `#` (an order number); `Add to cart`, `Buy again`, `Pay later`, a bare `Checkout`, a bare `Subscribe` and `Order status`. A chat `Send` is not guarded unless you ask for it (below): it is the most common tap in the apps agents use, and a prompt on every reply would teach you to click Allow without reading.
 
@@ -36,7 +44,7 @@ The guard has one more rule about text. `type` with plain text into a password f
 
 Over MCP, a client that supports elicitation shows one form that names the app and the button and lists up to eight lines of visible text with an amount or a word like total, deliver, address, item or quantity. The answers are:
 
-- Allow: the tap runs in the same tool call, and the reply says `approved by the human`.
+- Allow: the action runs in the same tool call, and the reply says `approved by the human`. If the button or the amounts on screen changed in the meantime, you are asked again.
 - Allow for this session: the same, and later guarded taps in this session also run. The flag lives in the daemon and is never written to disk.
 - Decline or cancel: nothing is tapped. A decline replies `The human declined`.
 
@@ -51,7 +59,7 @@ If your client cannot ask, the tool replies `Needs the human's approval; nothing
 Switch the guard off only when you have decided the agent may spend money or delete things:
 
 - Set `PHONEDRIVER_GUARD=off` in the environment of `phonedriver mcp` or the CLI.
-- On the CLI, add `--autonomous` to a single command. Exit code 5 means a tap was held for approval.
+- On the CLI, add `--autonomous` to a single command (`tap`, `type`, `swipe`, `drag`, `pinch`, `gesture`, `scroll`, `press` or `clear`). Exit code 5 means the action was held for approval.
 
 `PHONEDRIVER_GUARD` belongs in the MCP server's environment, which the agent does not write.
 
@@ -62,6 +70,8 @@ Switch the guard off only when you have decided the agent may spend money or del
 - `shell` is out of scope: `input tap` through the shell is not seen.
 - An agent can pass `autonomous: true` over MCP, or add `--autonomous` on the CLI, when you never granted it. The guard stops a model that follows the rules or is steered by screen text. It does not stop a model set on bypassing it.
 - Point taps in a row reuse the screen the last check read, for up to one second. A change smaller than a significant repaint that adds a guarded button inside that second is missed.
+- A swipe or drag is checked against the screen the agent last saw. A guarded button that appeared since, under the finger, is missed.
+- `press fingerprint` on an emulator answers a fingerprint prompt, which an app can use to confirm a payment. It is not guarded.
 - The form has no screenshot: MCP elicitation has no image field.
 
 ## Questions

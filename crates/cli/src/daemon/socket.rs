@@ -89,8 +89,55 @@ fn name(path: &Path) -> io::Result<interprocess::local_socket::Name<'_>> {
     path.to_fs_name::<GenericFilePath>()
 }
 
+/// Connects to the daemon's socket. On Unix the socket must sit in a folder only this user can use, and the process
+/// that answers must run as this user: a socket that fell back to a shared temporary folder could otherwise be
+/// another account's listener, and it would be sent every request, typed secrets among them (decision D105).
 pub async fn connect(path: &Path) -> io::Result<Stream> {
-    Stream::connect(name(path)?).await
+    #[cfg(unix)]
+    if let Some(dir) = path.parent() {
+        private_to_me(dir)?;
+    }
+    let stream = Stream::connect(name(path)?).await?;
+    #[cfg(unix)]
+    {
+        let peer = stream.peer_creds()?.euid();
+        if peer != Some(euid()) {
+            return Err(io::Error::new(
+                io::ErrorKind::PermissionDenied,
+                format!(
+                    "the process at {} runs as another user ({peer:?}), not this one",
+                    path.display()
+                ),
+            ));
+        }
+    }
+    Ok(stream)
+}
+
+#[cfg(unix)]
+fn euid() -> u32 {
+    #[allow(unsafe_code)]
+    unsafe {
+        libc::geteuid()
+    }
+}
+
+#[cfg(unix)]
+fn private_to_me(dir: &Path) -> io::Result<()> {
+    use std::os::unix::fs::MetadataExt;
+    let meta = std::fs::metadata(dir)?;
+    if meta.uid() != euid() || meta.mode() & 0o077 != 0 {
+        return Err(io::Error::new(
+            io::ErrorKind::PermissionDenied,
+            format!(
+                "{} is not a folder only this user can use (owner {}, mode {:o}); the daemon's socket must be in one with mode 0700",
+                dir.display(),
+                meta.uid(),
+                meta.mode() & 0o777
+            ),
+        ));
+    }
+    Ok(())
 }
 
 /// Binds the socket. A leftover file from a dead daemon is replaced; a live daemon is an error.
@@ -146,6 +193,22 @@ mod tests {
         let tmp = PathBuf::from(format!("/{}", "t".repeat(120)));
         let long = PathBuf::from(format!("/{}/run/daemon.sock", "h".repeat(120)));
         assert!(short_socket_path(long, &tmp, "me").starts_with("/tmp"));
+    }
+
+    #[tokio::test]
+    async fn a_client_does_not_connect_through_a_folder_another_account_could_write_in() {
+        use std::os::unix::fs::PermissionsExt;
+        let home = tempfile::tempdir().unwrap();
+        let path = home.path().join("run").join("daemon.sock");
+        let listener = listen(&path).await.unwrap();
+        let accept = tokio::spawn(async move { while listener.accept().await.is_ok() {} });
+        connect(&path).await.unwrap();
+        let run = path.parent().unwrap();
+        std::fs::set_permissions(run, std::fs::Permissions::from_mode(0o777)).unwrap();
+        let refused = connect(&path).await.err().unwrap();
+        assert_eq!(refused.kind(), io::ErrorKind::PermissionDenied);
+        assert!(refused.to_string().contains("0700"), "{refused}");
+        accept.abort();
     }
 
     #[tokio::test]

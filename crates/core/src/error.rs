@@ -278,7 +278,7 @@ impl UserAction {
                     .into()
             }
             UserAction::PairForWifi => {
-                "This computer has no Wi-Fi pairing with the device. Without Xcode, phonedriver reaches a device on Wi-Fi through a pairing it makes once over the cable."
+                "This computer has no Wi-Fi pairing with the device, or one made before phonedriver 0.1.7, which cannot check that the device on the network is the one it paired with. Without Xcode, phonedriver reaches a device on Wi-Fi through a pairing it makes once over the cable."
                     .into()
             }
             UserAction::ApproveSystemPrompt { text } => {
@@ -641,7 +641,7 @@ impl Error {
                 format!("Use one of these keys: {}.", valid.join("; "))
             }
             Error::SecretField { .. } => "Use `--secret` (the text on stdin or in PHONEDRIVER_SECRET). A batch on the command line cannot carry secret text: run that `type` on its own.".into(),
-            Error::NeedsApproval { .. } => "Ask the user in chat whether to tap it; tap again with `--autonomous` only when they say yes or have granted full autonomy.".into(),
+            Error::NeedsApproval { .. } => "Ask the user in chat whether to do it; run the same command again with `--autonomous` only when they say yes or have granted full autonomy.".into(),
             Error::NoApp { similar, .. } if !similar.is_empty() => {
                 format!("Use one of these installed apps: {}.", similar.join("; "))
             }

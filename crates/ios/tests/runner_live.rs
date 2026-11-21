@@ -10,7 +10,7 @@ use std::path::PathBuf;
 use std::process::{Command, Stdio};
 use std::time::{Duration, Instant};
 
-use phonedriver_ios::runner::{self, Client, Runner};
+use phonedriver_ios::runner::{self, Client, Runner, Token};
 use phonedriver_ios::simulator::Simulator;
 
 fn udid(var: &str) -> String {
@@ -25,12 +25,7 @@ fn home() -> PathBuf {
 }
 
 async fn answers(port: u16) -> bool {
-    match Client::connect(port, "probe").await {
-        Ok(c) => tokio::time::timeout(Duration::from_secs(2), c.hello())
-            .await
-            .is_ok_and(|h| h.is_ok()),
-        Err(_) => false,
-    }
+    Client::connect(port, "probe").await.is_ok()
 }
 
 #[tokio::test]
@@ -68,11 +63,21 @@ async fn two_simulators_get_two_runners_on_two_ports() {
     assert_ne!(ra.port, rb.port);
     assert!(ra.port >= runner::PORT_BASE && rb.port >= runner::PORT_BASE);
     assert_eq!(
-        ra.client.hello().await.unwrap().udid.as_deref(),
+        ra.client
+            .hello(&Token::kept(&home, &a).unwrap())
+            .await
+            .unwrap()
+            .udid
+            .as_deref(),
         Some(a.as_str())
     );
     assert_eq!(
-        rb.client.hello().await.unwrap().udid.as_deref(),
+        rb.client
+            .hello(&Token::kept(&home, &b).unwrap())
+            .await
+            .unwrap()
+            .udid
+            .as_deref(),
         Some(b.as_str())
     );
     assert_eq!(

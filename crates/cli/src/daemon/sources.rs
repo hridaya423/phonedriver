@@ -16,11 +16,15 @@ impl DeviceSource for Sources {
     /// The union of every source that answered. A source that fails (no adb server, no Xcode) is left out,
     /// unless every source failed; then the first error is the answer.
     async fn list(&self) -> Result<Vec<Listed>, Error> {
+        self.list_except(&[]).await
+    }
+
+    async fn list_except(&self, denied: &[String]) -> Result<Vec<Listed>, Error> {
         let mut out = Vec::new();
         let mut first_error = None;
         let mut answered = false;
         for (_, source) in &self.0 {
-            match source.list().await {
+            match source.list_except(denied).await {
                 Ok(list) => {
                     answered = true;
                     out.extend(list);

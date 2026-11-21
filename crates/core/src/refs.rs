@@ -28,6 +28,7 @@ struct Seen {
     label: Option<String>,
     key: StructuralKey,
     center: Point,
+    package: Option<String>,
 }
 
 fn in_list(nodes: &[Node], i: usize) -> bool {
@@ -68,6 +69,16 @@ impl RefTable {
                     let a = &nodes[p];
                     (a.role, a.id.clone(), a.label.clone())
                 }),
+            })
+            .collect();
+        let packages: Vec<Option<String>> = nodes
+            .iter()
+            .map(|n| {
+                let window = tree.nodes[n.raw].window;
+                tree.windows
+                    .iter()
+                    .find(|w| w.id == window)
+                    .and_then(|w| w.package.clone())
             })
             .collect();
         let identities: Vec<Option<Identity>> = nodes
@@ -166,10 +177,9 @@ impl RefTable {
             if out[i].is_some() || !before_unique.contains(id) {
                 continue;
             }
-            let found = self
-                .last
-                .iter()
-                .position(|s| s.key.id.as_ref() == Some(id) && s.role == n.role);
+            let found = self.last.iter().position(|s| {
+                s.key.id.as_ref() == Some(id) && s.role == n.role && s.package == packages[i]
+            });
             if let Some(j) = found
                 && claimed.insert(j)
             {
@@ -257,12 +267,14 @@ impl RefTable {
             .iter()
             .zip(&refs)
             .zip(keys)
-            .map(|((n, &r), key)| Seen {
+            .zip(packages)
+            .map(|(((n, &r), key), package)| Seen {
                 r,
                 role: n.role,
                 label: n.label.clone(),
                 key,
                 center: n.bounds.center(),
+                package,
             })
             .collect();
         refs
@@ -615,6 +627,33 @@ mod tests {
             Scale { density: 1.0 },
         )
         .unwrap()
+    }
+
+    #[test]
+    fn a_dialog_button_of_another_app_with_the_same_id_is_a_new_element() {
+        let dialog = |w: u32, package: &str, label: &str| {
+            RawTree::from_android_json(
+                &format!(
+                    r#"{{"windows":[{{"id":{w},"type":"application","package":"{package}","bounds":[0,0,400,800]}}],"nodes":[
+                    {{"p":-1,"w":{w},"cls":"android.widget.FrameLayout","b":[0,0,400,800],"f":"vVe","n":"r{w}"}},
+                    {{"p":0,"w":{w},"cls":"android.widget.Button","text":"{label}","id":"android:id/button1","b":[200,600,300,650],"f":"vVe","a":["tap"],"n":"b{w}"}}]}}"#
+                ),
+                Scale { density: 1.0 },
+            )
+            .unwrap()
+        };
+        let mut t = RefTable::default();
+        let delete = refs(&mut t, &dialog(1, "com.example.files", "DELETE"));
+        let ok = refs(&mut t, &dialog(2, "com.example.vpn", "OK"));
+        assert_ne!(delete.last(), ok.last());
+        let mut t = RefTable::default();
+        let start = refs(&mut t, &dialog(1, "com.example.timer", "Start"));
+        let stop = refs(&mut t, &dialog(2, "com.example.timer", "Stop"));
+        assert_eq!(
+            start.last(),
+            stop.last(),
+            "a relabelled button of one app keeps its ref"
+        );
     }
 
     #[test]

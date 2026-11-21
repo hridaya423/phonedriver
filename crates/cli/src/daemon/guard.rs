@@ -2,7 +2,8 @@
 
 mod labels;
 
-use phonedriver_core::element::{Element, ElementState, Role};
+use phonedriver_core::device::Gesture;
+use phonedriver_core::element::{Actions, Element, ElementState, Role};
 use phonedriver_core::error::Category;
 use phonedriver_core::geometry::Point;
 use phonedriver_core::render::Rendered;
@@ -51,10 +52,15 @@ const OTHER_CATEGORIES: [(Category, &[&str], &[&str]); 4] = [
 ];
 
 const CODES: &[&str] = &[
-    "usd", "eur", "gbp", "cad", "aud", "inr", "jpy", "mxn", "chf", "cny", "brl", "krw",
+    "usd", "eur", "gbp", "cad", "aud", "inr", "jpy", "mxn", "chf", "cny", "brl", "krw", "sek",
+    "nok", "dkk", "kr", "pln", "zł", "zl", "aed", "sar", "qar", "kwd", "rub", "zar", "hkd", "sgd",
+    "nzd", "thb", "php", "idr", "rp", "myr", "vnd", "ils", "czk", "kč", "huf", "ron", "lei", "bgn",
+    "ngn", "egp", "kes", "cop", "ars", "clp", "uah", "twd",
 ];
 
-const SYMBOLS: &[char] = &['$', '€', '£', '¥', '￥', '₹', '₩'];
+const SYMBOLS: &[char] = &[
+    '$', '€', '£', '¥', '￥', '₹', '₩', '₺', '₽', '฿', '₱', '₫', '₪', '₦', '₴', '₸', '₡', '₲', '₵',
+];
 
 pub fn app_name(now: &Rendered) -> Option<String> {
     now.header
@@ -135,7 +141,13 @@ fn has_amount(words: &[String]) -> bool {
 fn role_can_commit(role: Role) -> bool {
     matches!(
         role,
-        Role::Button | Role::Link | Role::Cell | Role::Text | Role::Image | Role::Other
+        Role::Button
+            | Role::Link
+            | Role::Cell
+            | Role::Text
+            | Role::Image
+            | Role::Other
+            | Role::Slider
     )
 }
 
@@ -170,6 +182,14 @@ fn is_payment(words: &[String], phrase: &str) -> bool {
     if PREFIX
         .iter()
         .any(|p| phrase == *p || phrase.starts_with(&format!("{p} ")))
+    {
+        return true;
+    }
+    if words.len() == 2
+        && words[0] == "pay"
+        && words[1]
+            .chars()
+            .all(|c| c.is_ascii_digit() || matches!(c, '.' | ','))
     {
         return true;
     }
@@ -223,18 +243,15 @@ fn text_of(e: &Element) -> Option<&str> {
         .filter(|t| !t.is_empty())
 }
 
+fn holds(r: &phonedriver_core::geometry::Rect, at: Point) -> bool {
+    r.w > 0.0 && at.x >= r.x && at.x <= r.x + r.w && at.y >= r.y && at.y <= r.y + r.h
+}
+
 /// The smallest labelled element that holds the point.
 pub fn hit(now: &Rendered, at: Point) -> Option<&Element> {
     now.elements
         .iter()
-        .filter(|e| {
-            text_of(e).is_some()
-                && e.bounds.w > 0.0
-                && at.x >= e.bounds.x
-                && at.x <= e.bounds.x + e.bounds.w
-                && at.y >= e.bounds.y
-                && at.y <= e.bounds.y + e.bounds.h
-        })
+        .filter(|e| text_of(e).is_some() && holds(&e.bounds, at))
         .min_by(|a, b| {
             (a.bounds.w * a.bounds.h)
                 .partial_cmp(&(b.bounds.w * b.bounds.h))
@@ -242,29 +259,159 @@ pub fn hit(now: &Rendered, at: Point) -> Option<&Element> {
         })
 }
 
-/// What tapping `e` would commit, when the human wants to be asked about it.
-pub fn guarded(e: &Element, ask: &[Category]) -> Option<Category> {
-    if !e.state.contains(ElementState::ENABLED) {
-        return None;
+fn takes_touch(e: &Element) -> bool {
+    e.actions.intersects(Actions::TAP | Actions::EDIT)
+        || matches!(e.role, Role::Button | Role::Link)
+        || e.role.is_text_entry()
+}
+
+/// The guarded element a touch on `e` commits: `e` itself, or, when `e` takes no touch of its own (a price inside a
+/// "Place order" row), the nearest ancestor that does.
+pub fn receiver<'a>(now: &'a Rendered, e: &'a Element, ask: &[Category]) -> Option<&'a Element> {
+    let mut at = now.index_of(e.r#ref);
+    let mut current = e;
+    loop {
+        if guarded(current, ask).is_some() {
+            return Some(current);
+        }
+        if takes_touch(current) {
+            return None;
+        }
+        let parent = at.and_then(|i| now.parents[i])?;
+        at = Some(parent);
+        current = &now.elements[parent];
     }
+}
+
+/// The guarded element a touch at the point commits.
+pub fn clicked<'a>(now: &'a Rendered, at: Point, ask: &[Category]) -> Option<&'a Element> {
+    receiver(now, hit(now, at)?, ask)
+}
+
+const SLIDE_WORDS: &[&str] = &[
+    "slide",
+    "swipe",
+    "desliz",
+    "arrast",
+    "gliss",
+    "wisch",
+    "schieb",
+    "scorri",
+    "veeg",
+    "schuif",
+    "स्लाइड",
+    "スライド",
+    "スワイプ",
+    "滑动",
+    "右滑",
+    "밀어서",
+    "슬라이드",
+];
+
+/// A control that commits when a finger moves along it: a slider, or a label such as "Slide to pay".
+fn slides(e: &Element) -> bool {
+    e.role == Role::Slider
+        || text_of(e).is_some_and(|t| {
+            let lower = t.to_lowercase();
+            SLIDE_WORDS.iter().any(|w| lower.contains(w))
+        })
+}
+
+/// Movement within which a finger still clicks what it went down on, in points (Android's touch slop is 8 dp).
+const TOUCH_SLOP: f32 = 8.0;
+
+/// Whether a finger of the gesture stays where it went down, as a tap does.
+pub fn tap_like(g: &Gesture) -> bool {
+    g.fingers.iter().any(|f| {
+        f.first().is_some_and(|start| {
+            f.iter()
+                .all(|p| (p.at.x - start.at.x).hypot(p.at.y - start.at.y) < TOUCH_SLOP)
+        })
+    })
+}
+
+/// Whether a gesture whose first finger went down on `e` commits it: it lifts inside `e`, or `e` is a "Slide to pay"
+/// control. For a start found without a screen to look up its ancestors.
+pub fn strokes(e: &Element, g: &Gesture, ask: &[Category]) -> bool {
+    guarded(e, ask).is_some()
+        && g.fingers
+            .first()
+            .and_then(|f| f.last())
+            .is_some_and(|last| holds(&e.bounds, last.at) || slides(e))
+}
+
+/// The guarded element a gesture commits. A finger that goes down on a guarded element and lifts inside it is a
+/// click there however it moved (a zero-length swipe, a one-pixel drag); one that goes down on a "Slide to pay"
+/// control commits it wherever it lifts. With `drop`, where a finger lifts counts too (dragging an item onto
+/// "Delete"). Payments win over the other categories.
+pub fn touched<'a>(
+    now: &'a Rendered,
+    g: &Gesture,
+    drop: bool,
+    ask: &[Category],
+) -> Option<&'a Element> {
+    let mut found: Option<(&Element, Category)> = None;
+    for finger in &g.fingers {
+        let (Some(first), Some(last)) = (finger.first(), finger.last()) else {
+            continue;
+        };
+        let down = clicked(now, first.at, ask).filter(|e| holds(&e.bounds, last.at) || slides(e));
+        let up = drop.then(|| clicked(now, last.at, ask)).flatten();
+        for e in [down, up].into_iter().flatten() {
+            if let Some(c) = guarded(e, ask)
+                && found.is_none_or(|(_, best)| c < best)
+            {
+                found = Some((e, c));
+            }
+        }
+    }
+    found.map(|(e, _)| e)
+}
+
+/// What `e` would commit when the human wants to be asked about it, whether or not it is enabled yet.
+pub fn category(e: &Element, ask: &[Category]) -> Option<Category> {
     text_of(e)
         .and_then(|t| classify(e.role, t))
         .filter(|c| asks(*c, ask))
 }
 
+/// What tapping `e` would commit, when the human wants to be asked about it.
+pub fn guarded(e: &Element, ask: &[Category]) -> Option<Category> {
+    if !e.state.contains(ElementState::ENABLED) {
+        return None;
+    }
+    category(e, ask)
+}
+
+/// The guarded button that enter would send: the focused element itself when it is such a button, else the focused
+/// field's form (`submit_button`). With nothing focused and the keyboard up, the whole screen counts.
+pub fn entered<'a>(now: &'a Rendered, ask: &[Category]) -> Option<&'a Element> {
+    let focused = now
+        .elements
+        .iter()
+        .find(|e| e.state.contains(ElementState::FOCUSED));
+    match focused {
+        Some(f) if !f.role.is_text_entry() => receiver(now, f, ask),
+        Some(f) => submit_button(now, Some(f), ask),
+        None if now.header.keyboard.is_some() => submit_button(now, None, ask),
+        None => None,
+    }
+}
+
 /// A guarded button in the field's own form: within three ancestors of the field, never past a list. A field with no
-/// ancestor left (the pruned tree keeps no plain containers) shares the screen's top level with the button. When
-/// the form holds several, the one that matters most (payments first) is returned.
+/// ancestor left (the pruned tree keeps no plain containers), or no known field, shares the screen's top level with
+/// the button. A disabled button counts: a form can enable its Pay button only once the field is filled, between
+/// this read and the enter. When the form holds several, the one that matters most (payments first) is returned.
 pub fn submit_button<'a>(
     now: &'a Rendered,
-    field: &Element,
+    field: Option<&Element>,
     ask: &[Category],
 ) -> Option<&'a Element> {
     let search = |starts: Vec<usize>| {
         let mut stack = starts;
         let mut found: Option<(&Element, Category)> = None;
         while let Some(i) = stack.pop() {
-            if let Some(c) = guarded(&now.elements[i], ask)
+            if let Some(c) = category(&now.elements[i], ask)
                 && found.is_none_or(|(_, best)| c < best)
             {
                 found = Some((&now.elements[i], c));
@@ -273,7 +420,14 @@ pub fn submit_button<'a>(
         }
         found.map(|(e, _)| e)
     };
-    let mut at = now.index_of(field.r#ref)?;
+    let roots = || {
+        (0..now.elements.len())
+            .filter(|&i| now.parents[i].is_none())
+            .collect()
+    };
+    let Some(mut at) = field.and_then(|f| now.index_of(f.r#ref)) else {
+        return search(roots());
+    };
     for _ in 0..3 {
         match now.parents[at] {
             Some(parent) => {
@@ -285,12 +439,7 @@ pub fn submit_button<'a>(
                     return found;
                 }
             }
-            None => {
-                let roots = (0..now.elements.len())
-                    .filter(|&i| now.parents[i].is_none())
-                    .collect();
-                return search(roots);
-            }
+            None => return search(roots()),
         }
     }
     None
@@ -421,6 +570,25 @@ mod tests {
         (Role::Link, "Place order"),
         (Role::Other, "Buy now"),
         (Role::Cell, "Place order · $34.10"),
+        (Role::Button, "Pay with Google Pay"),
+        (Role::Button, "Pay 50 kr"),
+        (Role::Button, "Pay 500"),
+        (Role::Button, "Pay 120 zł"),
+        (Role::Button, "Pay 99 AED"),
+        (Role::Button, "Buy for ₺250"),
+        (Role::Other, "Slide to pay"),
+        (Role::Other, "Swipe to confirm order"),
+        (Role::Other, "Slide to pay $34.10"),
+        (Role::Other, "Desliza para pagar"),
+        (Role::Other, "Glissez pour payer"),
+        (Role::Other, "Zum Bezahlen wischen"),
+        (Role::Other, "Scorri per pagare"),
+        (Role::Other, "Veeg om te betalen"),
+        (Role::Other, "Deslize para pagar"),
+        (Role::Other, "भुगतान करने के लिए स्लाइड करें"),
+        (Role::Other, "滑动支付"),
+        (Role::Other, "スライドして支払う"),
+        (Role::Other, "밀어서 결제"),
     ];
 
     const NEGATIVE: &[(Role, &str)] = &[
@@ -1082,5 +1250,175 @@ mod tests {
             Session::default().guard_allowed.is_empty(),
             "a new session starts closed"
         );
+    }
+
+    use phonedriver_core::device::TimedPoint;
+    use phonedriver_core::geometry::Scale;
+    use phonedriver_core::raw::RawTree;
+
+    fn screen(nodes: &str, keyboard: bool) -> Rendered {
+        let ime = if keyboard {
+            r#",{"id":2,"type":"input_method","bounds":[0,600,360,800]}"#
+        } else {
+            ""
+        };
+        let json = format!(
+            r#"{{"windows":[{{"id":1,"type":"application","package":"com.example.shop","bounds":[0,0,360,800]}}{ime}],"nodes":[{nodes}]}}"#
+        );
+        let tree = RawTree::from_android_json(&json, Scale { density: 1.0 }).unwrap();
+        let mut refs = phonedriver_core::refs::RefTable::default();
+        let nodes = phonedriver_core::prune::prune(&tree);
+        let assigned = refs.assign(&tree, &nodes);
+        let mut header = phonedriver_core::render::Header::default();
+        if keyboard {
+            header.keyboard = Some(phonedriver_core::geometry::Rect {
+                x: 0.0,
+                y: 600.0,
+                w: 360.0,
+                h: 200.0,
+            });
+        }
+        Rendered::build(nodes, &assigned, header)
+    }
+
+    const ROOT: &str =
+        r#"{"p":-1,"w":1,"cls":"android.widget.FrameLayout","b":[0,0,360,800],"f":"vVe"}"#;
+
+    fn finger(points: &[(f32, f32, u32)]) -> Vec<TimedPoint> {
+        points
+            .iter()
+            .map(|&(x, y, t_ms)| TimedPoint {
+                at: Point { x, y },
+                t_ms,
+            })
+            .collect()
+    }
+
+    fn one(points: &[(f32, f32, u32)]) -> Gesture {
+        Gesture {
+            fingers: vec![finger(points)],
+        }
+    }
+
+    fn label(e: Option<&Element>) -> Option<String> {
+        e.and_then(|e| e.label.clone())
+    }
+
+    #[test]
+    fn a_finger_that_goes_down_and_lifts_on_a_guarded_button_is_a_click_however_it_moved() {
+        let now = screen(
+            &format!(
+                r#"{ROOT},{{"p":0,"w":1,"cls":"android.widget.Button","text":"Place order","b":[0,400,360,450],"f":"vVe","a":["tap"]}}"#
+            ),
+            false,
+        );
+        let zero_swipe = one(&[(180.0, 425.0, 0), (180.0, 425.0, 90)]);
+        assert_eq!(
+            label(touched(&now, &zero_swipe, false, &[])).as_deref(),
+            Some("Place order")
+        );
+        assert!(tap_like(&zero_swipe));
+        assert!(!tap_like(&one(&[(180.0, 425.0, 0), (180.0, 300.0, 90)])));
+        let nudge = one(&[(180.0, 425.0, 0), (181.0, 425.0, 60)]);
+        assert_eq!(
+            label(touched(&now, &nudge, false, &[])).as_deref(),
+            Some("Place order")
+        );
+        let away = one(&[(180.0, 425.0, 0), (180.0, 100.0, 300)]);
+        assert_eq!(
+            touched(&now, &away, false, &[]),
+            None,
+            "a stroke that leaves the button is a scroll"
+        );
+        let onto = one(&[(180.0, 100.0, 0), (180.0, 425.0, 900)]);
+        assert_eq!(touched(&now, &onto, false, &[]), None);
+        assert_eq!(
+            label(touched(&now, &onto, true, &[])).as_deref(),
+            Some("Place order"),
+            "a drop onto it"
+        );
+    }
+
+    #[test]
+    fn a_stroke_along_a_slide_to_pay_track_is_guarded() {
+        let now = screen(
+            &format!(
+                r#"{ROOT},{{"p":0,"w":1,"cls":"android.widget.FrameLayout","text":"Slide to pay $34.10","b":[20,600,340,660],"f":"vVe"}},{{"p":1,"w":1,"cls":"android.widget.ImageView","b":[20,600,80,660],"f":"vVe"}}"#
+            ),
+            false,
+        );
+        let slide = one(&[(50.0, 630.0, 0), (330.0, 630.0, 400)]);
+        assert_eq!(
+            label(touched(&now, &slide, false, &[])).as_deref(),
+            Some("Slide to pay $34.10")
+        );
+        let past_the_end = one(&[(50.0, 630.0, 0), (360.0, 630.0, 400)]);
+        assert_eq!(
+            label(touched(&now, &past_the_end, false, &[])).as_deref(),
+            Some("Slide to pay $34.10")
+        );
+    }
+
+    #[test]
+    fn a_price_inside_a_place_order_row_commits_the_row() {
+        let now = screen(
+            &format!(
+                r#"{ROOT},{{"p":0,"w":1,"cls":"android.widget.LinearLayout","text":"Place order","b":[0,400,360,450],"f":"vVe","a":["tap"]}},{{"p":1,"w":1,"cls":"android.widget.TextView","text":"$34.10","b":[280,410,350,440],"f":"vVe"}},{ROW_BACK}"#,
+                ROW_BACK = r#"{"p":0,"w":1,"cls":"android.widget.LinearLayout","text":"Pay now","b":[0,500,360,550],"f":"vVe","a":["tap"]},{"p":3,"w":1,"cls":"android.widget.Button","text":"Edit","b":[280,510,350,540],"f":"vVe","a":["tap"]}"#
+            ),
+            false,
+        );
+        assert_eq!(
+            label(clicked(&now, Point { x: 300.0, y: 425.0 }, &[])).as_deref(),
+            Some("Place order")
+        );
+        assert_eq!(
+            clicked(&now, Point { x: 300.0, y: 525.0 }, &[]),
+            None,
+            "a button of its own inside the row takes the touch"
+        );
+    }
+
+    #[test]
+    fn enter_sends_the_focused_fields_form_even_while_its_pay_button_is_disabled() {
+        let form = |focus: &str| {
+            screen(
+                &format!(
+                    r#"{ROOT},{{"p":0,"w":1,"cls":"android.widget.EditText","text":"","b":[0,300,360,350],"f":"vVe{focus}","a":["tap","set_text"]}},{{"p":0,"w":1,"cls":"android.widget.Button","text":"Pay €250.00","b":[0,400,360,450],"f":"vV","a":["tap"]}}"#
+                ),
+                !focus.is_empty(),
+            )
+        };
+        let typing = form("EF");
+        assert_eq!(label(entered(&typing, &[])).as_deref(), Some("Pay €250.00"));
+        let field = typing
+            .elements
+            .iter()
+            .find(|e| e.role.is_text_entry())
+            .unwrap();
+        assert_eq!(
+            label(submit_button(&typing, Some(field), &[])).as_deref(),
+            Some("Pay €250.00")
+        );
+        assert_eq!(
+            label(submit_button(&typing, None, &[])).as_deref(),
+            Some("Pay €250.00")
+        );
+        assert_eq!(
+            entered(&form(""), &[]),
+            None,
+            "enter with nothing focused and no keyboard sends nothing"
+        );
+    }
+
+    #[test]
+    fn enter_on_a_focused_pay_button_clicks_it() {
+        let now = screen(
+            &format!(
+                r#"{ROOT},{{"p":0,"w":1,"cls":"android.widget.Button","text":"Pay €49.99","b":[0,400,360,450],"f":"vVeF","a":["tap"]}}"#
+            ),
+            false,
+        );
+        assert_eq!(label(entered(&now, &[])).as_deref(), Some("Pay €49.99"));
     }
 }

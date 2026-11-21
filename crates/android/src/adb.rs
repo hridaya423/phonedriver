@@ -258,10 +258,19 @@ impl Adb {
         Ok(os_label(&String::from_utf8_lossy(&out.stdout)))
     }
 
-    /// The phone's own serial number, the same over every connection to it.
+    /// The phone's own serial number, the same over every connection to it. An empty answer or a failed `getprop` is
+    /// an error: a device list must not read "no serial" as "not this phone".
     pub async fn hardware_serial(&self, serial: &str) -> Result<String> {
         let out = self.shell(serial, "getprop ro.serialno").await?;
-        Ok(String::from_utf8_lossy(&out.stdout).trim().to_string())
+        let read = String::from_utf8_lossy(&out.stdout).trim().to_string();
+        if out.exit_code != 0 || read.is_empty() {
+            return Err(transport(format!(
+                "{serial} did not report its serial number (`getprop ro.serialno` exited {} with {} characters)",
+                out.exit_code,
+                read.len()
+            )));
+        }
+        Ok(read)
     }
 
     /// Stops the local server and starts it again as a child of this process, so it runs with this process's

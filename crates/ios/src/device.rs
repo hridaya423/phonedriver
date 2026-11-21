@@ -10,7 +10,7 @@ use base64::Engine;
 use phonedriver_core::device::{
     App, AppId, AppOp, Button, Capabilities, ClipboardOp, Device, DeviceEvent, DeviceInfo,
     FrameRef, Gesture, Image, ImageFormat, Key, Quality, Recorded, Result, ScreenState, ShellReply,
-    ShellRequest, TextInput, Url,
+    ShellRequest, TextInput, Url, host_shell,
 };
 use phonedriver_core::element::Role;
 use phonedriver_core::error::{Error, Op};
@@ -31,7 +31,7 @@ use crate::runner::{Client, Runner};
 use crate::simio::{Frames, Seen, SimIo};
 use crate::simulator::{
     PHYSICAL_PUSH, Simulator, check_push_payload, log_stream_command, privacy_service, shell_args,
-    simctl, simctl_follow, simctl_shell, simctl_with_input,
+    simctl, simctl_follow, simctl_shell, simctl_with_input, spawn_args,
 };
 use crate::transport::{Link, Services, Tunnel};
 
@@ -221,7 +221,7 @@ impl IosDevice {
             .provider()
             .await
             .map_err(|e| crate::transport::classify(&id, &e))?;
-        let runner = Runner::start_device(provider.as_ref(), &device.udid, team, home).await?;
+        let runner = Runner::start_device(provider.clone(), &device.udid, team, home).await?;
         let host = match device.link {
             Link::Usb { .. } => Host::Cable(provider),
             Link::Network { .. } => Host::Network,
@@ -820,6 +820,17 @@ impl Device for IosDevice {
     }
 
     async fn open_url(&self, url: &Url, _app: Option<&AppId>) -> Result<Option<AppId>> {
+        if matches!(self.host, Host::Simulator)
+            && names_a_mac_file(&url.0)
+            && !phonedriver_core::device::host_shell()
+        {
+            return Err(Error::Refused {
+                detail: format!(
+                    "a file: link on a Simulator opens a file of this Mac, not of the device; start the daemon with {}=1 to allow it",
+                    phonedriver_core::device::HOST_SHELL
+                ),
+            });
+        }
         self.input(Op::OpenUrl, json!({"op": "open_url", "url": url.0}))
             .await?;
         Ok(map::url_handler(
@@ -834,7 +845,7 @@ impl Device for IosDevice {
                 json!({"op": "type", "text": text, "speed": PASTE_SPEED})
             }
             TextInput::Keystrokes(text) => json!({"op": "type", "text": text}),
-            TextInput::SetValue(_) => {
+            TextInput::SetValue(_) | TextInput::SetSecret(_) => {
                 return Err(Error::Unsupported {
                     op: Op::Text,
                     reason: "the iOS runner cannot set a field's value; use paste or keys",
@@ -938,7 +949,7 @@ impl Device for IosDevice {
             .system
             .get_or_try_init(|| crate::simulator::runtime_root(&self.udid))
             .await?;
-        let args = shell_args(&self.udid, &req.command, system)
+        let args = shell_args(&self.udid, &req.command, system, host_shell())
             .map_err(|detail| Error::Refused { detail })?;
         let (exit, stdout, stderr, timed_out) = simctl_shell(&args, req.timeout).await?;
         Ok(ShellReply {
@@ -956,26 +967,23 @@ impl Device for IosDevice {
                 reason: "an iPhone or iPad's log cannot be followed from here; the iOS Simulator's and Android devices' can",
             });
         }
-        let folder = match &req.app {
-            Some(app) => {
-                let path = simctl(&["get_app_container", &self.udid, &app.0, "app"]).await?;
-                Some(
-                    Path::new(path.trim())
-                        .file_name()
-                        .map(|n| n.to_string_lossy().into_owned())
-                        .unwrap_or_default(),
-                )
-            }
+        let container = match &req.app {
+            Some(app) => Some(
+                simctl(&["get_app_container", &self.udid, &app.0, "app"])
+                    .await?
+                    .trim()
+                    .to_string(),
+            ),
             None => None,
         };
         let command =
-            log_stream_command(folder.as_deref()).map_err(|detail| Error::Refused { detail })?;
+            log_stream_command(container.as_deref()).map_err(|detail| Error::Refused { detail })?;
         let system = self
             .system
             .get_or_try_init(|| crate::simulator::runtime_root(&self.udid))
             .await?;
         let args =
-            shell_args(&self.udid, &command, system).map_err(|detail| Error::Refused { detail })?;
+            spawn_args(&self.udid, &command, system).map_err(|detail| Error::Refused { detail })?;
         simctl_follow(&args, req).await
     }
 
@@ -1091,9 +1099,30 @@ fn clear_folder(dir: &Path) -> Result<()> {
     )))
 }
 
+/// A Simulator shares the Mac's file system, so a `file:` link shows a Mac file inside the device (D108).
+fn names_a_mac_file(url: &str) -> bool {
+    url.trim_start()
+        .get(..5)
+        .is_some_and(|scheme| scheme.eq_ignore_ascii_case("file:"))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_file_link_names_a_mac_file_in_any_case_and_a_web_link_does_not() {
+        for url in [
+            "file:///Users/me/.ssh/id_ed25519",
+            "FILE:///etc/hosts",
+            " file:/tmp/x",
+        ] {
+            assert!(names_a_mac_file(url), "{url}");
+        }
+        for url in ["https://example.com/file:", "myapp://file", "fil", ""] {
+            assert!(!names_a_mac_file(url), "{url}");
+        }
+    }
 
     #[test]
     fn a_nudge_is_due_every_10_seconds_while_the_device_was_used_in_the_last_10_minutes_and_is_unlocked()

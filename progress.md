@@ -3424,3 +3424,196 @@ Live, the same phone, release build, read-only (no taps):
 - Checked from the release: `shasum -a 256 -c phonedriver-aarch64-apple-darwin.tar.gz.sha256` gave `OK`, and the binary printed `phonedriver 0.1.6`. `releases/latest/download/PhonedriverRunner.ipa` answered 200.
 - Site (`2c69ef43`): the version lines, and four pages that lagged: the iPhone page said an iPhone needs a Mac and now has the Windows steps; the privacy page lists the `--download-ddi` fetch; the Simulator page has `apps notify` and `wait log`; the web page doc says how a tap meets a page's fixed bar. Built on the mini: `scripts/check.mjs` gave `problems 0`. Live after the deploy: `/docs/install/` says `current release is phonedriver 0.1.6`, and `/docs/iphone/` has `id="iphone-from-windows"`.
 - npm package dry run from the tag: `phonedriver@0.1.6`, 5 files, 17.3 kB; `npm test` in `packaging/npm`: 7 passed. npm and the MCP registry entry are published by the maintainer.
+
+## 2026-11-21: the guard checks every touch and enter (D104; GHSA-25p2-p3fx-5hmm, GHSA-rm5p-9fp9-hgrx)
+
+An outside review (giulioc84, private advisories) showed a held payment going through with no prompt and no `autonomous`. All checked against `main` first and confirmed: the guard was called only from `tap` and `type --submit` (`guard_tap`, `guard_submit` in `actor.rs`).
+
+What changed, per reported path:
+- `type x --into "Pay €49.99"`, `clear "Pay €49.99"` (25p2 cases 1, 2): the focus tap goes through `guard_tap`.
+- `type --into IBAN --submit` with a Pay button disabled until the field is filled (25p2 case 3): `submit_button` counts a disabled button; with no screen yet in the session it reads one.
+- `press enter` after typing (25p2 case 4): `guard::entered` checks the focused button or the focused field's form.
+- Zero-length `swipe` from "Place order", `drag` onto itself, one-finger `gesture`, `pinch` (rm5p, 25p2 R1): `guard::touched`, a finger that goes down and lifts on a guarded element is a click there. Slide-to-pay controls are held wherever the finger lifts; `drag` also counts where it drops.
+- Unlabeled wordings (25p2 R2): `Pay with ...`, `Pay 500`, `kr`, `zł`, `AED` and more currencies; slider wordings in the eleven languages.
+- A price inside a "Place order" row (25p2 R3): `guard::receiver` walks up to the element that takes the touch.
+- Approval not bound to what was shown (25p2 R4): `approved` (label and screen lines) rides on `act`/`batch` after the human answers; a mismatch asks again.
+- MCP `swipe`, `scroll`, `press` and clearing through `type` ask the human like `tap`; the CLI verbs take `--autonomous`.
+
+Smoothness: an ordinary swipe, scroll or pinch reads the screen no more often than before (it uses the resolved element, the screen in hand, or the session's sure last screen). Test `an_ordinary_swipe_or_scroll_reads_the_screen_no_more_than_with_the_guard_off`.
+
+Tests (on win-pc's WSL, `cargo test --locked -p phonedriver --test guard`):
+- First run, new tests against the old `crates/cli/src` (stashed): `test result: FAILED. 38 passed; 9 failed`; each of the nine panicked at `expected a refusal, got Ok(...)` (`typing_into_a_guarded_button_is_held_before_its_focus_tap`, `clearing_...`, `submitting_a_form_whose_pay_button_waits_for_the_text_...`, `press_enter_after_typing_into_the_form_is_held`, `a_first_call_with_no_screen_read_yet_is_still_held`, `swipes_drags_pinches_and_gestures_that_click_a_guarded_button_are_held`, `dragging_onto_an_opted_in_delete_button_is_held`, `a_slide_to_pay_track_is_held_whatever_verb_moves_it`, `an_approval_covers_only_the_button_and_details_the_human_was_shown`).
+- One more failure found on the way: a swipe past the end of a slide track lifted outside it and was not held; sliders now count wherever the finger lifts.
+- After: `guard` 54 passed (with six MCP cases on both protocols: a held swipe, press and clear are asked and run in the same call, a declined swipe sends no touch, a client that cannot ask gets the question), `guard_property` 7, `mcp` 53, `daemon` 200, `cli` 30, lib 148 (guard unit tests: `a_finger_that_goes_down_and_lifts_on_a_guarded_button_is_a_click_however_it_moved`, `a_stroke_along_a_slide_to_pay_track_is_guarded`, `a_price_inside_a_place_order_row_commits_the_row`, `enter_sends_the_focused_fields_form_even_while_its_pay_button_is_disabled`, `enter_on_a_focused_pay_button_clicks_it`, and the new classifier rows).
+- `cargo test --locked --workspace --no-fail-fast`: 60 test binaries `ok`, none failed. `cargo clippy --locked --workspace --all-targets -- -D warnings`: clean. `cargo fmt --all --check`: clean.
+
+Not run on a device: whether a real slider or a real form behaves as the fakes do. The reporter's emulator runs showed the paths; these tests show the guard now holds them.
+
+## 2026-11-21: 0.1.7 security, `shell` reaching the computer (D108)
+
+- **GHSA-mfp4-j74c-44xh item 1** (Android emulator console). Verified on `origin/main`: `AndroidDevice::shell` sent any `emu …` text to `console::command_on`, and `run_on` wrote it with `\r\n` after it, so an embedded line break sent a second command. Change: `console::check` refuses any control character, always, and without `PHONEDRIVER_HOST_SHELL=1` sends only `geo`, `sms`, `power`, `network speed|delay|status`, `sensor`, `rotate`, `finger` and `avd name|status`; `command_on` checks the line again. `press fingerprint` goes through `touch_sensor_on`, not `check`, and is unchanged. The refusal is `refused` and names the offer and the switch, never the command.
+- **GHSA-jg7g-xh43-x972 Part B** (Simulator). Verified: a command that is not `simctl` became `simctl spawn <udid> …`, and the allow-list held `spawn`, `io`, `addmedia`, `install`, `keychain` and `push`. Change: `simulator::shell_args` takes the switch; without it, it refuses a command that is not `simctl`, `simctl spawn`, `install`, `addmedia`, `push`, `io screenshot|recordVideo`, `keychain add-cert|add-root-cert`, `launch --stdout|--stderr` and `openurl file:`, each with why and the verb to use. phonedriver's own `log stream` (`wait log:`) builds its command with the new `spawn_args`. Every `shell` (CLI, MCP, replayed step) reaches the device's `shell` through the daemon's one `shell` method; `batch` takes no `shell` step.
+- **Docs.** D108 (new); D6, D21 and D92 amended in place; `docs/reference.md` shell section and variable table; `docs/architecture.md` shell note; the CLI help; `SECURITY.md` (what the switch allows is not a vulnerability); site pages `shell.md`, `ios-simulator.md`, `android-emulator.md`.
+- Test first, against stubs that accepted everything (WSL `pd-sec-host`): `cargo test -p phonedriver-android --lib console`: `FAILED. 7 passed; 3 failed`; `an_embedded_line_break_is_refused_and_nothing_reaches_the_console` got ``unwrap_err()` on an `Ok` value: ""`` (the report's finding), the two allow-list tests got `Ok(())`. `cargo test -p phonedriver-ios --lib simulator`: `FAILED. 16 passed; 2 failed` (`a_program_in_the_simulator_runs_on_the_mac_so_it_waits_for_the_persons_switch`, `simctl_forms_that_run_a_mac_program_or_name_a_mac_file_wait_for_the_persons_switch`). After: `ok. 10 passed` and `ok. 18 passed`. `mcp::a_shell_tool_call_and_a_replayed_shell_step_hand_the_device_the_same_command` checks the path, not the rule, and passed before and after.
+- `cargo fmt --all --check`: clean. `cargo clippy --locked --workspace --all-targets -- -D warnings`: `Finished`. `cargo test --locked --workspace --lib`: `ok` for every crate (143, 87, 238, 102, 11). `cargo test --locked -p phonedriver --test mcp --test shell --test replay --test fingerprint --test cli`: `ok. 54`, `11`, `6`, `2`, `30 passed`. `cargo test -p phonedriver-core --lib` alone does not compile on `origin/main` either (`testing.rs` needs tokio's `time` feature, which the workspace build turns on).
+- Not run: no emulator and no Simulator (`xcrun` does not run on Linux). Not covered: the `install` verb installs an `.app` from any path, which on a Simulator runs as the Mac's user; `open` with a `file:` URL goes through the iOS runner.
+
+## 2026-11-21: 0.1.7 security, secrets and local files (D105; GHSA-522g-rv3m-hm5j, GHSA-g453-82w6-qqx5, #32)
+
+Branch `sec/secrets`. Every item below was checked against the code first; each claim held. Tests run on win-pc's WSL Ubuntu (Linux), fake devices only, no phone.
+
+What changed, by report item:
+- 522g 1 (a secret given while a call waits): `Daemon::call` remembers what a call carries on arrival and reads the list again when the reply is ready; the trace uses that list. Test `netview.rs::a_secret_given_while_a_log_wait_is_pending_is_masked_in_that_waits_reply_and_trace`.
+- 522g 2 (log line cut before masking): the actor masks the line, then cuts it at 400. The other cuts of device text before the daemon's mask (snapshot values at 200, `shell` lines at 300, `page` at 8,000, Android setting values at 120) all end in `…`; the mask now also hides the start of a secret, three characters or more, just before a `…`. Tests `netview.rs::a_log_line_is_masked_before_it_is_cut_so_no_part_of_a_secret_comes_back`, `daemon.rs::a_long_secret_that_the_snapshot_cuts_short_shows_no_part_of_itself`, `secrets::tests::a_secret_cut_short_before_an_ellipsis_is_masked_up_to_the_cut`.
+- 522g 3 and g453 4b (comparison text): new daemon method `mask`; a `replay --screens` failure, CLI `compare <before>` and MCP `screenshot {compare: true}` go through it, and a replay also masks its failure with the secrets it read from the environment. Test `cli.rs::replay_screens_masks_the_text_it_read_from_a_screen_that_shows_the_secret` (Linux: a fake `tesseract` on `PATH` reads the secret from the second picture). A two-file `compare` is not masked (no daemon involved; D105 Limits).
+- 522g 4 (MCP replay types any secret anywhere): a replay sends `secret_field_only` with a `secret_env` step; the daemon types it only into a password or one-time code field and refuses before tapping or typing otherwise. `PHONEDRIVER_REPLAY_SECRET_ANY_FIELD=1` where the replay runs lifts it. The rule is the same for the CLI and MCP: an agent with a shell runs the CLI too, and the documented login flow types into a password field. Tests `daemon.rs::a_replayed_secret_is_typed_only_into_a_password_or_one_time_code_field`, `cli.rs::a_replayed_secret_goes_only_into_a_password_or_code_field_unless_the_environment_allows_any`. The existing replay test now replays into a password field.
+- 522g 5 (trace parameters): the trace masks remembered secrets in every method's sanitized parameters. Test `trace.rs::a_remembered_secret_is_masked_in_the_parameters_of_every_method_the_trace_keeps` (`apps notify` payload and a plain `shell`).
+- 522g 6 and g453 4a (daemon environment): `client::daemon_env` drops `PHONEDRIVER_SECRET` and every `PHONEDRIVER_SECRET_*` (any case); Unix spawns with `env_clear().envs(..)`, Windows passes an explicit sorted UTF-16 block with `CREATE_UNICODE_ENVIRONMENT`. Tests `client::tests::the_daemon_is_given_no_phonedriver_secret_variable`, `a_spawned_daemon_sees_only_the_environment_it_is_given`, `cli.rs::the_daemon_a_cli_starts_inherits_no_phonedriver_secret_variable` (reads `/proc/<pid>/environ`). The Windows code was not compiled here: WSL has no `x86_64-pc-windows-gnu` target.
+- 522g 7 (predictable `.tmp`): `save` stages through `tempfile` (`create_new`, random name) beside the file and renames it over. `tempfile` moved from dev-dependencies to dependencies (no lock change). Test `cli.rs::save_stages_its_file_under_a_fresh_name_and_follows_no_link_beside_it`.
+- g453 2 (reformatted secret): the mask also matches a secret of six or more characters with spaces, `-` or parentheses between its characters, and after a secret `type` the actor remembers the field's shown value when it holds the typed characters in order in any case. Tests `daemon.rs::a_secret_the_field_reformats_is_masked_in_that_reply_and_on_later_screens` (card number in groups, then `4000-1234-…` on a later screen, then `+1 (KQX) WZ7-PL4`), `secrets::tests::a_field_that_shows_a_secret_changed_is_remembered_and_one_that_shows_other_text_is_not`.
+- g453 3 (MCP save path): `mcp::savable`: a `.steps` file inside the server's folder (working directory; `Mcp::in_folder` sets it for tests), no `..`, no link, no parent a link takes outside, and only over a file that is already steps. A relative `file` is read from the same folder. Test `mcp.rs::replay_saves_only_a_steps_file_inside_its_folder_and_over_nothing_but_steps`; `a_save_that_cannot_write_leaves_the_steps_for_the_next_save` now blocks the write with a missing folder (the fixed `.tmp` it used is gone).
+- g453 4c (sensitive flag on set): new `TextInput::SetSecret`; Android maps it to `set` with `sensitive`, and `TextInput.set()` passes the flag to the paste it falls back to. Jar rebuilt with `android-agent/build.sh`. Tests `hidden_display.rs::a_secret_set_on_the_hidden_display_keeps_its_sensitive_mark`, `map::tests::a_secret_set_as_the_value_is_marked_sensitive_for_the_paste_it_may_fall_back_to`. The Java path was not run on a device.
+- g453 4d (escaped secret): the mask also matches the JSON-escaped and the quoted-string forms. Tests `daemon.rs::a_secret_with_quotes_and_backslashes_is_masked_where_a_reply_escapes_it` (snapshot), `secrets::tests::a_secret_is_masked_escaped_as_json_or_a_quoted_string_and_spaced_out` (a raw tree's JSON; the fake device has no tree capture).
+- g453 5 (socket peer): `socket::connect` refuses a socket whose folder is not this user's or not 0700, and a peer whose euid is not ours (interprocess `peer_creds`, `libc::geteuid`; `libc` added as a Unix dependency, one line in `Cargo.lock`). Test `socket::tests::a_client_does_not_connect_through_a_folder_another_account_could_write_in`. The other-uid case is not testable without a second account.
+- g453 6 (file modes): `private.rs`: screenshots in `tmp`, the `tmp/<device>` folders, a recording's steps file, the trace writer, `daemon.log` and a missing home are owner-only; the video crate's `Recording::create` makes 0600. Tests `daemon.rs::a_screenshot_the_daemon_keeps_can_be_read_only_by_its_owner`, `video/tests/record.rs::a_recording_can_be_read_only_by_its_owner`.
+- #32 1: `{{name}}` skips `secret_env` (`summary` and `manual` sit outside `params` and were never filled). Test `variables::tests::the_variable_a_secret_is_read_from_is_not_filled`.
+- #32 2: `replay-in-ci.md` and the reference say a value in a `shell` step is shell text.
+- #32 3: a replayed non-`act` step drops the file's `device` and `share`. `save` needed no change: the journal builds each step's params from named fields and never holds either. Test `cli.rs::a_replayed_step_runs_as_the_replay_and_not_with_the_share_or_device_in_the_file`.
+
+First runs, before the fix (`cargo test --locked --no-fail-fast -p phonedriver --test cli --test netview --test trace --test daemon --test hidden_display -- <names>`):
+- cli: 5 failed. `replayed 1 step in 0.0 s / 1. shell echo shared` (share kept); `replayed 1 step … 1. typed into @e1` (secret into a plain field); `run.steps is not a plain file` (the symlinked `.tmp` was followed and renamed); `+ "hunter2-test-secret" at 1,1` in the replay error; `the daemon holds PHONEDRIVER_SECRET=s-plain`.
+- daemon: 6 failed: `unknown method mask`; `expected an error` (secret typed into a plain field); the cut long secret, the escaped secret and the card number in the reply text; screenshot mode `left: 420` (0644).
+- netview: 2 failed: `left: "log line: I/App( 1): token s3cr3t-c8-value"`; the cut line ending in the secret's first 10 characters.
+- trace: `left: "echo otp-C10-778899"`. hidden_display: `left: [SetValue(9 chars)]`.
+- The unit tests (`secrets`, `client`, `socket`, `variables`, `map`) and the MCP save test were written before the code they test but could not run red: the crate does not compile without the functions they call. The video mode test first failed through a stale build (below), not as a red run of the old code.
+
+Runs after the fix, all on the WSL:
+- `cargo fmt --all --check`: clean. `cargo clippy --locked --workspace --all-targets -- -D warnings`: clean (`Finished`).
+- `cargo test --locked --workspace --no-fail-fast`: every binary `ok`, 0 failed (lib 150, cli 35, daemon 206, mcp 54, netview 13, trace 9, hidden_display 8, secret_property 3 + 1 ignored, guard 38, guard_property 7, core 238, android 84, ios 99, video lib 11, video record 6).
+- A trap on the way: `wsl.sh` keeps the Mac's mtimes, and `record.rs` changed while the first build ran, so cargo kept an rlib built from the old file and the mode test failed in the workspace run. Touching the changed files on the WSL and running again fixed it.
+
+Open for the lead: a Windows build of `detach.rs` (the new environment block) and a run that starts the daemon there; a device run of the Android `set` fallback with the sensitive flag; a person's look at whether `PHONEDRIVER_REPLAY_SECRET_ANY_FIELD` should also be readable from the daemon's environment.
+
+## 2026-11-21: 0.1.7 security, the iPhone runner's channel and the Wi-Fi pairing (D106)
+
+Branch `sec/ios-link`. Reports: GHSA-jg7g-xh43-x972 Part A, GHSA-mfp4-j74c-44xh items 2, 3 and 4, issue #32 item 8. Each was checked against `main` first and holds as written.
+
+- **GHSA-jg7g-xh43-x972 Part A (runner with no authentication).** `runner::Token`: 32 bytes from `getrandom` per start, in the environment (`TEST_RUNNER_PHONEDRIVER_TOKEN`; `PHONEDRIVER_TOKEN` in the installed runner's XCTest configuration). The first frame is `hello` with a nonce and HMAC-SHA256 of `host:<nonce>`; the runner (`ios-runner/Runner/Auth.m`, `Server.m`) checks it with `timingsafe_bcmp`, refuses a nonce it has accepted, answers with its own proof of `runner:<nonce>`, and closes a connection that fails with one `unauthorized` reply, without touching the current one. First frame at most 4 KB before the check. Runner wire version 0.2.0. Reuse needs the token kept in `<home>/runner/<udid>.token` (0600, written through a rename); udid and build hash alone no longer count. Simulator build included.
+- **GHSA-mfp4-j74c-44xh item 3 (Wi-Fi runner channel in clear).** Off a Mac (D103) the runner's port is opened inside the tunnel (`runner::DevicePort::Tunnel`, `adapter.connect(27753)`). On a Mac over Wi-Fi (D47) it stays plain TCP: the Mac's CoreDevice tunnel exists only while `xcodebuild` or `devicectl` holds the device, and whether the runner answers through it cannot be found out without a device. Documented in D106, `docs/reference.md`, `SECURITY.md` and the iPhone page, with "use the cable for secrets".
+- **GHSA-mfp4-j74c-44xh item 2 (pair-verify does not authenticate the device).** idevice copy, branch `phonedriver-verify-device` in `/Users/hridyaagrawal/Honey/idevice-sec` (not pushed): `d97e9b6` keeps the device's Ed25519 key from pair-setup M6 (`RpPairingFile::device_public_key`; older records read with none) and verifies M2's encrypted signature before M3, failing closed (`NoDeviceKey`, `DeviceNotVerified`); a bad M6 is an error instead of a panic; reading a record no longer logs its private key at debug level. phonedriver: a record without the key gets `NeedsUser(PairForWifi)` before connecting (re-pair, not trust-on-first-use: the cable is the trusted channel); `ios wifi on` re-pairs through idevice's `connect` fallback. A peer that does not prove it is the device: `ios:<udid>: what answers at <addr> did not prove it is the device this computer paired with, so nothing was sent to it; ...`.
+- **GHSA-mfp4-j74c-44xh item 4 (TSS over HTTP, redirects followed).** idevice `f580a6f`: `https://gs.apple.com/TSS/controller?action=2`, `HttpRequest::without_redirects`, a 3xx is an error. `curl -sI https://gs.apple.com/TSS/controller?action=2` from the MacBook (one request): `HTTP/1.1 401 Unauthorized`, `Server: Apple`, `Strict-Transport-Security: max-age=31536000; includeSubdomains`, certificate verified by curl. The privacy page's Apple row names the request.
+- **Issue #32 item 8 (pairing record file).** `transport::file_udid` (letters, digits, `-`) and `transport::write_private` (new file + rename, skipped when unchanged, 0600 set on an existing file); used by `remote` and the token file.
+- `crates/ios/Cargo.toml` pins idevice `f580a6f69e45e10e98fe6315e477697b75312332` and adds `hmac 0.13` and `getrandom 0.4`; `Cargo.lock` was resolved on the WSL against the fork by path and then given the git source line for that commit, so `--locked` works once the commit is on `hridaya423/idevice`.
+
+Tests, each seen failing first:
+- idevice, on the WSL (`cargo test -p idevice --no-default-features --features ring,remote_pairing,tss,usbmuxd --lib -- remote_pairing:: tss:: http::`): first run `error[E0609]: no field device_public_key`, `no variant ... DeviceNotVerified`, `NoDeviceKey`, `cannot find function device_key_from_m6`, `no method named without_redirects`, `no method named send_to` (15 errors). After: `test result: ok. 29 passed`. New: `a_device_that_signs_with_the_key_it_paired_with_is_verified`, `a_peer_that_signs_with_another_key_is_refused_before_this_host_signs_m3`, `a_signature_over_other_ephemeral_keys_is_refused`, `an_m2_without_encrypted_data_is_refused`, `a_record_without_the_device_key_is_refused_before_anything_is_sent`, `the_device_key_is_read_from_pair_setup_m6`, the record round trip and `recreate_signing_keys` tests, `a_request_that_does_not_follow_redirects_returns_the_redirect_and_never_reaches_its_target`, `the_tss_request_goes_to_apple_over_https`, `a_redirect_from_the_tss_server_is_an_error_and_its_target_is_never_contacted`. `cargo fmt -p idevice -- --check` clean; clippy with phonedriver's features, all targets: no warnings.
+- phonedriver-ios (`cargo test -p phonedriver-ios --lib -- runner:: remote::`): first run 36 errors (`cannot find type Token`, `Greeting`, `DevicePort`, `cannot find function ours`, `refused`, `no method named greet`, `no method named unwrap found for struct PathBuf`). After: `ok. 26 passed`. New: `the_proofs_are_hmac_sha256_of_the_side_and_the_nonce_under_the_token` (vectors computed with Python's `hmac`, the same ones the runner's harness checks), `each_token_is_32_fresh_bytes_and_its_debug_form_hides_it`, `a_runner_that_proves_the_token_is_ours_and_the_token_never_crosses_the_wire`, `a_runner_started_with_another_token_refuses_the_connection_and_is_not_ours`, `a_listener_that_answers_with_the_right_udid_and_build_but_no_proof_is_not_ours`, `a_runner_is_reused_only_with_the_token_this_home_kept_for_it`, `a_kept_token_is_read_back_and_written_for_its_owner_only`, `through_the_remote_pairing_tunnel_the_runner_port_is_opened_inside_the_tunnel` (the adapter's first packet is an IPv6 TCP SYN to the device's tunnel address, port 27753), `a_record_made_before_the_device_key_was_kept_asks_for_the_cable_before_connecting`, `a_peer_that_does_not_prove_it_is_the_paired_device_is_named_as_such`, `a_udid_with_other_characters_never_becomes_a_path`, `a_record_is_replaced_whole_only_when_it_changed_and_is_left_for_its_owner_only`.
+- The runner itself, on the Mac mini without any Simulator: `ios-runner/tests/test_server.py` compiles `Server.m`, `Auth.m`, `Json.m` and `tests/server_harness.m` for macOS (the device branch of `Server.m`) and connects over loopback. Against `origin/main`'s `Server.m` (with the harness's init adjusted): `Ran 9 tests ... FAILED (failures=4, errors=5)`, for example `KeyError: 'error'` where an outsider's `snapshot` was served, and `False is not true : {'id': 1, 'op': 'hello', 'ok': True, ...}` with no proof. Now: `Ran 9 tests in 0.883s OK`. The old `0.0.0.0` listener also accepted `::1` on macOS, so the bind was left as it is (`test_the_listener_takes_ipv4_and_ipv6`).
+- `xcodebuild -project PhonedriverRunner.xcodeproj -scheme PhonedriverRunner -destination 'generic/platform=iOS Simulator'` and `'generic/platform=iOS'` with `CODE_SIGNING_ALLOWED=NO -quiet build-for-testing` (Xcode 27.0, mini): no output, both `.xctestrun` files and `Auth.o` for arm64 and x86_64 (Simulator) and arm64 (device); the device binary holds the `unauthorized` message. Build folder deleted after; mini at 20 GB free before and after.
+- `ios-runner/tests/test_runner.py` (live, Simulator) now uses the shared `runner_client.py` and starts the runner with a token; not run (no Simulator was touched). `crates/ios/tests/runner_live.rs` (ignored) compiles against the new `hello(&Token)`.
+
+Commands on the WSL (`pd-sec-ios`, idevice switched to the local fork by path for the build): `cargo fmt --all --check` clean; `cargo clippy --workspace --all-targets -- -D warnings` clean (one `manual_is_multiple_of` fixed on the way); `cargo test -p phonedriver-ios -p phonedriver-core`: 238 and 111 passed (21, 4 and 5 ignored live tests); `cargo test -p phonedriver --lib --test daemon --test device_choice --test mcp --test cli`: 143, 30, 200, 7 and 53 passed.
+
+Needs a device before release (fakes cannot show it):
+- A runner on a phone answering inside the remote pairing's tunnel, off a Mac on Wi-Fi.
+- A real iPhone's pair-verify M2 verifying against the key from its own M6. pymobiledevice3 and go-ios do not check it, and pymobiledevice3's source says it "failed to" verify M2's encrypted data. If the device's M2 differs from HAP's, every Wi-Fi tunnel off a Mac fails with "did not prove it is the device".
+- `phonedriver ios wifi on` on the cable with a 0.1.6 record: it should pair again and write a record with `device_public_key`.
+- The TSS POST over HTTPS during a personalised mount off a Mac.
+- A runner on a phone started and reused with the token (cable, Mac over Wi-Fi, and installed through testmanagerd); the installed runner must be the 0.1.7 IPA, since a 0.1.6 one speaks 0.1.0 and is refused with the IPA message.
+
+## 2026-11-21: 0.1.7, the app scope and the device list hold (GHSA-7qw6-v72h-4gvp, #32 items 4-7 and 11, GHSA-g453-82w6-qqx5 items 1 and 7)
+
+Branch `sec/scope-devices`, decision D107. Every claim below was checked against `main` before the change; all held. No device was touched: fakes, the fake adb server and the video fixture only. Built and tested on win-pc's WSL Ubuntu (debug); the agent jar was built on the MacBook (`android-agent/build.sh`, it compiles).
+
+App scope (GHSA-7qw6, items 1 to 6):
+- 1, `open`: an `intent:` URL with `component=` or `SEL` is refused under a scope; the agent's `Apps.openUrl` refuses an open whose component, selector or resolved activity is not the named app; on iOS and the Simulator `open` is refused under a scope (iOS opens a link in whatever app claims it). Tests `a_scoped_open_of_an_intent_url_that_names_another_component_is_refused`, `an_iphone_or_simulator_opens_no_link_under_a_scope_because_it_ignores_the_app`: first run both `expected an error` (the open went through). The Java side is not run on a device.
+- 2, empty tree: `AppScope::redact` puts the whole screen in `outside` when no window of an app in the scope is listed. `an_empty_tree_is_outside_the_scope_until_a_tree_names_the_app` and `scope::tests::a_tree_with_no_window_of_an_app_in_the_scope_is_outside`: first run `expected an error` and `left: 0, right: 1`.
+- 3, `page`: `Device::page` takes the app; the scope layer passes the in-scope package it checked. `the_page_is_read_from_the_app_the_check_approved`: first run `left: [None], right: [Some("com.mine")]`.
+- 4, bars: only a `com.android.systemui` window is a bar, in `is_bar` and in the agent's `isEdgeBar`. `a_bar_shaped_window_of_another_app_is_outside` and `scope::tests::a_bar_shaped_window_is_a_bar_only_when_the_system_ui_owns_it`: first run `expected an error` (screenshot taken) and `left: 0, right: 1`.
+- 5, iOS back: `ScopedDevice::back` and `hide_keyboard` check the tree on `ios:`/`sim:`. `on_an_iphone_back_and_hiding_the_keyboard_are_refused_while_another_app_is_in_front`: first run `expected an error`.
+- 6, Simulator log: the predicate names `/<container UUID>/<name>.app/`. `simulator::tests::the_log_is_scoped_to_the_apps_own_container_and_not_every_bundle_of_that_name`: first run panicked on `ends_with` (the predicate was `CONTAINS "/Example.app/"`).
+
+Device list (GHSA-7qw6, items 7 to 10):
+- 7: `Adb::hardware_serial` fails on an empty answer or a non-zero exit. `adb_source.rs::an_empty_serial_answer_is_a_failed_read_that_a_deny_list_hides_and_that_is_asked_again`: first run `an empty answer with exit 1: Ok(Some(""))`.
+- 8: `Gated::off` filters, `Gated::boot` matches the name against the filtered off list first, and `Gated::list` passes deny entries to `DeviceSource::list_except` so a device denied by id is not asked anything. `device_list.rs::a_denied_simulator_is_neither_booted_nor_listed_as_off`: first run `no device named "sim:DENIED-UDID" is off; can be started: Staff iPhone (iOS 26), Test iPhone (iOS 26)`. `adb_source.rs::listing_through_a_deny_list_never_asks_a_device_it_names_by_id`: first run the requests held `host:transport:R5CTDENIED` and its `getprop`.
+- 9: a `NoDevice` from a partly failed lookup has its lists filtered. `device_list.rs::a_device_that_is_not_found_while_a_source_fails_names_no_hidden_device`: first run `no device "nosuchdevice"; connected: android:STAFF-PHONE-1 (Pixel), android:emulator-5554 (Pixel); could not ask: ...`.
+- 10: `Scope::verdict` checks the daemon's answer before `--device`. `doctor::tests::a_named_device_is_not_probed_when_the_device_list_could_not_be_read`: first run `expected the device to be left alone`.
+- Two test-side fixes after the first runs, not in the code: the boot refusal rightly echoes the name the caller typed (the test now checks that the hidden Simulator is not offered, `Staff iPhone (iOS`), and the fake adb server answers `ro.serialno` for the emulator (a failed read correctly hides it from a serial deny entry).
+
+#32:
+- 4: `shell`'s physical-phone refusal passes only ledger packages the command names that `installed_by_us` accepts (install time compared). `daemon.rs::a_shell_clear_of_an_app_its_owner_installed_again_is_refused_like_the_typed_one`: first run `expected an error` (the `pm clear` ran).
+- 5: `wait vpn:` keeps reading on a dump with `networks` missing. `netview.rs::wait_vpn_down_does_not_take_a_dump_that_listed_no_networks_for_an_answer`: first run the wait answered after 2 reads.
+- 6: user ids and underlying networks are read after the last `bypassable=` of `TransportInfo`. `network::tests::a_vpn_session_name_cannot_stand_in_for_the_user_ids_or_the_networks_under_it`: first run `left: ["0-99999"], right: ["10238-10238"]`.
+- 7: `GlRelay` binds its own context in `draw` and before deleting its objects; the shared display is terminated by the last relay only. Source only: it compiles, not run on a device (no test can reach it without one).
+- 11: the owner file holds a hash of the computer's name. `agent::tests::the_owner_file_names_this_computer_by_a_hash_and_not_by_its_name`: first run failed with the owner line holding the name. Removing the file on stop was not chosen (D107).
+
+GHSA-g453:
+- 1: `record start` asks for a sync frame (the agent's existing `sync_frame` op); the file opens at the first keyframe after the start behind an empty edit; the kept group is used only when pictures keep coming for 1 s with no keyframe. Run against `origin/main`'s `stream.rs` and `record.rs` first: `a_recording_starts_at_the_first_keyframe_after_its_start_and_holds_nothing_from_before` `left: 88, right: 59` (29 pictures from before the start), `a_recording_of_a_screen_that_never_changes_holds_no_picture_from_before_it` `left: 29, right: 0`. The old mid-stream test now waits 1.1 s before the rest of the stream and proves the fallback (59 frames decode, the length matches the wall clock); `a_stream_that_ends_finishes_the_recording_and_stop_says_why` now expects no picture in a file the stream ended right after. Needs a device run: whether a phone's encoder sends the keyframe soon after the request on a changing and on an idle screen, and how a player shows the empty edit. Documented in `docs/reference.md` where it said "It starts with the screen as it was at `record start`".
+- 7: `site/content/docs/no-telemetry.md` has a row for the router probe of `pair` and `untether` on macOS.
+
+Docs: D107; D26, D34, D59, D99, D100, D101 and D102 amended in place; `docs/reference.md`, `docs/architecture.md`, `SECURITY.md` (the device list and the app scope are now named in "What counts"), and the site's Android, install and privacy pages.
+
+Commands (WSL, debug):
+- `cargo fmt --all --check`: exit 0. `cargo clippy --locked --workspace --all-targets -- -D warnings`: `Finished`, no warnings.
+- `cargo test --locked --workspace --no-fail-fast`: 60 test binaries, none failed; among them `app_scope` 27, `device_list` 16, `adb_source` 3, `daemon` 201, `netview` 12, `record` (cli) 7, `shell` 11, `sources` 8, `cli` 30, the `phonedriver` lib 144, `phonedriver-ios` lib 240, `phonedriver-core` lib 100, `phonedriver-android` lib 85, `phonedriver-video` `record` 7.
+
+## 2026-11-21: a still screen records, and the Simulator's settings and log need no switch (D107, D108)
+
+Two changes before 0.1.7 ships, both asked for by the user so that ordinary use needs no setting.
+
+**Recordings of a still screen.** Since D107 a recording opened at the first keyframe after its start, and an idle
+screen gives the encoder no input to make one from, so a recording of a screen that never changed had no picture.
+Now the agent asks its encoder for a keyframe at the first repeat after a change (`Video.wrote`), and
+`stream::still` starts the file from a kept group that is one keyframe and only its repeats (stamped exactly 100 ms
+apart), which is the screen at the start and nothing older. Any other group waits for the keyframe as before.
+
+- Test first: `a_recording_of_a_still_screen_opens_with_that_screen` failed with `the keyframe and its repeats,
+  left: 0, right: 5`; after the change `cargo test -p phonedriver-video` (WSL): 11, 9, 6 and 15 passed, 0 failed.
+  `a_recording_started_after_the_screen_changed_holds_no_picture_from_before_it` (renamed) still gives 0 frames for
+  a kept group whose pictures changed.
+- Emulator (win-pc, Pixel_API_37, software GPU, Windows debug build with the new agent jar): Settings opened, home
+  pressed, 4 s idle, then `record start`/`stop` 3 s: `3.1 s, 570x1280, 7 frames, 10 kB`. `ffprobe`: the first packet
+  is the keyframe; all 7 frames show the home screen (PSNR 47.3 to 48.0 dB against the first; looked at), no frame of
+  Settings. Started right after `launch com.android.settings`: `3.3 s, 21 frames`, first frame the Settings list.
+
+**The Simulator's `defaults` and `log`.** D108 refused every program in a Simulator without
+`PHONEDRIVER_HOST_SHELL=1`. Now `defaults` (`read`, `read-type`, `write`, `delete`, `domains`, `find`, `rename`) and
+`log show|stream` run as one program by their path in the Simulator, never through its shell; an argument starting
+with `/` or `~` or holding `..`, a `defaults` domain with a `/`, `defaults import|export|-host`, other `log`
+subcommands and log archives or files still need the switch, as does any other program or a pipe.
+
+- Test first: `the_simulators_own_settings_and_log_need_no_switch` failed at the `unwrap` of a refusal, and the
+  refusal test failed for not naming `defaults`; after: `cargo test -p phonedriver-ios --lib` 117 passed, 0 failed.
+- `cargo clippy --workspace --all-targets -- -D warnings` clean; `cargo fmt --all --check` clean after `cargo fmt`.
+- Not run on a Simulator: the mini was not used for this change.
+
+## 2026-11-21: a dropped text field is named by D33's rules
+
+- `Session::gone_field_named` matched a dropped field when its label merely contained the target (`contains`), so `type --into net`, which finds nothing on screen by D33, scrolled to a dropped "Network" field and typed into it. It now runs `find_text`'s two steps: the whole normalized label, then `holds_as_words` with `EXTRA_WORDS`. Several different fields matching is still no match.
+- Test first: `a_dropped_field_is_named_by_whole_words_as_a_visible_one_is` failed before the change at `assert!(s.gone_field_named("net").is_none())`. After: `cargo test -p phonedriver --lib daemon::session` 19 passed; `cargo test -p phonedriver` all suites passed. The live Android suite was not run (host-side change only).
+
+## 2026-11-21: the reviewer's quality issues #34 to #38, and PR #39, in 0.1.7
+
+The user asked for the real items of the new issues to go into 0.1.7. Each was checked against the code first.
+
+- **#36, launch settle.** `cfg.timeout += now - started` before `finish` in `launch` and `open`. Test first:
+  `a_launch_whose_app_starts_slowly_still_settles_after_it_starts` (the app in front only at the 22nd read, 6 s and
+  more) failed with `settled: false`; passes after. `cargo test -p phonedriver --test daemon`: 208 passed.
+- **#35, still loading.** `show_action` adds ` · still loading` to a diff reply whose screen is loading. Test first:
+  `a_reply_whose_screen_is_still_loading_says_so_in_its_first_line` failed at the `starts_with`; lib 158 passed after.
+  The heavier options (waiting longer, an unlabeled-buttons heuristic) were left out: they slow every action for a
+  case seen 2 times in 6 on a busy host.
+- **#38 item 2, batch after wrong text.** `Unverified.wrong` (not on the wire) is set when focus is on another field
+  or the shown text differs once case, spaces and punctuation are dropped; `batch` then fails the next step. Tests:
+  `a_batch_stops_before_the_next_step_when_a_field_shows_other_text_than_typed` failed (`ok: true`), passes after;
+  `a_batch_goes_on_when_a_field_only_spaced_or_cased_the_text_it_was_given` passes before and after. daemon 210 passed.
+- **#38 item 1, refs across apps.** `Seen.package`; the id pass needs the same package. Test
+  `a_dialog_button_of_another_app_with_the_same_id_is_a_new_element` failed (`e1` both), passes after, and its second
+  half keeps a relabelled button of one app on its ref. `cargo test --workspace --lib refs::`: 16 passed.
+- **#34, tool list.** Argument docs that repeated the tool description removed (`devices` boot/use, `screenshot`
+  compare/record, `wait` vpn/log/app, `replay` save/vars): 6,870 to 6,371 characters a turn. The budget test is back
+  to a ratchet, `total < 6_600`. `cargo test -p phonedriver --test mcp`: 55 passed. `PHONEDRIVER_TOOLS=core` and
+  hiding tools were declined: a setting most people would not find, and a model cannot use a tool it cannot see.
+- **Not changed:** #37 (a failed single action returning the screen; 0 in the reviewer's 21 runs, measure first),
+  #38 items 3 to 6 (no realistic trigger found, or read-only and self-correcting).
+- **PR #39** merged into the release branch (progress.md conflict unioned).

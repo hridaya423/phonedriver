@@ -58,6 +58,12 @@ ok tapped @e10 "Dark theme"
 
 The first command starts the daemon, finds the agent jar on the device (pushing it if needed) and starts the agent. Fresh daemon to first screen read took 1,620.5 ms at p50 on the benchmark emulator. After that each call costs milliseconds.
 
+## Use the emulator's console
+
+`phonedriver shell "emu geo fix -122.41 37.77"` sends a command to the emulator's console, as `adb emu` does: `geo` sets the location, `sms send` delivers a text message, `power` sets the battery, `network speed` and `network delay` slow the network, `sensor` and `rotate` move the sensors, and `avd name` says which virtual device it is.
+
+Other console commands act on your computer, not on the emulator: `screenrecord` and `network capture` write files on it, `redir` opens a port on it, `kill` ends the emulator. `shell` refuses them. To allow every console command, stop the daemon with `phonedriver daemon stop` and start it again with `PHONEDRIVER_HOST_SHELL=1` set. A console command is one line, so a line break in it is always refused. A phone has no console.
+
 ## Keep the agent on a hidden screen
 
 On an emulator running Android 13 (API 33) or later, set `PHONEDRIVER_DISPLAY=hidden` in the MCP config, or pass `--display hidden` to the CLI, and the agent works on a second screen. On an emulator nobody is holding, that matters little, but it is the same switch as on [a real phone](/docs/android-phone/#a-hidden-screen-for-the-agent), where it keeps your own screen yours. It has been tested on an emulator (API 37) and on a HONOR X8. Switching between the two screens restarts the agent, which takes a few seconds. Below API 33 the call fails as unsupported.

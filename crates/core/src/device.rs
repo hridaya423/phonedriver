@@ -161,6 +161,8 @@ pub enum TextInput {
     /// Paste with the clipboard marked sensitive, so the system hides the text in its clipboard preview.
     PasteSecret(String),
     SetValue(String),
+    /// Set a secret as the field's value. Where the device falls back to a paste, the clipboard is marked sensitive.
+    SetSecret(String),
     Keystrokes(String),
 }
 
@@ -170,6 +172,7 @@ impl fmt::Debug for TextInput {
             TextInput::Paste(t) => ("Paste", t),
             TextInput::PasteSecret(t) => ("PasteSecret", t),
             TextInput::SetValue(t) => ("SetValue", t),
+            TextInput::SetSecret(t) => ("SetSecret", t),
             TextInput::Keystrokes(t) => ("Keystrokes", t),
         };
         write!(f, "{mode}({} chars)", text.chars().count())
@@ -243,6 +246,16 @@ pub struct Recorded {
     pub frames: u32,
     pub ms: u64,
     pub early: Option<String>,
+}
+
+/// `PHONEDRIVER_HOST_SHELL=1` in the daemon's environment lets `shell` act on the computer as well as the device: on
+/// an iOS Simulator run programs and name the Mac's files, on an Android emulator send any console command (decision
+/// D108).
+pub const HOST_SHELL: &str = "PHONEDRIVER_HOST_SHELL";
+
+/// Whether the daemon was started with `PHONEDRIVER_HOST_SHELL=1`.
+pub fn host_shell() -> bool {
+    std::env::var_os(HOST_SHELL).is_some_and(|v| v == "1")
 }
 
 /// A command for the device's own shell. `Debug` never prints the command, because it may hold a secret.
@@ -400,8 +413,9 @@ pub trait Device: Send + Sync {
             reason: "this device's networks cannot be read; Android devices can",
         })
     }
-    /// The web page the app in front shows, read from the browser and not from the screen.
-    async fn page(&self) -> Result<WebPage> {
+    /// The web page `app` shows (the app in front when `None`), read from the browser and not from the screen.
+    async fn page(&self, app: Option<&AppId>) -> Result<WebPage> {
+        let _ = app;
         Err(Error::Unsupported {
             op: Op::Page,
             reason: "this device's web pages cannot be read whole; on Android, Chrome's and a debug build's can",

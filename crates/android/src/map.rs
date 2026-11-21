@@ -87,6 +87,7 @@ pub fn text_request(t: &TextInput) -> Value {
         TextInput::Paste(s) => ("paste", s, false),
         TextInput::PasteSecret(s) => ("paste", s, true),
         TextInput::SetValue(s) => ("set", s, false),
+        TextInput::SetSecret(s) => ("set", s, true),
         TextInput::Keystrokes(s) => ("keys", s, false),
     };
     let mut request = json!({"op": "text", "mode": mode, "text": text});
@@ -318,6 +319,18 @@ mod tests {
         );
         assert_eq!(event(&json!({"ev":"nope"}), 2.625), None);
         assert_eq!(event(&json!({"id":3,"ok":true}), 2.625), None);
+    }
+
+    #[test]
+    fn a_secret_set_as_the_value_is_marked_sensitive_for_the_paste_it_may_fall_back_to() {
+        let secret = text_request(&TextInput::SetSecret("s".into()));
+        assert_eq!(secret["mode"], "set");
+        assert_eq!(secret["sensitive"], true);
+        assert!(
+            text_request(&TextInput::SetValue("s".into()))
+                .get("sensitive")
+                .is_none()
+        );
     }
 
     #[test]

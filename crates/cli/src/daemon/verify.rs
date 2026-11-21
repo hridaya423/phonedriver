@@ -48,6 +48,10 @@ impl Verdict {
 pub struct Unverified {
     pub shows: String,
     pub hint: String,
+    /// The text plainly went wrong: into another field, or the field shows other characters than typed (case,
+    /// spaces and punctuation aside). A batch does not go on after it.
+    #[serde(skip)]
+    pub wrong: bool,
 }
 
 /// The field as the screen shows it after the action.
@@ -63,6 +67,14 @@ pub struct FieldView {
 }
 
 impl Verify {
+    /// The text that was typed.
+    pub fn typed(&self) -> &str {
+        match &self.expect {
+            Expect::Exactly(t) => t.as_str(),
+            Expect::Appended { text, .. } => text.as_str(),
+        }
+    }
+
     pub fn view(&self, now: &Rendered) -> FieldView {
         let focused_entry = |now: &'_ Rendered| -> Option<usize> {
             now.elements
@@ -130,6 +142,7 @@ impl Verify {
                 hint:
                     "the screen moved away from the field; `phonedriver snapshot` shows what is there"
                         .into(),
+                wrong: false,
             });
         }
         if let Some(other) = v.focus_elsewhere {
@@ -138,6 +151,7 @@ impl Verify {
                 hint: format!(
                     "focus is on @{other}, not {name}, so the text went there; tap {name} and type again"
                 ),
+                wrong: true,
             });
         }
         let Some(value) = v.value.as_deref() else {
@@ -145,6 +159,7 @@ impl Verify {
             return (!ok).then(|| Unverified {
                 shows: format!("{name} shows no text"),
                 hint: "the text may not have landed (type again, or `--mode keys`), or the field does not expose its text; `phonedriver screenshot` shows what it displays".into(),
+                wrong: false,
             });
         };
         let (got, wanted) = (value.chars().count(), want.chars().count());
@@ -152,6 +167,7 @@ impl Verify {
             return (got != wanted).then(|| Unverified {
                 shows: format!("{name} holds {got} characters, not {wanted}"),
                 hint: "the field kept a different number of characters than typed".into(),
+                wrong: false,
             });
         }
         let ok = match &self.expect {
@@ -162,10 +178,7 @@ impl Verify {
             return None;
         }
         let shows = shown(&name, Some(value), false);
-        let typed = match &self.expect {
-            Expect::Exactly(t) => t.as_str(),
-            Expect::Appended { text, .. } => text.as_str(),
-        };
+        let typed = self.typed();
         let hint = if self.plus_left_over(value) {
             "the field kept a `+` from before, so the first digits read as a country code: clear the field (type an empty text into it), then type again".to_string()
         } else if value.is_empty() && !typed.is_empty() {
@@ -187,7 +200,18 @@ impl Verify {
         } else {
             "the field holds other text than typed: it may reformat what it receives or have taken input from elsewhere".into()
         };
-        Some(Unverified { shows, hint })
+        let plain = |s: &str| -> String {
+            s.chars()
+                .filter(|c| c.is_alphanumeric())
+                .flat_map(char::to_lowercase)
+                .collect()
+        };
+        let wrong = !value.is_empty()
+            && match &self.expect {
+                Expect::Exactly(t) => plain(value) != plain(t),
+                Expect::Appended { text, .. } => !plain(value).ends_with(&plain(text)),
+            };
+        Some(Unverified { shows, hint, wrong })
     }
 }
 

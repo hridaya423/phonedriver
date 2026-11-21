@@ -22,6 +22,7 @@ Progress: a client that sends `"progress": true` in `hello` may receive notifica
 | Method | Params | Result |
 |---|---|---|
 | `hello` | `version, client, progress?` | `version, pid` |
+| `mask` | `text` | `{text}`: the text with every secret the daemon remembers masked (D105), for text a client made from the screen, such as what a screenshot comparison read. Traced by its length |
 | `shutdown` | none | `{pid}` (the daemon exits, ending the iOS runners it started) |
 | `devices` | none | `[DeviceSummary]` |
 | `hidden` | `ids?` | `{count, ids}`: the devices the device list hides (D101); `ids` adds ids of devices that are not ready, judged by id alone. For the CLI and `doctor`; not an MCP tool |
@@ -31,7 +32,7 @@ Progress: a client that sends `"progress": true` in `hello` may receive notifica
 | `snapshot` | `device?, diff?, interactive?, within?, pixels?, max_lines?, no_settle?, elements?, capture?, timeout_ms?` | `Observation` |
 | `screenshot` | `device?, native?, quality?, format?, inline?, marks?` | `{path, width, height, scale, data_b64?, marks?}` (`path` is on the daemon's machine; with `inline: true` the PNG bytes also come back base64-encoded in `data_b64`, for a client that does not share the daemon's file system) |
 | `find` | `device?, text, role?` | `[ElementLine]` (rendered lines such as `@e12 cell "Row 1"`; the elements whose label or hint contains `text`, in any case; `role` is a snake_case role name) |
-| `act` | `device?, action: Action, approval?: "once"\|"session"\|"autonomous", ask?: ("send"\|"delete"\|"install")[], settle?: bool, timeout_ms?, expect_change_ms?` | `ActionResult` |
+| `act` | `device?, action: Action, approval?: "once"\|"session"\|"autonomous", ask?: ("send"\|"delete"\|"install")[], settle?: bool, timeout_ms?, expect_change_ms?, secret_field_only?: bool` | `ActionResult`; with `secret_field_only` a secret `type` goes only into a password or one-time code field and is refused before typing otherwise (a replay sets it, D105) |
 | `wait` | `device?, condition: WaitCondition, timeout_ms?, expect_change_ms?` | `ActionResult`; a wait for an element returns when it shows (or is gone), with `settled: false` and `settle_ms: 0`, since nothing was settled; its summary says how many tree reads it took. A text is found in a label, a hint, or, when neither has it, what a field holds (never a password field's) |
 | `batch` | `device?, steps: Step[], ask?: ("send"\|"delete"\|"install")[], timeout_ms?, expect_change_ms?` | `BatchResult` |
 | `apps` | `device?` | `[App]` (launchable apps: `{id, name, system}`) |
@@ -178,7 +179,7 @@ Frames: `u32 big-endian length` + UTF-8 JSON. Requests carry `id`; replies echo 
 | `tree` | none | `{windows:[{id, type, package, layer, bounds}], nodes:[RawNode], bar?}`; every node is listed with its `v`/`V` flags, and full-width status and navigation bar windows (at most a tenth of the screen high, on the top or bottom edge) are left out; `bar` is the bottom edge in pixels of the status bar left out, when there was one |
 | `gesture` | `pointers:[{id, path:[{x, y, t_ms}]}]` | `{}` after the final UP is delivered |
 | `key` | `keycode, meta?, action?: "down"|"up"|"press"` | `{}` |
-| `text` | `mode` (`paste`, `set`, `keys`), `text`, `sensitive?` (marks the clip `IS_SENSITIVE`) | `{}`; `set` acts on the focused input field; `keys` fails with `unmappable character U+XXXX at N` before typing anything |
+| `text` | `mode` (`paste`, `set`, `keys`), `text`, `sensitive?` (marks the clip `IS_SENSITIVE`, also the paste that `set` falls back to) | `{}`; `set` acts on the focused input field; `keys` fails with `unmappable character U+XXXX at N` before typing anything |
 | `shell` | `command`, `timeout_ms?` (default 30000) | `{exit, stdout, stderr, timed_out}`; runs `sh -c` as the shell user on a thread of its own, each stream capped at 1 MiB, killed at the timeout with exit 124 |
 | `clipboard_get` / `clipboard_set` | `text` (set), `sensitive?` | `{text}` (get; null when empty) |
 | `apps` | `all?` | `{apps:[{package, label, system}]}` |
@@ -242,13 +243,22 @@ A barrier packet answers `video_barrier`: `pts_us = 0`, `flags` bit2 set, length
 
 ## 3. Daemon ↔ PhonedriverRunner
 
-One TCP stream to the runner's port: 27753 on a physical device (reached through the idevice provider), or on a simulator the port the daemon assigned through the `PHONEDRIVER_PORT` environment variable (the first free port from 27753 up to 27784, one per running simulator; simulators share the host's loopback). Same `u32` big-endian length + JSON framing as the Android control stream. On a simulator the runner listens on `127.0.0.1` only (Phase 6 revisits the bind address for devices). One connection at a time: a new connection closes the previous one. Requests run one at a time.
+One TCP stream to the runner's port: 27753 on a physical device (reached through the idevice provider), or on a simulator the port the daemon assigned through the `PHONEDRIVER_PORT` environment variable (the first free port from 27753 up to 27784, one per running simulator; simulators share the host's loopback). Same `u32` big-endian length + JSON framing as the Android control stream. On a simulator the runner listens on `127.0.0.1` only; on a device on all interfaces. Off a Mac on Wi-Fi the daemon opens the port inside the remote pairing's tunnel (decision D106).
+
+The runner is started with a token, 64 hex characters in its environment (`PHONEDRIVER_TOKEN`). The first frame on a connection must be:
+
+```
+→ {"id":1,"op":"hello","version":"0.2.0","nonce":"<32 hex chars, fresh>","proof":"<hex HMAC-SHA256 under the token of host:<nonce>>"}
+← {"id":1,"ok":true,...,"proof":"<hex HMAC-SHA256 under the token of runner:<nonce>>"}
+```
+
+The runner compares the proof in constant time and refuses a nonce it has accepted before. Any other first frame, a wrong proof, or a first frame over 4 KB gets `{"ok":false,"error":{"code":"unauthorized",...}}` and the connection is closed. The daemon uses the runner only when the reply's `proof` checks. The token never crosses the connection. One connection at a time: a new connection that proves the token closes the previous one; one that does not leaves it alone. Requests run one at a time.
 
 Every request carries `id` and `op`. A reply echoes `id` and adds `ok: true` plus the op's fields, or `ok: false` and `error: {code, message}` with `code` one of `bad_request` (malformed frame, unknown op, missing or ill-typed field), `unsupported` (the op cannot work here), `failed` (XCTest refused or failed; `message` is XCTest's first line).
 
 | op | Request | Reply |
 |---|---|---|
-| `hello` | `version` | `{version, ios, model, screen:{w,h,scale}, udid?, build?}` (points; `model` is the machine id, for example `iPhone18,3`; on a simulator `udid` is the simulator's, from `SIMULATOR_UDID`; `build` echoes the `PHONEDRIVER_BUILD` the daemon launched it with, the hash of the runner sources) |
+| `hello` | `version`; on the first frame also `nonce` and `proof` | `{version, ios, model, screen:{w,h,scale}, udid?, build?}` and `proof` on the first frame (points; `version` is `0.2.0`; `model` is the machine id, for example `iPhone18,3`; on a simulator `udid` is the simulator's, from `SIMULATOR_UDID`; `build` echoes the `PHONEDRIVER_BUILD` the daemon launched it with, the hash of the runner sources) |
 | `snapshot` | `max_depth` (default 30) | `{app:{bundle_id, pid}, nodes:[RawNode], alerts?, bar?}` with bounds in points; `bar` is the bottom edge of SpringBoard's status bar, asked for once for each width of the app |
 | `gesture` | `pointers:[{path:[{x,y,t_ms}]}]` (points, 1 to 5 pointers, `t_ms` non-decreasing) | `{}` after the last lift is delivered |
 | `banner` | `x`, `y` (points) | `{covered}`: whether a notification banner covers the point, the test the runner's own gestures wait on; the Simulator tier asks it before a touch through simio that starts in the top 200 points (decision D93) |

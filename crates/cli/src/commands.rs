@@ -42,7 +42,7 @@ Exit codes:
   2  the command line is wrong
   3  a person must act on the device (unlock, trust, allow); the message says what
   4  no device matches, or it was disconnected
-  5  the tap spends money or cannot be undone and the human has not approved it; ask them, then add --autonomous
+  5  the action spends money or cannot be undone and the human has not approved it; ask them, then add --autonomous
 
 When something goes wrong, see Debugging in the README: traces, daemon.log and the runner log.
 Settings by environment variable are in the README's table (PHONEDRIVER_HOME, PHONEDRIVER_TEAM, ...).";
@@ -206,7 +206,7 @@ fn own_options_only(cmd: clap::Command) -> clap::Command {
 
 const DIRECTIONS: [&str; 4] = ["up", "down", "left", "right"];
 
-#[derive(Subcommand)]
+#[derive(Subcommand, Clone)]
 pub(crate) enum Verb {
     /// List devices, tier, capabilities and leases.
     Devices,
@@ -277,6 +277,9 @@ pub(crate) enum Verb {
     Gesture {
         /// The fingers as JSON.
         spec: String,
+        /// Run it even when it commits a payment or another held action, without asking the human. Only when the user has granted full autonomy.
+        #[arg(long)]
+        autonomous: bool,
     },
     /// Press at `from`, hold, drag to `to` and lift: reorder a list, move an item, drag a handle. Targets are `@ref`, `x,y` or text.
     Drag {
@@ -284,6 +287,9 @@ pub(crate) enum Verb {
         from: String,
         /// Where it lifts.
         to: String,
+        /// Run it even when it commits a payment or another held action, without asking the human. Only when the user has granted full autonomy.
+        #[arg(long)]
+        autonomous: bool,
     },
     /// Two fingers: `out` spreads them to zoom in, `in` closes them to zoom out. At the screen's center, or at `--at`.
     Pinch {
@@ -296,6 +302,9 @@ pub(crate) enum Verb {
         /// How far apart the fingers end (out) or start (in), as a share of the screen's shorter side; default 0.5.
         #[arg(long)]
         distance: Option<f32>,
+        /// Run it even when it commits a payment or another held action, without asking the human. Only when the user has granted full autonomy.
+        #[arg(long)]
+        autonomous: bool,
     },
     /// Open an app by name or package and show its first screen.
     Launch {
@@ -353,6 +362,9 @@ pub(crate) enum Verb {
         /// Drag quickly, which lets a list fling.
         #[arg(long)]
         fast: bool,
+        /// Run it even when it commits a payment or another held action, without asking the human. Only when the user has granted full autonomy.
+        #[arg(long)]
+        autonomous: bool,
     },
     /// Scroll the content so more of it shows in `direction`, or until `--until` text shows.
     Scroll {
@@ -368,6 +380,9 @@ pub(crate) enum Verb {
         /// Give up after this many scrolls (the default is 30).
         #[arg(long)]
         max: Option<u32>,
+        /// Run it even when it commits a payment or another held action, without asking the human. Only when the user has granted full autonomy.
+        #[arg(long)]
+        autonomous: bool,
     },
     /// List the elements whose text contains this text, in any case.
     Find {
@@ -404,9 +419,13 @@ pub(crate) enum Verb {
     Clear {
         /// `@ref`, `x,y` or the field's text.
         target: String,
+        /// Run it even when it commits a payment or another held action, without asking the human. Only when the user has granted full autonomy.
+        #[arg(long)]
+        autonomous: bool,
     },
     /// Run a command in the device's shell (Android: the agent's shell, no `adb` spawn, or `emu <command>` for an
-    /// emulator's console; Simulator: `simctl spawn`, or `simctl <subcommand> ...` with the device filled in). Prints the exit code, trimmed output, and what changed on
+    /// emulator's console; Simulator: `simctl <subcommand> ...` with the device filled in, and programs only with
+    /// PHONEDRIVER_HOST_SHELL=1). Prints the exit code, trimmed output, and what changed on
     /// screen. Secrets come from stdin or PHONEDRIVER_SECRET.
     Shell {
         /// The command, such as `cmd uimode night yes`. Leave it out with `--secret`.
@@ -518,6 +537,9 @@ pub(crate) enum Verb {
     Press {
         /// The key or button.
         key: String,
+        /// Run it even when it commits a payment or another held action, without asking the human. Only when the user has granted full autonomy.
+        #[arg(long)]
+        autonomous: bool,
     },
     /// `press back`.
     #[command(hide = true)]
@@ -609,13 +631,13 @@ pub(crate) enum Verb {
     Version,
 }
 
-#[derive(Subcommand)]
+#[derive(Subcommand, Clone)]
 pub(crate) enum DaemonCommand {
     /// Stop the running daemon and the iOS runners it started. Succeeds when none is running.
     Stop,
 }
 
-#[derive(Subcommand, Debug)]
+#[derive(Subcommand, Debug, Clone)]
 pub enum IosCommand {
     /// Check the signing team and each attached device, and do what needs no one at the device: show the Developer Mode switch, mount the
     /// developer disk image with Xcode's tool (the only step that talks to Apple). Then build, install and start the runner, so the next command answers at once. Prints `ok` for steps already done.
@@ -763,6 +785,7 @@ pub fn run(cli: Cli) -> ExitCode {
                 share: cli.share,
                 display: display_mode(&cli.display),
                 approval: None,
+                approved: None,
                 ask,
             };
             match rt.block_on(execute(verb, secret, &cli.session, &globals)) {
@@ -791,6 +814,8 @@ pub(crate) struct Globals {
     pub share: bool,
     pub display: DisplayMode,
     pub approval: Option<Approval>,
+    /// What the human approved, so the daemon runs the action only if the screen still shows it (decision D104).
+    pub approved: Option<crate::wire::Approved>,
     pub ask: Vec<Category>,
 }
 
@@ -842,6 +867,27 @@ fn guard_override(verb: &Verb, given: Option<Approval>, env: Option<&str>) -> Op
             autonomous: true,
             ..
         } | Verb::Type {
+            autonomous: true,
+            ..
+        } | Verb::Gesture {
+            autonomous: true,
+            ..
+        } | Verb::Swipe {
+            autonomous: true,
+            ..
+        } | Verb::Drag {
+            autonomous: true,
+            ..
+        } | Verb::Pinch {
+            autonomous: true,
+            ..
+        } | Verb::Scroll {
+            autonomous: true,
+            ..
+        } | Verb::Clear {
+            autonomous: true,
+            ..
+        } | Verb::Press {
             autonomous: true,
             ..
         }
@@ -963,6 +1009,9 @@ pub(crate) async fn execute_with(
         let mut p = json!({"action": action, "settle": !g.no_settle});
         if let Some(a) = approval {
             p["approval"] = json!(a);
+        }
+        if let Some(shown) = &g.approved {
+            p["approved"] = json!(shown);
         }
         if !g.ask.is_empty() {
             p["ask"] = json!(g.ask);
@@ -1096,7 +1145,8 @@ pub(crate) async fn execute_with(
             let now = base64::engine::general_purpose::STANDARD
                 .decode(shot.data_b64.unwrap_or_default())
                 .map_err(|e| Failure::Local(format!("the daemon sent bad image data: {e}")))?;
-            compared(&before, &now, image.as_deref()).map_err(Failure::Local)
+            let text = compared(&before, &now, image.as_deref()).map_err(Failure::Local)?;
+            masked(client, &text).await
         }
         Verb::Wait { condition, app } => {
             let mut p = json!({"condition": wait_condition(&condition, app.as_deref())});
@@ -1162,15 +1212,7 @@ pub(crate) async fn execute_with(
             name_secrets(&mut steps);
             if !steps.is_empty() {
                 let text: String = steps.iter().map(|s| format!("{s}\n")).collect();
-                let mut beside = file.clone().into_os_string();
-                beside.push(".tmp");
-                let beside = std::path::PathBuf::from(beside);
-                std::fs::write(&beside, text)
-                    .and_then(|()| std::fs::rename(&beside, &file))
-                    .inspect_err(|_| {
-                        let _ = std::fs::remove_file(&beside);
-                    })
-                    .map_err(cannot)?;
+                stage(&file, text.as_bytes()).map_err(cannot)?;
                 client
                     .call("journal", with(json!({"drop": steps.len()})))
                     .await?;
@@ -1438,6 +1480,29 @@ fn read_picture(path: &std::path::Path) -> Result<Vec<u8>, String> {
     std::fs::read(path).map_err(|e| format!("cannot read {}: {e}", path.display()))
 }
 
+/// Writes `bytes` to `file` through a new file of a random name beside it, so a crash leaves the old file whole and no
+/// path that someone else put beside it (a link, a file of theirs) is followed or replaced (decision D105).
+fn stage(file: &std::path::Path, bytes: &[u8]) -> std::io::Result<()> {
+    use std::io::Write;
+    let dir = file
+        .parent()
+        .filter(|d| !d.as_os_str().is_empty())
+        .unwrap_or(std::path::Path::new("."));
+    let mut staged = tempfile::Builder::new()
+        .prefix(".phonedriver-")
+        .suffix(".steps")
+        .tempfile_in(dir)?;
+    staged.write_all(bytes)?;
+    staged.persist(file).map(drop).map_err(|e| e.error)
+}
+
+/// `text` with every secret the daemon remembers masked: for text this process made from what the screen shows, such
+/// as the words a comparison read from a screenshot (decision D105).
+pub(crate) async fn masked(client: &mut Client, text: &str) -> Result<String, Failure> {
+    let reply = client.call("mask", json!({"text": text})).await?;
+    Ok(reply["text"].as_str().unwrap_or_default().to_string())
+}
+
 /// The report on two screenshots, and with `image` the later one written with its changed regions boxed.
 pub(crate) fn compared(
     before: &[u8],
@@ -1504,7 +1569,7 @@ pub(crate) fn step_json(verb: &Verb, secret: Option<&str>) -> Result<Value, Fail
             }
             a
         }
-        Verb::Gesture { spec } => {
+        Verb::Gesture { spec, .. } => {
             let mut a: Value = serde_json::from_str(spec)
                 .map_err(|e| Failure::Local(format!("the gesture is not JSON: {e}")))?;
             a["kind"] = json!("gesture");
@@ -1515,6 +1580,7 @@ pub(crate) fn step_json(verb: &Verb, secret: Option<&str>) -> Result<Value, Fail
             from,
             distance,
             fast,
+            ..
         } => {
             let mut a = json!({"kind": "swipe", "direction": direction, "fast": fast});
             if let Some(f) = from {
@@ -1530,6 +1596,7 @@ pub(crate) fn step_json(verb: &Verb, secret: Option<&str>) -> Result<Value, Fail
             within,
             until,
             max,
+            ..
         } => {
             let mut a = json!({"kind": "scroll", "direction": direction});
             if let Some(w) = within {
@@ -1543,13 +1610,14 @@ pub(crate) fn step_json(verb: &Verb, secret: Option<&str>) -> Result<Value, Fail
             }
             a
         }
-        Verb::Drag { from, to } => {
+        Verb::Drag { from, to, .. } => {
             json!({"kind": "drag", "from": parse_target(from), "to": parse_target(to)})
         }
         Verb::Pinch {
             direction,
             at,
             distance,
+            ..
         } => {
             let mut a = json!({"kind": "pinch", "direction": direction});
             if let Some(t) = at {
@@ -1587,8 +1655,8 @@ pub(crate) fn step_json(verb: &Verb, secret: Option<&str>) -> Result<Value, Fail
             }
             a
         }
-        Verb::Clear { target } => json!({"kind": "clear", "target": parse_target(target)}),
-        Verb::Press { key } => json!({"kind": "press", "key": key}),
+        Verb::Clear { target, .. } => json!({"kind": "clear", "target": parse_target(target)}),
+        Verb::Press { key, .. } => json!({"kind": "press", "key": key}),
         Verb::Back => json!({"kind": "press", "key": "back"}),
         Verb::Home => json!({"kind": "press", "key": "home"}),
         Verb::Wait { condition, app } => {
@@ -1663,6 +1731,9 @@ pub(crate) async fn run_batch(
         p["approval"] = json!(Approval::Autonomous);
     } else if let Some(a) = g.approval {
         p["approval"] = json!(a);
+    }
+    if let Some(shown) = &g.approved {
+        p["approved"] = json!(shown);
     }
     if !g.ask.is_empty() {
         p["ask"] = json!(g.ask);
@@ -1941,12 +2012,12 @@ impl NoSecret {
     }
 }
 
-/// The action of a saved step with the secret it names filled in from this process's environment. A `type` that
-/// is not a secret is returned as it is.
-fn with_secret(action: &Value) -> Result<Value, NoSecret> {
+/// The action of a saved step with the secret it names filled in from this process's environment, and that secret. A
+/// `type` that is not a secret is returned as it is.
+fn with_secret(action: &Value) -> Result<(Value, Option<String>), NoSecret> {
     let mut action = action.clone();
     if action["kind"] != "type" || action["secret"] != true {
-        return Ok(action);
+        return Ok((action, None));
     }
     let name = action["secret_env"]
         .as_str()
@@ -1963,7 +2034,18 @@ fn with_secret(action: &Value) -> Result<Value, NoSecret> {
         fields.remove("secret_env");
         fields.insert("text".into(), json!(text));
     }
-    Ok(action)
+    Ok((action, Some(text)))
+}
+
+/// The parameters of a saved step that is not an action, without the `device` and `share` the file may hold: a step
+/// runs on the replay's own device and lease, as an action step does.
+fn own_params(params: &Value) -> Value {
+    let mut params = params.clone();
+    if let Some(fields) = params.as_object_mut() {
+        fields.remove("device");
+        fields.remove("share");
+    }
+    params
 }
 
 fn secret_hint(why: &NoSecret, n: usize, total: usize) -> String {
@@ -2148,6 +2230,8 @@ impl Replay {
             )));
         }
         let started = std::time::Instant::now();
+        let any_field = std::env::var(variables::SECRET_ANY_FIELD).is_ok_and(|v| v == "1");
+        let mut typed = Vec::new();
         let mut done = Vec::new();
         let (mut kept, mut same) = (0u64, 0u64);
         for (i, step) in self.steps.iter().enumerate().skip(self.from - 1) {
@@ -2155,14 +2239,21 @@ impl Replay {
             let outcome = match (step["manual"].as_str(), step["method"].as_str()) {
                 (Some(what), _) => Err(refused(what)),
                 (None, Some("act")) => match with_secret(&step["params"]["action"]) {
-                    Ok(action) => client.call("act", act(action)).await,
+                    Ok((action, secret)) => {
+                        let mut params = act(action);
+                        if let Some(secret) = secret {
+                            typed.push(secret);
+                            params["secret_field_only"] = json!(!any_field);
+                        }
+                        client.call("act", params).await
+                    }
                     Err(why) => {
                         hint = Some(secret_hint(&why, i + 1, total));
                         Err(refused(&why.message()))
                     }
                 },
                 (None, Some(method @ ("wait" | "shell" | "setting" | "app"))) => {
-                    client.call(method, with(step["params"].clone())).await
+                    client.call(method, with(own_params(&step["params"]))).await
                 }
                 _ => Err(refused("this is not a step this version can run")),
             };
@@ -2186,7 +2277,7 @@ impl Replay {
                 ),
                 Err(failure) => {
                     return Err(self
-                        .stopped(client, with, i + 1, &done, failure, hint)
+                        .stopped(client, with, i + 1, &done, failure, hint, &typed)
                         .await);
                 }
             };
@@ -2203,7 +2294,7 @@ impl Replay {
                     }
                     Err((failure, hint)) => {
                         return Err(self
-                            .stopped(client, with, i + 1, &done, failure, hint)
+                            .stopped(client, with, i + 1, &done, failure, hint, &typed)
                             .await);
                     }
                 }
@@ -2255,7 +2346,10 @@ impl Replay {
         Ok(out)
     }
 
-    /// The failure of step `n`, with what ran before it, the screen, and how to go on from here.
+    /// The failure of step `n`, with what ran before it, the screen, and how to go on from here. The message is
+    /// masked by the daemon and with the secrets this replay typed, because a comparison's text is read here from a
+    /// screenshot that may show one (decision D105).
+    #[allow(clippy::too_many_arguments)]
     async fn stopped(
         &self,
         client: &mut Client,
@@ -2264,6 +2358,7 @@ impl Replay {
         done: &[String],
         failure: Failure,
         hint: Option<String>,
+        typed: &[String],
     ) -> Failure {
         let total = self.steps.len();
         let step = Replay::describe(&self.steps[n - 1]);
@@ -2294,7 +2389,8 @@ impl Replay {
                 format!("Do step {n} yourself; it is the last one.")
             }
         });
-        error.message = text;
+        let text = masked(client, &text).await.unwrap_or(text);
+        error.message = crate::daemon::secrets::masked_with(&text, typed);
         if let Some(data) = error.data.as_object_mut() {
             data.insert("hint".into(), json!(hint));
             data.insert("step".into(), json!(n));
@@ -2701,6 +2797,9 @@ fn show_action(result: &Value, json: bool) -> Result<String, Failure> {
             head.push_str(" · no element changed");
         }
     }
+    if r.observation.loading && r.observation.kind != Kind::Full {
+        head.push_str(" · still loading");
+    }
     if r.woke {
         head.push_str(" · woke the screen first");
     }
@@ -3027,6 +3126,19 @@ mod tests {
             show_action(&typed, false).unwrap(),
             "ok typed into @e4 · verified"
         );
+    }
+
+    #[test]
+    fn a_reply_whose_screen_is_still_loading_says_so_in_its_first_line() {
+        let mut loading = action(true, "diff", "+ @e51 progress \"in progress\"");
+        loading["observation"]["loading"] = json!(true);
+        let shown = show_action(&loading, false).unwrap();
+        assert!(
+            shown.starts_with("ok tapped @e1 · still loading\n"),
+            "{shown}"
+        );
+        let shown = show_action(&action(true, "diff", "~ @e1 x → y"), false).unwrap();
+        assert!(!shown.contains("loading"), "{shown}");
     }
 
     #[test]
