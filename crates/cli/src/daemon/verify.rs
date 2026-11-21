@@ -442,6 +442,27 @@ mod tests {
         assert!(plus.judge(&shows("+46 31 121"), false).is_none());
     }
 
+    /// Contacts pre-fills `+1` in a new phone field: `0622222222` typed there showed `+10622222222` and was reported
+    /// as verified (2026-11, a live run). A country code replaces a number's leading 0; it does not precede it.
+    #[test]
+    fn a_country_code_in_front_of_a_number_typed_with_a_leading_0_is_not_verified() {
+        let shows = |value: &str| FieldView {
+            found: true,
+            focused: true,
+            value: Some(value.into()),
+            focus_elsewhere: None,
+            target: Some(Ref(5)),
+        };
+        let national = verify(Expect::Exactly("0622222222".into()));
+        assert!(
+            national.judge(&shows("+10622222222"), false).is_some(),
+            "a +1 left in front of 0622222222 was taken for formatting"
+        );
+        assert!(national.judge(&shows("06 2222 2222"), false).is_none());
+        let formatted = verify(Expect::Exactly("3710658".into()));
+        assert!(formatted.judge(&shows("+1 371-065-8"), false).is_none());
+    }
+
     #[test]
     fn a_field_that_left_the_screen_and_one_that_exposes_no_text_are_told_apart() {
         let gone = exactly("07").judge(&FieldView::default(), false).unwrap();
