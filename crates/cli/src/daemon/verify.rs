@@ -228,12 +228,15 @@ impl Verify {
             .all(|c| c.is_ascii_digit() || "+-(). ".contains(c));
         let digits = |s: &str| s.chars().filter(char::is_ascii_digit).collect::<String>();
         let code_made_of_typed_digits = self.plus_left_over(value);
+        // A number typed with its national 0 (`0622222222`) loses that 0 to a country code; a code in front of the
+        // 0 (`+10622222222`) is a `+1` the field already held.
+        let national = !typed.contains('+') && typed.trim_start().starts_with('0');
         let (typed, shown) = (digits(typed), digits(value));
         phone_like
             && !code_made_of_typed_digits
             && typed.len() >= 4
             && shown.ends_with(&typed)
-            && shown.len() <= typed.len() + 3
+            && shown.len() <= typed.len() + if national { 0 } else { 3 }
     }
 
     /// The field shows a `+` that was not typed, in front of exactly the digits typed, so the first of them read as
