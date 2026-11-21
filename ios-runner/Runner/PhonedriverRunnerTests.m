@@ -11,7 +11,7 @@
 #import "Typing.h"
 #import "XCTestPrivate.h"
 
-static NSString *const PURunnerVersion = @"0.1.0";
+static NSString *const PURunnerVersion = @"0.2.0";
 static const uint16_t PUDefaultPort = 27753;
 static const NSInteger PUDefaultMaxDepth = 30;
 
@@ -176,10 +176,15 @@ static NSDictionary *PUPerform(NSDictionary *request, NSError **error)
 {
     self.continueAfterFailure = YES;
     (void)[[XCUIApplication alloc] initWithBundleIdentifier:@"com.apple.springboard"].alerts.count;
-    NSString *portString = NSProcessInfo.processInfo.environment[@"PHONEDRIVER_PORT"];
+    NSDictionary *env = NSProcessInfo.processInfo.environment;
+    NSString *portString = env[@"PHONEDRIVER_PORT"];
     uint16_t port = portString.length ? (uint16_t)portString.integerValue : PUDefaultPort;
+    NSString *token = env[@"PHONEDRIVER_TOKEN"] ?: @"";
+    if (token.length == 0) {
+        NSLog(@"PhonedriverRunner was started without PHONEDRIVER_TOKEN and refuses every connection");
+    }
     __weak PhonedriverRunnerTests *weakSelf = self;
-    PUServer *server = [[PUServer alloc] initWithPort:port handler:^NSDictionary *(NSDictionary *request) {
+    PUServer *server = [[PUServer alloc] initWithPort:port token:token handler:^NSDictionary *(NSDictionary *request) {
         return [weakSelf reply:request];
     }];
     NSError *error = nil;
