@@ -168,8 +168,8 @@ const PROGRAM_FOLDERS: &[&str] = &["usr/bin", "bin", "usr/sbin", "sbin"];
 /// What `xcrun` runs for an agent's `shell` command on the Simulator `udid` whose system is the folder `root`: `simctl
 /// <sub> ...` gets the device inserted after the subcommand, and anything else runs in the Simulator as `spawn_args`
 /// says. A Simulator's programs are processes of the Mac, run as the Mac's user with the Mac's files, so unless `host`
-/// (the daemon was started with `PHONEDRIVER_HOST_SHELL=1`) only the `simctl` forms that act on the Simulator alone
-/// are built (decision D108). The errors never quote the command, which may be a secret.
+/// (the daemon was started with `PHONEDRIVER_HOST_SHELL=1`) only what acts on the Simulator alone is built: the
+/// `simctl` forms `mac_form` passes, and `defaults` and `log` as `mac_program` says, run as one program (decision D108). The errors never quote the command, which may be a secret.
 pub fn shell_args(
     udid: &str,
     command: &str,
@@ -178,12 +178,18 @@ pub fn shell_args(
 ) -> std::result::Result<Vec<String>, String> {
     let words = split_words(command)?;
     if words.first().map(String::as_str) != Some("simctl") {
-        if !host {
+        if host {
+            return spawn_words(udid, command, &words, root);
+        }
+        if let Some(why) = mac_program(&words) {
+            return Err(on_the_mac(why));
+        }
+        if needs_shell(command) {
             return Err(on_the_mac(
-                "A command that is not `simctl` runs a program in the Simulator",
+                "A pipe, list or redirection needs the Simulator's shell, which runs any program",
             ));
         }
-        return spawn_words(udid, command, &words, root);
+        return program_words(udid, &words, root);
     }
     let Some(sub) = words.get(1) else {
         return Err(format!(
@@ -241,9 +247,59 @@ fn mac_form(sub: &str, rest: &[String]) -> Option<&'static str> {
     }
 }
 
+/// Why the program command `words` acts on the Mac, if it does. `defaults` and `log show` or `log stream` keep to the
+/// Simulator's own settings and log as long as no argument names a file.
+fn mac_program(words: &[String]) -> Option<&'static str> {
+    const FILE: &str = "An argument that names a file names a file of the Mac";
+    if words
+        .iter()
+        .any(|w| w.starts_with('/') || w.starts_with('~') || w.contains(".."))
+    {
+        return Some(FILE);
+    }
+    let rest: Vec<&str> = words[1..].iter().map(String::as_str).collect();
+    match words[0].as_str() {
+        "defaults" => {
+            let rest = rest.strip_prefix(&["-currentHost"]).unwrap_or(&rest);
+            let (sub, domain) = match rest {
+                [sub, "-app", name, ..] => (*sub, *name),
+                [sub, domain, ..] => (*sub, *domain),
+                [sub] => (*sub, ""),
+                [] => ("", ""),
+            };
+            if !matches!(
+                sub,
+                "read" | "read-type" | "write" | "delete" | "domains" | "find" | "rename"
+            ) {
+                return Some(
+                    "`defaults import`, `export` and `-host` read or write a file or another computer",
+                );
+            }
+            domain.contains('/').then_some(FILE)
+        }
+        "log" => {
+            if !matches!(rest.first(), Some(&("show" | "stream"))) {
+                return Some(
+                    "`log` other than `show` and `stream` reads or writes files of the Mac",
+                );
+            }
+            rest.iter()
+                .any(|w| {
+                    let w = w.to_ascii_lowercase();
+                    w.starts_with("--archive")
+                        || w.starts_with("--file")
+                        || w.ends_with(".logarchive")
+                        || w.ends_with(".tracev3")
+                })
+                .then_some(FILE)
+        }
+        _ => Some("A program other than `defaults` and `log` runs in the Simulator"),
+    }
+}
+
 fn on_the_mac(why: &str) -> String {
     format!(
-        "{why}. A Simulator's programs run on this Mac as your Mac user and reach its files, so `shell` takes only what acts on the Simulator alone: `simctl ui`, `openurl` (not `file:`), `privacy`, `location`, `status_bar`, `launch`, `terminate`, `uninstall`, `listapps`, `appinfo`, `get_app_container`, `pbcopy`, `pbpaste`, `keychain reset` and `io enumerate`. To allow the rest, stop the daemon (`phonedriver daemon stop`) and start it with PHONEDRIVER_HOST_SHELL=1"
+        "{why}. A Simulator's programs run on this Mac as your Mac user and reach its files, so `shell` takes only what acts on the Simulator alone: `defaults` and `log show` or `log stream` with no file named, and `simctl ui`, `openurl` (not `file:`), `privacy`, `location`, `status_bar`, `launch`, `terminate`, `uninstall`, `listapps`, `appinfo`, `get_app_container`, `pbcopy`, `pbpaste`, `keychain reset` and `io enumerate`. To allow the rest, stop the daemon (`phonedriver daemon stop`) and start it with PHONEDRIVER_HOST_SHELL=1"
     )
 }
 
@@ -281,6 +337,14 @@ fn spawn_words(
             examples(root)
         ));
     }
+    program_words(udid, words, root)
+}
+
+fn program_words(
+    udid: &str,
+    words: &[String],
+    root: &std::path::Path,
+) -> std::result::Result<Vec<String>, String> {
     let Some(program) = words.first() else {
         return Err("the command is empty".into());
     };
@@ -886,21 +950,65 @@ mod tests {
     ];
 
     #[test]
-    fn a_program_in_the_simulator_runs_on_the_mac_so_it_waits_for_the_persons_switch() {
+    fn the_simulators_own_settings_and_log_need_no_switch() {
         for with_shell in [false, true] {
             let root = system(with_shell);
             for command in [
                 "defaults read -g AppleLocale",
+                "defaults write com.example.app Server -string https://staging.example.com",
+                "defaults -currentHost read com.example.app",
+                "defaults read -app Maps",
+                "log show --last 1m --predicate 'process == \"MyApp\"'",
+                "log stream --level debug",
+            ] {
+                let words = split_words(command).unwrap();
+                let args = shell_args("U", command, root.path(), false).unwrap();
+                assert_eq!(args[..2], ["spawn", "U"], "{command}");
+                assert_eq!(
+                    std::path::Path::new(&args[2]),
+                    root.path().join("usr/bin").join(&words[0]),
+                    "{command}: one program, never the shell"
+                );
+                assert_eq!(args[3..], words[1..], "{command}");
+            }
+        }
+    }
+
+    #[test]
+    fn a_program_in_the_simulator_runs_on_the_mac_so_it_waits_for_the_persons_switch() {
+        for with_shell in [false, true] {
+            let root = system(with_shell);
+            for command in [
                 "launchctl list",
                 "/bin/df -h",
+                "defaults read /Users/me/Library/Preferences/com.apple.finder",
+                "defaults read ~/Library/Preferences/com.apple.finder",
+                "defaults read Library/Preferences/com.apple.finder",
+                "defaults read ../../Users/me/Library/Preferences/com.apple.finder",
+                "defaults export com.example.app out.plist",
+                "defaults import com.example.app in.plist",
+                "defaults -host other.local read com.example.app",
+                "defaults read -app /Applications/Safari.app",
+                "log show --archive /Users/me/system.logarchive",
+                "log show system.logarchive",
+                "log show --file /Users/me/x.tracev3",
+                "log collect --output out.logarchive",
+                "log erase --all",
+                "defaults read -g AppleLocale | head",
+                "defaults read -g AppleLocale; cat /Users/me/.ssh/id_ed25519",
             ] {
                 let e = shell_args("U", command, root.path(), false).unwrap_err();
                 assert!(e.contains("as your Mac user"), "{command}: {e}");
                 assert!(e.contains("PHONEDRIVER_HOST_SHELL=1"), "{command}: {e}");
                 assert!(e.contains("simctl ui"), "{command}: {e}");
-                assert!(!e.contains("AppleLocale"), "{command}: {e}");
-                let args = shell_args("U", command, root.path(), true).unwrap();
-                assert_eq!(args[..2], ["spawn", "U"], "{command}");
+                assert!(e.contains("`defaults`"), "{command}: {e}");
+                assert!(!e.contains("/Users/me"), "{command}: {e}");
+                assert!(!e.contains("Preferences"), "{command}: {e}");
+                assert!(!e.contains("logarchive"), "{command}: {e}");
+                if with_shell || !needs_shell(command) {
+                    let args = shell_args("U", command, root.path(), true).unwrap();
+                    assert_eq!(args[..2], ["spawn", "U"], "{command}");
+                }
             }
         }
     }
