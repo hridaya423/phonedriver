@@ -50,12 +50,67 @@ pub async fn touch_sensor_on(
     .map(drop)
 }
 
+/// The console commands an agent's `shell` may send, and for some the subcommands. The rest include commands that act
+/// on the computer that runs the emulator: `screenrecord` and `network capture` write files there, `redir` opens its
+/// ports, `kill` and `avd snapshot` end or change the emulator (decision D108).
+const OFFERED: &[(&str, &[&str])] = &[
+    ("geo", &[]),
+    ("sms", &[]),
+    ("power", &[]),
+    ("network", &["speed", "delay", "status"]),
+    ("sensor", &[]),
+    ("rotate", &[]),
+    ("finger", &[]),
+    ("avd", &["name", "status"]),
+];
+
+/// Whether `command` may go to the console from an agent's `shell` call: one line, and one of the offered commands
+/// unless `any`, which is true when the daemon was started with `PHONEDRIVER_HOST_SHELL=1`. The error never quotes
+/// the command, which may be a secret.
+pub fn check(command: &str, any: bool) -> Result<(), String> {
+    one_line(command)?;
+    if any {
+        return Ok(());
+    }
+    let mut words = command.split_whitespace();
+    let first = words.next().unwrap_or_default();
+    let second = words.next().unwrap_or_default();
+    let offered = OFFERED
+        .iter()
+        .any(|(name, subs)| *name == first && (subs.is_empty() || subs.contains(&second)));
+    if offered {
+        return Ok(());
+    }
+    let list: Vec<String> = OFFERED
+        .iter()
+        .map(|(name, subs)| match subs {
+            [] => name.to_string(),
+            _ => format!("{name} {}", subs.join("|")),
+        })
+        .collect();
+    Err(format!(
+        "this console command is not offered: some act on the computer that runs the emulator (`screenrecord` and `network capture` write files there, `redir` opens its ports, `kill` and `avd snapshot` end or change the emulator). Offered: {}. To send any console command, stop the daemon (`phonedriver daemon stop`) and start it with PHONEDRIVER_HOST_SHELL=1",
+        list.join(", ")
+    ))
+}
+
+/// The console reads a command up to the end of its line, so a line break in one would send a second command.
+fn one_line(command: &str) -> Result<(), String> {
+    if command.chars().any(char::is_control) {
+        return Err(
+            "a console command is one line: it cannot hold a line break or another control character".into(),
+        );
+    }
+    Ok(())
+}
+
 /// Sends one console command, such as `geo fix -122.41 37.77`, and returns what the console said to it.
 pub async fn command_on(
     console: impl AsyncRead + AsyncWrite + Unpin,
     token: Option<&str>,
     command: &str,
 ) -> Result<String, String> {
+    one_line(command)?;
     run_on(console, token, &[command], Duration::ZERO).await
 }
 
@@ -226,5 +281,94 @@ mod tests {
         let (addr, _served) = console(ASKS, &[]).await;
         let e = touch_sensor(&addr, None, 1).await.unwrap_err();
         assert!(e.contains(".emulator_console_auth_token"), "{e}");
+    }
+
+    #[tokio::test]
+    async fn an_embedded_line_break_is_refused_and_nothing_reaches_the_console() {
+        for command in [
+            "screenrecord start /tmp/p/.env\r\nkill",
+            "geo fix 1 2\nkill",
+            "geo fix 1 2\rkill",
+            "avd name\u{0}",
+        ] {
+            let (addr, served) = console(ASKS, &["OK\r\n", "OK\r\n", "OK\r\n"]).await;
+            let stream = TcpStream::connect(&addr).await.unwrap();
+            let e = command_on(stream, Some("s3cr3t"), command)
+                .await
+                .unwrap_err();
+            assert!(e.contains("one line"), "{command:?}: {e}");
+            assert!(served.await.unwrap().is_empty(), "{command:?}");
+        }
+    }
+
+    const OFFERED: &[&str] = &[
+        "geo fix -122.41 37.77",
+        "geo nmea $GPGGA,001431.092,0118.2653,N,10351.1359,E,0,00,,-19.6,M,4.1,M,,0000*5B",
+        "geo gnss 1 2",
+        "sms send 5551234 hello there",
+        "sms pdu 0001",
+        "power capacity 15",
+        "power ac off",
+        "power status discharging",
+        "network speed edge",
+        "network delay gprs",
+        "network status",
+        "sensor set acceleration 0:9.8:0",
+        "sensor status",
+        "rotate",
+        "finger touch 1",
+        "finger remove",
+        "avd name",
+        "avd status",
+    ];
+
+    const HOST_EFFECTS: &[&str] = &[
+        "screenrecord start /Users/me/project/.env",
+        "screenrecord screenshot /Users/me",
+        "screenrecord stop",
+        "network capture start /tmp/x.pcap",
+        "redir add tcp:5000:6000",
+        "kill",
+        "avd snapshot save x",
+        "avd snapshot load x",
+        "avd snapshot delete x",
+        "avd stop",
+        "avd path",
+        "GEO fix 1 2",
+        "help",
+        "",
+    ];
+
+    #[test]
+    fn the_console_commands_a_test_needs_are_offered() {
+        for command in OFFERED {
+            assert_eq!(check(command, false), Ok(()), "{command}");
+        }
+    }
+
+    #[test]
+    fn console_commands_that_act_on_the_computer_are_refused_and_the_offer_is_named() {
+        for command in HOST_EFFECTS {
+            let e = check(command, false).unwrap_err();
+            assert!(
+                e.contains("geo, sms, power, network speed|delay|status, sensor, rotate, finger, avd name|status"),
+                "{command}: {e}"
+            );
+            assert!(e.contains("PHONEDRIVER_HOST_SHELL=1"), "{command}: {e}");
+            assert!(!e.contains("/Users/me"), "{command}: {e}");
+        }
+    }
+
+    #[test]
+    fn with_host_commands_allowed_every_console_command_goes_but_still_as_one_line() {
+        for command in HOST_EFFECTS.iter().filter(|c| !c.is_empty()) {
+            assert_eq!(check(command, true), Ok(()), "{command}");
+        }
+        for command in ["geo fix 1 2\r\nkill", "kill\n", "avd name\t"] {
+            for any in [false, true] {
+                let e = check(command, any).unwrap_err();
+                assert!(e.contains("one line"), "{command:?}: {e}");
+            }
+        }
     }
 }
