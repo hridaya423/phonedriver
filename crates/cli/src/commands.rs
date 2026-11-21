@@ -42,7 +42,7 @@ Exit codes:
   2  the command line is wrong
   3  a person must act on the device (unlock, trust, allow); the message says what
   4  no device matches, or it was disconnected
-  5  the tap spends money or cannot be undone and the human has not approved it; ask them, then add --autonomous
+  5  the action spends money or cannot be undone and the human has not approved it; ask them, then add --autonomous
 
 When something goes wrong, see Debugging in the README: traces, daemon.log and the runner log.
 Settings by environment variable are in the README's table (PHONEDRIVER_HOME, PHONEDRIVER_TEAM, ...).";

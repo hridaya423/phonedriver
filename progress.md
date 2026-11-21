@@ -3424,3 +3424,27 @@ Live, the same phone, release build, read-only (no taps):
 - Checked from the release: `shasum -a 256 -c phonedriver-aarch64-apple-darwin.tar.gz.sha256` gave `OK`, and the binary printed `phonedriver 0.1.6`. `releases/latest/download/PhonedriverRunner.ipa` answered 200.
 - Site (`2c69ef43`): the version lines, and four pages that lagged: the iPhone page said an iPhone needs a Mac and now has the Windows steps; the privacy page lists the `--download-ddi` fetch; the Simulator page has `apps notify` and `wait log`; the web page doc says how a tap meets a page's fixed bar. Built on the mini: `scripts/check.mjs` gave `problems 0`. Live after the deploy: `/docs/install/` says `current release is phonedriver 0.1.6`, and `/docs/iphone/` has `id="iphone-from-windows"`.
 - npm package dry run from the tag: `phonedriver@0.1.6`, 5 files, 17.3 kB; `npm test` in `packaging/npm`: 7 passed. npm and the MCP registry entry are published by the maintainer.
+
+## 2026-11-21: the guard checks every touch and enter (D104; GHSA-25p2-p3fx-5hmm, GHSA-rm5p-9fp9-hgrx)
+
+An outside review (giulioc84, private advisories) showed a held payment going through with no prompt and no `autonomous`. All checked against `main` first and confirmed: the guard was called only from `tap` and `type --submit` (`guard_tap`, `guard_submit` in `actor.rs`).
+
+What changed, per reported path:
+- `type x --into "Pay €49.99"`, `clear "Pay €49.99"` (25p2 cases 1, 2): the focus tap goes through `guard_tap`.
+- `type --into IBAN --submit` with a Pay button disabled until the field is filled (25p2 case 3): `submit_button` counts a disabled button; with no screen yet in the session it reads one.
+- `press enter` after typing (25p2 case 4): `guard::entered` checks the focused button or the focused field's form.
+- Zero-length `swipe` from "Place order", `drag` onto itself, one-finger `gesture`, `pinch` (rm5p, 25p2 R1): `guard::touched`, a finger that goes down and lifts on a guarded element is a click there. Slide-to-pay controls are held wherever the finger lifts; `drag` also counts where it drops.
+- Unlabeled wordings (25p2 R2): `Pay with ...`, `Pay 500`, `kr`, `zł`, `AED` and more currencies; slider wordings in the eleven languages.
+- A price inside a "Place order" row (25p2 R3): `guard::receiver` walks up to the element that takes the touch.
+- Approval not bound to what was shown (25p2 R4): `approved` (label and screen lines) rides on `act`/`batch` after the human answers; a mismatch asks again.
+- MCP `swipe`, `scroll`, `press` and clearing through `type` ask the human like `tap`; the CLI verbs take `--autonomous`.
+
+Smoothness: an ordinary swipe, scroll or pinch reads the screen no more often than before (it uses the resolved element, the screen in hand, or the session's sure last screen). Test `an_ordinary_swipe_or_scroll_reads_the_screen_no_more_than_with_the_guard_off`.
+
+Tests (on win-pc's WSL, `cargo test --locked -p phonedriver --test guard`):
+- First run, new tests against the old `crates/cli/src` (stashed): `test result: FAILED. 38 passed; 9 failed`; each of the nine panicked at `expected a refusal, got Ok(...)` (`typing_into_a_guarded_button_is_held_before_its_focus_tap`, `clearing_...`, `submitting_a_form_whose_pay_button_waits_for_the_text_...`, `press_enter_after_typing_into_the_form_is_held`, `a_first_call_with_no_screen_read_yet_is_still_held`, `swipes_drags_pinches_and_gestures_that_click_a_guarded_button_are_held`, `dragging_onto_an_opted_in_delete_button_is_held`, `a_slide_to_pay_track_is_held_whatever_verb_moves_it`, `an_approval_covers_only_the_button_and_details_the_human_was_shown`).
+- One more failure found on the way: a swipe past the end of a slide track lifted outside it and was not held; sliders now count wherever the finger lifts.
+- After: `guard` 54 passed (with six MCP cases on both protocols: a held swipe, press and clear are asked and run in the same call, a declined swipe sends no touch, a client that cannot ask gets the question), `guard_property` 7, `mcp` 53, `daemon` 200, `cli` 30, lib 148 (guard unit tests: `a_finger_that_goes_down_and_lifts_on_a_guarded_button_is_a_click_however_it_moved`, `a_stroke_along_a_slide_to_pay_track_is_guarded`, `a_price_inside_a_place_order_row_commits_the_row`, `enter_sends_the_focused_fields_form_even_while_its_pay_button_is_disabled`, `enter_on_a_focused_pay_button_clicks_it`, and the new classifier rows).
+- `cargo test --locked --workspace --no-fail-fast`: 60 test binaries `ok`, none failed. `cargo clippy --locked --workspace --all-targets -- -D warnings`: clean. `cargo fmt --all --check`: clean.
+
+Not run on a device: whether a real slider or a real form behaves as the fakes do. The reporter's emulator runs showed the paths; these tests show the guard now holds them.

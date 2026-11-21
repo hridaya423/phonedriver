@@ -31,7 +31,7 @@ It checks the toolchain, devices and the socket. Each line says `ok`, `warn` or 
 | 2 | The command line is wrong |
 | 3 | A person must act on the device: unlock, trust, allow |
 | 4 | No matching device, or it was disconnected |
-| 5 | A tap that spends money or cannot be undone needs the human's approval. Add `--autonomous` only when the user has granted full autonomy |
+| 5 | An action that spends money or cannot be undone needs the human's approval. Add `--autonomous` only when the user has granted full autonomy |
 
 ## Common problems
 
