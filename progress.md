@@ -3556,3 +3556,33 @@ Docs: D107; D26, D34, D59, D99, D100, D101 and D102 amended in place; `docs/refe
 Commands (WSL, debug):
 - `cargo fmt --all --check`: exit 0. `cargo clippy --locked --workspace --all-targets -- -D warnings`: `Finished`, no warnings.
 - `cargo test --locked --workspace --no-fail-fast`: 60 test binaries, none failed; among them `app_scope` 27, `device_list` 16, `adb_source` 3, `daemon` 201, `netview` 12, `record` (cli) 7, `shell` 11, `sources` 8, `cli` 30, the `phonedriver` lib 144, `phonedriver-ios` lib 240, `phonedriver-core` lib 100, `phonedriver-android` lib 85, `phonedriver-video` `record` 7.
+
+## 2026-11-21: a still screen records, and the Simulator's settings and log need no switch (D107, D108)
+
+Two changes before 0.1.7 ships, both asked for by the user so that ordinary use needs no setting.
+
+**Recordings of a still screen.** Since D107 a recording opened at the first keyframe after its start, and an idle
+screen gives the encoder no input to make one from, so a recording of a screen that never changed had no picture.
+Now the agent asks its encoder for a keyframe at the first repeat after a change (`Video.wrote`), and
+`stream::still` starts the file from a kept group that is one keyframe and only its repeats (stamped exactly 100 ms
+apart), which is the screen at the start and nothing older. Any other group waits for the keyframe as before.
+
+- Test first: `a_recording_of_a_still_screen_opens_with_that_screen` failed with `the keyframe and its repeats,
+  left: 0, right: 5`; after the change `cargo test -p phonedriver-video` (WSL): 11, 9, 6 and 15 passed, 0 failed.
+  `a_recording_started_after_the_screen_changed_holds_no_picture_from_before_it` (renamed) still gives 0 frames for
+  a kept group whose pictures changed.
+- Emulator (win-pc, Pixel_API_37, software GPU, Windows debug build with the new agent jar): Settings opened, home
+  pressed, 4 s idle, then `record start`/`stop` 3 s: `3.1 s, 570x1280, 7 frames, 10 kB`. `ffprobe`: the first packet
+  is the keyframe; all 7 frames show the home screen (PSNR 47.3 to 48.0 dB against the first; looked at), no frame of
+  Settings. Started right after `launch com.android.settings`: `3.3 s, 21 frames`, first frame the Settings list.
+
+**The Simulator's `defaults` and `log`.** D108 refused every program in a Simulator without
+`PHONEDRIVER_HOST_SHELL=1`. Now `defaults` (`read`, `read-type`, `write`, `delete`, `domains`, `find`, `rename`) and
+`log show|stream` run as one program by their path in the Simulator, never through its shell; an argument starting
+with `/` or `~` or holding `..`, a `defaults` domain with a `/`, `defaults import|export|-host`, other `log`
+subcommands and log archives or files still need the switch, as does any other program or a pipe.
+
+- Test first: `the_simulators_own_settings_and_log_need_no_switch` failed at the `unwrap` of a refusal, and the
+  refusal test failed for not naming `defaults`; after: `cargo test -p phonedriver-ios --lib` 117 passed, 0 failed.
+- `cargo clippy --workspace --all-targets -- -D warnings` clean; `cargo fmt --all --check` clean after `cargo fmt`.
+- Not run on a Simulator: the mini was not used for this change.

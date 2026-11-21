@@ -336,8 +336,66 @@ async fn a_recording_starts_at_the_first_keyframe_after_its_start_and_holds_noth
     assert_eq!(frames, 59);
 }
 
+/// The fixture's header, config and first keyframe, then its next `repeats` pictures stamped as the agent's encoder
+/// stamps its repeats of a still screen: 100 ms after the one before.
+fn still_screen(repeats: usize) -> Vec<u8> {
+    let mut out = FIXTURE[..12].to_vec();
+    let mut at = 12;
+    let mut first = None;
+    let mut pictures = 0;
+    while pictures <= repeats {
+        let len = be32(&FIXTURE[at + 9..]);
+        let mut packet = FIXTURE[at..at + 13 + len].to_vec();
+        if packet[8] & 1 == 0 {
+            let pts = *first.get_or_insert(be64(&packet));
+            let stamp = (pts + pictures * 100_000) as u64;
+            packet[..8].copy_from_slice(&stamp.to_be_bytes());
+            pictures += 1;
+        }
+        out.extend_from_slice(&packet);
+        at += 13 + len;
+    }
+    out
+}
+
 #[tokio::test]
-async fn a_recording_of_a_screen_that_never_changes_holds_no_picture_from_before_it() {
+async fn a_recording_of_a_still_screen_opens_with_that_screen() {
+    let (mut agent, host) = tokio::io::duplex(1 << 22);
+    let video = VideoStream::spawn(host, FrameStore::new(2.0));
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("still.mp4");
+    agent.write_all(&still_screen(4)).await.unwrap();
+    until("the still screen", || {
+        video.store.latest().is_some_and(|f| f.seq >= 5)
+    })
+    .await;
+    video.record_start(&path).unwrap();
+    tokio::time::sleep(Duration::from_millis(300)).await;
+    let stopped = video.record_stop().unwrap().expect("a recording");
+    let file = std::fs::read(&path).unwrap();
+    let t = track(&file);
+    assert_eq!(t.sizes.len(), 5, "the keyframe and its repeats");
+    assert_eq!(t.sync.first(), Some(&1));
+    assert!(
+        !file.windows(4).any(|w| w == b"elst"),
+        "the picture shows from the start"
+    );
+    assert!(stopped.recorded.ms >= 250, "{}", stopped.recorded.ms);
+    let mut decoder = Decoder::new().unwrap();
+    let mut config = vec![0, 0, 0, 1];
+    config.extend_from_slice(&t.sps);
+    config.extend_from_slice(&[0, 0, 0, 1]);
+    config.extend_from_slice(&t.pps);
+    decoder.decode(&config).unwrap();
+    let frames = annex_b(&file, &t)
+        .iter()
+        .filter(|unit| decoder.decode(unit).unwrap().is_some())
+        .count();
+    assert_eq!(frames, 5);
+}
+
+#[tokio::test]
+async fn a_recording_started_after_the_screen_changed_holds_no_picture_from_before_it() {
     let (mut agent, host) = tokio::io::duplex(1 << 22);
     let video = VideoStream::spawn(host, FrameStore::new(2.0));
     let dir = tempfile::tempdir().unwrap();

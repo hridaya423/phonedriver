@@ -27,6 +27,9 @@ const CATCH_UP_US: u64 = 12;
 /// next picture, and a screen that changed in the last second has one within about 100 ms (the agent repeats the
 /// last frame for about a second).
 const KEYFRAME_WAIT_US: u64 = 1_000_000;
+/// How long after a picture the agent's encoder repeats it while the screen stands still
+/// (`KEY_REPEAT_PREVIOUS_FRAME_AFTER`), and how much later than the one before each repeat is stamped.
+const REPEAT_US: u64 = 100_000;
 
 enum Item {
     Unit(Arc<AccessUnit>),
@@ -107,6 +110,15 @@ impl Live {
         self.newest = Some((pts_us, at));
         at
     }
+}
+
+/// Whether the units kept show one picture: a keyframe and after it only the encoder's repeats of it. The agent asks
+/// for a keyframe when the screen stops changing, so a still screen's kept units are this.
+fn still(group: &[Arc<AccessUnit>]) -> bool {
+    group.first().is_some_and(|unit| unit.keyframe)
+        && group
+            .windows(2)
+            .all(|w| w[1].pts_us.checked_sub(w[0].pts_us) == Some(REPEAT_US))
 }
 
 /// What the reader keeps of the stream so a recording can start at any moment: the parameter sets and every unit
@@ -255,9 +267,9 @@ impl VideoStream {
         self.tap.lock().unwrap_or_else(|e| e.into_inner())
     }
 
-    /// Starts writing the stream to an MP4 file at `path`. The file opens with the first keyframe that comes after
-    /// this, which the caller asks the encoder for, so it holds no picture from before the start; see `Live::picture`
-    /// for the fallback.
+    /// Starts writing the stream to an MP4 file at `path`. On a still screen the file opens with the picture on it
+    /// (see `still`); otherwise with the first keyframe that comes after this, which the caller asks the encoder for.
+    /// Either way it holds no picture from before the start; see `Live::picture` for the fallback.
     pub fn record_start(&self, path: &Path) -> io::Result<()> {
         let mut tap = self.tap();
         if tap.live.is_some() {
@@ -276,12 +288,18 @@ impl VideoStream {
         if let Some(config) = &tap.config {
             rec.push(config, CATCH_UP_US)?;
         }
+        let still = still(&tap.group);
+        if still {
+            for unit in &tap.group {
+                rec.push(unit, CATCH_UP_US)?;
+            }
+        }
         tap.ended = None;
         tap.live = Some(Live {
             rec,
             began: Instant::now(),
             newest: None,
-            waiting: Some(Waiting {
+            waiting: (!still).then(|| Waiting {
                 kept: tap.group.clone(),
                 came: Vec::new(),
             }),
