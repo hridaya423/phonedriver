@@ -82,16 +82,31 @@ impl Session {
         self.gone.iter().rev().find(|e| e.r#ref == r)
     }
 
-    /// The one dropped text field whose label contains `text`, in any case.
+    /// The one dropped text field that `text` names by D33's rules: its whole label, else whole words of a short one.
     pub fn gone_field_named(&self, text: &str) -> Option<&Element> {
-        let q = text.to_lowercase();
-        let mut named = self.gone.iter().rev().filter(|e| {
-            e.label
-                .as_deref()
-                .is_some_and(|l| l.to_lowercase().contains(&q))
-        });
-        let first = named.next()?;
+        let q = normalize(text);
+        let named = |whole: bool| -> Vec<&Element> {
+            self.gone
+                .iter()
+                .rev()
+                .filter(|e| {
+                    e.label.as_deref().is_some_and(|l| {
+                        let l = normalize(l);
+                        if whole {
+                            l == q
+                        } else {
+                            holds_as_words(&l, &q, Some(EXTRA_WORDS))
+                        }
+                    })
+                })
+                .collect()
+        };
+        let named = Some(named(true))
+            .filter(|n| !n.is_empty())
+            .unwrap_or_else(|| named(false));
+        let first = *named.first()?;
         named
+            .iter()
             .all(|e| e.role == first.role && e.label == first.label)
             .then_some(first)
     }
@@ -904,6 +919,34 @@ mod tests {
         assert!(matches!(err, Error::NotFound { .. }), "{err:?}");
         let err = picked(&[sentence], "list").unwrap_err();
         assert!(matches!(err, Error::NotFound { .. }), "{err:?}");
+    }
+
+    fn session_that_lost_fields(labels: &[&str]) -> Session {
+        let mut shown = screen(labels);
+        for e in &mut shown.elements {
+            e.role = phonedriver_core::element::Role::TextField;
+        }
+        let mut s = Session::default();
+        s.set_last(Some(shown));
+        s.set_last(Some(screen(&[])));
+        s
+    }
+
+    #[test]
+    fn a_dropped_field_is_named_by_whole_words_as_a_visible_one_is() {
+        let s = session_that_lost_fields(&["Network", "Row 364"]);
+        assert!(s.gone_field_named("net").is_none());
+        assert!(s.gone_field_named("Row 3").is_none());
+        assert_eq!(
+            s.gone_field_named("network")
+                .and_then(|e| e.label.as_deref()),
+            Some("Network")
+        );
+        assert_eq!(
+            s.gone_field_named("row  364")
+                .and_then(|e| e.label.as_deref()),
+            Some("Row 364")
+        );
     }
 
     #[test]

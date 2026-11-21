@@ -400,6 +400,7 @@ Secrets. The trace keeps the command text (an agent's command is what it did), b
 - `tap "List"` with a permission sentence "Allow phonedriver to read the list of apps on this device so that it can open them" on screen: the sentence has 16 words around a 1-word target, so it is skipped; "List" the tab (step 1) or "List view" (step 3) are found.
 - `tap "Save"` finds "Save and continue" (2 other words); `tap "network"` finds "Network & internet"; `tap "net"` finds nothing and `NotFound` lists "Network & internet" among `similar`.
 - `tap "Row"` with "Row 1", "Row 2" is `Ambiguous`, as before.
+- A text field the keyboard pushed out of the tree is found again by the same two steps (`Session::gone_field_named`): `type --into net` no longer scrolls to and types into a dropped "Network" field, and "Row 3" does not name a dropped "Row 364". Amended 2026-11-21; test `a_dropped_field_is_named_by_whole_words_as_a_visible_one_is`.
 - `tap "设置"` still finds "网络设置".
 
 **Why.** A model reads its own target back as the screen it expects; a match in the wrong place taps or stops there without a sign. Both failures came from audit runs. A label that is mostly something else is not the thing the model named.

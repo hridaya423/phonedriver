@@ -3586,3 +3586,8 @@ subcommands and log archives or files still need the switch, as does any other p
   refusal test failed for not naming `defaults`; after: `cargo test -p phonedriver-ios --lib` 117 passed, 0 failed.
 - `cargo clippy --workspace --all-targets -- -D warnings` clean; `cargo fmt --all --check` clean after `cargo fmt`.
 - Not run on a Simulator: the mini was not used for this change.
+
+## 2026-11-21: a dropped text field is named by D33's rules
+
+- `Session::gone_field_named` matched a dropped field when its label merely contained the target (`contains`), so `type --into net`, which finds nothing on screen by D33, scrolled to a dropped "Network" field and typed into it. It now runs `find_text`'s two steps: the whole normalized label, then `holds_as_words` with `EXTRA_WORDS`. Several different fields matching is still no match.
+- Test first: `a_dropped_field_is_named_by_whole_words_as_a_visible_one_is` failed before the change at `assert!(s.gone_field_named("net").is_none())`. After: `cargo test -p phonedriver --lib daemon::session` 19 passed; `cargo test -p phonedriver` all suites passed. The live Android suite was not run (host-side change only).
