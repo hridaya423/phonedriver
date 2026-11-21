@@ -3591,3 +3591,29 @@ subcommands and log archives or files still need the switch, as does any other p
 
 - `Session::gone_field_named` matched a dropped field when its label merely contained the target (`contains`), so `type --into net`, which finds nothing on screen by D33, scrolled to a dropped "Network" field and typed into it. It now runs `find_text`'s two steps: the whole normalized label, then `holds_as_words` with `EXTRA_WORDS`. Several different fields matching is still no match.
 - Test first: `a_dropped_field_is_named_by_whole_words_as_a_visible_one_is` failed before the change at `assert!(s.gone_field_named("net").is_none())`. After: `cargo test -p phonedriver --lib daemon::session` 19 passed; `cargo test -p phonedriver` all suites passed. The live Android suite was not run (host-side change only).
+
+## 2026-11-21: the reviewer's quality issues #34 to #38, and PR #39, in 0.1.7
+
+The user asked for the real items of the new issues to go into 0.1.7. Each was checked against the code first.
+
+- **#36, launch settle.** `cfg.timeout += now - started` before `finish` in `launch` and `open`. Test first:
+  `a_launch_whose_app_starts_slowly_still_settles_after_it_starts` (the app in front only at the 22nd read, 6 s and
+  more) failed with `settled: false`; passes after. `cargo test -p phonedriver --test daemon`: 208 passed.
+- **#35, still loading.** `show_action` adds ` · still loading` to a diff reply whose screen is loading. Test first:
+  `a_reply_whose_screen_is_still_loading_says_so_in_its_first_line` failed at the `starts_with`; lib 158 passed after.
+  The heavier options (waiting longer, an unlabeled-buttons heuristic) were left out: they slow every action for a
+  case seen 2 times in 6 on a busy host.
+- **#38 item 2, batch after wrong text.** `Unverified.wrong` (not on the wire) is set when focus is on another field
+  or the shown text differs once case, spaces and punctuation are dropped; `batch` then fails the next step. Tests:
+  `a_batch_stops_before_the_next_step_when_a_field_shows_other_text_than_typed` failed (`ok: true`), passes after;
+  `a_batch_goes_on_when_a_field_only_spaced_or_cased_the_text_it_was_given` passes before and after. daemon 210 passed.
+- **#38 item 1, refs across apps.** `Seen.package`; the id pass needs the same package. Test
+  `a_dialog_button_of_another_app_with_the_same_id_is_a_new_element` failed (`e1` both), passes after, and its second
+  half keeps a relabelled button of one app on its ref. `cargo test --workspace --lib refs::`: 16 passed.
+- **#34, tool list.** Argument docs that repeated the tool description removed (`devices` boot/use, `screenshot`
+  compare/record, `wait` vpn/log/app, `replay` save/vars): 6,870 to 6,371 characters a turn. The budget test is back
+  to a ratchet, `total < 6_600`. `cargo test -p phonedriver --test mcp`: 55 passed. `PHONEDRIVER_TOOLS=core` and
+  hiding tools were declined: a setting most people would not find, and a model cannot use a tool it cannot see.
+- **Not changed:** #37 (a failed single action returning the screen; 0 in the reviewer's 21 runs, measure first),
+  #38 items 3 to 6 (no realistic trigger found, or read-only and self-correcting).
+- **PR #39** merged into the release branch (progress.md conflict unioned).

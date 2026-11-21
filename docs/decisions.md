@@ -121,6 +121,8 @@ Each decision records the choice, the alternatives it beat, and the evidence tha
 
 **Rejected.** Fire-and-forget actions plus a separate snapshot: doubles round trips and invites sleep-and-hope.
 
+**Amended 2026-11-21 (#35, #36).** A `launch` or `open` whose app took long to show content gets its full settle after it: the settle's timeout is lengthened by the time the start took, so a cold start of 6 s no longer answers "still animating" with an unsettled screen. And a reply whose screen is still loading (a progress node, an empty web view) says ` · still loading` in its first line when the reply is a diff, as a full screen's header already does.
+
 ## D13. License
 
 **Choice.** AGPL-3.0-only, decided by the user on 2026-11-06, replacing MIT before anything was published. The user wanted a restrictive license so a competing tool cannot take the code into a closed or permissive project; AGPL is the strongest OSI open-source license (a distributed or network-served modified version must be published under AGPL). `LICENSE` holds the text and every crate sets `license = "AGPL-3.0-only"` through the workspace. Code copied from scrcpy (Apache-2.0) and the WebDriverAgent headers (BSD) keep their own licenses and attribution in `NOTICE`; both are compatible with AGPL-3.0. Every dependency is permissive (MIT, Apache-2.0, BSD, ISC, Zlib, 0BSD, Unlicense; `cargo metadata`, 2026-11-06).
@@ -157,6 +159,8 @@ Each decision records the choice, the alternatives it beat, and the evidence tha
 **Rejected.** Running steps without settling between them: a later step would resolve its target on a stale screen. A step list that carries refs only: refs from a screen the earlier step replaces go stale, so the failure is reported by step and the agent re-reads. Secret text in a batch: the trace and the reply paths for secrets are written for a single `type`. (Since D70 the daemon masks a batch step's secret too, and since D85 the MCP `batch` tool passes one.)
 
 **Reopen if.** Agents use batches of one step, or a batch that fails halfway too often to be worth the saved calls.
+
+**Amended 2026-11-21 (#38 item 2).** A batch also stops after a `type` step whose text plainly went wrong, before the next step runs: focus was on another field, or the field shows other letters and digits than typed (case, spaces and punctuation aside, so a card number the field spaces out or a name it capitalises goes on). The next step is the failed one, `not run, because the text step N typed did not land`. A field that shows no text, or a password field, goes on as before, because neither says the text is wrong.
 
 ## D18. CLI verbs the MCP lacked are folded into existing tools, except the clipboard
 
@@ -810,7 +814,7 @@ The first run is why the `shell` description no longer says to prefer it for set
 
 **Evidence.** API 37 emulator, daemon on the Mac mini (debug build), 2026-11-15. A seven-step flow in Settings, done by ref from snapshots (`launch settings --restart`, tap Network & internet, tap Internet, back, back, `scroll down --until "Display & touch"`, tap it), then `save`: `saved 7 steps`, and the file's targets read `{"role":"button","text":"Network & internet"}`. From the home screen, `replay` five times: `replayed 7 steps in 18.9 s`, 19.3, 17.5, 18.2, 18.1, each ending on the Display & touch screen (the `Dark theme` rows in the printed screen). With step 3 edited to a label that does not exist: `step 3 of 7 (tap "Intranet") failed: no element matches "Intranet"`, the two steps that ran, the Network & internet screen, exit 1; after `tap "Internet"` by hand, `replay --from 4` printed `replayed 4 steps in 4.8 s`. Tests: `crates/cli/tests/replay.rs` (what the journal keeps) and `replay_saves_what_the_session_did_and_runs_it_again_step_by_step` in `tests/mcp.rs` (save, replay, a miss, a step that changes nothing, `from`).
 
-**Cost.** The `replay` tool adds 435 characters to the tool list (17 tools, 5,405 characters). A session's journal holds at most 500 steps in memory. An action pays one target lookup on the screen already in memory.
+**Cost.** The `replay` tool adds 435 characters to the tool list (17 tools, 5,405 characters). (By 0.1.6 the list had grown to 18 tools and 6,870 characters while the test allowed 9,999; 0.1.7 drops argument docs that repeated their tool's description, to 6,371, and the test's limit is 6,600 again, #34.) A session's journal holds at most 500 steps in memory. An action pays one target lookup on the screen already in memory.
 
 **Limits.** A replay is as deterministic as the app: a dialog that shows on one run in three is a miss on that run, and the model takes that step. No model was in the five replays, and none was measured against them, so the saving in time and tokens is not shown. The journal has every action that worked, including an agent's detours; nothing trims them. Steps saved by position hold only while the layout does, and `save` says how many there are. Typed text that was not marked secret is in the file. A step that needs approval (a payment, a deletion) stops the replay unless the caller passes the approval a typed command would. The nine bench jobs were not replayed ten times each, which is the test the research names.
 
