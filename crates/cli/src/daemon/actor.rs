@@ -3782,6 +3782,10 @@ impl Actor {
             };
             match result {
                 Ok(r) => {
+                    let wrong = r
+                        .unverified
+                        .clone()
+                        .filter(|u| u.wrong && i + 1 < p.steps.len());
                     done.push(StepResult {
                         summary: r.summary.clone(),
                         verified: r.verified,
@@ -3789,6 +3793,21 @@ impl Actor {
                     });
                     typed_into.extend(r.typed_into);
                     last = Some(r);
+                    if let Some(u) = wrong {
+                        failed = Some(StepFailure {
+                            step: i + 2,
+                            error: Error::Refused {
+                                detail: format!(
+                                    "not run, because the text step {} typed did not land: {}; {}",
+                                    i + 1,
+                                    u.shows,
+                                    u.hint
+                                ),
+                            }
+                            .to_rpc(),
+                        });
+                        break;
+                    }
                 }
                 Err(e @ Error::DeviceGone { .. }) => return Err(e),
                 Err(e) => {

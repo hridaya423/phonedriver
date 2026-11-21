@@ -5006,6 +5006,51 @@ async fn a_batch_runs_its_steps_in_order_and_answers_with_one_diff_from_where_th
     assert_eq!(taps, 2);
 }
 
+async fn typed_then_tapped(shown: &'static str, typed: &str) -> (Value, usize) {
+    let (source, fake) = FakeSource::polled(vec![field_tree("", false)]);
+    fake.on_text(move |_| Some(vec![field_tree(shown, false)]));
+    let (d, _home) = daemon(source);
+    ok(&d, "default", "snapshot", json!({})).await;
+    let r = ok(
+        &d,
+        "default",
+        "batch",
+        batch(json!([
+            {"kind": "type", "text": typed, "into": {"ref": "e1"}},
+            {"kind": "tap", "target": {"point": {"x": 10.0, "y": 300.0}}},
+        ])),
+    )
+    .await;
+    let taps = fake
+        .calls()
+        .iter()
+        .filter(|c| matches!(c, Call::Gesture(_)))
+        .count();
+    (r, taps)
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_batch_stops_before_the_next_step_when_a_field_shows_other_text_than_typed() {
+    let (r, taps) = typed_then_tapped("5551299", "5551234").await;
+    assert_eq!(r["ok"], false, "{r}");
+    assert_eq!(r["failed"]["step"], 2, "{r}");
+    let message = r["failed"]["error"]["message"].as_str().unwrap();
+    assert!(
+        message.contains("step 1") && message.contains("5551299"),
+        "{message}"
+    );
+    assert_eq!(taps, 1, "only the focus tap of step 1, not step 2's tap: {r}");
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_batch_goes_on_when_a_field_only_spaced_or_cased_the_text_it_was_given() {
+    for (shown, typed) in [("4111 1111 1111 1111", "4111111111111111"), ("Ada", "ada")] {
+        let (r, taps) = typed_then_tapped(shown, typed).await;
+        assert_eq!(r["ok"], true, "{shown}: {r}");
+        assert_eq!(taps, 2, "{shown}: {r}");
+    }
+}
+
 #[tokio::test(start_paused = true)]
 async fn a_batch_stops_at_the_first_failing_step_and_says_which_one_failed_and_what_is_on_screen() {
     let (source, fake) = FakeSource::with(vec![tree(&["One", "Two"])]);
