@@ -243,13 +243,22 @@ A barrier packet answers `video_barrier`: `pts_us = 0`, `flags` bit2 set, length
 
 ## 3. Daemon ↔ PhonedriverRunner
 
-One TCP stream to the runner's port: 27753 on a physical device (reached through the idevice provider), or on a simulator the port the daemon assigned through the `PHONEDRIVER_PORT` environment variable (the first free port from 27753 up to 27784, one per running simulator; simulators share the host's loopback). Same `u32` big-endian length + JSON framing as the Android control stream. On a simulator the runner listens on `127.0.0.1` only (Phase 6 revisits the bind address for devices). One connection at a time: a new connection closes the previous one. Requests run one at a time.
+One TCP stream to the runner's port: 27753 on a physical device (reached through the idevice provider), or on a simulator the port the daemon assigned through the `PHONEDRIVER_PORT` environment variable (the first free port from 27753 up to 27784, one per running simulator; simulators share the host's loopback). Same `u32` big-endian length + JSON framing as the Android control stream. On a simulator the runner listens on `127.0.0.1` only; on a device on all interfaces. Off a Mac on Wi-Fi the daemon opens the port inside the remote pairing's tunnel (decision D106).
+
+The runner is started with a token, 64 hex characters in its environment (`PHONEDRIVER_TOKEN`). The first frame on a connection must be:
+
+```
+→ {"id":1,"op":"hello","version":"0.2.0","nonce":"<32 hex chars, fresh>","proof":"<hex HMAC-SHA256 under the token of host:<nonce>>"}
+← {"id":1,"ok":true,...,"proof":"<hex HMAC-SHA256 under the token of runner:<nonce>>"}
+```
+
+The runner compares the proof in constant time and refuses a nonce it has accepted before. Any other first frame, a wrong proof, or a first frame over 4 KB gets `{"ok":false,"error":{"code":"unauthorized",...}}` and the connection is closed. The daemon uses the runner only when the reply's `proof` checks. The token never crosses the connection. One connection at a time: a new connection that proves the token closes the previous one; one that does not leaves it alone. Requests run one at a time.
 
 Every request carries `id` and `op`. A reply echoes `id` and adds `ok: true` plus the op's fields, or `ok: false` and `error: {code, message}` with `code` one of `bad_request` (malformed frame, unknown op, missing or ill-typed field), `unsupported` (the op cannot work here), `failed` (XCTest refused or failed; `message` is XCTest's first line).
 
 | op | Request | Reply |
 |---|---|---|
-| `hello` | `version` | `{version, ios, model, screen:{w,h,scale}, udid?, build?}` (points; `model` is the machine id, for example `iPhone18,3`; on a simulator `udid` is the simulator's, from `SIMULATOR_UDID`; `build` echoes the `PHONEDRIVER_BUILD` the daemon launched it with, the hash of the runner sources) |
+| `hello` | `version`; on the first frame also `nonce` and `proof` | `{version, ios, model, screen:{w,h,scale}, udid?, build?}` and `proof` on the first frame (points; `version` is `0.2.0`; `model` is the machine id, for example `iPhone18,3`; on a simulator `udid` is the simulator's, from `SIMULATOR_UDID`; `build` echoes the `PHONEDRIVER_BUILD` the daemon launched it with, the hash of the runner sources) |
 | `snapshot` | `max_depth` (default 30) | `{app:{bundle_id, pid}, nodes:[RawNode], alerts?, bar?}` with bounds in points; `bar` is the bottom edge of SpringBoard's status bar, asked for once for each width of the app |
 | `gesture` | `pointers:[{path:[{x,y,t_ms}]}]` (points, 1 to 5 pointers, `t_ms` non-decreasing) | `{}` after the last lift is delivered |
 | `banner` | `x`, `y` (points) | `{covered}`: whether a notification banner covers the point, the test the runner's own gestures wait on; the Simulator tier asks it before a touch through simio that starts in the top 200 points (decision D93) |

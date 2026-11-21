@@ -278,7 +278,7 @@ impl UserAction {
                     .into()
             }
             UserAction::PairForWifi => {
-                "This computer has no Wi-Fi pairing with the device. Without Xcode, phonedriver reaches a device on Wi-Fi through a pairing it makes once over the cable."
+                "This computer has no Wi-Fi pairing with the device, or one made before phonedriver 0.1.7, which cannot check that the device on the network is the one it paired with. Without Xcode, phonedriver reaches a device on Wi-Fi through a pairing it makes once over the cable."
                     .into()
             }
             UserAction::ApproveSystemPrompt { text } => {

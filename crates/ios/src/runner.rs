@@ -6,6 +6,7 @@ use std::sync::Mutex;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
+use hmac::{KeyInit, Mac};
 use phonedriver_core::error::{Error, Op, UserAction};
 use serde::Deserialize;
 use serde_json::{Value, json};
@@ -17,8 +18,8 @@ use tokio::time::{Instant, timeout};
 
 pub type Result<T> = std::result::Result<T, Error>;
 
-/// The wire version the runner reports in `hello`.
-pub const VERSION: &str = "0.1.0";
+/// The wire version the runner reports in `hello`. 0.2.0 added the token's proofs (decision D106).
+pub const VERSION: &str = "0.2.0";
 /// The first port a simulator runner listens on; each further simulator takes the next free one.
 pub const PORT_BASE: u16 = 27753;
 const PORT_COUNT: u16 = 32;
@@ -46,6 +47,14 @@ pub const SOURCES: &[(&str, &str)] = &[
     (
         "PrivateHeaders/XCTestPrivate.h",
         include_str!("../../../ios-runner/PrivateHeaders/XCTestPrivate.h"),
+    ),
+    (
+        "Runner/Auth.h",
+        include_str!("../../../ios-runner/Runner/Auth.h"),
+    ),
+    (
+        "Runner/Auth.m",
+        include_str!("../../../ios-runner/Runner/Auth.m"),
     ),
     (
         "Runner/Buttons.h",
@@ -145,6 +154,109 @@ pub struct Hello {
     pub locked: bool,
 }
 
+/// The labels of the two proofs in `hello`: the host's over its nonce, and the runner's over the same nonce.
+const HOST: &str = "host";
+const RUNNER: &str = "runner";
+
+/// The secret a runner is started with: 32 bytes from the OS, as 64 hex characters in the runner's environment
+/// (`PHONEDRIVER_TOKEN`). It never crosses the connection: the first `hello` carries the host's proof of it over a
+/// fresh nonce and the runner answers with its own (decision D106). Its `Debug` form hides it.
+#[derive(Clone, PartialEq)]
+pub struct Token(String);
+
+impl std::fmt::Debug for Token {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("Token(..)")
+    }
+}
+
+fn random_hex(bytes: usize) -> Result<String> {
+    let mut b = vec![0u8; bytes];
+    getrandom::fill(&mut b).map_err(|e| Error::Transport {
+        detail: format!("no randomness for the runner's token: {e}"),
+    })?;
+    Ok(hex(&b))
+}
+
+fn hex(bytes: &[u8]) -> String {
+    bytes.iter().map(|b| format!("{b:02x}")).collect()
+}
+
+fn unhex(text: &str) -> Option<Vec<u8>> {
+    if !text.len().is_multiple_of(2) || !text.is_ascii() {
+        return None;
+    }
+    (0..text.len())
+        .step_by(2)
+        .map(|i| u8::from_str_radix(&text[i..i + 2], 16).ok())
+        .collect()
+}
+
+impl Token {
+    pub fn generate() -> Result<Token> {
+        random_hex(32).map(Token)
+    }
+
+    fn from_hex(text: &str) -> Option<Token> {
+        (text.len() == 64 && text.chars().all(|c| c.is_ascii_hexdigit()))
+            .then(|| Token(text.to_ascii_lowercase()))
+    }
+
+    /// The value the runner's environment carries.
+    pub fn env(&self) -> &str {
+        &self.0
+    }
+
+    fn file(home: &Path, udid: &str) -> Result<PathBuf> {
+        Ok(home
+            .join("runner")
+            .join(format!("{}.token", crate::transport::file_udid(udid)?)))
+    }
+
+    /// The token of the runner this home last started on `udid`, so a later daemon can reuse that runner.
+    pub fn kept(home: &Path, udid: &str) -> Option<Token> {
+        Token::from_hex(
+            std::fs::read_to_string(Token::file(home, udid).ok()?)
+                .ok()?
+                .trim(),
+        )
+    }
+
+    /// Keeps the token in `<home>/runner/<udid>.token`, readable by its owner only on Unix.
+    pub fn keep(&self, home: &Path, udid: &str) -> Result<()> {
+        crate::transport::write_private(&Token::file(home, udid)?, self.0.as_bytes())
+    }
+
+    fn mac(&self, side: &str, nonce: &str) -> hmac::Hmac<Sha256> {
+        let mut mac = hmac::Hmac::<Sha256>::new_from_slice(self.0.as_bytes())
+            .expect("HMAC takes a key of any length");
+        mac.update(side.as_bytes());
+        mac.update(b":");
+        mac.update(nonce.as_bytes());
+        mac
+    }
+
+    /// HMAC-SHA256 under the token of `<side>:<nonce>`, as hex.
+    fn proof(&self, side: &str, nonce: &str) -> String {
+        hex(&self.mac(side, nonce).finalize().into_bytes())
+    }
+
+    /// Whether `proof` is `side`'s proof of the token over `nonce`, compared in constant time.
+    fn proves(&self, side: &str, nonce: &str, proof: &str) -> bool {
+        unhex(proof).is_some_and(|p| self.mac(side, nonce).verify_slice(&p).is_ok())
+    }
+}
+
+/// What a runner said to the host's first `hello`.
+enum Greeting {
+    /// It proved the token.
+    Ours(Hello),
+    /// It speaks another wire version, so it cannot prove anything to this host.
+    OtherVersion(String),
+    /// It answered without proving the token: a listener that knows only the public `udid` and `build`.
+    NotProven,
+}
+
 /// One connection to a runner. Requests run one at a time, as the runner serves them.
 /// What the runner's socket is made of: TCP to a simulator's loopback, or a usbmuxd connection to a device.
 pub trait Io: AsyncRead + AsyncWrite + Unpin + Send {}
@@ -195,13 +307,62 @@ impl Client {
         }
     }
 
-    pub async fn hello(&self) -> Result<Hello> {
+    /// The first request on a connection: the runner serves nothing before it, and the host trusts the runner only
+    /// when the reply proves the same token.
+    async fn greet(&self, token: &Token) -> Result<Greeting> {
+        let nonce = random_hex(16)?;
         let reply = self
-            .request(Op::Foreground, json!({"op": "hello", "version": VERSION}))
+            .request(
+                Op::Foreground,
+                json!({"op": "hello", "version": VERSION, "nonce": nonce, "proof": token.proof(HOST, &nonce)}),
+            )
             .await?;
-        serde_json::from_value(reply).map_err(|e| Error::Transport {
+        let proven = reply["proof"]
+            .as_str()
+            .is_some_and(|p| token.proves(RUNNER, &nonce, p));
+        let hello: Hello = serde_json::from_value(reply).map_err(|e| Error::Transport {
             detail: format!("the runner's hello does not parse: {e}"),
+        })?;
+        Ok(if hello.version != VERSION {
+            Greeting::OtherVersion(hello.version)
+        } else if proven {
+            Greeting::Ours(hello)
+        } else {
+            Greeting::NotProven
         })
+    }
+
+    /// Says `hello` with `token` and returns the runner's facts once it proved the token.
+    pub async fn hello(&self, token: &Token) -> Result<Hello> {
+        match self.greet(token).await? {
+            Greeting::Ours(hello) => Ok(hello),
+            Greeting::OtherVersion(version) => Err(Error::Transport {
+                detail: format!(
+                    "the runner speaks version {version}, and this phonedriver speaks {VERSION}"
+                ),
+            }),
+            Greeting::NotProven => Err(Error::Transport {
+                detail: "the runner did not prove the token it was started with".into(),
+            }),
+        }
+    }
+}
+
+/// The runner's `hello` on `client` if it proves `kept` and reports `udid` and the build `hash`. Without a kept token
+/// nothing is reused: `udid` and `hash` are public, so only the token says this home started that runner.
+async fn ours(client: &Client, kept: Option<&Token>, udid: &str, hash: &str) -> Option<Hello> {
+    let Ok(Ok(Greeting::Ours(hello))) = timeout(HELLO_WAIT, client.greet(kept?)).await else {
+        return None;
+    };
+    (hello.udid.as_deref() == Some(udid) && hello.build.as_deref() == Some(hash)).then_some(hello)
+}
+
+/// The runner started with `token` on `udid` answering `client`, for the waits after a start.
+async fn answers(client: &Client, token: &Token, udid: &str) -> Option<Greeting> {
+    match timeout(HELLO_WAIT, client.greet(token)).await {
+        Ok(Ok(Greeting::Ours(hello))) if hello.udid.as_deref() != Some(udid) => None,
+        Ok(Ok(greeting)) => Some(greeting),
+        _ => None,
     }
 }
 
@@ -532,6 +693,7 @@ impl Runner {
     pub async fn start(udid: &str, home: &Path) -> Result<Runner> {
         let device = format!("sim:{udid}");
         let hash = build_hash();
+        let kept = Token::kept(home, udid);
         let mut free = Vec::new();
         for port in PORT_BASE..PORT_BASE + PORT_COUNT {
             if PortClaim::is_claimed(port) {
@@ -539,13 +701,10 @@ impl Runner {
             }
             match Client::connect(port, &device).await {
                 Ok(client) => {
-                    let Ok(Ok(hello)) = timeout(HELLO_WAIT, client.hello()).await else {
+                    let Some(hello) = ours(&client, kept.as_ref(), udid, &hash).await else {
                         continue;
                     };
-                    let mine = hello.udid.as_deref() == Some(udid)
-                        && hello.build.as_deref() == Some(hash.as_str())
-                        && hello.version == VERSION;
-                    if let (true, Some(claim)) = (mine, PortClaim::take(port)) {
+                    if let Some(claim) = PortClaim::take(port) {
                         return Ok(Runner {
                             client,
                             hello,
@@ -573,6 +732,8 @@ impl Runner {
                 ),
             })?;
         let build = build(home).await?;
+        let token = Token::generate()?;
+        token.keep(home, udid)?;
         let log = home.join("runner").join(format!("{udid}.log"));
         let file = std::fs::File::create(&log).map_err(|e| Error::Transport {
             detail: format!("cannot write {}: {e}", log.display()),
@@ -583,6 +744,7 @@ impl Runner {
         let mut child = test_without_building(&build.xctestrun, udid, home)
             .env("TEST_RUNNER_PHONEDRIVER_PORT", port.to_string())
             .env("TEST_RUNNER_PHONEDRIVER_BUILD", &build.hash)
+            .env("TEST_RUNNER_PHONEDRIVER_TOKEN", token.env())
             .stdin(std::process::Stdio::null())
             .stdout(file)
             .stderr(err)
@@ -594,8 +756,7 @@ impl Runner {
         let deadline = Instant::now() + SIMULATOR_READY_WAIT;
         loop {
             if let Ok(client) = Client::connect(port, &device).await
-                && let Ok(Ok(hello)) = timeout(HELLO_WAIT, client.hello()).await
-                && hello.udid.as_deref() == Some(udid)
+                && let Some(Greeting::Ours(hello)) = answers(&client, &token, udid).await
             {
                 return Ok(Runner {
                     client,
@@ -644,6 +805,49 @@ fn blocked(log: &str) -> Option<UserAction> {
 /// The runner's fixed port on a device; the host reaches it through usbmuxd, so nothing is claimed on the Mac.
 pub const DEVICE_PORT: u16 = PORT_BASE;
 
+/// Where the host opens the runner's port on a device (decision D106).
+pub enum DevicePort {
+    /// usbmuxd on the cable; on Wi-Fi, TCP straight to the device's address, which nothing encrypts.
+    Provider(std::sync::Arc<dyn idevice::provider::IdeviceProvider>),
+    /// Off a Mac on Wi-Fi, inside the remote pairing's TLS-PSK tunnel, to the device's address in the tunnel.
+    Tunnel(idevice::tcp::handle::AdapterHandle),
+}
+
+impl DevicePort {
+    /// Through the tunnel when the developer services go through one.
+    pub fn of(services: &crate::transport::Services) -> DevicePort {
+        match services {
+            crate::transport::Services::Lockdown(provider) => {
+                DevicePort::Provider(provider.clone())
+            }
+            crate::transport::Services::Tunnel(tunnel) => {
+                DevicePort::Tunnel(tunnel.adapter.clone())
+            }
+        }
+    }
+
+    async fn open(&self) -> Option<Box<dyn Io>> {
+        match self {
+            DevicePort::Provider(provider) => provider
+                .connect(DEVICE_PORT)
+                .await
+                .ok()
+                .and_then(idevice::Idevice::get_socket)
+                .map(|s| Box::new(s) as Box<dyn Io>),
+            DevicePort::Tunnel(adapter) => adapter
+                .clone()
+                .connect(DEVICE_PORT)
+                .await
+                .ok()
+                .map(|s| Box::new(s) as Box<dyn Io>),
+        }
+    }
+
+    async fn client(&self, device: &str) -> Option<Client> {
+        Some(Client::over(self.open().await?, device))
+    }
+}
+
 /// `xcodebuild test-without-building`, which runs the runner, for `xctestrun` on `udid`. Xcode otherwise leaves a new
 /// folder in its own DerivedData at every start, and when the runner is stopped it gathers 120 to 250 MB of the
 /// Simulator's system logs into it; here the logs go under `home`, replaced at every start, and none are gathered.
@@ -667,26 +871,16 @@ impl Runner {
     /// Starts the runner on a attached device with `xcodebuild test-without-building` (signed build from
     /// `build_for(home, Some(team))`) or reuses one that answers `hello` with this udid and build.
     pub async fn start_device(
-        provider: &dyn idevice::provider::IdeviceProvider,
+        provider: std::sync::Arc<dyn idevice::provider::IdeviceProvider>,
         udid: &str,
         team: &str,
         home: &Path,
     ) -> Result<Runner> {
         let device = format!("ios:{udid}");
         let hash = build_hash();
-        let connect = || async {
-            let socket = provider
-                .connect(DEVICE_PORT)
-                .await
-                .ok()
-                .and_then(idevice::Idevice::get_socket)?;
-            let client = Client::over(socket, &device);
-            let hello = timeout(HELLO_WAIT, client.hello()).await.ok()?.ok()?;
-            Some((client, hello))
-        };
-        if let Some((client, hello)) = connect().await
-            && hello.udid.as_deref() == Some(udid)
-            && hello.build.as_deref() == Some(hash.as_str())
+        let port = DevicePort::Provider(provider);
+        if let Some(client) = port.client(&device).await
+            && let Some(hello) = ours(&client, Token::kept(home, udid).as_ref(), udid, &hash).await
         {
             return Ok(Runner {
                 client,
@@ -698,6 +892,8 @@ impl Runner {
             });
         }
         let build = build_for(home, Some(team)).await?;
+        let token = Token::generate()?;
+        token.keep(home, udid)?;
         let log = home.join("runner").join(format!("{udid}.log"));
         let io = |e: std::io::Error| Error::Transport {
             detail: format!("cannot write {}: {e}", log.display()),
@@ -708,6 +904,7 @@ impl Runner {
             .env("TEST_RUNNER_PHONEDRIVER_PORT", DEVICE_PORT.to_string())
             .env("TEST_RUNNER_PHONEDRIVER_BUILD", &build.hash)
             .env("TEST_RUNNER_PHONEDRIVER_UDID", udid)
+            .env("TEST_RUNNER_PHONEDRIVER_TOKEN", token.env())
             .stdin(std::process::Stdio::null())
             .stdout(file)
             .stderr(err)
@@ -718,8 +915,8 @@ impl Runner {
             })?;
         let deadline = Instant::now() + READY_WAIT;
         loop {
-            if let Some((client, hello)) = connect().await
-                && hello.udid.as_deref() == Some(udid)
+            if let Some(client) = port.client(&device).await
+                && let Some(Greeting::Ours(hello)) = answers(&client, &token, udid).await
             {
                 return Ok(Runner {
                     client,
@@ -828,20 +1025,9 @@ impl Runner {
         let id = format!("ios:{udid}");
         let hash = build_hash();
         let gone = |e: idevice::IdeviceError| crate::transport::classify(&id, &e);
-        let provider = device.provider().await.map_err(gone)?;
-        let connect = || async {
-            let socket = provider
-                .connect(DEVICE_PORT)
-                .await
-                .ok()
-                .and_then(idevice::Idevice::get_socket)?;
-            let client = Client::over(socket, &id);
-            let hello = timeout(HELLO_WAIT, client.hello()).await.ok()?.ok()?;
-            Some((client, hello))
-        };
-        if let Some((client, hello)) = connect().await
-            && hello.udid.as_deref() == Some(udid)
-            && hello.build.as_deref() == Some(hash.as_str())
+        let port = DevicePort::of(services);
+        if let Some(client) = port.client(&id).await
+            && let Some(hello) = ours(&client, Token::kept(home, udid).as_ref(), udid, &hash).await
         {
             return Ok(Runner {
                 client,
@@ -865,10 +1051,13 @@ impl Runner {
         let mut config = TestConfig::from_installation_proxy(&mut proxy, &bundle, None)
             .await
             .map_err(gone)?;
+        let token = Token::generate()?;
+        token.keep(home, udid)?;
         let mut env = plist::Dictionary::new();
         env.insert("PHONEDRIVER_PORT".into(), DEVICE_PORT.to_string().into());
         env.insert("PHONEDRIVER_BUILD".into(), hash.clone().into());
         env.insert("PHONEDRIVER_UDID".into(), udid.into());
+        env.insert("PHONEDRIVER_TOKEN".into(), token.env().into());
         config.runner_env = Some(env);
         let dir = home.join("runner");
         let log = dir.join(format!("{udid}.log"));
@@ -901,17 +1090,27 @@ impl Runner {
         });
         let deadline = Instant::now() + READY_WAIT;
         loop {
-            if let Some((client, hello)) = connect().await
-                && hello.udid.as_deref() == Some(udid)
+            if let Some(client) = port.client(&id).await
+                && let Some(greeting) = answers(&client, &token, udid).await
             {
-                if hello.version != VERSION {
-                    return Err(Error::Transport {
-                        detail: format!(
-                            "the runner installed on {udid} speaks version {}, and this phonedriver speaks {VERSION}; install the PhonedriverRunner.ipa built from the same commit",
-                            hello.version
-                        ),
-                    });
-                }
+                let hello = match greeting {
+                    Greeting::Ours(hello) => hello,
+                    Greeting::OtherVersion(version) => {
+                        return Err(Error::Transport {
+                            detail: format!(
+                                "the runner installed on {udid} speaks version {version}, and this phonedriver speaks {VERSION}; install the PhonedriverRunner.ipa built from the same commit"
+                            ),
+                        });
+                    }
+                    Greeting::NotProven => {
+                        return Err(Error::Transport {
+                            detail: format!(
+                                "what answers on port {DEVICE_PORT} of {udid} did not prove the token the runner was started with; see {}",
+                                log.display()
+                            ),
+                        });
+                    }
+                };
                 return Ok(Runner {
                     client,
                     hello,
@@ -955,6 +1154,219 @@ impl Runner {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    const TOKEN: &str = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+    const NONCE: &str = "00112233445566778899aabbccddeeff";
+
+    fn token(hex: &str) -> Token {
+        Token::from_hex(hex).unwrap()
+    }
+
+    /// A runner as `Server.m` serves one: the first frame must be a `hello` that proves `token`, and the reply proves
+    /// it back. `proves` false answers every hello with the right udid and build and no proof, as a listener that
+    /// knows only the public values would. Returns the port and the first frame of each connection.
+    async fn fake_runner(
+        token: &str,
+        proves: bool,
+    ) -> (u16, tokio::sync::mpsc::UnboundedReceiver<String>) {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let token = token.to_string();
+        let (first, frames) = tokio::sync::mpsc::unbounded_channel();
+        tokio::spawn(async move {
+            while let Ok((mut stream, _)) = listener.accept().await {
+                let token = Token::from_hex(&token).unwrap();
+                let first = first.clone();
+                tokio::spawn(async move {
+                    let mut authorized = false;
+                    while let Ok(req) = read_frame(&mut stream).await {
+                        if !authorized {
+                            let _ = first.send(req.to_string());
+                        }
+                        let nonce = req["nonce"].as_str().unwrap_or_default().to_string();
+                        let valid = req["op"] == "hello"
+                            && req["proof"]
+                                .as_str()
+                                .is_some_and(|p| token.proves(HOST, &nonce, p));
+                        if !authorized && proves && !valid {
+                            let _ = write_frame(
+                                &mut stream,
+                                &json!({"id": req["id"], "ok": false, "error": {"code": "unauthorized", "message": "this connection did not prove the runner's token"}}),
+                            )
+                            .await;
+                            return;
+                        }
+                        authorized = true;
+                        let mut reply = json!({
+                            "id": req["id"], "ok": true, "version": VERSION, "ios": "26.5", "model": "iPhone17,5",
+                            "screen": {"w": 402, "h": 874, "scale": 3}, "udid": "A", "build": build_hash(),
+                        });
+                        if proves {
+                            reply["proof"] = token.proof(RUNNER, &nonce).into();
+                        }
+                        let _ = write_frame(&mut stream, &reply).await;
+                    }
+                });
+            }
+        });
+        (port, frames)
+    }
+
+    async fn greet(port: u16, token: &Token) -> Result<Greeting> {
+        Client::connect(port, "sim:A")
+            .await
+            .unwrap()
+            .greet(token)
+            .await
+    }
+
+    #[test]
+    fn the_proofs_are_hmac_sha256_of_the_side_and_the_nonce_under_the_token() {
+        let t = token(TOKEN);
+        assert_eq!(
+            t.proof(HOST, NONCE),
+            "697be53d43916d03fc8a70e5b6fd692fdee4d872d846bb4c3271d03fbe95120b"
+        );
+        assert_eq!(
+            t.proof(RUNNER, NONCE),
+            "7367f1e29a5a277032c0c58465a5988d0c8db3526755fb2409d41e1f3616b8ba"
+        );
+        assert!(t.proves(
+            RUNNER,
+            NONCE,
+            "7367f1e29a5a277032c0c58465a5988d0c8db3526755fb2409d41e1f3616b8ba"
+        ));
+        assert!(!t.proves(
+            RUNNER,
+            NONCE,
+            "697be53d43916d03fc8a70e5b6fd692fdee4d872d846bb4c3271d03fbe95120b"
+        ));
+        assert!(!t.proves(RUNNER, NONCE, "not hex"));
+        assert!(!t.proves(RUNNER, NONCE, ""));
+    }
+
+    #[test]
+    fn each_token_is_32_fresh_bytes_and_its_debug_form_hides_it() {
+        let (a, b) = (Token::generate().unwrap(), Token::generate().unwrap());
+        assert_ne!(a, b);
+        assert_eq!(a.env().len(), 64);
+        assert!(a.env().chars().all(|c| c.is_ascii_hexdigit()));
+        assert!(!format!("{a:?}").contains(a.env()));
+        assert!(Token::from_hex("abc").is_none());
+    }
+
+    #[tokio::test]
+    async fn a_runner_that_proves_the_token_is_ours_and_the_token_never_crosses_the_wire() {
+        let (port, mut first) = fake_runner(TOKEN, true).await;
+        let Greeting::Ours(hello) = greet(port, &token(TOKEN)).await.unwrap() else {
+            panic!("the runner started with this token was not recognised")
+        };
+        assert_eq!(hello.udid.as_deref(), Some("A"));
+        let frame = first.recv().await.unwrap();
+        assert!(!frame.contains(TOKEN), "{frame}");
+        assert!(frame.contains("\"proof\""), "{frame}");
+    }
+
+    #[tokio::test]
+    async fn a_runner_started_with_another_token_refuses_the_connection_and_is_not_ours() {
+        let (port, _first) = fake_runner(TOKEN, true).await;
+        let other = Token::generate().unwrap();
+        assert!(greet(port, &other).await.is_err());
+    }
+
+    #[tokio::test]
+    async fn a_listener_that_answers_with_the_right_udid_and_build_but_no_proof_is_not_ours() {
+        let (port, _first) = fake_runner(TOKEN, false).await;
+        assert!(matches!(
+            greet(port, &token(TOKEN)).await,
+            Ok(Greeting::NotProven)
+        ));
+    }
+
+    #[tokio::test]
+    async fn a_runner_is_reused_only_with_the_token_this_home_kept_for_it() {
+        let (port, _first) = fake_runner(TOKEN, true).await;
+        let client = || async { Client::connect(port, "sim:A").await.unwrap() };
+        let hash = build_hash();
+        assert!(ours(&client().await, None, "A", &hash).await.is_none());
+        assert!(
+            ours(
+                &client().await,
+                Some(&Token::generate().unwrap()),
+                "A",
+                &hash
+            )
+            .await
+            .is_none()
+        );
+        assert!(
+            ours(&client().await, Some(&token(TOKEN)), "B", &hash)
+                .await
+                .is_none()
+        );
+        assert!(
+            ours(
+                &client().await,
+                Some(&token(TOKEN)),
+                "A",
+                "0000000000000000"
+            )
+            .await
+            .is_none()
+        );
+        assert!(
+            ours(&client().await, Some(&token(TOKEN)), "A", &hash)
+                .await
+                .is_some()
+        );
+    }
+
+    #[test]
+    fn a_kept_token_is_read_back_and_written_for_its_owner_only() {
+        let home = tempfile::tempdir().unwrap();
+        assert!(Token::kept(home.path(), "A").is_none());
+        let t = Token::generate().unwrap();
+        t.keep(home.path(), "A").unwrap();
+        assert_eq!(Token::kept(home.path(), "A"), Some(t.clone()));
+        assert!(Token::kept(home.path(), "B").is_none());
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let file = home.path().join("runner").join("A.token");
+            assert_eq!(
+                std::fs::metadata(&file).unwrap().permissions().mode() & 0o777,
+                0o600
+            );
+        }
+        let again = Token::generate().unwrap();
+        again.keep(home.path(), "A").unwrap();
+        assert_eq!(Token::kept(home.path(), "A"), Some(again));
+        assert!(t.keep(home.path(), "../A").is_err());
+    }
+
+    #[tokio::test]
+    async fn through_the_remote_pairing_tunnel_the_runner_port_is_opened_inside_the_tunnel() {
+        let (ours, mut device) = tokio::io::duplex(1 << 16);
+        let server: std::net::Ipv6Addr = "fd00::1".parse().unwrap();
+        let adapter = idevice::tcp::adapter::Adapter::new(
+            Box::new(ours),
+            "fd00::2".parse().unwrap(),
+            server.into(),
+        )
+        .to_async_handle();
+        let port = DevicePort::Tunnel(adapter);
+        let opening = tokio::spawn(async move { port.open().await.is_some() });
+        let mut syn = [0u8; 44];
+        timeout(Duration::from_secs(5), device.read_exact(&mut syn))
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(syn[0] >> 4, 6, "not an IPv6 packet");
+        assert_eq!(syn[6], 6, "not TCP");
+        assert_eq!(syn[24..40], server.octets());
+        assert_eq!(u16::from_be_bytes([syn[42], syn[43]]), DEVICE_PORT);
+        opening.abort();
+    }
 
     #[test]
     fn the_installed_runner_is_found_by_its_executable_whatever_its_bundle_id() {

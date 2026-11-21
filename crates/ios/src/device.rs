@@ -221,7 +221,7 @@ impl IosDevice {
             .provider()
             .await
             .map_err(|e| crate::transport::classify(&id, &e))?;
-        let runner = Runner::start_device(provider.as_ref(), &device.udid, team, home).await?;
+        let runner = Runner::start_device(provider.clone(), &device.udid, team, home).await?;
         let host = match device.link {
             Link::Usb { .. } => Host::Cable(provider),
             Link::Network { .. } => Host::Network,

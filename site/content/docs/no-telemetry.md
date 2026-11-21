@@ -18,7 +18,7 @@ phonedriver sends no telemetry: no install id, no usage events, no crash reports
 | usbmuxd and the iPhone | Physical iPhones and iPads | No |
 | Multicast DNS on the local network, and the iPhone's address | Only after `phonedriver ios wifi on`, to find and reach that iPhone | No |
 | The iOS Simulator | Simulators | No |
-| Apple's signing server | Mounting a developer disk image on a physical iPhone | Yes, to Apple |
+| Apple's signing server | Mounting a developer disk image on a physical iPhone: on a Mac, Xcode's `devicectl` asks; off a Mac, phonedriver sends the device's chip ID and nonces to `https://gs.apple.com/TSS/controller` over HTTPS and follows no redirect (before 0.1.7, over plain HTTP) | Yes, to Apple |
 | GitHub, `doronz88/DeveloperDiskImage` at a pinned commit | Only `phonedriver ios setup --download-ddi`, once, to fetch the iPhone developer disk image off a Mac; each file is checked against a pinned SHA-256 | Yes, to GitHub |
 | GitHub Releases | The first `npx -y phonedriver` run of a version, to download the binary | Yes, to GitHub |
 

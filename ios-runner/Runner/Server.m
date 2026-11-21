@@ -2,22 +2,28 @@
 
 #import <Network/Network.h>
 
+#import "Auth.h"
 #import "Json.h"
 
 static const uint32_t PUMaxFrame = 16 * 1024 * 1024;
+static const uint32_t PUMaxFirstFrame = 4096;
 
 @implementation PUServer {
     uint16_t _port;
+    NSString *_token;
+    NSMutableSet<NSString *> *_seen;
     PUHandler _handler;
     dispatch_queue_t _queue;
     nw_listener_t _listener;
     nw_connection_t _current;
 }
 
-- (instancetype)initWithPort:(uint16_t)port handler:(PUHandler)handler
+- (instancetype)initWithPort:(uint16_t)port token:(NSString *)token handler:(PUHandler)handler
 {
     if ((self = [super init])) {
         _port = port;
+        _token = [token copy];
+        _seen = [NSMutableSet set];
         _handler = [handler copy];
         _queue = dispatch_queue_create("dev.phonedriver.runner.server", DISPATCH_QUEUE_SERIAL);
     }
@@ -25,7 +31,8 @@ static const uint32_t PUMaxFrame = 16 * 1024 * 1024;
 }
 
 // usbmuxd reaches a device's TCP ports from a non-loopback address, so a runner on a device must listen on all
-// interfaces; on the Simulator, loopback is enough.
+// interfaces; on the Simulator, loopback is enough. This listener also takes IPv6, the family of the remote pairing's
+// tunnel (seen on macOS, tests/test_server.py).
 #if TARGET_OS_SIMULATOR
 static const char *PUListenHost = "127.0.0.1";
 #else
@@ -70,13 +77,31 @@ static const char *PUListenHost = "0.0.0.0";
 
 - (void)accept:(nw_connection_t)connection
 {
-    if (_current) {
+    nw_connection_set_queue(connection, _queue);
+    nw_connection_start(connection);
+    [self readFrom:connection authorized:NO];
+}
+
+- (void)refuse:(nw_connection_t)connection request:(nullable NSDictionary *)request
+{
+    NSMutableDictionary *reply = [@{
+        @"ok": @NO,
+        @"error": @{@"code": @"unauthorized", @"message": @"this connection did not prove the runner's token"},
+    } mutableCopy];
+    if (request[@"id"]) reply[@"id"] = request[@"id"];
+    NSData *frame = PUFrame(reply);
+    dispatch_data_t data = dispatch_data_create(frame.bytes, frame.length, _queue, DISPATCH_DATA_DESTRUCTOR_DEFAULT);
+    nw_connection_send(connection, data, NW_CONNECTION_DEFAULT_MESSAGE_CONTEXT, true, ^(nw_error_t sendError) {
+        nw_connection_cancel(connection);
+    });
+}
+
+- (void)adopt:(nw_connection_t)connection
+{
+    if (_current && _current != connection) {
         nw_connection_cancel(_current);
     }
     _current = connection;
-    nw_connection_set_queue(connection, _queue);
-    nw_connection_start(connection);
-    [self readFrom:connection];
 }
 
 - (void)drop:(nw_connection_t)connection
@@ -87,7 +112,7 @@ static const char *PUListenHost = "0.0.0.0";
     }
 }
 
-- (void)readFrom:(nw_connection_t)connection
+- (void)readFrom:(nw_connection_t)connection authorized:(BOOL)authorized
 {
     nw_connection_receive(connection, 4, 4, ^(dispatch_data_t header, nw_content_context_t context, bool complete, nw_error_t error) {
         if (error || !header || dispatch_data_get_size(header) != 4) {
@@ -95,7 +120,7 @@ static const char *PUListenHost = "0.0.0.0";
             return;
         }
         uint32_t length = CFSwapInt32BigToHost(*(const uint32_t *)((NSData *)header).bytes);
-        if (length == 0 || length > PUMaxFrame) {
+        if (length == 0 || length > (authorized ? PUMaxFrame : PUMaxFirstFrame)) {
             [self drop:connection];
             return;
         }
@@ -104,14 +129,25 @@ static const char *PUListenHost = "0.0.0.0";
                 [self drop:connection];
                 return;
             }
-            [self handle:(NSData *)body on:connection];
+            if (authorized) {
+                [self handle:(NSData *)body on:connection proof:nil];
+                return;
+            }
+            NSDictionary *request = PUParse((NSData *)body, nil);
+            NSString *proof = request ? PUAuthorize(request, self->_token, self->_seen) : nil;
+            if (!proof) {
+                [self refuse:connection request:request];
+                return;
+            }
+            [self adopt:connection];
+            [self handle:(NSData *)body on:connection proof:proof];
         });
     });
 }
 
 // XCTest UI APIs must run on the main thread, and some of them wait for replies that arrive on
 // the main queue, so requests run as main run loop blocks rather than main queue blocks.
-- (void)handle:(NSData *)body on:(nw_connection_t)connection
+- (void)handle:(NSData *)body on:(nw_connection_t)connection proof:(nullable NSString *)proof
 {
     PUHandler handler = _handler;
     CFRunLoopPerformBlock(CFRunLoopGetMain(), kCFRunLoopDefaultMode, ^{
@@ -120,13 +156,18 @@ static const char *PUListenHost = "0.0.0.0";
         NSDictionary *reply = request
             ? handler(request)
             : @{@"ok": @NO, @"error": @{@"code": PUErrorCodeName(error), @"message": error.localizedDescription}};
+        if (proof) {
+            NSMutableDictionary *proven = [reply mutableCopy];
+            proven[@"proof"] = proof;
+            reply = proven;
+        }
         NSData *frame = PUFrame(reply);
         dispatch_data_t data = dispatch_data_create(frame.bytes, frame.length, self->_queue, DISPATCH_DATA_DESTRUCTOR_DEFAULT);
         nw_connection_send(connection, data, NW_CONNECTION_DEFAULT_MESSAGE_CONTEXT, true, ^(nw_error_t sendError) {
             if (sendError) {
                 [self drop:connection];
             } else {
-                [self readFrom:connection];
+                [self readFrom:connection authorized:YES];
             }
         });
     });
