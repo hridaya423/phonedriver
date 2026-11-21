@@ -471,6 +471,10 @@ pub struct ActParams {
     pub timeout_ms: Option<u64>,
     /// How long to wait for the first change; the default is 500 ms, or 3 s for `launch` and `open`.
     pub expect_change_ms: Option<u64>,
+    /// A secret `type` goes only into a password or one-time code field (decision D105): a replay sets it for the
+    /// secrets it reads from the environment.
+    #[serde(default)]
+    pub secret_field_only: bool,
 }
 
 fn yes() -> bool {

@@ -1408,6 +1408,160 @@ async fn a_secret_typed_into_a_plain_field_is_masked_in_a_batch_and_in_every_lat
     assert!(!trace.contains("hunter2"), "{trace}");
 }
 
+#[tokio::test(start_paused = true)]
+async fn a_long_secret_that_the_snapshot_cuts_short_shows_no_part_of_itself() {
+    let secret = format!("tok-{}", "Zq7".repeat(80));
+    let (source, fake) = FakeSource::polled(vec![field_tree("", false)]);
+    let shown = secret.clone();
+    fake.on_text(move |_| Some(vec![field_tree(&shown, false)]));
+    let (d, _home) = daemon(source);
+    ok(&d, "default", "snapshot", json!({})).await;
+    let typed = ok(&d, "default", "act", type_params(&secret, true)).await;
+    let shown = ok(&d, "default", "snapshot", json!({})).await;
+    for reply in [&typed, &shown] {
+        assert!(!reply.to_string().contains("Zq7Zq7"), "{reply}");
+    }
+    assert!(
+        shown["text"].as_str().unwrap().contains("\"•••…(+"),
+        "{shown}"
+    );
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_secret_the_field_reformats_is_masked_in_that_reply_and_on_later_screens() {
+    let (source, fake) = FakeSource::polled(vec![field_tree("", false)]);
+    fake.on_text(|_| Some(vec![field_tree("4000 1234 1234 1234", false)]));
+    let (d, _home) = daemon(source);
+    ok(&d, "default", "snapshot", json!({})).await;
+    let typed = ok(&d, "default", "act", type_params("4000123412341234", true)).await;
+    let shown = ok(&d, "default", "snapshot", json!({})).await;
+    fake.set_tree(tree(&["Paid with 4000-1234-1234-1234"]));
+    let receipt = ok(&d, "default", "snapshot", json!({})).await;
+    for reply in [&typed, &shown, &receipt] {
+        assert!(!reply.to_string().contains("1234 1234"), "{reply}");
+        assert!(!reply.to_string().contains("1234-1234"), "{reply}");
+    }
+    assert!(
+        shown["text"].as_str().unwrap().contains("\"•••\""),
+        "{shown}"
+    );
+    assert!(
+        receipt["text"]
+            .as_str()
+            .unwrap()
+            .contains("\"Paid with •••\""),
+        "{receipt}"
+    );
+
+    let (source, fake) = FakeSource::polled(vec![field_tree("", false)]);
+    fake.on_text(|_| Some(vec![field_tree("+1 (KQX) WZ7-PL4", false)]));
+    let (d, _home) = daemon(source);
+    ok(&d, "default", "snapshot", json!({})).await;
+    let typed = ok(&d, "default", "act", type_params("kqxwz7pl4", true)).await;
+    let shown = ok(&d, "default", "snapshot", json!({})).await;
+    for reply in [&typed, &shown] {
+        assert!(!reply.to_string().contains("WZ7"), "{reply}");
+    }
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_secret_with_quotes_and_backslashes_is_masked_where_a_reply_escapes_it() {
+    let secret = r#"pa"ss\word-9"#;
+    let (source, fake) = FakeSource::polled(vec![field_tree("", false)]);
+    fake.on_text(|_| Some(vec![field_tree(r#"pa\"ss\\word-9"#, false)]));
+    let (d, _home) = daemon(source);
+    ok(&d, "default", "snapshot", json!({})).await;
+    ok(&d, "default", "act", type_params(secret, true)).await;
+    let shown = ok(&d, "default", "snapshot", json!({})).await;
+    assert!(!shown.to_string().contains("word-9"), "{shown}");
+    assert!(
+        shown["text"]
+            .as_str()
+            .unwrap()
+            .contains("\"Field\" \"•••\""),
+        "{shown}"
+    );
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_replayed_secret_is_typed_only_into_a_password_or_one_time_code_field() {
+    let replayed = |text: &str| {
+        let mut p = type_params(text, true);
+        p["secret_field_only"] = json!(true);
+        p
+    };
+    let (source, fake) = FakeSource::with(vec![field_tree("", false)]);
+    let (d, home) = daemon(source);
+    ok(&d, "default", "snapshot", json!({})).await;
+    let e = err(&d, "default", "act", replayed("hunter2-r")).await;
+    assert!(
+        e.message
+            .contains("only into a password or one-time code field"),
+        "{e:?}"
+    );
+    assert!(!e.to_json().to_string().contains("hunter2-r"));
+    assert!(
+        !fake
+            .calls()
+            .iter()
+            .any(|c| matches!(c, Call::Text(_) | Call::Gesture(_))),
+        "{:?}",
+        fake.calls()
+    );
+    assert!(!trace_text(home.path()).contains("hunter2-r"));
+
+    let (source, fake) = FakeSource::with(vec![
+        field_tree("", true),
+        field_tree("", true),
+        field_tree("•••••••••", true),
+    ]);
+    let (d, _home) = daemon(source);
+    ok(&d, "default", "snapshot", json!({})).await;
+    let r = ok(&d, "default", "act", replayed("hunter2-r")).await;
+    assert_eq!(r["verified"], true, "{r}");
+    assert!(fake.calls().iter().any(|c| matches!(
+        c,
+        Call::Text(phonedriver_core::device::TextInput::PasteSecret(_))
+    )));
+}
+
+#[tokio::test(start_paused = true)]
+async fn mask_answers_the_text_with_every_remembered_secret_masked() {
+    let (source, _fake) = FakeSource::with(vec![tree(&["One"])]);
+    let (d, home) = daemon(source);
+    ok(
+        &d,
+        "default",
+        "shell",
+        json!({"command": "hunter2-mask", "secret": true, "settle": false}),
+    )
+    .await;
+    let r = ok(
+        &d,
+        "default",
+        "mask",
+        json!({"text": "+ \"hunter2-mask\" at 1,1"}),
+    )
+    .await;
+    assert_eq!(r["text"], "+ \"•••\" at 1,1");
+    assert!(!trace_text(home.path()).contains("hunter2-mask"));
+}
+
+#[cfg(unix)]
+#[tokio::test(start_paused = true)]
+async fn a_screenshot_the_daemon_keeps_can_be_read_only_by_its_owner() {
+    use std::os::unix::fs::PermissionsExt;
+    let (source, _fake) =
+        FakeSource::of(FakeDevice::new(vec![tree(&["One"])]).with_screenshot(fake_png()));
+    let (d, _home) = daemon(source);
+    let r = ok(&d, "default", "screenshot", json!({})).await;
+    let path = std::path::PathBuf::from(r["path"].as_str().unwrap());
+    let mode = |p: &Path| std::fs::metadata(p).unwrap().permissions().mode() & 0o777;
+    assert_eq!(mode(&path), 0o600, "{}", path.display());
+    assert_eq!(mode(path.parent().unwrap()), 0o700);
+    assert_eq!(mode(path.parent().unwrap().parent().unwrap()), 0o700);
+}
+
 fn article() -> WebPage {
     let body: String = (1..=200)
         .map(|n| format!("Paragraph {n} of the article, which is one line of text.\n\n"))

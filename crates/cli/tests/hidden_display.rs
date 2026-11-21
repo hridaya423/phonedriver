@@ -264,3 +264,14 @@ async fn a_locked_phone_fails_needs_user_on_the_hidden_display_and_nothing_is_sw
     assert_eq!(e.data["action"]["kind"], "unlock_device", "{e:?}");
     assert_eq!(hidden.calls(), vec![]);
 }
+
+#[tokio::test]
+async fn a_secret_set_on_the_hidden_display_keeps_its_sensitive_mark() {
+    use phonedriver_core::device::TextInput;
+    let secret =
+        json!({"kind": "type", "text": "hunter2-x", "into": {"ref": "e1"}, "secret": true});
+    assert_eq!(
+        typed_with("hidden", false, secret).await,
+        [TextInput::SetSecret("hunter2-x".into())]
+    );
+}

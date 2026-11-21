@@ -269,6 +269,77 @@ async fn a_secret_in_a_matched_log_line_is_masked_in_the_reply() {
     );
 }
 
+fn traces(home: &tempfile::TempDir) -> String {
+    let mut all = String::new();
+    for entry in std::fs::read_dir(home.path().join("traces"))
+        .into_iter()
+        .flatten()
+        .flatten()
+    {
+        all += &std::fs::read_to_string(entry.path()).unwrap_or_default();
+    }
+    all
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_secret_given_while_a_log_wait_is_pending_is_masked_in_that_waits_reply_and_trace() {
+    let (d, fake, home) = setup();
+    fake.answer_log_lines(&["I/App( 1): token s3cr3t-c8-value"]);
+    fake.log_wait_takes(std::time::Duration::from_millis(1500));
+    let waiting = {
+        let d = d.clone();
+        tokio::spawn(async move {
+            d.call(
+                "a",
+                "wait",
+                json!({"condition": {"log": {"pattern": "token"}}}),
+            )
+            .await
+        })
+    };
+    tokio::time::sleep(std::time::Duration::from_millis(300)).await;
+    let typed = {
+        let d = d.clone();
+        tokio::spawn(async move {
+            d.call(
+                "b",
+                "shell",
+                json!({"command": "s3cr3t-c8-value", "secret": true, "settle": false, "share": true}),
+            )
+            .await
+        })
+    };
+    let r = waiting.await.unwrap().unwrap();
+    let _ = typed.await.unwrap();
+    assert_eq!(r["summary"], "log line: I/App( 1): token •••", "{r}");
+    let trace = traces(&home);
+    assert!(!trace.contains("s3cr3t-c8-value"), "{trace}");
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_log_line_is_masked_before_it_is_cut_so_no_part_of_a_secret_comes_back() {
+    let (d, fake, _home) = setup();
+    let secret = "ABCDEFGHIJ-secret-tail-0123";
+    ok(
+        &d,
+        "shell",
+        json!({"command": secret, "secret": true, "settle": false}),
+    )
+    .await;
+    let line = format!("I/App( 1): token {}{secret}", "x".repeat(373));
+    assert_eq!(line.chars().count(), 417);
+    fake.answer_log_lines(&[&line]);
+    let r = ok(
+        &d,
+        "wait",
+        json!({"condition": {"log": {"pattern": "token"}}}),
+    )
+    .await;
+    let summary = r["summary"].as_str().unwrap();
+    assert!(summary.ends_with("xx•••"), "{summary}");
+    assert!(!summary.contains("ABC"), "{summary}");
+}
+
 #[tokio::test(start_paused = true)]
 async fn a_log_wait_in_a_batch_and_in_the_saved_steps_does_not_keep_the_line() {
     let (d, fake, _home) = setup();

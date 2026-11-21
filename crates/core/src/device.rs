@@ -161,6 +161,8 @@ pub enum TextInput {
     /// Paste with the clipboard marked sensitive, so the system hides the text in its clipboard preview.
     PasteSecret(String),
     SetValue(String),
+    /// Set a secret as the field's value. Where the device falls back to a paste, the clipboard is marked sensitive.
+    SetSecret(String),
     Keystrokes(String),
 }
 
@@ -170,6 +172,7 @@ impl fmt::Debug for TextInput {
             TextInput::Paste(t) => ("Paste", t),
             TextInput::PasteSecret(t) => ("PasteSecret", t),
             TextInput::SetValue(t) => ("SetValue", t),
+            TextInput::SetSecret(t) => ("SetSecret", t),
             TextInput::Keystrokes(t) => ("Keystrokes", t),
         };
         write!(f, "{mode}({} chars)", text.chars().count())

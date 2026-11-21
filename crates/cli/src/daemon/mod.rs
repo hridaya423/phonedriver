@@ -16,7 +16,7 @@ pub mod progress;
 pub mod rpc;
 pub mod scope;
 pub mod secret_field;
-mod secrets;
+pub(crate) mod secrets;
 pub mod session;
 pub mod shell;
 pub mod socket;
@@ -221,13 +221,15 @@ impl Daemon {
     ) -> Result<Value, RpcError> {
         self.touch();
         let started = Instant::now();
-        let secrets = self.secrets.with(secrets::carried(method, &params));
+        let carried = secrets::carried(method, &params);
+        self.secrets.with(carried.clone());
         let (mut result, phases) = PHASES
             .scope(Default::default(), async {
                 let result = self.route(session, method, &params).await;
                 (result, PHASES.with(|p| p.take()))
             })
             .await;
+        let secrets = self.secrets.with(carried);
         secrets::hide(&mut result, &secrets);
         self.traces.record(
             session,
@@ -236,6 +238,7 @@ impl Daemon {
             &result,
             started.elapsed(),
             &phases,
+            &secrets,
         );
         self.touch();
         result
@@ -278,6 +281,7 @@ impl Daemon {
                 }
                 Ok(json!({"version": VERSION, "pid": std::process::id()}))
             }
+            "mask" => Ok(json!({"text": params["text"]})),
             "shutdown" => {
                 self.shutdown();
                 Ok(json!({"pid": std::process::id()}))

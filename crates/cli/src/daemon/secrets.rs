@@ -66,17 +66,144 @@ impl Secrets {
         hide_text(&mut text, &self.with(Vec::new()));
         text
     }
-}
 
-fn hide_text(text: &mut String, secrets: &[String]) {
-    for secret in secrets {
-        if text.contains(secret.as_str()) {
-            *text = text.replace(secret.as_str(), MASK);
+    /// Remembers what a field shows after `typed`, a secret, went into it, when the field shows the secret changed:
+    /// its characters in order, in any case, with others between them (a card number in groups of four, a code in
+    /// capitals, a phone number behind `+1`). Text that holds the secret as typed is masked already.
+    pub fn shown_as(&self, typed: &str, shown: &str) {
+        if !shown.contains(typed) && in_order(typed, shown) {
+            self.with(vec![shown.to_string()]);
         }
     }
 }
 
-fn hide_value(value: &mut Value, secrets: &[String]) {
+fn in_order(typed: &str, shown: &str) -> bool {
+    let mut shown = shown.chars().flat_map(char::to_lowercase);
+    typed
+        .chars()
+        .flat_map(char::to_lowercase)
+        .all(|c| shown.any(|s| s == c))
+}
+
+/// Characters a field or a screen puts between the parts of a number or a code it shows.
+fn is_separator(c: char) -> bool {
+    c.is_whitespace() || matches!(c, '-' | '(' | ')')
+}
+
+/// A secret is matched with separators between its characters only from this many characters on: a card number,
+/// a phone number or a six-digit code, not a four-digit PIN that would also match `12-34`.
+const SPACED_FROM: usize = 6;
+
+/// The characters before a cut (`…`) that begin a secret are masked when there are at least this many: fewer are
+/// as likely to be the end of a word ("Loading…").
+const CUT_FROM: usize = 3;
+
+/// How a secret looks inside a JSON string (a raw tree, a fixture) and inside a quoted string of a snapshot or a
+/// comparison, besides as it is.
+fn forms(secret: &str) -> Vec<String> {
+    let json = serde_json::to_string(secret).unwrap_or_default();
+    let quoted = format!("{secret:?}");
+    let rendered = secret
+        .replace('\\', "\\\\")
+        .replace('"', "\\\"")
+        .replace('\n', "\\n");
+    let mut forms = vec![
+        json[1..json.len() - 1].to_string(),
+        quoted[1..quoted.len() - 1].to_string(),
+        rendered,
+    ];
+    forms.retain(|f| f != secret);
+    forms.sort();
+    forms.dedup();
+    forms.push(secret.to_string());
+    forms
+}
+
+fn hide_text(text: &mut String, secrets: &[String]) {
+    for secret in secrets {
+        for form in forms(secret) {
+            if text.contains(form.as_str()) {
+                *text = text.replace(form.as_str(), MASK);
+            }
+        }
+        hide_spaced(text, secret);
+    }
+    hide_cut(text, secrets);
+}
+
+/// Masks `secret` where it shows with separators between its characters: `4000 1234 1234 1234` for
+/// `4000123412341234`.
+fn hide_spaced(text: &mut String, secret: &str) {
+    let core: Vec<char> = secret.chars().filter(|c| !is_separator(*c)).collect();
+    if core.len() < SPACED_FROM || !text.contains(core[0]) {
+        return;
+    }
+    let chars: Vec<(usize, char)> = text.char_indices().collect();
+    let mut spans = Vec::new();
+    let mut i = 0;
+    while i < chars.len() {
+        if chars[i].1 == core[0] {
+            let (mut j, mut k) = (i, 0);
+            while j < chars.len() && k < core.len() {
+                if chars[j].1 == core[k] {
+                    k += 1;
+                } else if !(k > 0 && is_separator(chars[j].1)) {
+                    break;
+                }
+                j += 1;
+            }
+            if k == core.len() {
+                spans.push((chars[i].0, chars.get(j).map_or(text.len(), |c| c.0)));
+                i = j;
+                continue;
+            }
+        }
+        i += 1;
+    }
+    for (start, end) in spans.into_iter().rev() {
+        text.replace_range(start..end, MASK);
+    }
+}
+
+/// Masks the start of a secret just before a `…` where phonedriver or the device cut a long text: the rest of the
+/// secret was cut off, so no whole secret is there to match.
+fn hide_cut(text: &mut String, secrets: &[String]) {
+    if !text.contains('…') {
+        return;
+    }
+    let cuts: Vec<usize> = text.match_indices('…').map(|(at, _)| at).collect();
+    for at in cuts.into_iter().rev() {
+        let before = &text[..at];
+        let longest = secrets
+            .iter()
+            .flat_map(|s| forms(s.as_str()))
+            .filter_map(|form| {
+                let chars: Vec<(usize, char)> = form.char_indices().collect();
+                (CUT_FROM..chars.len())
+                    .rev()
+                    .map(|n| &form[..chars[n].0])
+                    .find(|head| before.ends_with(head))
+                    .map(str::len)
+            })
+            .max();
+        if let Some(len) = longest {
+            text.replace_range(at - len..at, MASK);
+        }
+    }
+}
+
+/// `text` with each of `secrets` masked as the daemon masks them: for text a client makes from what the screen
+/// shows, with the secrets it typed itself.
+pub fn masked_with(text: &str, secrets: &[String]) -> String {
+    let mut secrets = secrets.to_vec();
+    secrets.sort_by_key(|s| std::cmp::Reverse(s.len()));
+    let mut text = text.to_string();
+    hide_text(&mut text, &secrets);
+    text
+}
+
+/// Masks `secrets` in every string of `value`. A screenshot's pixels (`data_b64`) are left as they are.
+pub fn hide_value(value: &mut Value, secrets: &[String]) {
     match value {
         Value::String(s) => hide_text(s, secrets),
         Value::Array(items) => items.iter_mut().for_each(|v| hide_value(v, secrets)),
@@ -138,6 +265,47 @@ mod tests {
         let error = error.unwrap_err();
         assert_eq!(error.message, "no field named •••");
         assert_eq!(error.data, json!({"hint": "•••"}));
+    }
+
+    #[test]
+    fn a_secret_cut_short_before_an_ellipsis_is_masked_up_to_the_cut() {
+        let secrets = Secrets::default();
+        secrets.with(vec!["ABCDEFGHIJ-tail".into()]);
+        assert_eq!(secrets.masked("out: xxABCDEFGH…"), "out: xx•••…");
+        assert_eq!(
+            secrets.masked("\"xxABC…(+9 chars)\""),
+            "\"xx•••…(+9 chars)\""
+        );
+        assert_eq!(secrets.masked("Loading…"), "Loading…");
+        assert_eq!(secrets.masked("xxAB…"), "xxAB…");
+    }
+
+    #[test]
+    fn a_secret_is_masked_escaped_as_json_or_a_quoted_string_and_spaced_out() {
+        let secrets = Secrets::default();
+        secrets.with(vec![r#"pa"ss\word"#.into(), "4000123412341234".into()]);
+        assert_eq!(
+            secrets.masked(r#"{"text":"pa\"ss\\word"}"#),
+            r#"{"text":"•••"}"#
+        );
+        assert_eq!(
+            secrets.masked("card 4000 1234 1234 1234, or (4000) 1234-1234-1234."),
+            "card •••, or (•••."
+        );
+        assert_eq!(secrets.masked("4000 1234"), "4000 1234");
+    }
+
+    #[test]
+    fn a_field_that_shows_a_secret_changed_is_remembered_and_one_that_shows_other_text_is_not() {
+        let secrets = Secrets::default();
+        secrets.shown_as("kqxwz7pl4", "+1 (KQX) WZ7-PL4");
+        secrets.shown_as("kqxwz7pl4", "Card number");
+        secrets.shown_as("kqxwz7pl4", "•••••••••");
+        assert_eq!(
+            secrets.masked("+1 (KQX) WZ7-PL4 · Card number"),
+            "••• · Card number"
+        );
+        assert_eq!(secrets.with(Vec::new()).len(), 1);
     }
 
     #[test]

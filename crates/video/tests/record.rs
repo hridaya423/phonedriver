@@ -313,3 +313,14 @@ fn a_recording_the_simulator_wrote_is_read_for_its_size_frames_and_length() {
     std::fs::write(&cut, &std::fs::read(path).unwrap()[..500]).unwrap();
     assert!(probe(&cut).is_err(), "a file cut short is refused");
 }
+
+#[cfg(unix)]
+#[test]
+fn a_recording_can_be_read_only_by_its_owner() {
+    use std::os::unix::fs::PermissionsExt;
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("out.mp4");
+    drop(Recording::create(&path, 16, 16).unwrap());
+    let mode = std::fs::metadata(&path).unwrap().permissions().mode() & 0o777;
+    assert_eq!(mode, 0o600);
+}

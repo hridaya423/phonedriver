@@ -46,6 +46,7 @@ impl Traces {
             .remove(session);
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn record(
         &self,
         session: &str,
@@ -54,6 +55,7 @@ impl Traces {
         result: &Result<Value, RpcError>,
         took: Duration,
         phases: &[(&'static str, u32)],
+        secrets: &[String],
     ) {
         let (ok, reply, settle_ms) = match result {
             Ok(v) if method == "shell" => (
@@ -75,9 +77,11 @@ impl Traces {
         let at = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .map_or(0, |d| d.as_millis() as u64);
+        let mut params = sanitize(method, params, self.options.full);
+        super::secrets::hide_value(&mut params, secrets);
         let mut line = json!({
             "t": at, "session": session, "method": method,
-            "params": sanitize(method, params, self.options.full),
+            "params": params,
             "ok": ok, "reply": reply, "ms": took.as_millis() as u64, "settle_ms": settle_ms,
         });
         if !phases.is_empty() {
@@ -136,25 +140,11 @@ impl Traces {
     }
 
     fn create(&self, name: &str) -> std::io::Result<File> {
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::{DirBuilderExt, OpenOptionsExt, PermissionsExt};
-            std::fs::DirBuilder::new()
-                .recursive(true)
-                .mode(0o700)
-                .create(&self.dir)?;
-            std::fs::set_permissions(&self.dir, std::fs::Permissions::from_mode(0o700))?;
-            std::fs::OpenOptions::new()
-                .write(true)
-                .create_new(true)
-                .mode(0o600)
-                .open(self.dir.join(name))
-        }
-        #[cfg(not(unix))]
-        {
-            std::fs::create_dir_all(&self.dir)?;
-            File::create(self.dir.join(name))
-        }
+        crate::private::dir(&self.dir)?;
+        crate::private::options()
+            .write(true)
+            .create_new(true)
+            .open(self.dir.join(name))
     }
 }
 
@@ -228,6 +218,11 @@ fn sanitize(method: &str, params: &Value, full: bool) -> Value {
         "clipboard" => {
             if let Some(s) = p.get("set").cloned() {
                 p["set"] = length("text_len", &s);
+            }
+        }
+        "mask" => {
+            if let Some(s) = p.get("text").cloned() {
+                p["text"] = length("text_len", &s);
             }
         }
         _ => {}

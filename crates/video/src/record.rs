@@ -176,7 +176,14 @@ const MATRIX: [u32; 9] = [0x0001_0000, 0, 0, 0, 0x0001_0000, 0, 0, 0, 0x4000_000
 
 impl Recording {
     pub fn create(path: &Path, width: u32, height: u32) -> io::Result<Recording> {
-        let mut file = File::create(path)?;
+        let mut options = std::fs::OpenOptions::new();
+        options.write(true).create(true).truncate(true);
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::OpenOptionsExt;
+            options.mode(0o600);
+        }
+        let mut file = options.open(path)?;
         let mut ftyp = b"isom".to_vec();
         ftyp.extend_from_slice(&0x200u32.to_be_bytes());
         ftyp.extend_from_slice(b"isomiso2avc1mp41");
