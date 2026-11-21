@@ -944,13 +944,21 @@ impl Actor {
         if self.physical() && !p.force {
             let device = self.device()?;
             let key = self.ledger_key(&*device).await?;
-            let mine: Vec<String> = self
+            let named: Vec<String> = self
                 .ledger
                 .entries(&key)
                 .map_err(|detail| Error::Transport { detail })?
                 .into_iter()
                 .map(|e| e.id)
+                .filter(|id| p.command.contains(id.as_str()))
                 .collect();
+            let mut mine = Vec::new();
+            for id in named {
+                let app = AppId(id);
+                if matches!(self.installed_by_us(&*device, &app).await, Ok(true)) {
+                    mine.push(app.0);
+                }
+            }
             if let Some(reason) = shell::refuse_on_physical(&p.command, &mine) {
                 return Err(Error::Unsupported {
                     op: Op::Shell,
@@ -3783,7 +3791,8 @@ impl Actor {
         let up = want == VpnState::Up;
         loop {
             let view = device.network().await?;
-            if view.vpn_up() == up {
+            let listed = !view.missing.iter().any(|m| m == "networks");
+            if listed && view.vpn_up() == up {
                 let owner = view
                     .networks
                     .iter()
@@ -3804,7 +3813,11 @@ impl Actor {
                     condition: format!(
                         "the VPN to be {}; last seen: {}",
                         if up { "up" } else { "down" },
-                        view.brief()
+                        if listed {
+                            view.brief()
+                        } else {
+                            "a connectivity dump that did not list the networks".into()
+                        }
                     ),
                 });
             }

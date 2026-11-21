@@ -5386,6 +5386,36 @@ async fn an_app_installed_again_by_its_owner_is_no_longer_the_one_phonedriver_in
 }
 
 #[tokio::test]
+async fn a_shell_clear_of_an_app_its_owner_installed_again_is_refused_like_the_typed_one() {
+    let (source, fake) = physical();
+    fake.set_installed_at("2026-11-19 10:04:31");
+    let (d, _home) = daemon(source);
+    install_apk(&d).await;
+    ok(
+        &d,
+        "default",
+        "shell",
+        json!({"command": "pm clear com.example.installed"}),
+    )
+    .await;
+    fake.set_installed_at("2026-11-19 18:30:02");
+    for command in [
+        "pm clear com.example.installed",
+        "cmd package uninstall com.example.installed",
+    ] {
+        let e = err(&d, "default", "shell", json!({"command": command})).await;
+        assert_eq!(e.code, -32011, "{command}: {}", e.message);
+        assert!(e.message.contains("installed again"), "{}", e.message);
+    }
+    let shells = fake
+        .calls()
+        .iter()
+        .filter(|c| matches!(c, Call::Shell(_)))
+        .count();
+    assert_eq!(shells, 1);
+}
+
+#[tokio::test]
 async fn a_record_written_before_installs_were_identified_still_counts() {
     let (source, _fake) = physical();
     let (d, home) = daemon(source);

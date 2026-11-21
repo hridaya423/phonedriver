@@ -151,6 +151,33 @@ async fn wait_vpn_down_returns_once_the_vpn_network_is_gone() {
 }
 
 #[tokio::test(start_paused = true)]
+async fn wait_vpn_down_does_not_take_a_dump_that_listed_no_networks_for_an_answer() {
+    let (d, fake, _home) = setup();
+    let unread = NetworkView {
+        missing: vec!["networks".into(), "default network".into()],
+        ..NetworkView::default()
+    };
+    fake.answer_networks(vec![up(), unread.clone(), unread.clone(), down()]);
+    let r = ok(
+        &d,
+        "wait",
+        json!({"condition": {"vpn": "down"}, "timeout_ms": 10000}),
+    )
+    .await;
+    assert_eq!(r["summary"], "no VPN is up");
+    assert!(fake.network_reads() >= 4, "{}", fake.network_reads());
+    fake.answer_networks(vec![unread]);
+    let e = err(
+        &d,
+        "wait",
+        json!({"condition": {"vpn": "down"}, "timeout_ms": 3000}),
+    )
+    .await;
+    assert_eq!(e.code, -32013, "{e:?}");
+    assert!(e.message.contains("did not list"), "{e:?}");
+}
+
+#[tokio::test(start_paused = true)]
 async fn wait_vpn_up_that_times_out_gives_the_last_state_seen() {
     let (d, fake, _home) = setup();
     fake.answer_networks(vec![down()]);

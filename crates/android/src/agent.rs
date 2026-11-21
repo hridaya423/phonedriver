@@ -82,9 +82,26 @@ fn host_name() -> String {
     .clone()
 }
 
+/// This computer in the owner file: a hash of its name, so the file that stays on the phone does not name it.
+fn host_id() -> String {
+    let digest = Sha256::digest(format!("phonedriver owner {}", host_name()));
+    digest.iter().take(8).map(|b| format!("{b:02x}")).collect()
+}
+
 /// Names this daemon in the owner file: another daemon that finds a live agent under a different name must not kill it.
 fn owner() -> String {
-    format!("pid={} host={}", std::process::id(), host_name())
+    format!("pid={} host={}", std::process::id(), host_id())
+}
+
+/// The computer an owner line names, in words: a phonedriver before 0.1.7 wrote the host's name.
+fn owner_host(host: &str) -> String {
+    if host == host_id() {
+        "this computer".into()
+    } else if host.len() == 16 && host.chars().all(|c| c.is_ascii_hexdigit()) {
+        "another computer".into()
+    } else {
+        host.to_string()
+    }
 }
 
 /// One adb shell does the existence check of the jar, the owner check, the kill and the start. The owner file is read
@@ -255,7 +272,7 @@ fn not_ready(
         return Error::DeviceDriven {
             id: format!("android:{serial}"),
             pid,
-            host: host.to_string(),
+            host: owner_host(host),
         };
     }
     if exit == Some(4) || tail.contains("already registered") {
@@ -756,6 +773,23 @@ mod tests {
         let (code, _, calls) = run_start_command(None, true, "pid=7 host=mine");
         assert_eq!(code, 0);
         assert_eq!(calls, ["pkill", "app_process"]);
+    }
+
+    #[test]
+    fn the_owner_file_names_this_computer_by_a_hash_and_not_by_its_name() {
+        let me = owner();
+        assert!(!me.contains(&host_name()), "{me}");
+        let host = me.split_once(" host=").unwrap().1;
+        assert!(
+            host.len() == 16 && host.chars().all(|c| c.is_ascii_hexdigit()),
+            "{me}"
+        );
+        let lines = vec![format!("owned pid=4242 host={host}")];
+        let e = not_ready(Some(OWNED), false, READY_TIMEOUT, &lines, "emulator-5556");
+        assert!(e.hint().contains("`kill 4242` on this computer"), "{}", e.hint());
+        let lines = vec!["owned pid=4242 host=0123456789abcdef".to_string()];
+        let e = not_ready(Some(OWNED), false, READY_TIMEOUT, &lines, "emulator-5556");
+        assert!(e.hint().contains("on another computer"), "{}", e.hint());
     }
 
     #[test]
