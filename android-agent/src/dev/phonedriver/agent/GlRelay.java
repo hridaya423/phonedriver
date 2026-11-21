@@ -53,12 +53,16 @@ final class GlRelay {
 
     private static HandlerThread thread;
     private static Handler handler;
+    // Relays on this thread that initialized the default display. eglGetDisplay returns the same display to each,
+    // and eglTerminate would free every relay's context on it, so only the last one to go terminates it.
+    private static int displayUsers;
 
     private final int width;
     private final int height;
     private EGLDisplay eglDisplay = EGL14.EGL_NO_DISPLAY;
     private EGLContext eglContext = EGL14.EGL_NO_CONTEXT;
     private EGLSurface eglSurface = EGL14.EGL_NO_SURFACE;
+    private boolean displayHeld;
     private SurfaceTexture texture;
     private Surface input;
     private int textureId;
@@ -136,6 +140,8 @@ final class GlRelay {
         if (eglDisplay == EGL14.EGL_NO_DISPLAY || !EGL14.eglInitialize(eglDisplay, version, 0, version, 1)) {
             throw new IllegalStateException("EGL: no display");
         }
+        displayHeld = true;
+        displayUsers++;
         int[] attribs = {
             EGL14.EGL_RED_SIZE, 8, EGL14.EGL_GREEN_SIZE, 8, EGL14.EGL_BLUE_SIZE, 8, EGL14.EGL_ALPHA_SIZE, 8,
             EGL14.EGL_RENDERABLE_TYPE, EGL14.EGL_OPENGL_ES2_BIT, EGL14.EGL_NONE
@@ -193,7 +199,12 @@ final class GlRelay {
         }
     }
 
+    // Another relay on this thread (the main stream and a hidden display's) makes its own context current, so each
+    // draw binds this relay's context before it touches the texture.
     private void draw() {
+        if (!EGL14.eglMakeCurrent(eglDisplay, eglSurface, eglSurface, eglContext)) {
+            throw new IllegalStateException("EGL: make current failed: 0x" + Integer.toHexString(EGL14.eglGetError()));
+        }
         texture.updateTexImage();
         texture.getTransformMatrix(matrix);
         GLES20.glViewport(0, 0, width, height);
@@ -231,10 +242,13 @@ final class GlRelay {
             texture.setOnFrameAvailableListener(null);
         }
         if (eglDisplay != EGL14.EGL_NO_DISPLAY) {
-            if (textureId != 0) {
+            boolean current = eglContext != EGL14.EGL_NO_CONTEXT
+                    && eglSurface != EGL14.EGL_NO_SURFACE
+                    && EGL14.eglMakeCurrent(eglDisplay, eglSurface, eglSurface, eglContext);
+            if (current && textureId != 0) {
                 GLES20.glDeleteTextures(1, new int[] {textureId}, 0);
             }
-            if (program != 0) {
+            if (current && program != 0) {
                 GLES20.glDeleteProgram(program);
             }
             EGL14.eglMakeCurrent(eglDisplay, EGL14.EGL_NO_SURFACE, EGL14.EGL_NO_SURFACE, EGL14.EGL_NO_CONTEXT);
@@ -244,7 +258,12 @@ final class GlRelay {
             if (eglContext != EGL14.EGL_NO_CONTEXT) {
                 EGL14.eglDestroyContext(eglDisplay, eglContext);
             }
-            EGL14.eglTerminate(eglDisplay);
+            if (displayHeld) {
+                displayHeld = false;
+                if (--displayUsers == 0) {
+                    EGL14.eglTerminate(eglDisplay);
+                }
+            }
         }
         eglDisplay = EGL14.EGL_NO_DISPLAY;
         eglContext = EGL14.EGL_NO_CONTEXT;

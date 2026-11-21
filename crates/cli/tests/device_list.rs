@@ -26,6 +26,7 @@ struct Bench {
     connects: Mutex<Vec<String>>,
     reads: Mutex<Vec<String>>,
     off: Mutex<Vec<DeviceSummary>>,
+    boots: Mutex<Vec<String>>,
 }
 
 impl Bench {
@@ -54,6 +55,7 @@ impl Bench {
             connects: Mutex::default(),
             reads: Mutex::default(),
             off: Mutex::default(),
+            boots: Mutex::default(),
         })
     }
 
@@ -95,6 +97,7 @@ impl DeviceSource for Bench {
     }
 
     async fn boot(&self, name: &str) -> Result<Option<Booted>, Error> {
+        self.boots.lock().unwrap().push(name.to_string());
         let off = self.off.lock().unwrap();
         Ok(off
             .iter()
@@ -383,4 +386,87 @@ async fn a_live_lease_is_marked_so_doctor_can_leave_the_device_alone() {
     let entries = ok(&d, "devices", json!({})).await;
     assert_eq!(entries[0]["leased_by"], "default");
     assert_eq!(entries[0]["lease_live"], true);
+}
+
+#[tokio::test]
+async fn a_denied_simulator_is_neither_booted_nor_listed_as_off() {
+    let bench = Bench::new(&TWO);
+    bench.off.lock().unwrap().extend([
+        DeviceSummary {
+            id: "sim:DENIED-UDID".into(),
+            model: "Staff iPhone".into(),
+            os: "iOS 26".into(),
+        },
+        DeviceSummary {
+            id: "sim:OPEN-UDID".into(),
+            model: "Test iPhone".into(),
+            os: "iOS 26".into(),
+        },
+    ]);
+    let (d, _home) = daemon(bench.clone(), Policy::new("", "sim:DENIED-UDID", None));
+    for name in ["sim:DENIED-UDID", "DENIED-UDID", "Staff iPhone"] {
+        let e = err(&d, "boot", json!({"name": name})).await;
+        assert!(
+            e.message.contains("no device named"),
+            "{name}: {}",
+            e.message
+        );
+        assert!(
+            !e.to_json().to_string().contains("Staff iPhone (iOS"),
+            "{name}: {e:?}"
+        );
+    }
+    let off = ok(&d, "boot", json!({})).await;
+    assert_eq!(off["off"].as_array().unwrap().len(), 1, "{off}");
+    assert!(!off.to_string().contains("DENIED"), "{off}");
+    assert!(
+        !bench
+            .boots
+            .lock()
+            .unwrap()
+            .iter()
+            .any(|b| b.contains("DENIED") || b == "Staff iPhone"),
+        "{:?}",
+        bench.boots.lock().unwrap()
+    );
+}
+
+struct Broken;
+
+#[async_trait]
+impl DeviceSource for Broken {
+    async fn list(&self) -> Result<Vec<Listed>, Error> {
+        Err(Error::Transport {
+            detail: "xcrun is not installed".into(),
+        })
+    }
+    async fn connect(&self, id: &str) -> Result<Arc<dyn Device>, Error> {
+        Err(Error::DeviceGone { id: id.into() })
+    }
+}
+
+#[tokio::test]
+async fn a_device_that_is_not_found_while_a_source_fails_names_no_hidden_device() {
+    let bench = Bench::new(&[
+        ("android:STAFF-PHONE-1", None),
+        ("android:emulator-5554", None),
+    ]);
+    let sources = phonedriver::daemon::sources::Sources(vec![
+        ("android:", bench.clone() as Arc<dyn DeviceSource>),
+        ("sim:", Arc::new(Broken)),
+    ]);
+    let home = tempfile::tempdir().unwrap();
+    let d = Daemon::start(
+        Arc::new(sources),
+        Config {
+            home: home.path().to_path_buf(),
+        },
+        phonedriver::daemon::trace::TraceOptions::default(),
+        Vec::new(),
+        Policy::new("", "android:STAFF-PHONE-1", None),
+        None,
+    );
+    let e = err(&d, "snapshot", json!({"device": "nosuchdevice"})).await;
+    assert!(e.message.contains("emulator-5554"), "{}", e.message);
+    assert!(!e.to_json().to_string().contains("STAFF"), "{e:?}");
 }

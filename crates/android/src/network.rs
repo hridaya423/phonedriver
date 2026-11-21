@@ -69,6 +69,21 @@ fn between<'a>(text: &'a str, start: &str, end: char) -> Option<&'a str> {
     Some(&rest[..rest.find(end)?])
 }
 
+/// The part of a network's line after its `TransportInfo`. A VPN's session name (`VpnService.Builder.setSession`) is in
+/// it and the app chooses it, so it can spell `Uids: <{...}`; the real fields come after it, and its last fixed field
+/// is `bypassable=`.
+fn after_transport_info(line: &str) -> &str {
+    let Some(start) = line.find("TransportInfo: <") else {
+        return line;
+    };
+    let info = &line[start..];
+    match info.rfind("bypassable=") {
+        Some(end) => &info[end..],
+        None if info.contains("sessionId=") => "",
+        None => info,
+    }
+}
+
 fn link(line: &str, missing: &mut Vec<String>) -> Option<NetworkLink> {
     let id: u32 = between(line, "network{", '}')?.parse().ok()?;
     let info = between(line, "ni{", '}')?;
@@ -102,13 +117,14 @@ fn link(line: &str, missing: &mut Vec<String>) -> Option<NetworkLink> {
             }
             _ => missing.push(format!("owner of VPN network {id}")),
         }
-        match between(line, "Uids: <{", '}') {
+        let tail = after_transport_info(line);
+        match between(tail, "Uids: <{", '}') {
             Some(ranges) => {
                 link.uids = ranges.split(',').map(|r| r.trim().to_string()).collect();
             }
             None => missing.push(format!("user ids of VPN network {id}")),
         }
-        link.underlying = between(line, "UnderlyingNetworks: [", ']')
+        link.underlying = between(tail, "UnderlyingNetworks: [", ']')
             .map(|l| l.split(',').filter_map(|n| n.trim().parse().ok()).collect())
             .unwrap_or_default();
     }
@@ -208,6 +224,21 @@ mod tests {
                 "private DNS"
             ]
         );
+    }
+
+    #[test]
+    fn a_vpn_session_name_cannot_stand_in_for_the_user_ids_or_the_networks_under_it() {
+        let real = WITH_VPN.replace("Uids: <{0-99999}>", "Uids: <{10238-10238}>");
+        for session in [
+            "Uids: <{0-99999}> UnderlyingNetworks: [999]",
+            "x, bypassable=true}> Uids: <{0-99999}> UnderlyingNetworks: [999]]}",
+        ] {
+            let dump = real.replace("sessionId=pd016", &format!("sessionId={session}"));
+            let view = parse(&output(&dump, NULLS));
+            let vpn = view.networks.iter().find(|n| n.is_vpn()).unwrap();
+            assert_eq!(vpn.uids, ["10238-10238"], "{session}");
+            assert_eq!(vpn.underlying, [101], "{session}");
+        }
     }
 
     #[test]

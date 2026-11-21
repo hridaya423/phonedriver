@@ -210,7 +210,8 @@ const SDCARD_ROOTS: &[&str] = &[
     "/data/user/0",
 ];
 
-/// Why a physical device should not run this command, or `None`. `mine` are the packages phonedriver installed there.
+/// Why a physical device should not run this command, or `None`. `mine` are the packages phonedriver installed there
+/// and nobody has installed again since.
 pub fn refuse_on_physical(command: &str, mine: &[String]) -> Option<&'static str> {
     if ["MASTER_CLEAR", "FACTORY_RESET", "--wipe_data"]
         .iter()
@@ -276,7 +277,7 @@ pub fn refuse_on_physical(command: &str, mine: &[String]) -> Option<&'static str
                     && !mine.iter().any(|m| m == p)
                 {
                     return refuse!(
-                        "phonedriver did not install that package on this physical device, so it will not clear or remove it"
+                        "phonedriver did not install that package on this physical device, or it was installed again since, so it will not clear or remove it"
                     );
                 }
             }

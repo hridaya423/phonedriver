@@ -88,6 +88,14 @@ pub trait DeviceSource: Send + Sync {
         }
     }
 
+    /// `list` without the devices that an entry of `denied` (the device list's deny entries) names by id, which are
+    /// not asked anything (no `getprop`), so a phone the list names by id is never read.
+    async fn list_except(&self, denied: &[String]) -> Result<Vec<Listed>, Error> {
+        let mut list = self.list().await?;
+        list.retain(|l| !policy::denies_id(denied, &l.id));
+        Ok(list)
+    }
+
     /// The devices to look through when a request names `requested` (`None`: no device named). A source that
     /// owns several backends asks only the ones that can hold that device.
     async fn list_for(&self, requested: Option<&str>) -> Result<Vec<Listed>, Error> {

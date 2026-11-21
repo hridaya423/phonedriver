@@ -27,6 +27,7 @@ final class Accessibility {
     // first batch costs its own IPC: Settings main (155 nodes) took 78 to 103 ms in getChild alone, 41 to 46 ms with it.
     private static final int PREFETCH = AccessibilityNodeInfo.FLAG_PREFETCH_DESCENDANTS_DEPTH_FIRST
             | AccessibilityNodeInfo.FLAG_PREFETCH_UNINTERRUPTIBLE;
+    private static final String SYSTEM_UI = "com.android.systemui";
 
     private static UiAutomation automation;
     private static Method sourceNodeId;
@@ -312,11 +313,17 @@ final class Accessibility {
 
     // Status and navigation bars are full-width system windows of at most a tenth of the screen height on the
     // top or bottom edge. Walking them cost about 37 of 192 nodes on Settings (spike A1) and agents never act on them.
+    // Another app's overlay window is reported as TYPE_SYSTEM too, so only the system UI's window of that shape is a
+    // bar; the host's app scope relies on seeing every other one.
     private static boolean isEdgeBar(AccessibilityWindowInfo w, Rect b) {
-        return w.getType() == AccessibilityWindowInfo.TYPE_SYSTEM
-                && b.width() == Lane.here().screenW
-                && b.height() * 10 <= Lane.here().screenH
-                && (b.top == 0 || b.bottom == Lane.here().screenH);
+        if (w.getType() != AccessibilityWindowInfo.TYPE_SYSTEM
+                || b.width() != Lane.here().screenW
+                || b.height() * 10 > Lane.here().screenH
+                || (b.top != 0 && b.bottom != Lane.here().screenH)) {
+            return false;
+        }
+        AccessibilityNodeInfo top = Build.VERSION.SDK_INT >= 33 ? w.getRoot(0) : w.getRoot();
+        return top != null && top.getPackageName() != null && SYSTEM_UI.contentEquals(top.getPackageName());
     }
 
     private static JSONArray rect(Rect b) {

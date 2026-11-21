@@ -4,7 +4,7 @@ nav: Real Android phone
 meta: Turn on USB or Wi-Fi debugging, connect an Android phone and let an agent operate it with phonedriver. What has and has not been tested.
 description: Turn on USB debugging or Wi-Fi debugging, connect an Android phone or tablet, and let an agent operate it with phonedriver. Notes on what has and has not been tested.
 seo: How to let an AI agent control a real Android phone over MCP
-updated: 2026-11-20
+updated: 2026-11-21
 ---
 
 Plug in an Android phone or tablet with USB debugging on, and phonedriver can drive it. No app is installed on the phone, and no accessibility service has to be switched on. It is the same code path as the emulator, and it has been tested on one physical phone, a HONOR X8 ([what was tested](#what-has-been-tested)).
@@ -69,16 +69,17 @@ A physical Android device refuses wipes and removing apps phonedriver did not in
 - A screen of another app (the home screen too) reads as `app <package> (outside the app scope)` with no elements, and `snapshot`, `find`, `wait` and OCR show none of its text. Traces and saved steps hold only what the agent was shown.
 - `tap`, `type`, `swipe`, `scroll`, `clipboard set` and the other actions are refused while another app's window is on screen, a heads-up notification included. `press back`, `press home` and `launch` of an app in the scope still work.
 - `screenshot` is refused while a window of another app is on screen, because a picture cannot be cut by window.
-- `shell`, `record`, `clipboard get`, `press recents` and `press notifications` are refused. `apps` lists only your apps, and `launch`, `logs` and app changes refuse the rest. `open` needs `--app` with one of your packages.
-- The system's permission and install dialogs, the VPN consent dialog and the keyboard stay usable.
+- A screen that shows no window of your apps, an empty one included, counts as another app's.
+- `shell`, `record`, `clipboard get`, `press recents` and `press notifications` are refused. `apps` lists only your apps, and `launch`, `logs` and app changes refuse the rest. `open` needs `--app` with one of your packages, and an `intent:` link that names another app's activity is refused.
+- The system's permission and install dialogs, the VPN consent dialog and the keyboard stay usable. So do the status and navigation bars, but only the system's: another app's window in the shape of a bar is outside the scope.
 
-Not covered: the package name of the app in front is shown, notification icons and the keyboard's suggestions appear in a screenshot, an app of yours can open another app before phonedriver sees it (what follows is hidden), a share sheet from an unusual maker may be let through as a dialog, and an iPhone takes no screenshot under a scope. The daemon reads the list when it starts: run `phonedriver daemon stop` after changing it. [The reference](https://github.com/hridaya423/phonedriver/blob/main/docs/reference.md#app-scope) has the full list.
+Not covered: the package name of the app in front is shown, notification icons and the keyboard's suggestions appear in a screenshot, an app of yours can open another app before phonedriver sees it (what follows is hidden), a share sheet from an unusual maker may be let through as a dialog, and an iPhone takes no screenshot and opens no link under a scope. The daemon reads the list when it starts: run `phonedriver daemon stop` after changing it. [The reference](https://github.com/hridaya423/phonedriver/blob/main/docs/reference.md#app-scope) has the full list.
 
 ## Questions
 
 ### Does phonedriver install an app on my Android phone?
 
-No. There is no app and no accessibility service to switch on. The daemon pushes a small jar over adb and starts it with `app_process` as the shell user, the way scrcpy starts its server.
+No. There is no app and no accessibility service to switch on. The daemon pushes a small jar over adb and starts it with `app_process` as the shell user, the way scrcpy starts its server. It leaves two files in `/data/local/tmp`: the jar, and `phonedriver-owner`, which names the daemon that started the agent by its process id and a hash of the computer's name, so a second daemon does not take over its agent. Releases before 0.1.7 wrote the computer's name itself. `adb shell rm /data/local/tmp/phonedriver-*` removes both.
 
 ### Do I need root?
 

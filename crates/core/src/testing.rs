@@ -38,6 +38,7 @@ pub enum Call {
     AppOp(AppOp, AppId),
     Wake,
     Shell(ShellRequest),
+    Page(Option<AppId>),
 }
 
 pub struct FakeDevice {
@@ -52,6 +53,7 @@ pub struct FakeDevice {
     launch_reads: std::sync::atomic::AtomicUsize,
     screen: Mutex<ScreenState>,
     screen_reads: std::sync::atomic::AtomicUsize,
+    network_reads: std::sync::atomic::AtomicUsize,
     tree_reads: std::sync::atomic::AtomicUsize,
     apps: Mutex<Vec<App>>,
     display: Mutex<Option<Size>>,
@@ -106,6 +108,7 @@ impl FakeDevice {
             launch_reads: Default::default(),
             screen_reads: Default::default(),
             tree_reads: Default::default(),
+            network_reads: Default::default(),
             screen: Mutex::new(ScreenState {
                 on: true,
                 locked: false,
@@ -305,6 +308,12 @@ impl FakeDevice {
     /// cannot read its networks.
     pub fn answer_networks(&self, views: Vec<NetworkView>) {
         *lock(&self.networks) = views;
+    }
+
+    /// How many times `network()` was read.
+    pub fn network_reads(&self) -> usize {
+        self.network_reads
+            .load(std::sync::atomic::Ordering::Relaxed)
     }
 
     /// What `shell()` answers from now on.
@@ -566,6 +575,8 @@ impl Device for FakeDevice {
     }
 
     async fn network(&self) -> Result<NetworkView> {
+        self.network_reads
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         let mut views = lock(&self.networks);
         match views.len() {
             0 => Err(Error::Unsupported {
@@ -641,7 +652,8 @@ impl Device for FakeDevice {
         self.record(Call::AppOp(op, app.clone()))
     }
 
-    async fn page(&self) -> Result<WebPage> {
+    async fn page(&self, app: Option<&AppId>) -> Result<WebPage> {
+        self.record(Call::Page(app.cloned()))?;
         lock(&self.page).clone().ok_or(Error::Refused {
             detail: "com.example has no web page that can be read".into(),
         })

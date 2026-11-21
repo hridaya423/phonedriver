@@ -321,26 +321,30 @@ fn needs_shell(command: &str) -> bool {
     })
 }
 
-/// The command that streams the unified log of a Simulator, at debug level, of one app's process when `app_folder`
-/// (the `<name>.app` folder of its bundle) is given. It runs like any `shell` command.
-pub fn log_stream_command(app_folder: Option<&str>) -> std::result::Result<String, String> {
-    match app_folder {
-        None => Ok("log stream --style compact --level debug".into()),
-        Some(folder) => {
-            let plain = folder.ends_with(".app")
-                && folder
-                    .chars()
-                    .all(|c| c.is_ascii_alphanumeric() || " ._-".contains(c));
-            if !plain {
-                return Err(format!(
-                    "the app folder {folder:?} has a name this cannot scope the log to"
-                ));
-            }
-            Ok(format!(
-                "log stream --style compact --level debug --predicate 'processImagePath CONTAINS \"/{folder}/\"'"
-            ))
-        }
+/// The command that streams the unified log of a Simulator, at debug level, of one app's process when
+/// `app_container` (what `simctl get_app_container <udid> <bundle> app` printed) is given. The filter names the
+/// container's own folder, `<UUID>/<name>.app`, because two apps can have bundles of the same name. It runs like any
+/// `shell` command.
+pub fn log_stream_command(app_container: Option<&str>) -> std::result::Result<String, String> {
+    let Some(container) = app_container else {
+        return Ok("log stream --style compact --level debug".into());
+    };
+    let mut parts = container.trim_end_matches('/').rsplit('/');
+    let folder = parts.next().unwrap_or_default();
+    let uuid = parts.next().unwrap_or_default();
+    let plain = folder.ends_with(".app")
+        && folder
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || " ._-".contains(c));
+    let is_uuid = uuid.len() == 36 && uuid.chars().all(|c| c.is_ascii_hexdigit() || c == '-');
+    if !plain || !is_uuid {
+        return Err(format!(
+            "the app container {container:?} is not a path this can scope the log to"
+        ));
     }
+    Ok(format!(
+        "log stream --style compact --level debug --predicate 'processImagePath CONTAINS \"/{uuid}/{folder}/\"'"
+    ))
 }
 
 /// Follows `xcrun simctl <args>` (a `log stream`) until a line holds one of `req`'s patterns or `req.timeout` ends.
@@ -809,13 +813,16 @@ mod tests {
         );
     }
 
+    const TESTBED: &str =
+        "/x/Containers/Bundle/Application/1F2E3D4C-0000-4ABC-8DEF-0123456789AB/Testbed.app";
+
     #[test]
     fn the_log_stream_is_one_program_that_runs_with_or_without_a_shell_in_the_system() {
         let command = log_stream_command(None).unwrap();
         assert_eq!(command, "log stream --style compact --level debug");
-        let scoped = log_stream_command(Some("Testbed.app")).unwrap();
+        let scoped = log_stream_command(Some(TESTBED)).unwrap();
         assert!(
-            scoped.ends_with("--predicate 'processImagePath CONTAINS \"/Testbed.app/\"'"),
+            scoped.ends_with("--predicate 'processImagePath CONTAINS \"/1F2E3D4C-0000-4ABC-8DEF-0123456789AB/Testbed.app/\"'"),
             "{scoped}"
         );
         for with_shell in [false, true] {
@@ -831,14 +838,27 @@ mod tests {
         let args = spawn_args("U", &scoped, root.path()).unwrap();
         assert_eq!(
             args.last().unwrap(),
-            "processImagePath CONTAINS \"/Testbed.app/\""
+            "processImagePath CONTAINS \"/1F2E3D4C-0000-4ABC-8DEF-0123456789AB/Testbed.app/\""
         );
+    }
+
+    #[test]
+    fn the_log_is_scoped_to_the_apps_own_container_and_not_every_bundle_of_that_name() {
+        let container = "/Users/someone/Library/Developer/CoreSimulator/Devices/U/data/Containers/Bundle/Application/1F2E3D4C-0000-4ABC-8DEF-0123456789AB/Example.app";
+        let command = log_stream_command(Some(container)).unwrap();
+        assert!(
+            command.ends_with("--predicate 'processImagePath CONTAINS \"/1F2E3D4C-0000-4ABC-8DEF-0123456789AB/Example.app/\"'"),
+            "{command}"
+        );
+        assert!(log_stream_command(Some("Example.app")).is_err());
+        assert!(log_stream_command(Some("/a/not-a-uuid/Example.app")).is_err());
     }
 
     #[test]
     fn an_app_folder_that_could_end_the_predicate_is_refused() {
         for folder in ["a'b.app", "a\"b.app", "a$b.app", "Testbed"] {
-            assert!(log_stream_command(Some(folder)).is_err(), "{folder}");
+            let container = format!("/x/1F2E3D4C-0000-4ABC-8DEF-0123456789AB/{folder}");
+            assert!(log_stream_command(Some(&container)).is_err(), "{folder}");
         }
     }
 

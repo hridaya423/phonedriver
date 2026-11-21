@@ -13,6 +13,7 @@ phonedriver runs on your computer and operates a phone that you connected to it.
 - A way for a web page, an app or text on the phone's screen to make phonedriver run a command on the computer.
 - A tap, swipe, key or other action that pays, orders, transfers or deletes an account and goes through without the approval prompt.
 - Text typed with `--secret` that reaches a log, a trace, an error or a reply.
+- A device the device list hides that a call still reaches, lists or starts, or an app outside `PHONEDRIVER_APP_SCOPE` that the agent can read, touch or open through phonedriver (the known gaps in the reference's "App scope" section aside).
 - A screenshot, recording or trace that another account on the computer can read, on macOS or Linux.
 - A connection from phonedriver to anything except the device, Apple for iOS developer disk images, and the pinned disk image download that `phonedriver ios setup --download-ddi` makes when you ask for it.
 - A release file that does not match its published checksum or its build attestation.

@@ -3520,3 +3520,39 @@ Needs a device before release (fakes cannot show it):
 - `phonedriver ios wifi on` on the cable with a 0.1.6 record: it should pair again and write a record with `device_public_key`.
 - The TSS POST over HTTPS during a personalised mount off a Mac.
 - A runner on a phone started and reused with the token (cable, Mac over Wi-Fi, and installed through testmanagerd); the installed runner must be the 0.1.7 IPA, since a 0.1.6 one speaks 0.1.0 and is refused with the IPA message.
+
+## 2026-11-21: 0.1.7, the app scope and the device list hold (GHSA-7qw6-v72h-4gvp, #32 items 4-7 and 11, GHSA-g453-82w6-qqx5 items 1 and 7)
+
+Branch `sec/scope-devices`, decision D107. Every claim below was checked against `main` before the change; all held. No device was touched: fakes, the fake adb server and the video fixture only. Built and tested on win-pc's WSL Ubuntu (debug); the agent jar was built on the MacBook (`android-agent/build.sh`, it compiles).
+
+App scope (GHSA-7qw6, items 1 to 6):
+- 1, `open`: an `intent:` URL with `component=` or `SEL` is refused under a scope; the agent's `Apps.openUrl` refuses an open whose component, selector or resolved activity is not the named app; on iOS and the Simulator `open` is refused under a scope (iOS opens a link in whatever app claims it). Tests `a_scoped_open_of_an_intent_url_that_names_another_component_is_refused`, `an_iphone_or_simulator_opens_no_link_under_a_scope_because_it_ignores_the_app`: first run both `expected an error` (the open went through). The Java side is not run on a device.
+- 2, empty tree: `AppScope::redact` puts the whole screen in `outside` when no window of an app in the scope is listed. `an_empty_tree_is_outside_the_scope_until_a_tree_names_the_app` and `scope::tests::a_tree_with_no_window_of_an_app_in_the_scope_is_outside`: first run `expected an error` and `left: 0, right: 1`.
+- 3, `page`: `Device::page` takes the app; the scope layer passes the in-scope package it checked. `the_page_is_read_from_the_app_the_check_approved`: first run `left: [None], right: [Some("com.mine")]`.
+- 4, bars: only a `com.android.systemui` window is a bar, in `is_bar` and in the agent's `isEdgeBar`. `a_bar_shaped_window_of_another_app_is_outside` and `scope::tests::a_bar_shaped_window_is_a_bar_only_when_the_system_ui_owns_it`: first run `expected an error` (screenshot taken) and `left: 0, right: 1`.
+- 5, iOS back: `ScopedDevice::back` and `hide_keyboard` check the tree on `ios:`/`sim:`. `on_an_iphone_back_and_hiding_the_keyboard_are_refused_while_another_app_is_in_front`: first run `expected an error`.
+- 6, Simulator log: the predicate names `/<container UUID>/<name>.app/`. `simulator::tests::the_log_is_scoped_to_the_apps_own_container_and_not_every_bundle_of_that_name`: first run panicked on `ends_with` (the predicate was `CONTAINS "/Example.app/"`).
+
+Device list (GHSA-7qw6, items 7 to 10):
+- 7: `Adb::hardware_serial` fails on an empty answer or a non-zero exit. `adb_source.rs::an_empty_serial_answer_is_a_failed_read_that_a_deny_list_hides_and_that_is_asked_again`: first run `an empty answer with exit 1: Ok(Some(""))`.
+- 8: `Gated::off` filters, `Gated::boot` matches the name against the filtered off list first, and `Gated::list` passes deny entries to `DeviceSource::list_except` so a device denied by id is not asked anything. `device_list.rs::a_denied_simulator_is_neither_booted_nor_listed_as_off`: first run `no device named "sim:DENIED-UDID" is off; can be started: Staff iPhone (iOS 26), Test iPhone (iOS 26)`. `adb_source.rs::listing_through_a_deny_list_never_asks_a_device_it_names_by_id`: first run the requests held `host:transport:R5CTDENIED` and its `getprop`.
+- 9: a `NoDevice` from a partly failed lookup has its lists filtered. `device_list.rs::a_device_that_is_not_found_while_a_source_fails_names_no_hidden_device`: first run `no device "nosuchdevice"; connected: android:STAFF-PHONE-1 (Pixel), android:emulator-5554 (Pixel); could not ask: ...`.
+- 10: `Scope::verdict` checks the daemon's answer before `--device`. `doctor::tests::a_named_device_is_not_probed_when_the_device_list_could_not_be_read`: first run `expected the device to be left alone`.
+- Two test-side fixes after the first runs, not in the code: the boot refusal rightly echoes the name the caller typed (the test now checks that the hidden Simulator is not offered, `Staff iPhone (iOS`), and the fake adb server answers `ro.serialno` for the emulator (a failed read correctly hides it from a serial deny entry).
+
+#32:
+- 4: `shell`'s physical-phone refusal passes only ledger packages the command names that `installed_by_us` accepts (install time compared). `daemon.rs::a_shell_clear_of_an_app_its_owner_installed_again_is_refused_like_the_typed_one`: first run `expected an error` (the `pm clear` ran).
+- 5: `wait vpn:` keeps reading on a dump with `networks` missing. `netview.rs::wait_vpn_down_does_not_take_a_dump_that_listed_no_networks_for_an_answer`: first run the wait answered after 2 reads.
+- 6: user ids and underlying networks are read after the last `bypassable=` of `TransportInfo`. `network::tests::a_vpn_session_name_cannot_stand_in_for_the_user_ids_or_the_networks_under_it`: first run `left: ["0-99999"], right: ["10238-10238"]`.
+- 7: `GlRelay` binds its own context in `draw` and before deleting its objects; the shared display is terminated by the last relay only. Source only: it compiles, not run on a device (no test can reach it without one).
+- 11: the owner file holds a hash of the computer's name. `agent::tests::the_owner_file_names_this_computer_by_a_hash_and_not_by_its_name`: first run failed with the owner line holding the name. Removing the file on stop was not chosen (D107).
+
+GHSA-g453:
+- 1: `record start` asks for a sync frame (the agent's existing `sync_frame` op); the file opens at the first keyframe after the start behind an empty edit; the kept group is used only when pictures keep coming for 1 s with no keyframe. Run against `origin/main`'s `stream.rs` and `record.rs` first: `a_recording_starts_at_the_first_keyframe_after_its_start_and_holds_nothing_from_before` `left: 88, right: 59` (29 pictures from before the start), `a_recording_of_a_screen_that_never_changes_holds_no_picture_from_before_it` `left: 29, right: 0`. The old mid-stream test now waits 1.1 s before the rest of the stream and proves the fallback (59 frames decode, the length matches the wall clock); `a_stream_that_ends_finishes_the_recording_and_stop_says_why` now expects no picture in a file the stream ended right after. Needs a device run: whether a phone's encoder sends the keyframe soon after the request on a changing and on an idle screen, and how a player shows the empty edit. Documented in `docs/reference.md` where it said "It starts with the screen as it was at `record start`".
+- 7: `site/content/docs/no-telemetry.md` has a row for the router probe of `pair` and `untether` on macOS.
+
+Docs: D107; D26, D34, D59, D99, D100, D101 and D102 amended in place; `docs/reference.md`, `docs/architecture.md`, `SECURITY.md` (the device list and the app scope are now named in "What counts"), and the site's Android, install and privacy pages.
+
+Commands (WSL, debug):
+- `cargo fmt --all --check`: exit 0. `cargo clippy --locked --workspace --all-targets -- -D warnings`: `Finished`, no warnings.
+- `cargo test --locked --workspace --no-fail-fast`: 60 test binaries, none failed; among them `app_scope` 27, `device_list` 16, `adb_source` 3, `daemon` 201, `netview` 12, `record` (cli) 7, `shell` 11, `sources` 8, `cli` 30, the `phonedriver` lib 144, `phonedriver-ios` lib 240, `phonedriver-core` lib 100, `phonedriver-android` lib 85, `phonedriver-video` `record` 7.
