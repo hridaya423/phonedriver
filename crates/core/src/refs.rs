@@ -649,7 +649,11 @@ mod tests {
         let mut t = RefTable::default();
         let start = refs(&mut t, &dialog(1, "com.example.timer", "Start"));
         let stop = refs(&mut t, &dialog(2, "com.example.timer", "Stop"));
-        assert_eq!(start.last(), stop.last(), "a relabelled button of one app keeps its ref");
+        assert_eq!(
+            start.last(),
+            stop.last(),
+            "a relabelled button of one app keeps its ref"
+        );
     }
 
     #[test]

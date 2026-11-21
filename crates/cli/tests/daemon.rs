@@ -5039,7 +5039,10 @@ async fn a_batch_stops_before_the_next_step_when_a_field_shows_other_text_than_t
         message.contains("step 1") && message.contains("5551299"),
         "{message}"
     );
-    assert_eq!(taps, 1, "only the focus tap of step 1, not step 2's tap: {r}");
+    assert_eq!(
+        taps, 1,
+        "only the focus tap of step 1, not step 2's tap: {r}"
+    );
 }
 
 #[tokio::test(start_paused = true)]
