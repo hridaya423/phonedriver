@@ -22,6 +22,7 @@ Progress: a client that sends `"progress": true` in `hello` may receive notifica
 | Method | Params | Result |
 |---|---|---|
 | `hello` | `version, client, progress?` | `version, pid` |
+| `mask` | `text` | `{text}`: the text with every secret the daemon remembers masked (D105), for text a client made from the screen, such as what a screenshot comparison read. Traced by its length |
 | `shutdown` | none | `{pid}` (the daemon exits, ending the iOS runners it started) |
 | `devices` | none | `[DeviceSummary]` |
 | `hidden` | `ids?` | `{count, ids}`: the devices the device list hides (D101); `ids` adds ids of devices that are not ready, judged by id alone. For the CLI and `doctor`; not an MCP tool |
@@ -31,7 +32,7 @@ Progress: a client that sends `"progress": true` in `hello` may receive notifica
 | `snapshot` | `device?, diff?, interactive?, within?, pixels?, max_lines?, no_settle?, elements?, capture?, timeout_ms?` | `Observation` |
 | `screenshot` | `device?, native?, quality?, format?, inline?, marks?` | `{path, width, height, scale, data_b64?, marks?}` (`path` is on the daemon's machine; with `inline: true` the PNG bytes also come back base64-encoded in `data_b64`, for a client that does not share the daemon's file system) |
 | `find` | `device?, text, role?` | `[ElementLine]` (rendered lines such as `@e12 cell "Row 1"`; the elements whose label or hint contains `text`, in any case; `role` is a snake_case role name) |
-| `act` | `device?, action: Action, approval?: "once"\|"session"\|"autonomous", ask?: ("send"\|"delete"\|"install")[], settle?: bool, timeout_ms?, expect_change_ms?` | `ActionResult` |
+| `act` | `device?, action: Action, approval?: "once"\|"session"\|"autonomous", ask?: ("send"\|"delete"\|"install")[], settle?: bool, timeout_ms?, expect_change_ms?, secret_field_only?: bool` | `ActionResult`; with `secret_field_only` a secret `type` goes only into a password or one-time code field and is refused before typing otherwise (a replay sets it, D105) |
 | `wait` | `device?, condition: WaitCondition, timeout_ms?, expect_change_ms?` | `ActionResult`; a wait for an element returns when it shows (or is gone), with `settled: false` and `settle_ms: 0`, since nothing was settled; its summary says how many tree reads it took. A text is found in a label, a hint, or, when neither has it, what a field holds (never a password field's) |
 | `batch` | `device?, steps: Step[], ask?: ("send"\|"delete"\|"install")[], timeout_ms?, expect_change_ms?` | `BatchResult` |
 | `apps` | `device?` | `[App]` (launchable apps: `{id, name, system}`) |
@@ -178,7 +179,7 @@ Frames: `u32 big-endian length` + UTF-8 JSON. Requests carry `id`; replies echo 
 | `tree` | none | `{windows:[{id, type, package, layer, bounds}], nodes:[RawNode], bar?}`; every node is listed with its `v`/`V` flags, and full-width status and navigation bar windows (at most a tenth of the screen high, on the top or bottom edge) are left out; `bar` is the bottom edge in pixels of the status bar left out, when there was one |
 | `gesture` | `pointers:[{id, path:[{x, y, t_ms}]}]` | `{}` after the final UP is delivered |
 | `key` | `keycode, meta?, action?: "down"|"up"|"press"` | `{}` |
-| `text` | `mode` (`paste`, `set`, `keys`), `text`, `sensitive?` (marks the clip `IS_SENSITIVE`) | `{}`; `set` acts on the focused input field; `keys` fails with `unmappable character U+XXXX at N` before typing anything |
+| `text` | `mode` (`paste`, `set`, `keys`), `text`, `sensitive?` (marks the clip `IS_SENSITIVE`, also the paste that `set` falls back to) | `{}`; `set` acts on the focused input field; `keys` fails with `unmappable character U+XXXX at N` before typing anything |
 | `shell` | `command`, `timeout_ms?` (default 30000) | `{exit, stdout, stderr, timed_out}`; runs `sh -c` as the shell user on a thread of its own, each stream capped at 1 MiB, killed at the timeout with exit 124 |
 | `clipboard_get` / `clipboard_set` | `text` (set), `sensitive?` | `{text}` (get; null when empty) |
 | `apps` | `all?` | `{apps:[{package, label, system}]}` |

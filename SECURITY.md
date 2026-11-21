@@ -13,6 +13,7 @@ phonedriver runs on your computer and operates a phone that you connected to it.
 - A way for a web page, an app or text on the phone's screen to make phonedriver run a command on the computer.
 - A tap that pays, orders, transfers or deletes an account and goes through without the approval prompt.
 - Text typed with `--secret` that reaches a log, a trace, an error or a reply.
+- A screenshot, recording or trace that another account on the computer can read, on macOS or Linux.
 - A connection from phonedriver to anything except the device and, for iOS developer disk images, Apple.
 - A release file that does not match its published checksum.
 

@@ -4,7 +4,7 @@ nav: No telemetry
 seo: Does phonedriver send telemetry? No, and a test proves it
 meta: phonedriver sends no telemetry. Every connection it makes, the sandbox test that fails if one is added, and how mobile-mcp and phone-harness differ.
 description: phonedriver sends no telemetry and no usage data. This page lists every connection it makes, the test that fails if anyone adds another, where logs and traces are kept, and how to check it yourself.
-updated: 2026-11-20
+updated: 2026-11-21
 ---
 
 phonedriver sends no telemetry: no install id, no usage events, no crash reports. After the first download of the binary, it talks to your device and to nothing else, with the exceptions for iPhones that are listed below. An agent that drives your phone sees your messages, your photos and your bank's login screen, so this is a rule of the project and not a setting.
@@ -48,7 +48,7 @@ The daemon starts as a child of the command, so it is inside the sandbox too. A 
 
 ## What stays on your machine
 
-Logs and traces are files under `$PHONEDRIVER_HOME` (default `~/.phonedriver`). They are never uploaded. Text typed with `--secret`, or `secret: true` over MCP, never reaches logs, traces, errors or replies, so a password or a one-time code is not written to disk at all. See [troubleshooting](/docs/troubleshooting/) for what the files hold.
+Logs, traces, screenshots and recordings are files under `$PHONEDRIVER_HOME` (default `~/.phonedriver`). They are never uploaded. On macOS and Linux only your account can read them: phonedriver creates its folders with mode 0700 and its files with 0600. Text typed with `--secret`, or `secret: true` over MCP, is shown as `•••` in logs, traces, errors and replies, so a password or a one-time code is not written to disk as text. That holds when the field reformats it (a card number in groups of four), when a long text is cut in the middle of it, and for the text a screen comparison reads. A screenshot or a recording still shows what the phone shows. See [troubleshooting](/docs/troubleshooting/) for what the files hold.
 
 The screen text and screenshots that phonedriver returns go to your agent, and your agent sends them to its model provider. That traffic is your MCP client's, and its privacy terms apply to it. What phonedriver adds on its side is [the approval guard](/docs/approval-guard/), which holds taps that spend money.
 
