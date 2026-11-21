@@ -38,6 +38,7 @@ pub enum Call {
     AppOp(AppOp, AppId),
     Wake,
     Shell(ShellRequest),
+    Page(Option<AppId>),
 }
 
 pub struct FakeDevice {
@@ -632,7 +633,8 @@ impl Device for FakeDevice {
         self.record(Call::AppOp(op, app.clone()))
     }
 
-    async fn page(&self) -> Result<WebPage> {
+    async fn page(&self, app: Option<&AppId>) -> Result<WebPage> {
+        self.record(Call::Page(app.cloned()))?;
         lock(&self.page).clone().ok_or(Error::Refused {
             detail: "com.example has no web page that can be read".into(),
         })

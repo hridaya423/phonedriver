@@ -956,20 +956,17 @@ impl Device for IosDevice {
                 reason: "an iPhone or iPad's log cannot be followed from here; the iOS Simulator's and Android devices' can",
             });
         }
-        let folder = match &req.app {
-            Some(app) => {
-                let path = simctl(&["get_app_container", &self.udid, &app.0, "app"]).await?;
-                Some(
-                    Path::new(path.trim())
-                        .file_name()
-                        .map(|n| n.to_string_lossy().into_owned())
-                        .unwrap_or_default(),
-                )
-            }
+        let container = match &req.app {
+            Some(app) => Some(
+                simctl(&["get_app_container", &self.udid, &app.0, "app"])
+                    .await?
+                    .trim()
+                    .to_string(),
+            ),
             None => None,
         };
         let command =
-            log_stream_command(folder.as_deref()).map_err(|detail| Error::Refused { detail })?;
+            log_stream_command(container.as_deref()).map_err(|detail| Error::Refused { detail })?;
         let system = self
             .system
             .get_or_try_init(|| crate::simulator::runtime_root(&self.udid))

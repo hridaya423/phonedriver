@@ -400,8 +400,9 @@ pub trait Device: Send + Sync {
             reason: "this device's networks cannot be read; Android devices can",
         })
     }
-    /// The web page the app in front shows, read from the browser and not from the screen.
-    async fn page(&self) -> Result<WebPage> {
+    /// The web page `app` shows (the app in front when `None`), read from the browser and not from the screen.
+    async fn page(&self, app: Option<&AppId>) -> Result<WebPage> {
+        let _ = app;
         Err(Error::Unsupported {
             op: Op::Page,
             reason: "this device's web pages cannot be read whole; on Android, Chrome's and a debug build's can",

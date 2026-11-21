@@ -18,6 +18,9 @@ pub const OUTSIDE_NAME: &str = "outside the app scope";
 const THIN: f32 = 0.05;
 /// The most of the screen's height a status or navigation bar takes.
 const BAR_HEIGHT: f32 = 0.1;
+/// The package of Android's status and navigation bars. Another app's overlay window is reported to accessibility as
+/// a system window too, so a bar's shape alone does not make it a bar.
+pub const SYSTEM_UI: &str = "com.android.systemui";
 
 /// A window the scope withheld: the package that owns it, when the platform said, and where it is.
 #[derive(Debug, Clone, PartialEq)]
@@ -78,8 +81,13 @@ impl AppScope {
 
     /// `tree` without what the scope withholds: the nodes of every window that belongs to an app outside it, and the
     /// status and navigation bars, whose notification icons carry text. The withheld windows that show something are
-    /// listed in `outside`. `screen` is the display size in points.
+    /// listed in `outside`, and so is the whole screen when no window of an app in the scope is on it (an empty tree
+    /// is also what a dark screen or a tree read too early looks like). `screen` is the display size in points.
     pub fn redact(&self, tree: RawTree, screen: Size) -> RawTree {
+        let named = tree
+            .windows
+            .iter()
+            .any(|w| w.package.as_deref().is_some_and(|p| self.allows(p)));
         let alerts: Vec<i32> = alert::find(&tree, screen)
             .into_iter()
             .map(|(id, _)| id)
@@ -122,7 +130,7 @@ impl AppScope {
                 _ => at.push(None),
             }
         }
-        if unlisted {
+        if unlisted || (!named && outside.is_empty()) {
             outside.push(Outside {
                 package: None,
                 bounds: Rect {
@@ -172,6 +180,7 @@ fn is_chooser(tree: &RawTree, w: &RawWindow) -> bool {
 
 fn is_bar(w: &RawWindow, screen: Size) -> bool {
     w.kind == "system"
+        && w.package.as_deref() == Some(SYSTEM_UI)
         && w.bounds.w >= 0.98 * screen.w
         && w.bounds.h <= BAR_HEIGHT * screen.h
         && (w.bounds.y <= 0.5 || w.bounds.y + w.bounds.h >= screen.h - 0.5)
@@ -302,6 +311,30 @@ mod tests {
         assert_eq!(labels(&r), ["Mine"]);
         assert!(r.windows.iter().any(|w| w.kind == "input_method"));
         assert!(!r.windows.iter().any(|w| w.id == 3));
+    }
+
+    #[test]
+    fn a_bar_shaped_window_is_a_bar_only_when_the_system_ui_owns_it() {
+        let overlay = r#"{"id":3,"type":"system","package":"com.chat","layer":1,"bounds":[0,0,400,48]}"#;
+        let t = tree(
+            &format!("{},{overlay}", app_window(1, "com.mine")),
+            &[root(1), root(3), text(3, 1, "your PIN is 4711")].join(","),
+        );
+        let r = scope("com.mine").redact(t, PHONE);
+        assert_eq!(r.outside.len(), 1, "{:?}", r.outside);
+        assert_eq!(r.outside[0].package.as_deref(), Some("com.chat"));
+        assert!(labels(&r).is_empty());
+    }
+
+    #[test]
+    fn a_tree_with_no_window_of_an_app_in_the_scope_is_outside() {
+        let r = scope("com.mine").redact(tree("", ""), PHONE);
+        assert_eq!(r.outside.len(), 1, "{:?}", r.outside);
+        let ime = r#"{"id":2,"type":"input_method","package":"com.google.ime","layer":2,"bounds":[0,500,400,800]}"#;
+        let r = scope("com.mine").redact(tree(ime, &root(2)), PHONE);
+        assert_eq!(r.outside.len(), 1, "{:?}", r.outside);
+        let r = scope("com.mine").redact(tree(&app_window(1, "com.mine"), &root(1)), PHONE);
+        assert!(r.outside.is_empty(), "{:?}", r.outside);
     }
 
     #[test]

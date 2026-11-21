@@ -462,10 +462,13 @@ impl Device for AndroidDevice {
         }))
     }
 
-    async fn page(&self) -> Result<WebPage> {
-        let front = self.foreground().await?.ok_or(Error::Refused {
-            detail: "no app is in front".into(),
-        })?;
+    async fn page(&self, app: Option<&AppId>) -> Result<WebPage> {
+        let front = match app {
+            Some(app) => app.clone(),
+            None => self.foreground().await?.ok_or(Error::Refused {
+                detail: "no app is in front".into(),
+            })?,
+        };
         devtools::page(&self.adb, &self.serial, &front).await
     }
 

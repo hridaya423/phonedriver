@@ -54,6 +54,16 @@ pub fn refusal(scope: &AppScope, outside: &[Outside], what: &str) -> Error {
     ))
 }
 
+/// Whether `url` is an Android `intent:` URL that names an activity (`component=`) or a selector (`SEL`): Android starts
+/// that activity whatever package the call names, so the app the scope checked is not the app that opens.
+fn names_a_component(url: &str) -> bool {
+    url.get(..7)
+        .is_some_and(|scheme| scheme.eq_ignore_ascii_case("intent:"))
+        && url
+            .split(';')
+            .any(|field| field == "SEL" || field.starts_with("component="))
+}
+
 impl ScopedDevice {
     pub fn new(inner: Arc<dyn Device>, scope: Arc<AppScope>) -> ScopedDevice {
         ScopedDevice { inner, scope }
@@ -88,6 +98,24 @@ impl ScopedDevice {
         Err(refused(format!(
             "{what} is refused: {} is outside the app scope ({}). {}",
             app.0,
+            self.scope.list(),
+            self.lift()
+        )))
+    }
+
+    /// On iOS, `back` and `hide_keyboard` tap the front app's own back button or keyboard key, so they go through the
+    /// scope like a touch. Android's are system keys.
+    async fn front_is_in_scope(&self, what: &str) -> Result<()> {
+        if self.windows_known() {
+            return Ok(());
+        }
+        let outside = self.seen().await?.outside;
+        if outside.is_empty() {
+            return Ok(());
+        }
+        Err(refused(format!(
+            "{what} is refused on an iPhone, iPad or Simulator while {} is in front and outside the app scope ({}): there it taps that app's own buttons. `press home` leaves it, and `launch` opens an app that is in scope. {}",
+            names(&outside),
             self.scope.list(),
             self.lift()
         )))
@@ -171,6 +199,19 @@ impl Device for ScopedDevice {
             )));
         };
         self.in_scope(app, "`open`")?;
+        if !self.windows_known() {
+            return Err(refused(format!(
+                "`open` is refused under an app scope on an iPhone, iPad or Simulator: iOS opens a link in whatever app claims it, not in the app named, so phonedriver cannot keep it in the scope. `launch {}` opens the app. {}",
+                app.0,
+                self.lift()
+            )));
+        }
+        if names_a_component(&url.0) {
+            return Err(refused(format!(
+                "`open` is refused under an app scope for an `intent:` URL that names a component or a selector: Android starts that activity whatever app is named. Leave out `component=` and `SEL`, or use `launch`. {}",
+                self.lift()
+            )));
+        }
         self.inner.open_url(url, Some(app)).await
     }
 
@@ -274,9 +315,18 @@ impl Device for ScopedDevice {
         Ok(view)
     }
 
-    async fn page(&self) -> Result<WebPage> {
-        self.clear("reading the page").await?;
-        self.inner.page().await
+    async fn page(&self, _app: Option<&AppId>) -> Result<WebPage> {
+        let seen = self.seen().await?;
+        if !seen.outside.is_empty() {
+            return Err(refusal(&self.scope, &seen.outside, "reading the page"));
+        }
+        let approved = seen
+            .windows
+            .iter()
+            .filter(|w| w.kind == "application")
+            .find_map(|w| w.package.clone().filter(|p| self.scope.allows(p)))
+            .ok_or_else(|| refused(format!("no app in the app scope is in front. {}", self.lift())))?;
+        self.inner.page(Some(&AppId(approved))).await
     }
 
     async fn setting(&self, op: SettingOp) -> Result<SettingReply> {
@@ -331,10 +381,12 @@ impl Device for ScopedDevice {
     }
 
     async fn back(&self) -> Result<Option<&'static str>> {
+        self.front_is_in_scope("`press back`").await?;
         self.inner.back().await
     }
 
     async fn hide_keyboard(&self) -> Result<Option<&'static str>> {
+        self.front_is_in_scope("hiding the keyboard").await?;
         self.inner.hide_keyboard().await
     }
 }

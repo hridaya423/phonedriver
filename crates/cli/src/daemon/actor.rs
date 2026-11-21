@@ -1140,7 +1140,7 @@ impl Actor {
     /// The web page in front as text, whole (decision D71): no blank lines, and cut at a line end near `PAGE_CHARS`
     /// unless `all`. With `grep`, only the lines with one of its words, each with the `GREP_LINES_AFTER` lines after it.
     async fn page(&mut self, p: PageParams) -> Result<Value, Error> {
-        let page = self.device()?.page().await?;
+        let page = self.device()?.page(None).await?;
         let keep = p
             .grep
             .as_deref()
