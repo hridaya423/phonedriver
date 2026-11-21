@@ -2267,13 +2267,33 @@ impl Replay {
                 )),
                 other => other,
             };
+            // The live reply says NOT verified for a field that holds other text than typed; so does a replay.
+            let outcome = match outcome {
+                Ok(r) if r["verified"] == false => {
+                    let u = &r["unverified"];
+                    let mut why = String::from("the text did not land as typed");
+                    if let Some(shows) = u["shows"].as_str() {
+                        why.push_str(&format!(": {shows}"));
+                    }
+                    if let Some(hint) = u["hint"].as_str() {
+                        why.push_str(&format!(" ({hint})"));
+                    }
+                    Err(refused(&why))
+                }
+                other => other,
+            };
             let mut line = match outcome {
                 Ok(r) => format!(
-                    "{}. {}",
+                    "{}. {}{}",
                     i + 1,
                     r["summary"]
                         .as_str()
-                        .map_or_else(|| Replay::describe(step), str::to_string)
+                        .map_or_else(|| Replay::describe(step), str::to_string),
+                    if r["verified"] == true {
+                        " · verified"
+                    } else {
+                        ""
+                    }
                 ),
                 Err(failure) => {
                     return Err(self
