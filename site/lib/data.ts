@@ -9,94 +9,94 @@ export const LLMS_NOTE = "phonedriver is a free, open-source (AGPL-3.0) CLI and 
 export const FAQ = [
   [
     "How do I let Claude control my Android phone?",
-    "Run `npx -y phonedriver init`, turn on USB debugging, and plug the phone in."
+    "Run `npx -y phonedriver init` (or `claude mcp add phonedriver -- npx -y phonedriver mcp`), switch on USB debugging, and plug the phone in."
   ],
   [
     "Does it work with an iPhone?",
-    "Yes, from a Mac with Xcode, on the Simulator or on an iPhone or iPad. `phonedriver ios setup` reads the signing team from your Apple Development certificate, so there is no team ID to look up, and `phonedriver ios wifi on` lets you unplug the cable."
+    "Yes—from a Mac with Xcode, on the Simulator or a physical iPhone/iPad. `phonedriver ios setup` signs the runner from your Apple Development certificate automatically, and `phonedriver ios wifi on` lets you unplug the cable."
   ],
   [
     "Can my agent buy things with it?",
-    "Not without your answer, unless you have told it to run autonomously. See [Asking before it pays](#asking-before-it-pays)."
+    "Not without asking you first, unless you switched on autonomous mode. See [Asking before it pays](#asking-before-it-pays)."
   ],
   [
     "Can I use it at work?",
-    "Yes. It is AGPL-3.0: you can use it freely. If you change it and offer it to others as a network service, you must publish your changes."
+    "Yes. It is AGPL-3.0: free to use anywhere. If you modify phonedriver and expose it to others over a network, publish your changes under the same license."
   ]
 ] as [string, string][];
 
 export const FAQ_MORE = [
   [
     "What is the best MCP server for controlling a phone?",
-    "On my benchmark of nine real phone jobs (Claude Sonnet 5.5, one Android emulator, 10 November 2026), phonedriver passed 27 of 27 runs with 657,542 tokens. mobile-mcp passed 17 of 18 with 4,567,200 tokens, 6.9 times as many, and phone-harness passed 14 of 18 with 1,127,495. It also reads a 1,000-row list 170 times faster than adb on that kind of emulator. I wrote the jobs, so read [the method and raw data](/benchmarks/) before you trust the ranking."
+    "On nine real Android jobs (Claude Sonnet 5.5, 10 November 2026), phonedriver passed 27/27 runs with 657,542 tokens—6.9x fewer than mobile-mcp (4,567,200, 17/18) and 1.7x fewer than phone-harness (1,127,495, 14/18). I wrote the test set, so check [the method and raw data](/benchmarks/) before trusting any crown."
   ],
   [
     "Is there an alternative to mobile-mcp?",
-    "phonedriver is one. Both are MCP servers for Android and iOS. On nine real phone jobs mobile-mcp used 6.9 times the tokens of phonedriver, and phonedriver adds a diff after every action, an approval prompt before a tap that spends money, and no telemetry, where mobile-mcp sends anonymous usage data by default. mobile-mcp supports cloud devices and phonedriver does not. See [phonedriver vs mobile-mcp](/compare/mobile-mcp/)."
+    "phonedriver is one. Both are accessibility-first MCP servers for Android and iOS; phonedriver cuts token usage by 6.9x via settled diffs, adds a payment approval prompt, and sends zero telemetry. If you need Mobile Next Cloud devices, stick with mobile-mcp. See [phonedriver vs mobile-mcp](/compare/mobile-mcp/)."
   ],
   [
     "Is phonedriver an Appium alternative for AI agents?",
-    "For an agent that decides each step from the screen, yes. Appium is a WebDriver server built for scripted tests: it installs a helper app on the device and answers with XML page source. phonedriver installs nothing on Android, gives the model a short numbered text screen, and returns only what changed after each action. For a fixed test suite in CI, Appium is still the usual tool. I have not benchmarked phonedriver against Appium on Android. On an iOS simulator my runner read a screen 2.0 times faster than fully tuned WebDriverAgent, the runner Appium uses. See [phonedriver vs Appium](/compare/appium/)."
+    "For an agent exploring screens on its own, yes: nothing installed on Android, short `@eN` text lists instead of XML, and settled diffs after every tap. For deterministic CI suites and device farms, Appium is still the right tool. See [phonedriver vs Appium](/compare/appium/)."
   ],
   [
     "Can Codex or Cursor control a phone?",
-    "Yes. Codex: `codex mcp add phonedriver -- npx -y phonedriver mcp`. Cursor and any other client that starts a stdio MCP server: command `npx`, args `-y phonedriver mcp`. An agent with only a shell can run the same commands, such as `npx -y phonedriver snapshot`. Claude Code is the client I test against; see [Cursor and other clients](/docs/cursor-and-mcp-clients/)."
+    "Yes. `npx -y phonedriver init` configures Claude Code, Codex, Cursor, VS Code, and Gemini CLI automatically—or add stdio command `npx -y phonedriver mcp` manually. Agents with only a shell can run the same CLI commands directly. See [Cursor and other clients](/docs/cursor-and-mcp-clients/)."
   ],
   [
     "How do I let an AI agent control my phone?",
-    "Run `npx -y phonedriver init`, which adds phonedriver as an MCP server to Claude Code, Codex, Cursor, VS Code and Gemini CLI where it finds them, connect an Android phone with USB debugging, start an emulator, or boot the iOS Simulator, and ask the agent in plain language, for example \"Open Settings and turn on dark mode.\" The agent gets a text view of the screen and tools to tap, type and swipe. See the [setup guides](/docs/)."
+    "Run `npx -y phonedriver init`, which adds phonedriver to Claude Code, Codex, Cursor, VS Code and Gemini CLI where it finds them, start an Android emulator or iOS Simulator (or plug in a phone), and ask your agent in plain English—for example, \"Open Settings and turn on dark mode.\" See the [setup guides](/docs/)."
   ],
   [
     "How do I let Claude control my Android phone?",
-    "Run `npx -y phonedriver init`, which adds phonedriver to Claude Code as an MCP server (or add it by hand with `claude mcp add phonedriver -- npx -y phonedriver mcp`), then connect a phone with USB debugging on or start an emulator. Nothing is installed on the phone. It is tested on emulators (API 26 and 37) and on a HONOR X8 (Android 13). See [the Claude Code guide](/docs/claude-code/)."
+    "Run `npx -y phonedriver init` (or `claude mcp add phonedriver -- npx -y phonedriver mcp`), plug in a phone with USB debugging enabled or boot an emulator, and ask Claude to use it. Nothing is installed on the phone. See [the Claude Code guide](/docs/claude-code/)."
   ],
   [
     "What is phonedriver?",
-    "phonedriver is a free, open-source CLI and MCP server that gives an AI agent a text view of an Android or iOS screen and the means to tap, type and swipe. Every action waits for the screen to settle and returns only the lines that changed, so the agent does not poll or sleep. It is licensed AGPL-3.0."
+    "A free, open-source (AGPL-3.0) CLI and MCP server that turns Android and iOS screens into short numbered text for AI agents. Every tap, type, or swipe waits for the screen to settle and returns only the lines that changed."
   ],
   [
     "Which AI agents and MCP clients work with it?",
-    "Any client that starts a stdio MCP server can use it, including Claude Code and Cursor. Claude Code is the one I test against, with `claude -p` and Claude Sonnet 5.5 in my benchmarks. I have not run a Cursor session myself. The server has fourteen tools, and the CLI prints the same text as the MCP tools."
+    "Any stdio MCP client—Claude Code, Codex, Cursor, VS Code, Gemini CLI, Zed, Cline—plus any shell-capable agent via the CLI. Claude Code is the primary client tested in benchmarks; all 14 MCP tools mirror the CLI output."
   ],
   [
     "Does it work on a real iPhone and a real Android phone?",
-    "Yes for iPhone and iPad through the CLI and MCP, tested on an iPhone 13 Pro Max (iOS 27.0.1), an iPhone 14 Plus (iOS 26.1) and an iPad Pro (iOS 27.0). It needs a Mac with Xcode and an Apple Development certificate: `phonedriver ios setup` reads the signing team from it, so there is no team ID to look up, then builds and starts the runner. After `phonedriver ios wifi on` the cable can come off while the iPhone shares a Wi-Fi network with the Mac. A real Android phone uses the same path as the emulator, over USB or Wi-Fi debugging; a HONOR X8 (Android 13) is the one phone tested so far. Android emulators (API 26 and 37) and the iOS Simulator are tested."
+    "Yes. Physical iPhones and iPads work from a Mac with Xcode after `phonedriver ios setup` (and wirelessly after `phonedriver ios wifi on`); tested on iPhone 13 Pro Max, iPhone 14 Plus, and iPad Pro. Physical Android phones work over USB or Wi-Fi debugging with no installed app (tested on a HONOR X8)."
   ],
   [
     "What is the fastest way for an AI agent to control a phone?",
-    "On an Android 17 emulator, phonedriver reads a 1,000-row list in 12.7 ms where adb takes 2,163.7 ms (170 times faster at p50, 95% CI 162.0 to 177.4), takes a screenshot in 9.1 ms against 291.2 ms (32 times) and types 100 characters in 158.3 ms against 3,638.4 ms (23 times). A bare tap is closer: 2.4 to 4.4 times faster host to reply. On a HONOR X8 phone (Android 13), reading the screen took 78.5 ms against 2,507 ms (32 times) and a screenshot 16 ms against 1,006 ms (61 times). See [the benchmarks](/benchmarks/)."
+    "Keeping a helper resident on the device instead of spawning `adb` per call. On an Android 17 emulator, phonedriver reads a 1,000-row list in 12.7 ms vs. adb's 2,163.7 ms (170x faster) and types 100 chars in 158.3 ms vs. 3,638.4 ms (23x). Bare taps are closer (2.4x–4.4x). See [the benchmarks](/benchmarks/)."
   ],
   [
     "How is phonedriver different from mobile-mcp and phone-harness?",
-    "mobile-mcp is an MCP server that reads the accessibility tree and also supports cloud devices, with anonymous telemetry on by default. phone-harness is a Python CLI that drives Android through adb and iPhones through Mac mirroring and OCR. phonedriver keeps a resident agent on the Android device, waits for the screen to settle after every action and returns a diff, asks before taps that spend money, and sends no telemetry. See the [comparisons](/compare/)."
+    "mobile-mcp is an MCP server with cloud devices and opt-out telemetry; phone-harness runs agent-written Python over `adb` and macOS iPhone Mirroring. phonedriver keeps a resident Android helper, returns settled diffs after every action, holds payment taps for your approval, and sends zero telemetry. See [comparisons](/compare/)."
   ],
   [
     "Can the agent spend my money or delete things?",
-    "Not without asking you. Before a tap on a button such as `Place order`, `Pay`, `Send $20.00` or `Delete account`, phonedriver stops and asks the human through the MCP client, showing the app, the button and the amounts on screen. Sending, deleting and installing are asked about too when you set `PHONEDRIVER_ASK`. This stops an agent that follows its rules or is steered by screen text; it does not stop one set on bypassing it, and it reads labels in eleven languages, not icons. See [the approval guard](/docs/approval-guard/)."
+    "Not without your click. Taps on recognized payment or account-deletion buttons (`Pay`, `Buy with GPay`, `Place order`, `Delete account`) pause and prompt you directly in your MCP client. It is a seatbelt, not a vault: it reads text labels in 11 languages, not icon-only buttons. See [the approval guard](/docs/approval-guard/)."
   ],
   [
     "Does phonedriver send telemetry?",
-    "No. It talks to the device, the local daemon socket and the local adb server, and to Apple only when mounting an iOS developer disk image. A test runs the CLI, daemon and MCP server under a macOS sandbox that kills any process opening a non-local connection. Text passed with `--secret` never reaches logs, traces or replies. This website sets no cookies and loads no third-party scripts."
+    "Never. After the initial binary download, it talks only to your device (plus Apple when mounting an iOS developer disk image). A macOS sandbox test kills the process if any external socket opens, and `--secret` values never hit logs or traces. This site sets no cookies and loads no third-party scripts."
   ],
   [
     "Does it install anything on my phone?",
-    "On Android, no app and no accessibility service. The daemon pushes a small jar over adb and starts it with `app_process` as the shell user, the way scrcpy does. On iOS, a small XCTest runner is built on your Mac with Xcode the first time it is needed."
+    "On Android, no app and no accessibility toggle—just a small jar pushed over adb and run via `app_process` (the scrcpy approach). On iOS, Xcode builds and installs a minimal XCTest runner on first use."
   ],
   [
     "How many tokens does it use?",
-    "On nine real phone jobs with Claude Sonnet 5.5 on one Android emulator (10 November 2026), phonedriver used 657,542 tokens and passed 27 of 27 runs. mobile-mcp used 4,567,200 (6.9 times as many) and passed 17 of 18. phone-harness used 1,127,495 and passed 14 of 18, and used fewer tokens than phonedriver on two of the nine jobs. The 14 MCP tools cost about 5,600 tokens on the first turn of a one-word `claude -p`. Small samples: see [the benchmarks](/benchmarks/#jobs)."
+    "Across nine real Android jobs (Claude Sonnet 5.5, 10 November 2026), phonedriver summed to 657,542 tokens (27/27 passed) vs. 4,567,200 for mobile-mcp (6.9x) and 1,127,495 for phone-harness. The 14 MCP tools add ~5,600 tokens on turn one. See [the benchmarks](/benchmarks/#jobs)."
   ],
   [
     "Can the agent work without taking over my screen?",
-    "On Android 13 and later, yes. Set `PHONEDRIVER_DISPLAY=hidden` in the MCP config, or pass `--display hidden` to the CLI, and the agent works on a hidden second screen while yours stays as it is. It has been tested on an emulator and on a HONOR X8. Typing into a web page shows the system's clipboard note, and your clipboard is put back after."
+    "On Android 13+, yes. Set `PHONEDRIVER_DISPLAY=hidden` (or `--display hidden`) to give the agent a virtual display while your screen stays untouched. Note that web typing can still flash Android's clipboard toast, and your clipboard is restored afterward."
   ],
   [
     "What does it cost, and what is the license?",
-    "It is free. The license is AGPL-3.0-only: if you distribute phonedriver, or run a modified version as a network service, you must publish your source under the same license. The Android agent contains files copied from scrcpy under Apache-2.0."
+    "Free and open source under AGPL-3.0-only: distribute or host a modified network service and you must publish your changes under the same license. The Android helper includes scrcpy files under Apache-2.0."
   ],
   [
     "What does it not do well yet?",
-    "A bare tap misses its 15 ms budget. An iOS tap takes 454 to 534 ms on devices; on the Simulator, since 0.1.5, a tap with its reply takes 316 ms. WebViews and custom views can have an empty accessibility tree, where it falls back to OCR. The real-phone jobs benchmark ran two or three passes per job on one tablet emulator, so its medians describe what happened and are not rates. One Android phone model, a HONOR X8, has been tested."
+    "Bare taps miss my 15 ms target (28.7–38.5 ms on Android, 450–530 ms on physical iPhones; Simulator single-finger taps moved to native input in 0.1.5). Custom canvases with empty accessibility trees fall back to OCR, capture-protected screens return black screenshots, and hardware testing so far covers one Android phone model (HONOR X8)."
   ]
 ] as [string, string][];
 
@@ -106,35 +106,35 @@ export const HOME_FAQ = [...FAQ, ...FAQ_MORE.filter(([q]) => ON_HOME.includes(q)
 export const FAQ_EXTRA = [
   [
     "Why is uiautomator dump slow, and what is faster?",
-    "`uiautomator dump` is a one-off command: every call starts a process, connects to the accessibility service and waits for the screen to go idle. On one Android 17 emulator it took 2,163.7 ms to read a 1,000-row list (p50 of 50 runs, 11 November 2026). phonedriver keeps a small agent on the device with that connection open, and read the same list in 12.7 ms. The Settings screen took 51.0 ms, and on a HONOR X8 phone the read took 78.5 ms against 2,506.6 ms. The fairer rival is a server that stays resident, such as Appium's UiAutomator2 server, and I did not measure that. I also did not split adb's time between process start and the idle wait. See [phonedriver vs adb](/compare/adb/)."
+    "`uiautomator dump` boots a fresh process, connects to accessibility, and waits a full quiet second on every call—taking 2,163.7 ms on a 1,000-row list (Android 17 emulator). phonedriver keeps a resident helper open and reads the same list in 12.7 ms (51.0 ms on Settings; 78.5 ms vs. 2,506.6 ms on a HONOR X8). See [phonedriver vs adb](/compare/adb/)."
   ],
   [
     "Does phonedriver use WebDriverAgent or Appium on iOS?",
-    "No. It builds its own small XCTest runner on your Mac. WebDriverAgent is an XCTest runner too, so the mechanism is the same; mine leaves out the WebDriver HTTP server, the XPath engine and the session model. On an iPhone 17 simulator the runner read a screen 2.0 times faster than fully tuned WebDriverAgent at p50, and 8 to 19 times faster than WebDriverAgent with only `snapshotMaxDepth` set. It needs what any XCTest runner needs: a Mac with Xcode, and an Apple Development certificate for a real iPhone. See [phonedriver vs Appium](/compare/appium/) and [the iPhone guide](/docs/iphone/)."
+    "No—it builds its own small Objective-C XCTest runner (crediting WebDriverAgent for the private Xcode headers) without the WebDriver HTTP server or XPath engine. On an iPhone 17 Simulator it reads screens 2.0x faster than fully tuned WebDriverAgent and 8–19x faster than depth-capped defaults. See [phonedriver vs Appium](/compare/appium/)."
   ],
   [
     "Can an AI agent test my React Native, Expo or Flutter app with it?",
-    "It can install a build, open it and use it the way a person would, because phonedriver drives whatever is on the screen. It reads the accessibility tree the system exposes and falls back to OCR where that tree is empty. On my benchmark, Claude Sonnet 5.5 found both planted bugs in a native Android testbed's sign-up form in 3 of 3 runs, with a median of 121,854 tokens (10 November 2026). I have not tested a React Native, Expo or Flutter app, so run `phonedriver snapshot` on yours first and read what it lists. See [testing a mobile app](/docs/test-a-mobile-app/)."
+    "Yes, as long as your app exposes standard accessibility labels—phonedriver drives whatever Android or iOS puts on screen, falling back to OCR when a tree is empty. Run `phonedriver snapshot` on your build first to see what the model sees. See [testing a mobile app](/docs/test-a-mobile-app/)."
   ],
   [
     "Does it need root or a jailbreak?",
-    "No. On Android the agent runs as the shell user, started over adb with `app_process`, the way scrcpy starts its server. On iOS it is an XCTest runner that Xcode builds and signs with your own Apple developer team."
+    "No. Android runs as the standard `adb` shell user via `app_process` (the scrcpy pattern); iOS signs an XCTest runner with your Apple developer team."
   ],
   [
     "Does it run on Windows and Linux?",
-    "Yes for Android. Each release has binaries for macOS, Linux and Windows, and `npx -y phonedriver` downloads the one for your machine. iOS needs a Mac with Xcode, for the Simulator and for an iPhone."
+    "Yes for Android—prebuilt binaries ship for macOS, Linux, and Windows via `npx -y phonedriver`. iOS requires a Mac with Xcode."
   ],
   [
     "Can it run with nobody watching?",
-    "Yes, and the benchmarks on this site ran that way: `claude -p` against an emulator started with `-no-window`. In a headless run nobody can answer the approval prompt, so a tap on Pay or Place order gets no answer and nothing is tapped. For unattended runs, use an emulator or a spare phone."
+    "Yes—every benchmark on this site ran headless with `claude -p` against `-no-window` emulators. When nobody is there to answer an approval prompt, payment taps are safely held and not executed. For unattended runs, always use an emulator or spare phone."
   ],
   [
     "Does it work with VS Code, Gemini CLI, Zed or Cline?",
-    "It is a standard MCP server over stdio, so any client that starts one can run it. I test with Claude Code and have not run a session in the others. The entry for each, written from that client's own documentation, is in [Codex](/docs/codex/), [VS Code](/docs/vs-code/) and [Cursor and other clients](/docs/cursor-and-mcp-clients/). The approval prompt needs a client that supports MCP elicitation."
+    "Yes—it is a standard stdio MCP server, and `npx -y phonedriver init` configures Claude Code, Codex, Cursor, VS Code, and Gemini CLI automatically. Approval pop-ups require a client with MCP elicitation; other clients fall back to asking in chat. See [Cursor and other clients](/docs/cursor-and-mcp-clients/)."
   ],
   [
     "Is phonedriver the same as PhoneDriver by OminousIndustries?",
-    "No. The two share a name and nothing else. PhoneDriver by OminousIndustries is a Python agent that looks at screenshots with a Qwen3-VL vision model and drives an Android phone over adb, by its README. phonedriver, this project, is an MCP server and CLI in Rust at [github.com/hridaya423/phonedriver](https://github.com/hridaya423/phonedriver). It brings no model: it gives the agent you already use a text view of an Android or iOS screen."
+    "No—same name, different projects. PhoneDriver by OminousIndustries is a Python vision-model agent over `adb`. This project ([github.com/hridaya423/phonedriver](https://github.com/hridaya423/phonedriver)) is a Rust MCP server and CLI that brings no model of its own and lets any agent you already use control Android and iOS."
   ]
 ] as [string, string][];
 

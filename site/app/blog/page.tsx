@@ -66,7 +66,7 @@ export default function Blog() {
         }
       >
         <h1>Blog</h1>
-        <p className="lede">How it works, what I measured and what the numbers do not show.</p>
+        <p className="lede">Engineering stories, real bugs, and the places where reality disagreed with my first guess.</p>
       </PageTop>
     </>
   );

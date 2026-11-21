@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Crumbs, Html, JsonLd, OnPage } from "@/components/Bits";
+import { BlogFigure } from "@/components/BlogFigures";
 import { POSTS, page, words } from "@/lib/content";
 import { meta } from "@/lib/meta";
 import { AUTHOR, PUBLISHER, REPO, ttl, url } from "@/lib/site";
@@ -63,9 +64,9 @@ export default async function Post({ params }: Props) {
           </nav>
           <div className="article">
             <div className="body">
-              <Html html={p.html} />
+              {p.blocks.map((b, i) => (b.kind === "figure" ? <BlogFigure key={`f-${i}`} id={b.id} /> : <Html key={`h-${i}`} html={b.html} />))}
               <p className="small">
-                To try phonedriver, start with <Link href="/docs/install/">the install guide</Link> or <Link href="/docs/claude-code/">the Claude Code guide</Link>. Questions or corrections: <a href={`${REPO}/issues`}>open an issue</a>. Every figure links to the page or file it came from.
+                Want to try it on your own phone? Start with <Link href="/docs/install/">the install guide</Link> or <Link href="/docs/claude-code/">the Claude Code guide</Link>. Found a bug or a flaw in my numbers? <a href={`${REPO}/issues`}>Open an issue</a>.
               </p>
             </div>
             <OnPage toc={p.toc} />

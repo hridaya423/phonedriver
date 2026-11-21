@@ -1,38 +1,40 @@
 ---
 title: How to install phonedriver
 nav: Install
-description: Set up phonedriver by pasting one prompt into your agent, or install the binary by hand on macOS, Linux or Windows and check it with phonedriver doctor.
+description: Set up phonedriver in one command with npx, Homebrew, a plugin, or a single prompt pasted into your agent—then check your machine with phonedriver doctor.
 updated: 2026-11-20
 seo: Install phonedriver: npx, Homebrew, plugin or one prompt
 ---
 
-phonedriver is one binary: the CLI, the daemon and the MCP server. The Android agent is packed inside it, so there is nothing else to download.
+phonedriver ships as one self-contained binary: CLI, daemon, MCP server, and the Android helper jar packed inside. Nothing extra to download on the phone.
 
 > The current release is phonedriver 0.1.6, on npm, Homebrew and GitHub Releases. You only need to build from source if you want to change it.
 
-## One command
+## The one-command setup
 
 ```sh
 npx -y phonedriver init
 ```
 
-That adds phonedriver to every agent it finds on your machine (Claude Code, Codex, Cursor, VS Code, Gemini CLI), then checks adb, your devices and Xcode and says what to fix. An agent that already has it is left alone, and `--dry-run` shows what it would do. Use this or a plugin, not both, or the tools are listed twice.
+`init` finds supported clients on your machine (Claude Code, Codex, Cursor, VS Code, Gemini CLI), wires up the MCP server without clobbering existing configs, and checks your tools and connected devices. Want to see what it will touch first? Run `npx -y phonedriver init --dry-run`.
 
-## Or ask your agent
+Pick either `init` or a plugin install below—doing both registers the tools twice.
 
-Paste this into Claude Code, Codex, Cursor or any agent that can run commands. It checks your machine, adds the MCP server to itself and tells you what to plug in.
+## Or let your agent set itself up
+
+Paste this into Claude Code, Codex, Cursor, or any agent with a shell. It checks your machine, registers the MCP server, and tells you what to plug in:
 
 ```prompt
 {{BOOT}}
 ```
 
-The rest of this page is the same setup by hand.
+Everything below is the same setup by hand.
 
 ## By hand: npx
 
-The `phonedriver` npm package is a small launcher. On first run it downloads the binary for your platform from GitHub Releases, checks its SHA-256 against the `.sha256` file published beside it, caches it and runs it. Later runs use the cache and make no network request. The launcher contacts GitHub only to download the binary and sends no telemetry. It needs Node 18 or later.
+The `phonedriver` npm package is a thin launcher (Node 18+). On first run it downloads the binary for your OS from GitHub Releases, verifies its SHA-256 against the published `.sha256` file, caches it locally, and runs it. Every run after that stays completely offline.
 
-The cache is `~/Library/Caches/phonedriver/npm` on macOS, `~/.cache/phonedriver/npm` on Linux and `%LOCALAPPDATA%\phonedriver\npm` on Windows.
+Cache paths: `~/Library/Caches/phonedriver/npm` (macOS), `~/.cache/phonedriver/npm` (Linux), `%LOCALAPPDATA%\phonedriver\npm` (Windows).
 
 ```sh
 npx -y phonedriver --version
@@ -41,7 +43,7 @@ claude mcp add phonedriver -- npx -y phonedriver mcp
 
 ## As a plugin
 
-In Claude Code and Codex, the plugin adds the MCP server and the skill in one step. It starts the same launcher, pinned to the version the plugin was released with. Use the plugin or `mcp add`, not both, or the tools are listed twice.
+For Claude Code and Codex, the plugin installs both the MCP server and the phonedriver skill in one go. Remove any manual `mcp add` entry first so the tools only appear once.
 
 ```sh
 # Claude Code
@@ -55,7 +57,7 @@ codex plugin add phonedriver@phonedriver
 
 ## Permanent install
 
-These put `phonedriver` on your `PATH`.
+Put `phonedriver` straight onto your `PATH`:
 
 ```sh
 # macOS and Linux
@@ -70,25 +72,25 @@ brew install hridaya423/tap/phonedriver
 powershell -ExecutionPolicy Bypass -c "irm {{REPO}}/releases/latest/download/phonedriver-installer.ps1 | iex"
 ```
 
-The shell and PowerShell installers put `phonedriver` in `$CARGO_HOME/bin` (`~/.cargo/bin`) and add it to your `PATH`. The iOS Simulator runner needs no download: its sources are inside the binary, and the first command that needs it builds it on your Mac with Xcode.
+The shell and PowerShell installers drop `phonedriver` into `$CARGO_HOME/bin` (`~/.cargo/bin`). On macOS, the iOS runner sources live inside the binary too—Xcode builds them automatically the first time you target a Simulator or iPhone.
 
 ## Build from source
 
-Use Rust 1.99 or later.
+Requires Rust 1.99 or later:
 
 ```sh
 cargo build --release
 ```
 
-The build packs the Android agent, so it needs the Android SDK with build-tools **37.0.0** and platform **android-37.0** (`ANDROID_HOME`, falling back to `ANDROID_SDK_ROOT`), `d8` and JDK 17. Override the versions with `ANDROID_BUILD_TOOLS` and `ANDROID_PLATFORM`. If anything is missing, the build says exactly what and how to get it. To skip that step, set `PHONEDRIVER_AGENT_JAR` to a built `phonedriver-agent.jar` (`bash android-agent/build.sh` makes one).
+The default build packs the Android helper, so it expects the Android SDK (`ANDROID_HOME` or `ANDROID_SDK_ROOT`) with build-tools **37.0.0**, platform **android-37.0**, `d8`, and JDK 17. Override with `ANDROID_BUILD_TOOLS` and `ANDROID_PLATFORM`, or point `PHONEDRIVER_AGENT_JAR` at a prebuilt jar (`bash android-agent/build.sh`).
 
-For iOS only, with no Android toolchain:
+Building for iOS only, without an Android toolchain:
 
 ```sh
 cargo build --release -p phonedriver --no-default-features
 ```
 
-That binary has no Android support, and `phonedriver doctor` skips the Android checks. The binary is `target/release/phonedriver`.
+The compiled binary lands at `target/release/phonedriver`.
 
 ## Check it works
 
@@ -97,7 +99,7 @@ $ phonedriver version
 phonedriver 0.1.6
 ```
 
-`phonedriver doctor` checks adb, each Android device, the agent, UiAutomation, the video stream, Xcode, the simulators and the permissions of the daemon socket. Each line says `ok`, `warn` or `fail`, and a fix follows every line that is not `ok`. It starts the agent only on emulators and Simulators that no other session holds. A physical phone or tablet is listed with `not probed` and the command to probe it (`phonedriver doctor --device <id>`); `--all-devices` probes them all.
+`phonedriver doctor` checks `adb`, connected devices, the helper, `UiAutomation`, the video stream, Xcode, booted simulators, and daemon socket permissions. It starts the agent only on emulators and Simulators that no other session holds; a physical phone or tablet is listed as `not probed` with the command to probe it (`phonedriver doctor --device <id>`), and `--all-devices` probes them all. Anything that isn't `ok` prints the exact fix right underneath:
 
 ```console
 $ phonedriver doctor
@@ -110,21 +112,21 @@ ok    daemon socket    /Users/you/.phonedriver/run/daemon.sock mode 600 in a dir
 
 ## Next
 
-Connect it to an agent: [Claude Code](/docs/claude-code/) or [Cursor and other MCP clients](/docs/cursor-and-mcp-clients/). Then pick a device: an [Android emulator](/docs/android-emulator/), a [real Android phone](/docs/android-phone/), the [iOS Simulator](/docs/ios-simulator/) or an [iPhone](/docs/iphone/).
+Wire up your client—[Claude Code](/docs/claude-code/), [Codex](/docs/codex/), [VS Code](/docs/vs-code/), or [Cursor and other MCP clients](/docs/cursor-and-mcp-clients/)—then connect an [Android emulator](/docs/android-emulator/), a [real Android phone](/docs/android-phone/), the [iOS Simulator](/docs/ios-simulator/), or a [real iPhone](/docs/iphone/).
 
 ## Environment variables
 
 | Name | Default | Meaning |
 |---|---|---|
-| `PHONEDRIVER_HOME` | `~/.phonedriver` | Where the daemon keeps its socket, `daemon.log`, `traces/`, `tmp/` and the iOS `runner/` builds. Set it to run a separate daemon. |
-| `PHONEDRIVER_SOCKET` | under `PHONEDRIVER_HOME` | The daemon's socket or named pipe. Point it at an `ssh -L` forward to use another machine's devices. |
-| `PHONEDRIVER_DEVICE` | none | The device to use when `--device` is not given. Also read by `phonedriver mcp`. |
-| `PHONEDRIVER_DISPLAY` | `main` | `hidden` makes the Android agent work on a second screen that the person holding the phone cannot see (Android 13 and later; `--display hidden` does the same). See [the Android phone page](/docs/android-phone/#a-hidden-screen-for-the-agent). |
-| `PHONEDRIVER_SESSION` | `default` | The session name, as `--session`. |
-| `PHONEDRIVER_ALLOW_DEVICES`, `PHONEDRIVER_DENY_DEVICES` | none | Comma lists of device ids (`android:emulator-5554`, `ios:<udid>`) or an Android phone's hardware serial. A device not allowed, or denied, is not listed, not probed by `doctor`, and never gets the agent; `--force` does not change that. The file `~/.phonedriver/devices` (`allow <id>` and `deny <id>` lines) does the same for every agent on the machine. Details in the [reference]({{REPO}}/blob/main/docs/reference.md#devices-an-agent-must-not-touch). |
-| `PHONEDRIVER_TEAM` | the team of this Mac's Apple Development certificate | Apple developer team ID that signs the iOS runner on a physical device. Needed only with certificates for several teams. |
-| `PHONEDRIVER_GUARD` | on | `off` stops the [approval guard](/docs/approval-guard/). |
-| `PHONEDRIVER_ASK` | none | More taps to ask about, besides payments and account deletion: `send`, `delete`, `install`, comma separated. See the [approval guard](/docs/approval-guard/). |
-| `PHONEDRIVER_SECRET` | none | The text for `type --secret`, instead of stdin. |
-| `PHONEDRIVER_TRACE_FULL`, `PHONEDRIVER_TRACE_SCREENS` | off | Keep observation text, or screenshots, in traces. |
-| `ADB_SERVER_SOCKET` | `tcp:127.0.0.1:5037` | The adb server to use, for example a tunnel to another machine. |
+| `PHONEDRIVER_HOME` | `~/.phonedriver` | Daemon home: socket, `daemon.log`, `traces/`, `tmp/`, and cached iOS `runner/` builds. Override to run an isolated daemon. |
+| `PHONEDRIVER_SOCKET` | under `PHONEDRIVER_HOME` | Daemon socket or named pipe. Point at an `ssh -L` forward to drive another machine's phones. |
+| `PHONEDRIVER_DEVICE` | none | Default device ID when `--device` is omitted (also read by `phonedriver mcp`). |
+| `PHONEDRIVER_DISPLAY` | `main` | Set to `hidden` (or `--display hidden`) on Android 13+ to run the agent on a hidden second display while you keep using the phone ([Android phone guide](/docs/android-phone/#a-hidden-screen-for-the-agent)). |
+| `PHONEDRIVER_SESSION` | `default` | Session name (same as `--session`). |
+| `PHONEDRIVER_ALLOW_DEVICES`, `PHONEDRIVER_DENY_DEVICES` | none | Comma lists of device ids (`android:emulator-5554`, `ios:<udid>`) or an Android phone's hardware serial. A device not allowed, or denied, is not listed, not probed by `doctor`, and never gets the agent; `--force` does not change that. `~/.phonedriver/devices` (`allow <id>` and `deny <id>` lines) does the same for every agent on the machine ([reference]({{REPO}}/blob/main/docs/reference.md#devices-an-agent-must-not-touch)). |
+| `PHONEDRIVER_TEAM` | your Mac's Apple Development cert team | Apple developer team ID for signing the iOS runner on physical devices. Only needed if you have multiple signing teams. |
+| `PHONEDRIVER_GUARD` | on | Set to `off` to disable the [approval guard](/docs/approval-guard/). |
+| `PHONEDRIVER_ASK` | none | Comma-separated extra tap categories to hold for approval: `send`, `delete`, `install` ([approval guard](/docs/approval-guard/)). |
+| `PHONEDRIVER_SECRET` | none | Secret input for `type --secret` when not piping on stdin. |
+| `PHONEDRIVER_TRACE_FULL`, `PHONEDRIVER_TRACE_SCREENS` | off | Include full screen text or screenshots inside local traces. |
+| `ADB_SERVER_SOCKET` | `tcp:127.0.0.1:5037` | Target `adb` server address (handy for SSH tunnels). |

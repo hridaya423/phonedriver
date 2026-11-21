@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { front, plain, render, type Toc } from "./md";
+import { FIGURE_FALLBACK, type FigureId } from "./blog-figure-meta";
+import { front, plain, render, splitBlocks, type Block, type Toc } from "./md";
 import { BOOT, REPO, SITE_URL } from "./site";
 
 export const DOCS = [
@@ -41,14 +42,22 @@ export const POSTS = [
 
 export type Section = "docs" | "compare" | "blog";
 
-export type Page = { meta: Record<string, string>; text: string; html: string; toc: Toc; path: string; faq: [string, string][] };
+export type Page = { meta: Record<string, string>; text: string; html: string; blocks: Block[]; toc: Toc; path: string; faq: [string, string][] };
+
+function cleanMd(md: string): string {
+  return md
+    .replace(/^::figure\[([a-z0-9-]+)\]\s*$/gm, (_, id: string) => FIGURE_FALLBACK[id as FigureId] ?? "")
+    .replace(/^:::receipts(?:\s+(.+))?$/gm, (_, title?: string) => `### ${(title || "Method & receipts").trim()}`)
+    .replace(/^:::\s*$/gm, "");
+}
 
 export function page(section: Section, slug: string): Page {
   const src = readFileSync(join(process.cwd(), "content", section, `${slug}.md`), "utf8");
   const { meta, body } = front(src);
   const text = body.replaceAll("{{SITE}}", SITE_URL).replaceAll("{{REPO}}", REPO).replaceAll("{{BOOT}}", BOOT);
   const toc: Toc = [];
-  return { meta, text, html: render(text, toc), toc, path: `/${section}/${slug}/`, faq: questions(text) };
+  const html = render(text, toc);
+  return { meta, text, html, blocks: splitBlocks(html), toc, path: `/${section}/${slug}/`, faq: questions(text) };
 }
 
 /** The `## Questions` section of a page, as question and answer pairs: each `###` heading and the paragraph under it. */
@@ -74,14 +83,16 @@ export const faqLd = (faq: [string, string][]) => ({
 
 export function words(md: string) {
   return md
+    .replace(/^::figure\[[^\]]+\]\s*$/gm, " ")
+    .replace(/^:::(?:receipts.*)?$/gm, " ")
     .replace(/```[\s\S]*?```/g, " ")
     .replace(/[`#|>*_[\]()-]/g, " ")
     .split(/\s+/)
     .filter(Boolean).length;
 }
 
-export const fullMd = (p: Page) => `# ${p.meta.title}\n\n${p.text.trim()}\n`;
+export const fullMd = (p: Page) => `# ${p.meta.title}\n\n${cleanMd(p.text).trim()}\n`;
 
-export const pageMd = (p: Page) => `# ${p.meta.title}\n\n> ${p.meta.description}\n\nWeb page: ${SITE_URL}${p.path}\n\n${p.text.trim()}\n`;
+export const pageMd = (p: Page) => `# ${p.meta.title}\n\n> ${p.meta.description}\n\nWeb page: ${SITE_URL}${p.path}\n\n${cleanMd(p.text).trim()}\n`;
 
 export const markdown = (text: string) => new Response(text, { headers: { "Content-Type": "text/markdown; charset=utf-8" } });

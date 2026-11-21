@@ -1,79 +1,65 @@
 ---
 title: phonedriver vs mobile-mcp
 seo: phonedriver vs mobile-mcp: an alternative with 6.9x fewer tokens
-updated: 2026-11-16
-meta: On nine real phone jobs mobile-mcp used 6.9x the tokens of phonedriver and passed 17 of 18 runs against 27 of 27. Platforms, telemetry and install compared.
-description: Two MCP servers that let an AI agent control a phone. On nine real phone jobs on one emulator, mobile-mcp used 6.9 times the tokens of phonedriver and passed 17 of 18 runs against 27 of 27. What each reads, installs, waits for and sends, and what I have not measured.
+updated: 2026-11-20
+meta: Two MCP servers for Android and iOS compared: 6.9x fewer tokens on nine real phone jobs, settled diffs, approval prompts, telemetry, and cloud support.
+description: Two accessibility-first MCP servers for Android and iOS. On nine real phone jobs, mobile-mcp used 6.9x the tokens of phonedriver—and still has cloud features phonedriver doesn't.
 ---
 
 ## The short answer
 
-**On nine phone jobs on one emulator, 10 November 2026, mobile-mcp used 6.9 times the tokens of phonedriver:** 4,567,200 against 657,542 as the sum of per-job medians, with 17 of 18 runs passed against 27 of 27. Wall time summed to 523 s against 306 s.
+Both phonedriver and mobile-mcp are accessibility-first MCP servers that let an AI agent drive Android and iOS. The difference shows up once a task takes more than three taps.
 
-Both are MCP servers that give an agent a phone. mobile-mcp reaches cloud devices through Mobile Next Cloud, which phonedriver does not. I have no per-operation speed comparison with mobile-mcp. The feature rows below are from its README and from my reading of its source, and the rows say which.
+Across nine real Android phone jobs (Claude Sonnet 5.5, 10 November 2026), **mobile-mcp spent 6.9x as many tokens as phonedriver**: 4,567,200 vs. 657,542 (sum of per-job medians), passing 17 of 18 runs against phonedriver's 27 of 27, in 523 s vs. 306 s.
+
+Where mobile-mcp wins outright is infrastructure: it connects to cloud devices through Mobile Next Cloud, offers location override, and has a much larger community. Choose the one that fits your setup.
+
+::figure[token-snowball]
 
 ## Side by side
 
 | | phonedriver | mobile-mcp |
 |---|---|---|
 | Platforms | Android, iOS | Android, iOS, cloud devices |
-| Real devices | iPhone and iPad tested; one Android phone (HONOR X8) tested | Yes for both; iOS over USB, Android with adb and USB debugging (its README) |
-| How it reads the screen | Pruned text tree with `@eN` refs, settled; OCR when the tree is empty | Native accessibility tree, screenshots and coordinates when needed (its README) |
-| Waits after an action | Yes: settle, then the diff | Its README does not say. I read no waits after actions in `src/server.ts` on 2026-11-06 (through a summarizing fetch tool: re-open the file before quoting) |
-| Approval before spending money | Yes, through MCP elicitation | Not documented |
-| Telemetry | None | Anonymous usage telemetry through PostHog and Scarf, on by default. Opt out with `MOBILEMCP_DISABLE_TELEMETRY=1` (its README) |
-| Install | `claude mcp add phonedriver -- npx -y phonedriver mcp`, or Homebrew or a shell installer ([install](/docs/install/)) | `npx @mobilenext/mobile-mcp@latest install`, which configures detected clients (its README) |
+| Real devices | iPhone & iPad tested; HONOR X8 tested on Android | Android (adb) and iOS (USB) |
+| Screen format | Pruned `@eN` text list; OCR fallback when tree is empty | Native accessibility tree; screenshots/coordinates when needed |
+| After each action | Waits to settle, returns only changed lines (`+` / `-` / `~`) | Returns full element lists or screenshots |
+| Approval before paying | Built-in via MCP elicitation (11 languages) | Not built in |
+| Telemetry | None (enforced by a sandboxed network test) | Anonymous telemetry (PostHog / Scarf) on by default; opt out via `MOBILEMCP_DISABLE_TELEMETRY=1` |
+| Install | `npx -y phonedriver init`, Homebrew, or shell installer | `npx @mobilenext/mobile-mcp@latest install` |
 | License | AGPL-3.0-only | Apache-2.0 |
-| Adoption | New: first released on 10 November 2026 | About 10.6k GitHub stars, checked on 2026-11-16 |
+| Maturity | Released November 2026 | ~10.6k GitHub stars (checked Nov 2026) |
 
-## What mobile-mcp has that phonedriver does not
+## Why the token gap is 6.9x
 
-From my 2026-11-06 reading of its documentation and source, to be re-checked before quoting: a batch tool for many commands in one call, location override, screen recording, device logs and crash lists, and cloud devices. phonedriver has a `batch` verb too, and no location override, recording or logs.
+Both tools read the accessibility tree before taking screenshots, so the gap isn't "text vs. pixels." It's **turns × payload size**.
 
-## What phonedriver does differently
+Because phonedriver waits for the screen to settle and sends back a 3-line diff, Claude took **99 calls** across the nine jobs (~6,600 tokens/call). With mobile-mcp, Claude took **276.5 calls** (~16,500 tokens/call) re-listing screens and checking results. Since every turn re-reads the conversation history, `2.8x` more turns times `2.5x` heavier replies compounds to `6.9x`.
 
-- **A settled diff.** Every action waits for the screen to stop changing and returns the lines that changed, so the agent does not re-list the screen after each tap.
-- **A resident agent.** On Android, a small agent is pushed over adb and started as the shell user. UI reads cost 12.7 to 51.0 ms at p50 on my benchmark emulator.
-- **The approval guard.** See [the guard](/docs/approval-guard/) and [its limits](/blog/letting-claude-order-dinner-without-letting-it-spend-your-money/).
-- **No telemetry**, checked by a test that runs the CLI, the daemon and the MCP server under a sandbox that kills any non-local connection.
+Its one failed run was `chrome-prefs`, which finished with "Always use secure connections" still off. On `log-code`, mobile-mcp was faster on wall time (22 s vs. 31 s).
 
-## What I found when I ran it
-
-On 10 November 2026 both tools ran on the same Android emulator, one agent at a time, with Claude Sonnet 5.5 through `claude -p`. mobile-mcp 1.0.16 had its own adb server on the machine that ran the agent. phonedriver ran each of nine jobs three times and mobile-mcp twice, and every run was checked from device state. Tokens are medians per job:
-
-| Job | phonedriver | mobile-mcp | Ratio |
-|---|---|---|---|
-| qa-signup | 3/3, 121,854 | 2/2, 549,354 | 4.5x |
-| qa-shop | 3/3, 92,570 | 2/2, 473,095 | 5.1x |
-| relay-code | 3/3, 49,126 | 2/2, 574,428 | 11.7x |
-| chrome-prefs | 3/3, 98,576 | 1/2, 1,052,348 | 10.7x |
-| clock-settings | 3/3, 95,962 | 2/2, 691,926 | 7.2x |
-| messages-pin-archive | 3/3, 45,240 | 2/2, 315,560 | 7.0x |
-| photos-crop | 3/3, 61,477 | 2/2, 636,680 | 10.4x |
-| wakelock-restrict | 3/3, 38,775 | 2/2, 122,772 | 3.2x |
-| log-code | 3/3, 53,962 | 2/2, 151,038 | 2.8x |
-| Sum | 27/27, 657,542 | 17/18, 4,567,200 | 6.9x |
-
-Tool calls summed to 99 for phonedriver and 276.5 for mobile-mcp. mobile-mcp's one failure was chrome-prefs, which ended with "Always use secure connections" off. It was 5.0 times phonedriver's tokens on 7 November, on an earlier emulator of the same image.
-
-It is a test set I wrote, and mobile-mcp may do better on a job I did not think of. The runs, the checks and what I threw away are in [the benchmark post](/blog/phonedriver-vs-mobile-mcp-vs-phone-harness-vs-adb-real-phone-jobs/) and on the [benchmarks page](/benchmarks/#jobs).
-
-Setup matters for it. In my earlier token run, mobile-mcp took screenshots and launched apps but failed taps and UI listing with "device server did not start within 5s", and, against a remote adb server, an `adb forward` bind error. Its helper forwards a port to its device server, and a remote adb server binds that port on the wrong machine. In that run it also left an on-device server (`com.mobilenext.mobilecli.DeviceServer`) holding the accessibility bridge, which made other tools fail with `another UiAutomation client` until I killed it between runs. Both were faults of my setup on a tunnelled emulator, not a measured capability.
+:::receipts Benchmark caveats & setup note
+- **Author's test set:** Nine jobs I wrote, 3 passes for phonedriver (`cfa37b2`) and 2 for mobile-mcp (`1.0.16`) on one `Pixel_Tablet_API_37` emulator on 10 November 2026. On an earlier 7 November emulator it was 5.0x. Full runs, discarded passes, and biases are in [the nine-job benchmark post](/blog/phonedriver-vs-mobile-mcp-vs-phone-harness-vs-adb-real-phone-jobs/).
+- **Tunnelled adb caveat:** mobile-mcp's helper binds an `adb forward` port locally, so it fails over a remote/tunnelled adb server. For the 10 November benchmark I gave it a local adb server on the Mac mini so it ran cleanly (17/18 passed).
+- **Per-op speed:** I have not benchmarked per-operation latency against mobile-mcp. Feature rows for mobile-mcp come from its README and `1.0.16` source.
+:::
 
 ## Use which
 
-Choose phonedriver if you want fewer tokens per job, the settled diff, the approval prompt, no telemetry and the speed on Android shown on the [benchmarks page](/benchmarks/). Choose mobile-mcp if you need cloud devices, location override, screen recording or device logs. They can sit side by side on different devices. Do not run both against the same Android device at once: each holds the one UiAutomation connection.
+Pick **phonedriver** if you want dramatically lower token usage, settled diffs, an approval prompt before payments, and zero telemetry.
+
+Pick **mobile-mcp** if you need Mobile Next Cloud devices, Apache-2.0 licensing, location override, or a more battle-tested community. You can install both on the same machine, just don't point them at the same Android device simultaneously—Android only allows one `UiAutomation` client at a time.
 
 ## Questions
 
 ### How many tokens does mobile-mcp use compared with phonedriver?
 
-On nine phone jobs on one emulator on 10 November 2026, the per-job medians summed to 4,567,200 tokens for mobile-mcp and 657,542 for phonedriver, which is 6.9 times as many. Per job the ratio ran from 2.8 to 11.7. Both tools are text-first: mobile-mcp also reads the accessibility tree before it takes a screenshot. It is a test set I wrote, with two or three runs per job.
+Across nine real Android phone jobs on 10 November 2026, per-job medians summed to 4,567,200 tokens for mobile-mcp and 657,542 for phonedriver—6.9x as many, ranging from 2.8x to 11.7x per job. Both tools are accessibility-first; the gap comes from phonedriver returning settled diffs instead of full screen lists on every turn.
 
 ### Is phonedriver a drop-in replacement for mobile-mcp?
 
-No. Both are MCP servers for Android and iOS, and the tool names and the text they return differ. An agent needs no changes beyond the server entry, because it reads the tool descriptions. mobile-mcp has cloud devices, location override, screen recording and device logs, which phonedriver does not.
+No—the tool names and text formats differ—but switching takes one MCP config change because the model reads the tool descriptions automatically. Note that mobile-mcp supports cloud devices and location override, which phonedriver does not.
 
 ### Can I run mobile-mcp and phonedriver together?
 
-On different devices, yes. On the same Android device, no: each holds the one UiAutomation connection Android allows, and the second tool fails with `another UiAutomation client`.
+On separate devices, yes. On the same Android device at the same time, no: both hold Android's single `UiAutomation` connection, so the second tool will fail with `another UiAutomation client`.

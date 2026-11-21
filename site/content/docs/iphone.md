@@ -1,29 +1,27 @@
 ---
 title: How to control a real iPhone or iPad with phonedriver
 nav: Real iPhone
-description: Set up an iPhone or iPad and let an agent drive it with phonedriver, from a Mac or from Windows, with or without the cable. Tested on an iPhone 13 Pro Max, a 14 Plus, a 16e and an iPad Pro.
+description: Plug in an iPhone or iPad, run phonedriver ios setup once (from a Mac or from Windows), and optionally unplug the cable over Wi-Fi. Tested on iPhone 13 Pro Max, 14 Plus, 16e, and iPad Pro.
 updated: 2026-11-20
 seo: How to let an AI agent control a real iPhone or iPad over MCP
 ---
 
-To let an AI agent control a real iPhone or iPad, plug it into a Mac with Xcode and run `phonedriver ios setup`, or from Windows follow [iPhone from Windows](#iphone-from-windows). The agent then reads the screen as text and taps, types and swipes through phonedriver's own XCTest runner. The runner is signed with your Apple developer team. A free Apple ID works. Its signature lasts 7 days, and the next command after that signs the runner again by itself.
+Plug an iPhone or iPad into a Mac with Xcode and run `phonedriver ios setup`, or from Windows follow [iPhone from Windows](#iphone-from-windows). That signs and starts phonedriver's minimal XCTest runner with your Apple developer team—a free Apple ID works fine (its signature lasts 7 days, and the next command after that signs the runner again by itself).
 
-I tested an iPhone 14 Plus (iOS 26.1) and an iPad Pro (iOS 27.0) through the CLI and MCP. Screenshots, snapshots and the diff after a tap meet the targets I set. A bare tap does not: it takes 454 to 534 ms at p50 against a target of 80 ms. The 12-scenario suite was not run on devices.
+Tested on an iPhone 13 Pro Max (iOS 27.0.1), an iPhone 14 Plus (iOS 26.1), an iPad Pro (iOS 27.0), and, from Windows, an iPhone 16e (iOS 26.5). Snapshots, screenshots, and settled diffs feel snappy; bare taps sit at 454–534 ms at p50 because of XCTest's confirmation delay.
 
-## Set it up
+## First-time setup
 
-Plug the device in and unlock it, then:
+Plug the device in, unlock it, and run:
 
 ```sh
-phonedriver ios setup                    # signing team, pairing, Developer Mode, developer disk image, then the runner
+phonedriver ios setup                    # signing team, pairing, Developer Mode, DDI, runner
 phonedriver --device ios:<udid> snapshot
 ```
 
-`ios setup` prints one line for each step and says what to do for a step that needs you. phonedriver reads the signing team from this Mac's Apple Development certificate. To make one, sign in under Xcode > Settings > Accounts, choose Manage Certificates and add an Apple Development certificate. With certificates for several teams, set `PHONEDRIVER_TEAM` to the ID of the one to use.
+`ios setup` prints each step and tells you when a prompt needs your thumb on the phone. It detects your signing team automatically from your Mac's Apple Development certificate (create one in **Xcode → Settings → Accounts → Manage Certificates** if you don't have one yet). With multiple teams, export `PHONEDRIVER_TEAM` and run `phonedriver daemon stop` so the daemon picks it up.
 
-Without a team, the command stops with exit code 3 and says so. If the iPhone has never been used with that team, the command asks for `phonedriver ios register`. That lets Xcode add the iPhone to the team's Apple developer account, which holds 100 iPhones a year. If you set `PHONEDRIVER_TEAM`, run `phonedriver daemon stop` afterwards: the daemon reads it when it starts.
-
-Mounting the developer disk image is the one thing phonedriver does that talks to Apple. Nothing else leaves your machine.
+If the iPhone hasn't been registered to that team yet, `ios setup` will prompt you to run `phonedriver ios register`. Mounting Apple's developer disk image (DDI) is the single network call phonedriver makes to Apple. On Windows, `--download-ddi` fetches that image once from GitHub instead ([every connection](/docs/no-telemetry/)); nothing else leaves your machine.
 
 ## iPhone from Windows
 
@@ -38,49 +36,36 @@ phonedriver drives an iPhone or iPad on iOS 17 or later from Windows, with no Ma
 
 Tested on an iPhone 16e (iOS 26.5) from Windows 11. On the cable: setup, `snapshot`, `screenshot`, `tap`, `type` and `press back`. Over Wi-Fi: `doctor`, `snapshot`, `screenshot`, `apps`, `launch`, `tap` and `press back`. A tap takes 1.3 to 1.5 s there, against 0.45 to 0.53 s from a Mac, because the screen's settle is read from polled screenshots. A locked phone drops off Wi-Fi now and then, and the next command connects again in 10 to 19 s. Linux takes the same path with usbmuxd, but it has not been tried on a phone.
 
-## Without the cable
+## Cut the cable (Wi-Fi)
 
-After the setup, with the device still on the cable:
+Once setup succeeds, while still plugged in:
 
 ```sh
 phonedriver ios wifi on
 ```
 
-Unplug it. While the iPhone and the Mac are on the same Wi-Fi network, `phonedriver devices` still lists it and every verb works. `phonedriver doctor` says `over Wi-Fi` or `over USB`. The iPhone answers only computers it already trusts, and `phonedriver ios wifi off` stops it.
+Unplug the cable. As long as the iPhone and Mac share a Wi-Fi network, `phonedriver devices` keeps listing it and every command works (`phonedriver doctor` reports `over Wi-Fi` or `over USB`; `phonedriver ios wifi off` turns it back off). Note that a sleeping iPhone drops off Wi-Fi until woken, and taps over Wi-Fi were verified on iOS 27.0.1 (older iOS < 26.4 discovery was verified without full tap runs).
 
-I tested this on an iPhone 13 Pro Max (iOS 27.0.1) on one network. The app on the phone logged the taps and the typed text with no cable attached. An iPhone 14 Plus on iOS 26.1, which announces itself the older way, stayed in `phonedriver devices` and answered with the cable out. I did not run taps on that phone over Wi-Fi, so taps over Wi-Fi on an iOS before 26.4 are not tested.
+## Lock screen & sleep
 
-A sleeping iPhone stops answering on Wi-Fi. Both phones left the list when the screen went off and came back when woken.
+phonedriver never enters passcodes and cannot pass Face ID. If the phone locks, commands stop with `The device is locked` and exit code 3 until you unlock it.
 
-## A locked iPhone
+While active (0.1.4+), phonedriver nudges the Auto-Lock timer every 10 seconds for 10 minutes after each command so your phone doesn't fall asleep mid-task; `phonedriver release` ends that immediately.
 
-phonedriver does not unlock an iPhone and never enters a passcode. On a locked iPhone each command stops with `The device is locked` and you unlock it by hand.
+## How a physical iPhone differs from Android
 
-phonedriver keeps an iPhone awake while it is in use: for 10 minutes after each command it resets the Auto-Lock timer every 10 seconds, and `phonedriver release` stops that. This came with 0.1.4. In 0.1.3 and earlier, set Settings > Display & Brightness > Auto-Lock to Never before a long task, and set it back after.
+- **No shell:** Physical iPhones don't expose a device shell.
+- **Polled settle:** Settle watches polled screenshots rather than a continuous H.264 stream, adding slight overhead per action.
+- **Notification banners:** If a banner drops over the top of the screen, phonedriver waits up to 8 seconds for it to clear before tapping underneath it (turning on Do Not Disturb for long sessions is still smart).
+- **Experimental CoreDevice tier:** iOS 27 devices have an opt-in `PHONEDRIVER_IOS_TIER=coredevice` path, off by default.
 
-## What differs from Android
-
-- There is no shell on a physical iPhone.
-- Settle is detected by polling screenshots, not a video stream, so each action costs a little more.
-- iOS 27 devices have an experimental CoreDevice tier, off by default: `PHONEDRIVER_IOS_TIER=coredevice`. It is not the supported path.
-
-## Notification banners
-
-A banner covers the top of the app for a few seconds, and a tap under it would open the notification. phonedriver waits for the banner to leave before it touches that part of the screen, up to 8 seconds. I tested this on the Simulator. For a long job, Do Not Disturb on the phone is still the safer setting.
-
-## What stays with you
-
-Unlocking, trusting the computer and Developer Mode prompts are yours. The error says what to do on the device and the command line exits with code 3.
-
-## Safety
-
-The [approval guard](/docs/approval-guard/) is on by default. Read its limits before you give an agent a phone with accounts on it.
+The [approval guard](/docs/approval-guard/) is on by default—read [what it misses](/docs/approval-guard/#what-it-does-not-catch) before letting an agent loose on your daily phone.
 
 ## Questions
 
 ### Does phonedriver use WebDriverAgent?
 
-No. It builds its own XCTest runner on your Mac. WebDriverAgent is an XCTest runner too, so the mechanism is the same. Mine leaves out the WebDriver HTTP server, the XPath engine and the session model. On an iPhone 17 simulator it read a screen 2.0 times faster than fully tuned WebDriverAgent at p50. If you already run Appium, WebDriverAgent is the better choice. See [phonedriver vs Appium](/compare/appium/).
+No—it builds its own small Objective-C XCTest runner without the WebDriver HTTP server or XPath engine (crediting WebDriverAgent for private headers). On an iPhone 17 Simulator it reads screens 2.0x faster than fully tuned WebDriverAgent ([phonedriver vs Appium](/compare/appium/)).
 
 ### Do I need a paid Apple developer account?
 
@@ -88,8 +73,8 @@ No. A free Apple ID works. Its signature lasts 7 days; when it has run out, the 
 
 ### Can I control an iPhone from Windows or Linux?
 
-From Windows, yes, on the cable or over Wi-Fi: see [iPhone from Windows](#iphone-from-windows). Linux runs the same code but is untested on a phone. The iOS Simulator still needs a Mac.
+From Windows, yes, on the cable or over Wi-Fi: see [iPhone from Windows](#iphone-from-windows). Linux runs the same code but is untested on a phone. The iOS Simulator still needs a Mac. Android works on macOS, Linux, and Windows.
 
 ### Can the agent unlock my iPhone?
 
-No. phonedriver never enters a passcode and cannot pass Face ID. On a locked iPhone each command stops with `The device is locked`, and you unlock it by hand.
+No. phonedriver never types passcodes or touches Face ID. When a phone is locked, commands stop cleanly so you can unlock it yourself.

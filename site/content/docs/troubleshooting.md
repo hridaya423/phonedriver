@@ -1,10 +1,10 @@
 ---
 title: How to troubleshoot phonedriver
 nav: Troubleshooting
-meta: Start with phonedriver doctor, then the daemon log and traces. Exit codes and the common errors: another UiAutomation client, WebViews, device setup.
-description: Start with phonedriver doctor, then read the daemon log and traces. Exit codes, what each means, and the errors seen most often with another UiAutomation client, WebViews and device setup.
+meta: Start with phonedriver doctor, check daemon logs and traces, decode exit codes 0–5, and fix the most common Android and iOS snags.
+description: Start with phonedriver doctor, inspect daemon logs and traces, decode exit codes, and fix common snags like UiAutomation conflicts and empty WebViews.
 seo: phonedriver troubleshooting: doctor, exit codes, common errors
-updated: 2026-11-11
+updated: 2026-11-20
 ---
 
 ## Start with doctor
@@ -13,48 +13,48 @@ updated: 2026-11-11
 phonedriver doctor
 ```
 
-It checks the toolchain, devices and the socket. Each line says `ok`, `warn` or `fail`, and a fix follows every line that is not `ok`. Physical phones and tablets, and devices another session is using, are listed but not probed: `phonedriver doctor --device <id>` probes one, and `--all-devices` probes every device nobody else holds.
+`doctor` checks `adb`, devices, Xcode, simulators, and socket permissions. Every line prints `ok`, `warn`, or `fail`—and every non-`ok` line prints the exact fix right under it. Physical phones and tablets, and devices another session is using, are listed but not probed: `phonedriver doctor --device <id>` probes one, and `--all-devices` probes every device nobody else holds.
 
-## Where the evidence is
+## Where the logs live
 
-- `$PHONEDRIVER_HOME/daemon.log` (default `~/.phonedriver/daemon.log`) holds the daemon's own messages and startup errors.
-- `$PHONEDRIVER_HOME/traces/<id>.jsonl` has one line per request: method, parameters, the reply's summary, `ms` and settle time. Typed text is recorded only as a length, and so is the text of a text target. The reply's summary and an error's message are recorded as returned, so they can name elements from the screen (`tapped @e6 "Busy"`, `no element matches "Pay €49.99"`): read trace lines before you share them. Start the daemon with `PHONEDRIVER_TRACE_FULL=1` to keep observation text and text targets, and `PHONEDRIVER_TRACE_SCREENS=1` to keep screenshots. A running daemon keeps its options, so run `phonedriver daemon stop` first.
-- iOS: `$PHONEDRIVER_HOME/runner/<udid>.log` is the runner's output, and `runner/<hash>/build.log` is its first build.
-- `phonedriver daemon stop` stops the daemon and the iOS runners it started. The next command starts a new one.
+- **`$PHONEDRIVER_HOME/daemon.log`** (default `~/.phonedriver/daemon.log`) — daemon startup messages and errors.
+- **`$PHONEDRIVER_HOME/traces/<id>.jsonl`** — one JSON line per call with method, parameters, the reply's summary, timings, and settle duration. Typed text logs length only, and so does the text of a text target, never secrets. The reply's summary and an error's message are recorded as returned, so they can name elements from the screen (`tapped @e6 "Busy"`, `no element matches "Pay €49.99"`): read trace lines before you share them. Restart the daemon (`phonedriver daemon stop`) with `PHONEDRIVER_TRACE_FULL=1` to keep observation text and text targets, or `PHONEDRIVER_TRACE_SCREENS=1` to keep screenshots.
+- **iOS logs:** `$PHONEDRIVER_HOME/runner/<udid>.log` (runtime) and `runner/<hash>/build.log` (first Xcode compile).
+- **Clean restart:** `phonedriver daemon stop` shuts down the daemon and any iOS runners it owns; your next command starts fresh.
 
 ## Exit codes
 
 | Code | Meaning |
 |---|---|
-| 0 | Done |
-| 1 | The command failed |
-| 2 | The command line is wrong |
-| 3 | A person must act on the device: unlock, trust, allow |
-| 4 | No matching device, or it was disconnected |
-| 5 | A tap that spends money or cannot be undone needs the human's approval. Add `--autonomous` only when the user has granted full autonomy |
+| `0` | Done |
+| `1` | Command failed |
+| `2` | Bad CLI arguments or invalid env config |
+| `3` | Human action needed on the device (unlock, trust, allow USB debugging) |
+| `4` | No matching device connected |
+| `5` | Tap held by the [approval guard](/docs/approval-guard/); pass `--autonomous` only if explicitly authorized |
 
-## Common problems
+## Common snags
 
-**No device.** Run `phonedriver doctor` and `adb devices`. With more than one device, pass `--device` or set `PHONEDRIVER_DEVICE` with an id from `phonedriver devices`.
+**No device found.** Run `phonedriver doctor` and `adb devices`. With multiple devices attached, pass `--device <id>` or export `PHONEDRIVER_DEVICE` from `phonedriver devices`.
 
-**`another UiAutomation client`, or `uiautomator dump` is killed.** Android allows one UiAutomation connection at a time, and phonedriver's agent holds it. Another tool that holds it, such as mobile-mcp's on-device server, blocks the other. Stop the other tool, or stop phonedriver's daemon with `phonedriver daemon stop`. Plain `adb shell uiautomator dump` fails while phonedriver is attached for the same reason.
+**`another UiAutomation client` or `uiautomator dump` gets killed.** Android allows one `UiAutomation` client at a time. Another driver (like mobile-mcp's on-device server) blocks phonedriver, and phonedriver blocks plain `uiautomator dump` while attached. Stop the competing tool, or run `phonedriver daemon stop` when you want `uiautomator dump` back.
 
-**The socket path is too long.** On macOS the socket path must stay under about 100 bytes. Shorten `PHONEDRIVER_HOME`.
+**Socket path too long.** macOS caps Unix socket paths around 100 bytes. Point `PHONEDRIVER_HOME` at a shorter directory (e.g. `/tmp/pd`).
 
-**A forward to another machine is down.** The error names `PHONEDRIVER_SOCKET`. Restart the `ssh -L` forward and check both machines run the same version.
+**SSH forward dropped.** Errors naming `PHONEDRIVER_SOCKET` mean the tunnel closed—restart your `ssh -L` forward and confirm both hosts run the same phonedriver version.
 
-**`NOT verified` after `type`.** The reply says what the field shows and why: a length limit, filtered characters, or focus elsewhere. On a web page the site may swap its search field after the tap, and the text lands in the old one. Act on the hint in the reply.
+**`NOT verified` after `type`.** The reply tells you what ended up in the field—often a character cap, input filter, or a webpage that swapped out its search input mid-tap. Follow the hint in the reply.
 
-**Empty or sparse screen text.** WebViews and custom views can have an empty accessibility tree. phonedriver falls back to OCR (`text "Web form" (ocr)`) and a screenshot read. A web checkbox in a WebView has no checked state in the tree, so its state comes from the screenshot.
+**Sparse or empty screen text.** Custom canvases and some WebViews expose empty accessibility trees. phonedriver falls back to OCR (`text "Web form" (ocr)`) and pixel inspection for web checkboxes automatically.
 
 **`text recognition on Linux uses Tesseract, which is not installed`.** Reading text from a screenshot (a screen with no element list, `snapshot --pixels`, `compare`) uses Tesseract on Linux, which the system does not ship: `apt install tesseract-ocr`. macOS and Windows use the text recognition the system ships.
 
-**An iOS tap is slow.** That is XCTest, about 240 ms of confirmation, not a hang. See [the iOS Simulator page](/docs/ios-simulator/).
+**Slow iOS taps.** Physical iPhones sit around 450–530 ms per tap because of XCTest's event confirmation (not a hang). On the iOS Simulator, 0.1.5 uses native touch input for supported single-finger gestures ([iOS Simulator guide](/docs/ios-simulator/)).
 
-**`--display hidden` fails as unsupported.** The hidden screen needs Android 13 (API 33) or later, and `press lock` and `press notifications` are not available in that mode. Use the default screen, or leave `PHONEDRIVER_DISPLAY` unset. See [the Android phone page](/docs/android-phone/#a-hidden-screen-for-the-agent).
+**`--display hidden` unsupported.** Virtual displays require Android 13 (API 33)+ and don't support `press lock` or `press notifications` ([Android phone guide](/docs/android-phone/#a-hidden-screen-for-the-agent)).
 
-**A tap was held.** Exit code 5, or a reply that says it needs the human's approval. See [the approval guard](/docs/approval-guard/).
+**Tap held for approval.** Exit code 5 or a `needs_approval` message—see [the approval guard](/docs/approval-guard/).
 
-## Report a problem
+## Still stuck?
 
-Open an issue at [the repository]({{REPO}}/issues) with the output of `phonedriver doctor` and the relevant trace lines. Text passed with `--secret` is never in them.
+[Open an issue]({{REPO}}/issues) with your `phonedriver doctor` output and the relevant trace lines (`--secret` text is never recorded in them).

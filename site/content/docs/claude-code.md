@@ -2,30 +2,28 @@
 title: How to use phonedriver with Claude Code
 seo: How to let Claude Code control an Android phone or iPhone
 nav: Claude Code
-description: Add phonedriver to Claude Code as an MCP server with one command, point it at a device and ask it to operate a phone in plain language.
+description: Add phonedriver to Claude Code in one command, connect a phone or simulator, and ask it to drive apps in plain English.
 updated: 2026-11-20
 ---
 
-To let Claude Code control an Android phone or an iPhone, add phonedriver as an MCP server with `claude mcp add phonedriver -- npx -y phonedriver mcp`, connect a device and ask in plain language. Claude Code is the client phonedriver is tested against: the benchmarks on this site run `claude -p` with Claude Sonnet 5.5.
+Claude Code is phonedriver's home turf—every benchmark and demo on this site runs through it. Wire it up with `npx -y phonedriver init` (or `claude mcp add` below), connect a phone, and talk to it normally.
 
 ## Add the server
 
-From any directory, with Node 18 or later and nothing installed first:
+With Node 18+ and nothing pre-installed:
 
 ```sh
 claude mcp add phonedriver -- npx -y phonedriver mcp
 claude mcp list    # expect: phonedriver ... Connected
 ```
 
-The first start downloads the binary once (see [Install](/docs/install/)). If you [installed phonedriver](/docs/install/#permanent-install) instead, use `claude mcp add phonedriver -- phonedriver mcp`, or the full path to the binary after the `--`.
+The first start downloads and caches the binary once ([Install](/docs/install/)). If you [installed phonedriver permanently](/docs/install/#permanent-install), drop `npx -y` and pass `phonedriver mcp`.
 
-For the first run, boot one simulator or connect one device, so no device setting is needed. With more than one device, set the one to use in the server's environment:
+With a single device attached, phonedriver picks it automatically. With several devices plugged in, pin the one you want (`phonedriver devices` lists IDs):
 
 ```sh
 claude mcp add --env PHONEDRIVER_DEVICE=android:emulator-5554 phonedriver -- npx -y phonedriver mcp
 ```
-
-`phonedriver devices` lists the ids.
 
 ## An app you are developing
 
@@ -51,22 +49,22 @@ This is not `PHONEDRIVER_APPS_UNDER_TEST`, which only lets the agent clear or un
 
 ## Or install the plugin
 
-The plugin adds the same server and the phonedriver skill, so Claude Code has the full instructions without you pasting them. Remove a server you added with `claude mcp add` first (`claude mcp remove phonedriver`), or the tools are listed twice.
+The plugin bundles both the MCP server and the phonedriver skill so Claude gets the full playbook automatically. Remove any manual `mcp add` registration first (`claude mcp remove phonedriver`) so the tools aren't duplicated.
 
 ```sh
 claude plugin marketplace add hridaya423/phonedriver
 claude plugin install phonedriver@phonedriver
 ```
 
-Inside a session the same two steps are `/plugin marketplace add hridaya423/phonedriver` and `/plugin install phonedriver@phonedriver`. The tools are then named `mcp__plugin_phonedriver_phonedriver__tap` and so on, and the skill is `phonedriver:phonedriver`. To choose a device, set `PHONEDRIVER_DEVICE` in the environment you start Claude Code from.
+Inside a running session, `/plugin marketplace add hridaya423/phonedriver` and `/plugin install phonedriver@phonedriver` do the same thing. To pick a specific device with the plugin, export `PHONEDRIVER_DEVICE` before launching Claude Code.
 
-## Ask it
+## Try it out
 
-Boot a device, then ask Claude Code in plain language:
+Boot an emulator or Simulator (or plug in a phone) and ask:
 
 > Open Settings and turn on dark mode.
 
-Claude Code calls the tools, for example `launch`, `swipe` and `tap`. Each reply is plain text. The tap that turns the switch on returns this on the iOS Simulator:
+Claude calls `launch`, `swipe`, and `tap` as needed. Each action waits for the screen to settle and hands back only what changed. On the iOS Simulator, flipping the switch returns:
 
 ```screen
 ok tapped @e41 "Dark Appearance"
@@ -75,38 +73,35 @@ ok tapped @e41 "Dark Appearance"
 + @e68 button "L4S"
 ```
 
-`+`, `-` and `~` mark lines that appeared, left and changed. The agent does not poll or sleep: every action waits for the screen to settle.
+`+` appeared, `-` left, `~` changed. No sleep loops, no polling, no screenshot spam.
 
-## What the agent gets
+## What Claude gets
 
-Eighteen tools: `devices`, `apps`, `snapshot`, `screenshot`, `tap`, `type`, `swipe`, `scroll`, `press`, `launch`, `wait`, `batch`, `clipboard`, `shell`, `setting`, `logs`, `network` and `replay`. Each prints the same text as the CLI verb of the same name. `phonedriver skill` prints `SKILL.md`, the instructions an agent reads before it uses the tools; the MCP server carries a short version too.
+Eighteen tools (`devices`, `apps`, `snapshot`, `screenshot`, `tap`, `type`, `swipe`, `scroll`, `press`, `launch`, `wait`, `batch`, `clipboard`, `shell`, `setting`, `logs`, `network`, and `replay`), all returning the exact same text as the CLI. `phonedriver skill` prints the full `SKILL.md` guide; the MCP server ships a compact version built in.
 
-## When Claude Code asks you something
+## Approvals and passwords
 
-A tap on a button that spends money or cannot be undone (`Place order`, `Pay`, `Delete account`) is held until you answer. Claude Code shows the question with the app, the button and the amounts on screen. See [the approval guard](/docs/approval-guard/). In headless `claude -p` nobody can answer, so nothing is tapped.
-
-## Secrets
-
-Text typed with `secret: true` over MCP never reaches logs, traces or replies. Plain `type` into a password field or a one-time code field is refused, and the error tells the agent to get the text from you and pass it with `secret`.
+- **Payments & deletions:** Taps on `Place order`, `Pay`, `Buy with GPay`, or `Delete account` pause and pop a prompt straight inside Claude Code showing the app, button, and totals. Claude never sees or answers that form ([approval guard](/docs/approval-guard/)). In headless `claude -p`, nobody is there to click Allow, so guarded taps stay held.
+- **Secrets:** Plain `type` into a password or one-time code field is refused on the spot. The error tells Claude to ask you and pass it via `secret: true`, keeping the value out of replies, logs, and traces.
 
 ## Questions
 
 ### Can Claude Code control an iPhone?
 
-Yes, from a Mac with Xcode. The iOS Simulator works once it is booted. For a real iPhone or iPad, plug it in and run `phonedriver ios setup` once, and `phonedriver ios wifi on` lets you unplug the cable. See [the iPhone guide](/docs/iphone/).
+Yes, from a Mac with Xcode. Boot the iOS Simulator and it works immediately; for a physical iPhone or iPad, plug it in and run `phonedriver ios setup` once, then `phonedriver ios wifi on` if you want to drop the cable ([iPhone guide](/docs/iphone/)).
 
 ### Does Claude Code need screenshots to use the phone?
 
-No. It reads the screen as a short numbered text list and taps by number, and each action returns only the lines that changed. It takes a screenshot only when it needs to see a picture, such as a map or a photo.
+No. It sees a short numbered text list, taps by number, and gets a small diff after each action. Screenshots stay available whenever it genuinely needs to look at an image, a map, or a custom canvas.
 
 ### How many tokens does phonedriver add to Claude Code?
 
-The first turn of a one-word `claude -p` costs 5,606 tokens with phonedriver's 14 tools attached. On nine real phone jobs with Claude Sonnet 5.5 on one Android emulator, the per-job medians summed to 657,542 tokens (10 November 2026). See [the benchmarks](/benchmarks/#jobs).
+When the server had 14 tools, they added ~5,606 tokens on turn one of a bare `claude -p`; it now has 18. Across nine real Android phone jobs with Claude Sonnet 5.5, phonedriver summed to 657,542 tokens—6.9x fewer than mobile-mcp ([benchmarks](/benchmarks/#jobs)).
 
 ### Does it work in a headless claude -p run?
 
-Yes. The benchmarks on this site ran that way. Nobody can answer an approval prompt in a headless run, so a tap on Pay or Place order gets no answer and nothing is tapped.
+Yes—every benchmark on this site ran that way. Since nobody is at the terminal to answer approval prompts in headless mode, payment taps are safely held and nothing is tapped.
 
 ## Next
 
-Connect a device: an [Android emulator](/docs/android-emulator/), an [Android phone](/docs/android-phone/), the [iOS Simulator](/docs/ios-simulator/) or an [iPhone](/docs/iphone/). Then try [testing your own app](/docs/test-a-mobile-app/), or read how it compares with [mobile-mcp](/compare/mobile-mcp/) and [adb](/compare/adb/).
+Connect an [Android emulator](/docs/android-emulator/), a [real Android phone](/docs/android-phone/), the [iOS Simulator](/docs/ios-simulator/), or an [iPhone](/docs/iphone/). Then try [testing your own app](/docs/test-a-mobile-app/), or see how it stacks up against [mobile-mcp](/compare/mobile-mcp/) and [adb](/compare/adb/).

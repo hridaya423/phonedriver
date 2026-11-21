@@ -53,8 +53,7 @@ export default function CompareIndex() {
       >
         <h1>phonedriver compared with adb, mobile&#8209;mcp, phone&#8209;harness and Appium</h1>
         <p className="lede">
-          On nine real phone jobs phonedriver passed {b.total("phonedriver").passed} of {b.total("phonedriver").runs} runs with {figs["mobile-mcp"][0]} fewer tokens than mobile&#8209;mcp and{" "}
-          {figs["phone-harness"][0]} fewer than phone&#8209;harness, and it reads a 1,000-row list {figs.adb[0]} faster than adb on one Android emulator. Each page links its method and raw data.
+          Four honest side-by-sides: where phonedriver wins ({figs["mobile-mcp"][0]} fewer tokens than mobile&#8209;mcp, {figs.adb[0]} faster list reads than adb) and where you should pick the other tool instead.
         </p>
       </PageTop>
     </>

@@ -41,6 +41,21 @@ function table(rows: string[]) {
 
 export type Toc = { id: string; text: string }[];
 
+export type Block = { kind: "html"; html: string } | { kind: "figure"; id: string };
+
+export function splitBlocks(html: string): Block[] {
+  const out: Block[] = [];
+  const parts = html.split(/<!--FIGURE:([a-z0-9-]+)-->/);
+  for (let i = 0; i < parts.length; i++) {
+    if (i % 2 === 1) {
+      out.push({ kind: "figure", id: parts[i] });
+    } else if (parts[i].trim()) {
+      out.push({ kind: "html", html: parts[i] });
+    }
+  }
+  return out;
+}
+
 export function render(md: string, toc?: Toc): string {
   const lines = md.split("\n");
   const out: string[] = [];
@@ -52,6 +67,24 @@ export function render(md: string, toc?: Toc): string {
   let i = 0;
   while (i < lines.length) {
     const ln = lines[i];
+    const fig = /^::figure\[([a-z0-9-]+)\]\s*$/.exec(ln);
+    if (fig) {
+      flush();
+      out.push(`<!--FIGURE:${fig[1]}-->`);
+      i++;
+      continue;
+    }
+    const rec = /^:::receipts(?:\s+(.+))?$/.exec(ln);
+    if (rec) {
+      flush();
+      const title = (rec[1] || "Method & receipts").trim();
+      const buf: string[] = [];
+      i++;
+      while (i < lines.length && lines[i].trim() !== ":::") buf.push(lines[i++]);
+      if (i < lines.length) i++;
+      out.push(`<details class="receipts"><summary>${inline(title)}</summary><div class="receipts-body">${render(buf.join("\n"))}</div></details>`);
+      continue;
+    }
     if (ln.startsWith("```")) {
       flush();
       const lang = ln.slice(3).trim();

@@ -1,0 +1,25 @@
+.sr-key{display:flex;flex-wrap:wrap;align-items:center;gap:6px 18px;margin:0 0 14px;font:500 12.5px/1 var(--jb);letter-spacing:-.01em;color:var(--t3)}
+.sr-key span{display:inline-flex;align-items:center;gap:8px}
+.sr-key span:not(.sr-key-n)::before{content:"";width:10px;height:10px;border-radius:50%;background:var(--them)}
+.sr-key .us{color:var(--t1);font-weight:700}
+.sr-key span.us::before{background:var(--us)}
+.sr-key-n{margin-left:auto}
+.sr-rows{list-style:none;margin:0;padding:0;border-top:1px solid var(--line)}
+.sr-rows li{display:grid;grid-template-columns:minmax(0,1fr) 4.4em;grid-template-areas:"name n" "track n";gap:8px 16px;align-items:center;padding:12px 0 13px;border-bottom:1px solid var(--line)}
+@container (min-width:560px){.sr-rows li{grid-template-columns:13.5em minmax(0,1fr) 4.4em;grid-template-areas:"name track n";gap:0 18px;padding:10px 0}}
+.sr-name{grid-area:name;margin:0;font:600 13.5px/1.25 var(--jb);letter-spacing:-.03em;color:var(--t1)}
+.sr-name em{margin-left:7px;padding:2px 4px;font:600 10.5px/1 var(--jb);font-style:normal;letter-spacing:0;color:var(--t3);box-shadow:inset 0 0 0 1px var(--line2);vertical-align:2px}
+.sr-name span{display:block;margin-top:4px;font-weight:500;font-size:12px;letter-spacing:-.01em;color:var(--t3);font-variant-numeric:tabular-nums}
+.sr-name i{font-style:normal;color:var(--line2)}
+.sr-track{grid-area:track;position:relative;height:32px;border-inline:2px solid var(--line2);background:linear-gradient(var(--line),var(--line)) 0 10px/100% 1px no-repeat,linear-gradient(var(--line),var(--line)) 0 22px/100% 1px no-repeat}
+.sr-track i{position:absolute;left:0;width:12px;height:12px;margin-top:-6px;border-radius:50%;will-change:transform}
+.sr-us{top:10px;background:var(--us)}
+.sr-them{top:22px;background:var(--them)}
+.sr-track::after{content:"";position:absolute;left:0;right:0;top:9px;height:3px;opacity:0;background:radial-gradient(circle,var(--us) 1.4px,transparent 1.7px) 0 0/7px 3px repeat-x;transition:opacity .2s var(--out)}
+li[data-streak] .sr-track::after{opacity:1;animation:sr-zip .18s linear infinite}
+li[data-streak] .sr-us{opacity:.35}
+@keyframes sr-zip{to{background-position:7px 0}}
+.sr-n{grid-area:n;justify-self:end;font:800 22px/1 var(--jb);letter-spacing:-.06em;color:var(--t2);font-variant-numeric:tabular-nums;white-space:nowrap}
+li[data-back] .sr-n{color:var(--or)}
+li[data-back] .sr-them{opacity:.55}
+@media (prefers-reduced-motion:reduce){li[data-streak] .sr-track::after{animation:none}}
