@@ -60,7 +60,7 @@ final class TextInput {
                 paste(text, sensitive);
                 break;
             case "set":
-                set(text);
+                set(text, sensitive);
                 break;
             case "keys":
                 Input.keys(text);
@@ -147,7 +147,7 @@ final class TextInput {
         }
     }
 
-    private static void set(String text) throws Exception {
+    private static void set(String text, boolean sensitive) throws Exception {
         AccessibilityNodeInfo n = awaitFocusedInput();
         if (n == null) {
             throw new IllegalStateException("no focused input field");
@@ -163,7 +163,7 @@ final class TextInput {
         if (text.isEmpty()) {
             Input.key(KeyEvent.KEYCODE_DEL, "press");
         } else {
-            paste(text, false);
+            paste(text, sensitive);
         }
     }
 

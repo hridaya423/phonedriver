@@ -74,6 +74,7 @@ impl Screen {
             return;
         };
         let (TextInput::SetValue(t)
+        | TextInput::SetSecret(t)
         | TextInput::Paste(t)
         | TextInput::PasteSecret(t)
         | TextInput::Keystrokes(t)) = text;
@@ -85,7 +86,7 @@ impl Screen {
             }
         };
         match text {
-            TextInput::SetValue(_) => *value = t.clone(),
+            TextInput::SetValue(_) | TextInput::SetSecret(_) => *value = t.clone(),
             _ => value.push_str(t),
         }
     }

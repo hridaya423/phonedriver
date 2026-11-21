@@ -63,6 +63,14 @@ pub struct FieldView {
 }
 
 impl Verify {
+    /// The text that was typed.
+    pub fn typed(&self) -> &str {
+        match &self.expect {
+            Expect::Exactly(t) => t.as_str(),
+            Expect::Appended { text, .. } => text.as_str(),
+        }
+    }
+
     pub fn view(&self, now: &Rendered) -> FieldView {
         let focused_entry = |now: &'_ Rendered| -> Option<usize> {
             now.elements
@@ -162,10 +170,7 @@ impl Verify {
             return None;
         }
         let shows = shown(&name, Some(value), false);
-        let typed = match &self.expect {
-            Expect::Exactly(t) => t.as_str(),
-            Expect::Appended { text, .. } => text.as_str(),
-        };
+        let typed = self.typed();
         let hint = if self.plus_left_over(value) {
             "the field kept a `+` from before, so the first digits read as a country code: clear the field (type an empty text into it), then type again".to_string()
         } else if value.is_empty() && !typed.is_empty() {

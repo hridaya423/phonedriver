@@ -254,7 +254,7 @@ impl Taping {
         if let Some(p) = landed {
             line["at"] = json!(p);
         }
-        let written = std::fs::OpenOptions::new()
+        let written = crate::private::options()
             .create(true)
             .append(true)
             .open(self.steps_path())
@@ -1021,9 +1021,15 @@ impl Actor {
         let device = self.device()?;
         match p.action {
             RecordAction::Start => {
+                let named = p.path.is_some();
                 let path = p.path.unwrap_or_else(|| self.tmp_file("mp4"));
                 if let Some(dir) = path.parent() {
-                    std::fs::create_dir_all(dir).map_err(|e| Error::Transport {
+                    if named {
+                        std::fs::create_dir_all(dir)
+                    } else {
+                        crate::private::dir(dir)
+                    }
+                    .map_err(|e| Error::Transport {
                         detail: format!("cannot create {}: {e}", dir.display()),
                     })?;
                 }
@@ -1242,6 +1248,7 @@ impl Actor {
                 settle: p.settle,
                 timeout_ms: p.timeout_ms,
                 expect_change_ms: p.expect_change_ms,
+                secret_field_only: false,
             };
             let mut result = self.act(s, act).await?;
             result.summary = format!("opened the settings screen {screen}");
@@ -1472,8 +1479,8 @@ impl Actor {
         }
         let path = self.tmp_file("png");
         path.parent()
-            .map_or(Ok(()), std::fs::create_dir_all)
-            .and_then(|()| std::fs::write(&path, &image.bytes))
+            .map_or(Ok(()), crate::private::dir)
+            .and_then(|()| crate::private::write(&path, &image.bytes))
             .map_err(|e| Error::Transport {
                 detail: format!("cannot write {}: {e}", path.display()),
             })?;
@@ -2957,6 +2964,21 @@ impl Actor {
                         kind,
                     });
                 }
+                if p.secret_field_only
+                    && !field
+                        .as_ref()
+                        .is_some_and(|f| is_secure(f) || secret_field::kind(f).is_some())
+                {
+                    let which = field.as_ref().map_or_else(
+                        || "no field has focus".to_string(),
+                        |f| format!("@{} is neither", f.r#ref),
+                    );
+                    return Err(Error::Refused {
+                        detail: format!(
+                            "a replayed secret is typed only into a password or one-time code field, and {which}; set PHONEDRIVER_REPLAY_SECRET_ANY_FIELD=1 where the replay runs to type it into any field"
+                        ),
+                    });
+                }
                 let focus_tap = match (&into, tap_at) {
                     (Some(t), Some(at)) => {
                         self.guard_tap(s, &consent, t, field.as_ref(), at).await?
@@ -3027,8 +3049,10 @@ impl Actor {
                 let input = match (mode, secure) {
                     (TypeMode::Paste, true) => TextInput::PasteSecret(text.clone()),
                     (TypeMode::Paste, false) => TextInput::Paste(text.clone()),
-                    (TypeMode::Set, _) if replace => TextInput::SetValue(text.clone()),
-                    (TypeMode::Set, _) => TextInput::SetValue(format!("{before}{text}")),
+                    (TypeMode::Set, true) if replace => TextInput::SetSecret(text.clone()),
+                    (TypeMode::Set, true) => TextInput::SetSecret(format!("{before}{text}")),
+                    (TypeMode::Set, false) if replace => TextInput::SetValue(text.clone()),
+                    (TypeMode::Set, false) => TextInput::SetValue(format!("{before}{text}")),
                     (TypeMode::Keys, _) => TextInput::Keystrokes(text.clone()),
                 };
                 if !(replace && text.is_empty()) {
@@ -3631,6 +3655,11 @@ impl Actor {
         {
             summary = summary.replace(&format!(" into @{old}"), &format!(" into @{new}"));
         }
+        if let Some(v) = verify.as_ref().filter(|v| v.secure)
+            && let Some(shown) = v.view(&rendered).value
+        {
+            self.secrets.shown_as(v.typed(), &shown);
+        }
         let verified = verdict.as_ref().and_then(Verdict::verified);
         let unverified = match verdict {
             Some(Verdict::Failed(u)) => Some(u),
@@ -3725,6 +3754,7 @@ impl Actor {
                             settle: true,
                             timeout_ms: p.timeout_ms,
                             expect_change_ms: p.expect_change_ms,
+                            secret_field_only: false,
                         },
                     )
                     .await
@@ -3973,7 +4003,12 @@ impl Actor {
         })??;
         match got.line {
             Some(line) => {
-                let line: String = line.chars().take(LOG_LINE_CHARS).collect();
+                let line: String = self
+                    .secrets
+                    .masked(&line)
+                    .chars()
+                    .take(LOG_LINE_CHARS)
+                    .collect();
                 self.waited(s, format!("log line: {line}")).await
             }
             None => Err(Error::Timeout {

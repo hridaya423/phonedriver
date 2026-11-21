@@ -41,6 +41,9 @@ pub struct Mcp {
     told: Told,
     /// The last screenshot this server returned, for `compare`.
     last_shot: Arc<Mutex<Option<Shot>>>,
+    /// Where `replay` reads a relative steps file and the only folder it saves one in; the working directory when
+    /// it is not set.
+    folder: Option<PathBuf>,
 }
 
 /// The question a 2026-07-28 call returned: the call it belongs to, the batch step it holds and what it asked.
@@ -543,7 +546,14 @@ impl Mcp {
             held: Arc::default(),
             told: Told::default(),
             last_shot: Arc::default(),
+            folder: None,
         }
+    }
+
+    /// The same server, reading relative steps files from `folder` and saving them only there.
+    pub fn in_folder(mut self, folder: PathBuf) -> Mcp {
+        self.folder = Some(folder);
+        self
     }
 
     /// Also asks the human before the taps of these opt-in categories (decision D31).
@@ -1235,6 +1245,59 @@ fn for_mcp(hint: &str) -> String {
     out
 }
 
+/// Where MCP `replay` may save (decision D105): a `.steps` file inside `folder` (a relative path, or an absolute
+/// one inside it), reached through no `..` and no link out of it, that is new or already a steps file. An agent
+/// chooses the path, and without this a save could replace any file the server can write, such as a `.env`.
+fn savable(folder: &std::path::Path, file: &std::path::Path) -> Result<(), String> {
+    use std::path::Component;
+    let shown = file.display();
+    if file.components().any(|c| c == Component::ParentDir) {
+        return Err(format!(
+            "{shown} has `..` in it: save to a path inside {}",
+            folder.display()
+        ));
+    }
+    if file.extension().is_none_or(|e| e != "steps") {
+        return Err(format!(
+            "{shown} does not end in .steps: a saved run is a .steps file"
+        ));
+    }
+    let path = folder.join(file);
+    let inside = |p: &std::path::Path| {
+        let (Ok(p), Ok(f)) = (p.canonicalize(), folder.canonicalize()) else {
+            return true;
+        };
+        p.starts_with(f)
+    };
+    if !path.starts_with(folder) || path.parent().is_some_and(|p| p.exists() && !inside(p)) {
+        return Err(format!(
+            "{shown} is not inside {}: save to a relative path there",
+            folder.display()
+        ));
+    }
+    match std::fs::symlink_metadata(&path) {
+        Err(_) => Ok(()),
+        Ok(m) if m.file_type().is_symlink() => Err(format!(
+            "{shown} is a link: save to a new file or an earlier saved run"
+        )),
+        Ok(m) if !m.is_file() => Err(format!("{shown} is not a steps file: it is kept as it is")),
+        Ok(_) => {
+            let text = std::fs::read_to_string(&path).unwrap_or_default();
+            let steps = text.lines().filter(|l| !l.trim().is_empty()).all(|l| {
+                serde_json::from_str::<serde_json::Value>(l)
+                    .is_ok_and(|v| v.get("method").is_some() || v.get("manual").is_some())
+            });
+            if steps {
+                Ok(())
+            } else {
+                Err(format!(
+                    "{shown} is not a steps file: it is kept as it is; save to a new file"
+                ))
+            }
+        }
+    }
+}
+
 fn bad(message: &str) -> CallToolResult {
     CallToolResult::error(vec![ContentBlock::text(message)])
 }
@@ -1370,8 +1433,18 @@ impl Mcp {
         )
     )]
     async fn replay(&self, Parameters(a): Parameters<ReplayArgs>) -> CallToolResult {
-        let file = std::path::PathBuf::from(a.file);
+        let folder = match &self.folder {
+            Some(f) => f.clone(),
+            None => match std::env::current_dir() {
+                Ok(f) => f,
+                Err(e) => return bad(&format!("cannot read the working directory: {e}")),
+            },
+        };
+        let file = folder.join(&a.file);
         let verb = if a.save.unwrap_or(false) {
+            if let Err(why) = savable(&folder, std::path::Path::new(&a.file)) {
+                return bad(&why);
+            }
             Verb::Save { file }
         } else {
             Verb::Replay {
@@ -1516,7 +1589,13 @@ impl Mcp {
                 })
                 .await;
                 return match report {
-                    Ok(Ok(text)) => CallToolResult::success(vec![ContentBlock::text(text)]),
+                    Ok(Ok(text)) => match self
+                        .with_client(async |client| crate::commands::masked(client, &text).await)
+                        .await
+                    {
+                        Ok(text) => CallToolResult::success(vec![ContentBlock::text(text)]),
+                        Err(f) => failure(&f),
+                    },
                     Ok(Err(why)) => bad(&why),
                     Err(e) => bad(&format!("the comparison failed: {e}")),
                 };

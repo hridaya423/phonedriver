@@ -672,6 +672,200 @@ fn typing_trees(value: &str) -> Vec<phonedriver_core::raw::RawTree> {
     trees
 }
 
+fn password_trees(secret: &str) -> Vec<phonedriver_core::raw::RawTree> {
+    let mut trees = vec![fakes::field_tree("", true), fakes::field_tree("", true)];
+    let dots = "•".repeat(secret.chars().count());
+    trees.extend(std::iter::repeat_n(fakes::field_tree(&dots, true), 20));
+    trees
+}
+
+fn output(out: &std::process::Output) -> String {
+    format!(
+        "{}{}",
+        String::from_utf8_lossy(&out.stdout),
+        String::from_utf8_lossy(&out.stderr)
+    )
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_replayed_secret_goes_only_into_a_password_or_code_field_unless_the_environment_allows_any()
+ {
+    let (home, socket) = fake_daemon(typing_trees("hunter4-test")).await;
+    let steps = home.path().join("login.steps");
+    let step = json!({"method": "act", "params": {"action": {"kind": "type", "secret": true, "secret_env": "PHONEDRIVER_SECRET_1", "into": {"text": "Field"}}}});
+    std::fs::write(&steps, format!("{step}\n")).unwrap();
+    let file = steps.to_str().unwrap();
+    let refused = cli_with(
+        &home,
+        &socket,
+        &["replay", file],
+        &[("PHONEDRIVER_SECRET_1", "hunter4-test")],
+    )
+    .await;
+    let shown = output(&refused);
+    assert!(!refused.status.success(), "{shown}");
+    assert!(
+        shown.contains("only into a password or one-time code field"),
+        "{shown}"
+    );
+    assert!(
+        shown.contains("PHONEDRIVER_REPLAY_SECRET_ANY_FIELD=1"),
+        "{shown}"
+    );
+    assert!(!shown.contains("hunter4-test"), "{shown}");
+    let allowed = cli_with(
+        &home,
+        &socket,
+        &["replay", file],
+        &[
+            ("PHONEDRIVER_SECRET_1", "hunter4-test"),
+            ("PHONEDRIVER_REPLAY_SECRET_ANY_FIELD", "1"),
+        ],
+    )
+    .await;
+    let shown = output(&allowed);
+    assert!(allowed.status.success(), "{shown}");
+    assert!(!shown.contains("hunter4-test"), "{shown}");
+}
+
+#[cfg(target_os = "linux")]
+#[tokio::test(flavor = "multi_thread")]
+async fn replay_screens_masks_the_text_it_read_from_a_screen_that_shows_the_secret() {
+    use std::os::unix::fs::PermissionsExt;
+    let (home, socket) = fake_daemon(password_trees("hunter2-test-secret")).await;
+    let steps = home.path().join("login.steps");
+    let step = json!({"method": "act", "params": {"action": {"kind": "type", "secret": true, "secret_env": "PHONEDRIVER_SECRET_1", "into": {"text": "Field"}}}});
+    std::fs::write(&steps, format!("{step}\n")).unwrap();
+    let shots = home.path().join("shots");
+    std::fs::create_dir(&shots).unwrap();
+    let mut black = Vec::new();
+    let mut encoder = png::Encoder::new(&mut black, 1, 1);
+    encoder.set_color(png::ColorType::Rgb);
+    encoder
+        .write_header()
+        .unwrap()
+        .write_image_data(&[0, 0, 0])
+        .unwrap();
+    std::fs::write(shots.join("01.png"), black).unwrap();
+    let bin = home.path().join("bin");
+    std::fs::create_dir(&bin).unwrap();
+    let count = home.path().join("ocr-count");
+    let tesseract = bin.join("tesseract");
+    std::fs::write(
+        &tesseract,
+        format!(
+            "#!/bin/sh\ncat > /dev/null\nn=$(cat {c} 2>/dev/null || echo 0)\nn=$((n+1))\necho $n > {c}\n[ $n -ge 2 ] && printf '5\\t1\\t1\\t1\\t1\\t1\\t0\\t0\\t3\\t3\\t96\\thunter2-test-secret\\n'\nexit 0\n",
+            c = count.display()
+        ),
+    )
+    .unwrap();
+    std::fs::set_permissions(&tesseract, std::fs::Permissions::from_mode(0o755)).unwrap();
+    let path = std::env::join_paths(std::iter::once(bin).chain(std::env::split_paths(
+        &std::env::var_os("PATH").unwrap_or_default(),
+    )))
+    .unwrap();
+    let out = cli_with(
+        &home,
+        &socket,
+        &[
+            "replay",
+            steps.to_str().unwrap(),
+            "--screens",
+            shots.to_str().unwrap(),
+        ],
+        &[
+            ("PHONEDRIVER_SECRET_1", "hunter2-test-secret"),
+            ("PATH", path.to_str().unwrap()),
+        ],
+    )
+    .await;
+    let shown = output(&out);
+    assert!(!out.status.success(), "{shown}");
+    assert!(shown.contains("its screen is not the one in"), "{shown}");
+    assert!(shown.contains("+ \"•••\""), "{shown}");
+    assert!(!shown.contains("hunter2-test-secret"), "{shown}");
+}
+
+#[cfg(unix)]
+#[tokio::test(flavor = "multi_thread")]
+async fn save_stages_its_file_under_a_fresh_name_and_follows_no_link_beside_it() {
+    let (home, socket) = fake_daemon(vec![fakes::tree(&["One"])]).await;
+    let dir = home.path();
+    let victim = dir.join("victim.txt");
+    std::fs::write(&victim, "keep me").unwrap();
+    std::os::unix::fs::symlink(&victim, dir.join("run.steps.tmp")).unwrap();
+    std::fs::write(dir.join("other.steps.tmp"), "someone else's").unwrap();
+    for file in ["run.steps", "other.steps"] {
+        cli(&home, &socket, &["snapshot"]).await;
+        cli(&home, &socket, &["tap", "One"]).await;
+        let path = dir.join(file);
+        let saved = cli(&home, &socket, &["save", path.to_str().unwrap()]).await;
+        assert!(saved.starts_with("saved 1 step to "), "{saved}");
+        let meta = std::fs::symlink_metadata(&path).unwrap();
+        assert!(meta.file_type().is_file(), "{file} is not a plain file");
+    }
+    assert_eq!(std::fs::read_to_string(&victim).unwrap(), "keep me");
+    assert_eq!(
+        std::fs::read_to_string(dir.join("other.steps.tmp")).unwrap(),
+        "someone else's"
+    );
+    assert!(
+        std::fs::symlink_metadata(dir.join("run.steps.tmp"))
+            .unwrap()
+            .file_type()
+            .is_symlink()
+    );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_replayed_step_runs_as_the_replay_and_not_with_the_share_or_device_in_the_file() {
+    let (home, socket) = fake_daemon(vec![fakes::tree(&["One"])]).await;
+    cli(&home, &socket, &["--session", "someone-else", "snapshot"]).await;
+    let steps = home.path().join("shared.steps");
+    let shell = json!({"method": "shell", "params": {"command": "echo shared", "share": true, "device": "fake:1"}});
+    std::fs::write(&steps, format!("{shell}\n")).unwrap();
+    let out = cli_with(&home, &socket, &["replay", steps.to_str().unwrap()], &[]).await;
+    let shown = output(&out);
+    assert!(!out.status.success(), "{shown}");
+    assert!(
+        shown.contains("is leased by session someone-else"),
+        "{shown}"
+    );
+}
+
+#[cfg(target_os = "linux")]
+#[tokio::test(flavor = "multi_thread")]
+async fn the_daemon_a_cli_starts_inherits_no_phonedriver_secret_variable() {
+    let env = Env::new(DEVICES).await;
+    env.cmd()
+        .env("PHONEDRIVER_SECRET", "s-plain")
+        .env("PHONEDRIVER_SECRET_1", "s-one")
+        .env("PHONEDRIVER_SECRET_APP_PASSWORD", "s-named")
+        .env("PHONEDRIVER_SECRETS_KEPT", "kept")
+        .arg("devices")
+        .assert()
+        .success();
+    let hello = env
+        .rpc("hello", json!({"version": env!("CARGO_PKG_VERSION")}))
+        .await;
+    let pid = hello["result"]["pid"].as_u64().unwrap();
+    let environ = std::fs::read(format!("/proc/{pid}/environ")).unwrap();
+    let vars: Vec<String> = environ
+        .split(|b| *b == 0)
+        .map(|v| String::from_utf8_lossy(v).to_string())
+        .collect();
+    assert!(
+        vars.iter().any(|v| v == "PHONEDRIVER_SECRETS_KEPT=kept"),
+        "{vars:?}"
+    );
+    for v in &vars {
+        assert!(
+            !v.starts_with("PHONEDRIVER_SECRET=") && !v.starts_with("PHONEDRIVER_SECRET_"),
+            "the daemon holds {v}"
+        );
+    }
+}
+
 #[tokio::test(flavor = "multi_thread")]
 async fn a_saved_secret_names_a_variable_and_a_replay_types_what_the_environment_holds() {
     let (home, socket) = fake_daemon(typing_trees("hunter2-test")).await;
@@ -702,7 +896,7 @@ async fn a_saved_secret_names_a_variable_and_a_replay_types_what_the_environment
     );
     assert!(!kept.contains("hunter2-test"), "{kept}");
 
-    let (home, socket) = fake_daemon(typing_trees("hunter3-test")).await;
+    let (home, socket) = fake_daemon(password_trees("hunter3-test")).await;
     let replayed = cli_with(
         &home,
         &socket,

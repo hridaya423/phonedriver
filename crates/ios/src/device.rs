@@ -834,7 +834,7 @@ impl Device for IosDevice {
                 json!({"op": "type", "text": text, "speed": PASTE_SPEED})
             }
             TextInput::Keystrokes(text) => json!({"op": "type", "text": text}),
-            TextInput::SetValue(_) => {
+            TextInput::SetValue(_) | TextInput::SetSecret(_) => {
                 return Err(Error::Unsupported {
                     op: Op::Text,
                     reason: "the iOS runner cannot set a field's value; use paste or keys",

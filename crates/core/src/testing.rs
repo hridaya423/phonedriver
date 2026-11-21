@@ -70,6 +70,7 @@ pub struct FakeDevice {
     settings: Mutex<Option<FakeSettings>>,
     logs: Mutex<Option<LogReply>>,
     log_lines: Mutex<Option<Vec<String>>>,
+    log_wait_takes: Mutex<Duration>,
     networks: Mutex<Vec<NetworkView>>,
     recorder: Mutex<Option<Option<std::path::PathBuf>>>,
     text_shows: Mutex<Option<(Duration, Duration)>>,
@@ -128,6 +129,7 @@ impl FakeDevice {
             settings: Mutex::new(None),
             logs: Mutex::new(None),
             log_lines: Mutex::new(None),
+            log_wait_takes: Mutex::new(Duration::ZERO),
             networks: Mutex::new(Vec::new()),
             recorder: Mutex::new(None),
             text_shows: Mutex::new(None),
@@ -292,6 +294,11 @@ impl FakeDevice {
     /// The lines a `log_wait` finds arriving; without them the device cannot follow its log.
     pub fn answer_log_lines(&self, lines: &[&str]) {
         *lock(&self.log_lines) = Some(lines.iter().map(|l| l.to_string()).collect());
+    }
+
+    /// How long a `log_wait` takes before it answers.
+    pub fn log_wait_takes(&self, took: Duration) {
+        *lock(&self.log_wait_takes) = took;
     }
 
     /// What `network()` answers: each call takes the next view, and the last one repeats. Without any the device
@@ -549,6 +556,8 @@ impl Device for FakeDevice {
             });
         };
         self.record(Call::LogWait(req.app.clone(), req.patterns.clone()))?;
+        let took = *lock(&self.log_wait_takes);
+        tokio::time::sleep(took).await;
         let at = lines.iter().position(|l| req.matches(l));
         Ok(LogWaited {
             line: at.map(|i| lines[i].clone()),

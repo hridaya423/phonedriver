@@ -196,6 +196,35 @@ fn a_shell_command_is_traced_but_a_secret_one_is_only_a_length_and_output_is_onl
 }
 
 #[test]
+fn a_remembered_secret_is_masked_in_the_parameters_of_every_method_the_trace_keeps() {
+    run(async {
+        let home = tempfile::tempdir().unwrap();
+        let d = daemon(vec![tree(&["One"])], TraceOptions::default(), home.path());
+        d.call(
+            "s",
+            "shell",
+            json!({"command": "otp-C10-778899", "secret": true}),
+        )
+        .await
+        .unwrap();
+        let _ = d
+            .call(
+                "s",
+                "app",
+                json!({"action": "notify", "app": "Example", "payload": "{\"aps\":{\"alert\":\"Your code is otp-C10-778899\"}}"}),
+            )
+            .await;
+        d.call("s", "shell", json!({"command": "echo otp-C10-778899"}))
+            .await
+            .unwrap();
+        let all = lines(home.path());
+        assert_eq!(all.len(), 3, "{all:?}");
+        assert_eq!(all[2]["params"]["command"], "echo •••");
+        every_file_is_free_of(home.path(), "otp-C10-778899");
+    });
+}
+
+#[test]
 fn observation_text_and_text_targets_appear_only_with_trace_full() {
     run(async {
         for full in [false, true] {
