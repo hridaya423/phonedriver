@@ -40,7 +40,7 @@ async fn rig_on(source: Arc<dyn phonedriver::daemon::DeviceSource>) -> Rig {
     let listener = socket::listen(&socket).await.unwrap();
     tokio::spawn(daemon.serve_on(listener));
     let (client_io, server_io) = tokio::io::duplex(1 << 20);
-    let mcp = Mcp::new(Some(socket.clone()), "mcp-test".into());
+    let mcp = Mcp::new(Some(socket.clone()), "mcp-test".into()).in_folder(home.path().into());
     tokio::spawn(async move {
         let running = mcp.serve(server_io).await.unwrap();
         let _ = running.waiting().await;
@@ -1164,24 +1164,81 @@ async fn a_save_that_cannot_write_leaves_the_steps_for_the_next_save() {
     let rig = rig_with(fake).await;
     rig.call("snapshot", json!({})).await;
     rig.call("tap", json!({"target": "One"})).await;
-    let file = rig.home.path().join("run.steps");
-    let path = file.to_str().unwrap();
-    let blocked = rig.home.path().join("run.steps.tmp");
-    std::fs::create_dir(&blocked).unwrap();
+    let folder = rig.home.path().join("e2e");
+    let file = folder.join("run.steps");
     let r = rig
-        .call("replay", json!({"file": path, "save": true}))
+        .call("replay", json!({"file": "e2e/run.steps", "save": true}))
         .await;
     assert_eq!(r.is_error, Some(true), "{r:?}");
     assert!(texts(&r)[0].starts_with("cannot write "), "{r:?}");
     assert!(!file.exists());
 
-    std::fs::remove_dir(&blocked).unwrap();
+    std::fs::create_dir(&folder).unwrap();
     let r = rig
-        .call("replay", json!({"file": path, "save": true}))
+        .call("replay", json!({"file": "e2e/run.steps", "save": true}))
         .await;
     assert!(texts(&r)[0].starts_with("saved 1 step to "), "{r:?}");
     assert_eq!(std::fs::read_to_string(&file).unwrap().lines().count(), 1);
-    assert!(!blocked.exists());
+    assert_eq!(std::fs::read_dir(&folder).unwrap().count(), 1);
+}
+
+#[tokio::test]
+async fn replay_saves_only_a_steps_file_inside_its_folder_and_over_nothing_but_steps() {
+    let fake = Arc::new(phonedriver_core::testing::FakeDevice::new(vec![tree(&[
+        "One",
+    ])]));
+    let rig = rig_with(fake).await;
+    let outside = tempfile::tempdir().unwrap();
+    let env_file = outside.path().join("project.steps");
+    std::fs::write(&env_file, "API_KEY=keep\n").unwrap();
+    let notes = rig.home.path().join("notes.steps");
+    std::fs::write(&notes, "my notes, not steps\n").unwrap();
+    #[cfg(unix)]
+    {
+        std::os::unix::fs::symlink(&env_file, rig.home.path().join("link.steps")).unwrap();
+        std::os::unix::fs::symlink(outside.path(), rig.home.path().join("out")).unwrap();
+    }
+    let save = async |file: &str| {
+        rig.call("snapshot", json!({})).await;
+        rig.call("tap", json!({"target": "One"})).await;
+        rig.call("replay", json!({"file": file, "save": true}))
+            .await
+    };
+    let absolute = env_file.to_str().unwrap().to_string();
+    let mut refused = vec![
+        (absolute.as_str(), "inside"),
+        ("../x.steps", "`..`"),
+        ("run.txt", ".steps"),
+        ("notes.steps", "not a steps file"),
+    ];
+    if cfg!(unix) {
+        refused.push(("link.steps", "link"));
+        refused.push(("out/project.steps", "inside"));
+    }
+    for (file, why) in refused {
+        let r = save(file).await;
+        let text = texts(&r).join("\n");
+        assert_eq!(r.is_error, Some(true), "{file}: {text}");
+        assert!(text.contains(why), "{file}: {text}");
+    }
+    assert_eq!(
+        std::fs::read_to_string(&env_file).unwrap(),
+        "API_KEY=keep\n"
+    );
+    assert_eq!(
+        std::fs::read_to_string(&notes).unwrap(),
+        "my notes, not steps\n"
+    );
+    assert!(!outside.path().join("x.steps").exists());
+    assert!(!rig.home.path().join("run.txt").exists());
+
+    let r = save("run.steps").await;
+    assert!(texts(&r)[0].starts_with("saved "), "{r:?}");
+    let r = save("run.steps").await;
+    assert!(texts(&r)[0].starts_with("saved "), "{r:?}");
+    let inside = rig.home.path().join("run.steps");
+    let r = save(inside.to_str().unwrap()).await;
+    assert!(texts(&r)[0].starts_with("saved "), "{r:?}");
 }
 
 #[tokio::test]

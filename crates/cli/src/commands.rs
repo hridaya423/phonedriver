@@ -1096,7 +1096,8 @@ pub(crate) async fn execute_with(
             let now = base64::engine::general_purpose::STANDARD
                 .decode(shot.data_b64.unwrap_or_default())
                 .map_err(|e| Failure::Local(format!("the daemon sent bad image data: {e}")))?;
-            compared(&before, &now, image.as_deref()).map_err(Failure::Local)
+            let text = compared(&before, &now, image.as_deref()).map_err(Failure::Local)?;
+            masked(client, &text).await
         }
         Verb::Wait { condition, app } => {
             let mut p = json!({"condition": wait_condition(&condition, app.as_deref())});
@@ -1162,15 +1163,7 @@ pub(crate) async fn execute_with(
             name_secrets(&mut steps);
             if !steps.is_empty() {
                 let text: String = steps.iter().map(|s| format!("{s}\n")).collect();
-                let mut beside = file.clone().into_os_string();
-                beside.push(".tmp");
-                let beside = std::path::PathBuf::from(beside);
-                std::fs::write(&beside, text)
-                    .and_then(|()| std::fs::rename(&beside, &file))
-                    .inspect_err(|_| {
-                        let _ = std::fs::remove_file(&beside);
-                    })
-                    .map_err(cannot)?;
+                stage(&file, text.as_bytes()).map_err(cannot)?;
                 client
                     .call("journal", with(json!({"drop": steps.len()})))
                     .await?;
@@ -1436,6 +1429,29 @@ pub(crate) async fn execute_with(
 
 fn read_picture(path: &std::path::Path) -> Result<Vec<u8>, String> {
     std::fs::read(path).map_err(|e| format!("cannot read {}: {e}", path.display()))
+}
+
+/// Writes `bytes` to `file` through a new file of a random name beside it, so a crash leaves the old file whole and no
+/// path that someone else put beside it (a link, a file of theirs) is followed or replaced (decision D105).
+fn stage(file: &std::path::Path, bytes: &[u8]) -> std::io::Result<()> {
+    use std::io::Write;
+    let dir = file
+        .parent()
+        .filter(|d| !d.as_os_str().is_empty())
+        .unwrap_or(std::path::Path::new("."));
+    let mut staged = tempfile::Builder::new()
+        .prefix(".phonedriver-")
+        .suffix(".steps")
+        .tempfile_in(dir)?;
+    staged.write_all(bytes)?;
+    staged.persist(file).map(drop).map_err(|e| e.error)
+}
+
+/// `text` with every secret the daemon remembers masked: for text this process made from what the screen shows, such
+/// as the words a comparison read from a screenshot (decision D105).
+pub(crate) async fn masked(client: &mut Client, text: &str) -> Result<String, Failure> {
+    let reply = client.call("mask", json!({"text": text})).await?;
+    Ok(reply["text"].as_str().unwrap_or_default().to_string())
 }
 
 /// The report on two screenshots, and with `image` the later one written with its changed regions boxed.
@@ -1941,12 +1957,12 @@ impl NoSecret {
     }
 }
 
-/// The action of a saved step with the secret it names filled in from this process's environment. A `type` that
-/// is not a secret is returned as it is.
-fn with_secret(action: &Value) -> Result<Value, NoSecret> {
+/// The action of a saved step with the secret it names filled in from this process's environment, and that secret. A
+/// `type` that is not a secret is returned as it is.
+fn with_secret(action: &Value) -> Result<(Value, Option<String>), NoSecret> {
     let mut action = action.clone();
     if action["kind"] != "type" || action["secret"] != true {
-        return Ok(action);
+        return Ok((action, None));
     }
     let name = action["secret_env"]
         .as_str()
@@ -1963,7 +1979,18 @@ fn with_secret(action: &Value) -> Result<Value, NoSecret> {
         fields.remove("secret_env");
         fields.insert("text".into(), json!(text));
     }
-    Ok(action)
+    Ok((action, Some(text)))
+}
+
+/// The parameters of a saved step that is not an action, without the `device` and `share` the file may hold: a step
+/// runs on the replay's own device and lease, as an action step does.
+fn own_params(params: &Value) -> Value {
+    let mut params = params.clone();
+    if let Some(fields) = params.as_object_mut() {
+        fields.remove("device");
+        fields.remove("share");
+    }
+    params
 }
 
 fn secret_hint(why: &NoSecret, n: usize, total: usize) -> String {
@@ -2148,6 +2175,8 @@ impl Replay {
             )));
         }
         let started = std::time::Instant::now();
+        let any_field = std::env::var(variables::SECRET_ANY_FIELD).is_ok_and(|v| v == "1");
+        let mut typed = Vec::new();
         let mut done = Vec::new();
         let (mut kept, mut same) = (0u64, 0u64);
         for (i, step) in self.steps.iter().enumerate().skip(self.from - 1) {
@@ -2155,14 +2184,21 @@ impl Replay {
             let outcome = match (step["manual"].as_str(), step["method"].as_str()) {
                 (Some(what), _) => Err(refused(what)),
                 (None, Some("act")) => match with_secret(&step["params"]["action"]) {
-                    Ok(action) => client.call("act", act(action)).await,
+                    Ok((action, secret)) => {
+                        let mut params = act(action);
+                        if let Some(secret) = secret {
+                            typed.push(secret);
+                            params["secret_field_only"] = json!(!any_field);
+                        }
+                        client.call("act", params).await
+                    }
                     Err(why) => {
                         hint = Some(secret_hint(&why, i + 1, total));
                         Err(refused(&why.message()))
                     }
                 },
                 (None, Some(method @ ("wait" | "shell" | "setting" | "app"))) => {
-                    client.call(method, with(step["params"].clone())).await
+                    client.call(method, with(own_params(&step["params"]))).await
                 }
                 _ => Err(refused("this is not a step this version can run")),
             };
@@ -2186,7 +2222,7 @@ impl Replay {
                 ),
                 Err(failure) => {
                     return Err(self
-                        .stopped(client, with, i + 1, &done, failure, hint)
+                        .stopped(client, with, i + 1, &done, failure, hint, &typed)
                         .await);
                 }
             };
@@ -2203,7 +2239,7 @@ impl Replay {
                     }
                     Err((failure, hint)) => {
                         return Err(self
-                            .stopped(client, with, i + 1, &done, failure, hint)
+                            .stopped(client, with, i + 1, &done, failure, hint, &typed)
                             .await);
                     }
                 }
@@ -2255,7 +2291,10 @@ impl Replay {
         Ok(out)
     }
 
-    /// The failure of step `n`, with what ran before it, the screen, and how to go on from here.
+    /// The failure of step `n`, with what ran before it, the screen, and how to go on from here. The message is
+    /// masked by the daemon and with the secrets this replay typed, because a comparison's text is read here from a
+    /// screenshot that may show one (decision D105).
+    #[allow(clippy::too_many_arguments)]
     async fn stopped(
         &self,
         client: &mut Client,
@@ -2264,6 +2303,7 @@ impl Replay {
         done: &[String],
         failure: Failure,
         hint: Option<String>,
+        typed: &[String],
     ) -> Failure {
         let total = self.steps.len();
         let step = Replay::describe(&self.steps[n - 1]);
@@ -2294,7 +2334,8 @@ impl Replay {
                 format!("Do step {n} yourself; it is the last one.")
             }
         });
-        error.message = text;
+        let text = masked(client, &text).await.unwrap_or(text);
+        error.message = crate::daemon::secrets::masked_with(&text, typed);
         if let Some(data) = error.data.as_object_mut() {
             data.insert("hint".into(), json!(hint));
             data.insert("step".into(), json!(n));
