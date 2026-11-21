@@ -4,7 +4,7 @@ nav: No telemetry
 seo: Does phonedriver send telemetry? No, and a test proves it
 meta: phonedriver sends no telemetry. Every connection it makes, the sandbox test that fails if one is added, and how mobile-mcp and phone-harness differ.
 description: phonedriver sends no telemetry and no usage data. This page lists every connection it makes, the test that fails if anyone adds another, where logs and traces are kept, and how to check it yourself.
-updated: 2026-11-20
+updated: 2026-11-21
 ---
 
 phonedriver sends no telemetry: no install id, no usage events, no crash reports. After the first download of the binary, it talks to your device and to nothing else, with the exceptions for iPhones that are listed below. An agent that drives your phone sees your messages, your photos and your bank's login screen, so this is a rule of the project and not a setting.
@@ -18,7 +18,7 @@ phonedriver sends no telemetry: no install id, no usage events, no crash reports
 | usbmuxd and the iPhone | Physical iPhones and iPads | No |
 | Multicast DNS on the local network, and the iPhone's address | Only after `phonedriver ios wifi on`, to find and reach that iPhone | No |
 | The iOS Simulator | Simulators | No |
-| Apple's signing server | Mounting a developer disk image on a physical iPhone | Yes, to Apple |
+| Apple's signing server | Mounting a developer disk image on a physical iPhone: on a Mac, Xcode's `devicectl` asks; off a Mac, phonedriver sends the device's chip ID and nonces to `https://gs.apple.com/TSS/controller` over HTTPS and follows no redirect (before 0.1.7, over plain HTTP) | Yes, to Apple |
 | GitHub, `doronz88/DeveloperDiskImage` at a pinned commit | Only `phonedriver ios setup --download-ddi`, once, to fetch the iPhone developer disk image off a Mac; each file is checked against a pinned SHA-256 | Yes, to GitHub |
 | GitHub Releases | The first `npx -y phonedriver` run of a version, to download the binary | Yes, to GitHub |
 

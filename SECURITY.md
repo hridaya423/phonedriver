@@ -18,6 +18,12 @@ phonedriver runs on your computer and operates a phone that you connected to it.
 
 A model that is told to do something harmful and does it with the tools is not a phonedriver vulnerability, unless a guard above should have stopped it.
 
+## iPhones and iPads: what is protected
+
+- Only the phonedriver that started the runner on the phone can drive it. It must prove the token the runner was started with; anyone else on the network who connects is refused, and phonedriver's own connection stays.
+- On the cable, the runner's traffic goes through usbmuxd. Off a Mac on Wi-Fi it goes through the Wi-Fi pairing's encrypted tunnel, and phonedriver checks that the device on the network is the one it paired with on the cable before it sends anything.
+- Not protected: on a Mac over Wi-Fi, the runner's traffic, typed text included, crosses the network unencrypted. Someone who can read the network can read the screens and what is typed, `--secret` text too. Use the cable for secrets.
+
 ## Supported versions
 
 Only the latest release gets fixes.

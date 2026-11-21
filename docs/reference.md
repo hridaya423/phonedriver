@@ -145,6 +145,8 @@ phonedriver ios wifi on
 
 Unplug it. While the device and the Mac are on the same Wi-Fi network, `phonedriver devices` still lists it and every verb works. `phonedriver doctor` says `over Wi-Fi` or `over USB`. The device answers only computers it already trusts. `phonedriver ios wifi off` stops it.
 
+On a Mac over Wi-Fi, what phonedriver sends to the runner on the phone and what the runner sends back, screens and typed text included (`--secret` text too), crosses the network unencrypted. Only phonedriver can drive the runner, because it must prove the token the runner was started with (decision D106), but anyone who can read the network's traffic can read that stream. Use the cable for secrets, or a network you trust. Off a Mac, the runner's traffic goes through the Wi-Fi pairing's encrypted tunnel, and phonedriver checks that the device on the network is the one it paired with on the cable. A pairing made before 0.1.7 cannot be checked: plug the phone in once and run `phonedriver ios wifi on` again.
+
 Tested on an iPhone 13 Pro Max (iOS 27.0.1) on one network. An iPhone 14 Plus (iOS 26.1) was found and answered over Wi-Fi; taps on it were not run. A sleeping device stops answering on Wi-Fi until it wakes. phonedriver does not unlock an iPhone. From 0.1.4 it keeps an iPhone awake for 10 minutes after each use and stops on `phonedriver release`; in 0.1.3, set Settings > Display & Brightness > Auto-Lock to Never for a long task. The experimental CoreDevice tier needs the cable.  See decision D47.
 
 ## Environment variables
