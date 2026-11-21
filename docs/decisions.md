@@ -1616,6 +1616,8 @@ A run with a login could not replay in CI: D60 kept a typed secret out of the fi
 
 **Limits.** Tested as pure functions and through the fake device; no Simulator or emulator run, because `xcrun` does not run on the Linux build machine. The `install` verb still installs an `.app` from any path the agent names, and on a Simulator that app runs as the Mac's user; `open` with a `file:` URL goes to the iOS runner, not through `shell`. Neither is covered here. Under an app scope `shell` stays refused whole (D102).
 
+**`file:` links on a Simulator (added at the merge).** `open` with a `file:` URL on a Simulator goes through the runner to the Simulator's default handler, which reads the Mac's file system; a screenshot then shows the file. `phonedriver_ios` refuses it unless the switch is set (`names_a_mac_file`, unit test `a_file_link_names_a_mac_file_in_any_case_and_a_web_link_does_not`). On a phone or an Android device a `file:` link names a file of the device and is left alone. The `install` verb on a Simulator still installs an `.app` from any path the agent names, and that app runs as the Mac's user: installing the person's own build is the verb's job, so this stays and is named here as a limit.
+
 **Reopen if.** A test needs a Simulator program often enough that the switch becomes habit (then a typed verb for it); Apple sandboxes Simulator processes from the Mac's files; the emulator console adds a command that acts on the emulator and a test needs it.
 
 ## D105. Secrets and local files in 0.1.7: the mask follows the live list and changed forms, a replayed secret goes only into a password or code field, and what shows the phone is owner-only (2026-11-21)

@@ -820,6 +820,17 @@ impl Device for IosDevice {
     }
 
     async fn open_url(&self, url: &Url, _app: Option<&AppId>) -> Result<Option<AppId>> {
+        if matches!(self.host, Host::Simulator)
+            && names_a_mac_file(&url.0)
+            && !phonedriver_core::device::host_shell()
+        {
+            return Err(Error::Refused {
+                detail: format!(
+                    "a file: link on a Simulator opens a file of this Mac, not of the device; start the daemon with {}=1 to allow it",
+                    phonedriver_core::device::HOST_SHELL
+                ),
+            });
+        }
         self.input(Op::OpenUrl, json!({"op": "open_url", "url": url.0}))
             .await?;
         Ok(map::url_handler(
@@ -1091,9 +1102,30 @@ fn clear_folder(dir: &Path) -> Result<()> {
     )))
 }
 
+/// A Simulator shares the Mac's file system, so a `file:` link shows a Mac file inside the device (D108).
+fn names_a_mac_file(url: &str) -> bool {
+    url.trim_start()
+        .get(..5)
+        .is_some_and(|scheme| scheme.eq_ignore_ascii_case("file:"))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_file_link_names_a_mac_file_in_any_case_and_a_web_link_does_not() {
+        for url in [
+            "file:///Users/me/.ssh/id_ed25519",
+            "FILE:///etc/hosts",
+            " file:/tmp/x",
+        ] {
+            assert!(names_a_mac_file(url), "{url}");
+        }
+        for url in ["https://example.com/file:", "myapp://file", "fil", ""] {
+            assert!(!names_a_mac_file(url), "{url}");
+        }
+    }
 
     #[test]
     fn a_nudge_is_due_every_10_seconds_while_the_device_was_used_in_the_last_10_minutes_and_is_unlocked()
