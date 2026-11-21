@@ -7,7 +7,7 @@
 
 #![allow(unsafe_code)]
 
-use std::ffi::OsStr;
+use std::ffi::{OsStr, OsString};
 use std::fs::File;
 use std::io;
 use std::os::windows::ffi::OsStrExt;
@@ -18,8 +18,8 @@ use windows_sys::Win32::Foundation::{
     CloseHandle, HANDLE, HANDLE_FLAG_INHERIT, SetHandleInformation,
 };
 use windows_sys::Win32::System::Threading::{
-    CREATE_NEW_PROCESS_GROUP, CreateProcessW, DETACHED_PROCESS, DeleteProcThreadAttributeList,
-    EXTENDED_STARTUPINFO_PRESENT, InitializeProcThreadAttributeList,
+    CREATE_NEW_PROCESS_GROUP, CREATE_UNICODE_ENVIRONMENT, CreateProcessW, DETACHED_PROCESS,
+    DeleteProcThreadAttributeList, EXTENDED_STARTUPINFO_PRESENT, InitializeProcThreadAttributeList,
     PROC_THREAD_ATTRIBUTE_HANDLE_LIST, PROCESS_INFORMATION, STARTF_USESTDHANDLES, STARTUPINFOEXW,
     UpdateProcThreadAttribute,
 };
@@ -32,9 +32,28 @@ fn inheritable(handle: &impl AsRawHandle) -> io::Result<HANDLE> {
     Ok(raw)
 }
 
-/// Runs `exe daemon --detach` with `NUL` as stdin, `log` as stderr and a new pipe as stdout, and returns the pipe's
-/// read end. No other handle of this process reaches the daemon.
-pub fn spawn_daemon(exe: &Path, log: &File) -> io::Result<File> {
+/// An environment block for `CreateProcessW`: `name=value` strings in UTF-16, sorted by name without regard to case
+/// as the documentation of `CreateProcessW` requires, ending with an empty string.
+fn block(env: &[(OsString, OsString)]) -> Vec<u16> {
+    let mut sorted: Vec<&(OsString, OsString)> = env.iter().collect();
+    sorted.sort_by_key(|(name, _)| name.to_string_lossy().to_uppercase());
+    let mut block = Vec::new();
+    for (name, value) in sorted {
+        block.extend(name.encode_wide());
+        block.push(u16::from(b'='));
+        block.extend(value.encode_wide());
+        block.push(0);
+    }
+    if block.is_empty() {
+        block.push(0);
+    }
+    block.push(0);
+    block
+}
+
+/// Runs `exe daemon --detach` with `NUL` as stdin, `log` as stderr, a new pipe as stdout and `env` as its whole
+/// environment, and returns the pipe's read end. No other handle of this process reaches the daemon.
+pub fn spawn_daemon(exe: &Path, log: &File, env: &[(OsString, OsString)]) -> io::Result<File> {
     let nul = std::fs::OpenOptions::new().read(true).open("NUL")?;
     let (reader, writer) = std::io::pipe()?;
     let handles = [inheritable(&nul)?, inheritable(&writer)?, inheritable(log)?];
@@ -77,6 +96,7 @@ pub fn spawn_daemon(exe: &Path, log: &File) -> io::Result<File> {
         "\"{}\" daemon --detach",
         exe.display()
     )));
+    let environment = block(env);
     let mut process: PROCESS_INFORMATION = unsafe { std::mem::zeroed() };
     let created = unsafe {
         CreateProcessW(
@@ -85,8 +105,11 @@ pub fn spawn_daemon(exe: &Path, log: &File) -> io::Result<File> {
             std::ptr::null(),
             std::ptr::null(),
             1,
-            EXTENDED_STARTUPINFO_PRESENT | DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP,
-            std::ptr::null(),
+            EXTENDED_STARTUPINFO_PRESENT
+                | DETACHED_PROCESS
+                | CREATE_NEW_PROCESS_GROUP
+                | CREATE_UNICODE_ENVIRONMENT,
+            environment.as_ptr().cast(),
             std::ptr::null(),
             &startup.StartupInfo,
             &mut process,
