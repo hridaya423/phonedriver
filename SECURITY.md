@@ -16,7 +16,7 @@ phonedriver runs on your computer and operates a phone that you connected to it.
 - A connection from phonedriver to anything except the device and, for iOS developer disk images, Apple.
 - A release file that does not match its published checksum.
 
-A model that is told to do something harmful and does it with the tools is not a phonedriver vulnerability, unless a guard above should have stopped it.
+A model that is told to do something harmful and does it with the tools is not a phonedriver vulnerability, unless a guard above should have stopped it. Neither is what `shell` does on the computer after you started the daemon with `PHONEDRIVER_HOST_SHELL=1`, which allows exactly that.
 
 ## Supported versions
 

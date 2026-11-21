@@ -41,7 +41,9 @@ The first command that needs the runner builds a small XCTest runner on your Mac
 
 ## Use the shell
 
-`phonedriver shell "simctl ui appearance dark"` fills in the device for `simctl` subcommands, and runs anything else inside the Simulator. iOS 26 Simulators have no shell, so a command is one of their own programs, such as `defaults` or `log`. See [the shell](/docs/shell/).
+`phonedriver shell "simctl ui appearance dark"` fills in the device for `simctl` subcommands that act on the Simulator alone, such as `ui`, `openurl`, `privacy`, `location` and `status_bar`.
+
+A Simulator's programs run on your Mac as your Mac user, and they can read and write your Mac's files. So by default `shell` runs no program in the Simulator and refuses the `simctl` forms that touch a Mac file: `spawn`, `install`, `addmedia`, `push`, `io screenshot`, `keychain add-cert`. The verbs `install`, `apps notify`, `screenshot` and `record` do those jobs. To allow the rest, stop the daemon with `phonedriver daemon stop` and start it again with `PHONEDRIVER_HOST_SHELL=1` set, for example in the MCP server's `env`. Then a command such as `defaults read -g AppleLocale` runs inside the Simulator. iOS 26 Simulators have no shell, so a command is one of their own programs, such as `defaults` or `log`. See [the shell](/docs/shell/).
 
 ## Push notifications and logs
 
