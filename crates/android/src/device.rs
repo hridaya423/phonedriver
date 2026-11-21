@@ -663,13 +663,7 @@ impl Device for AndroidDevice {
     }
 
     async fn hardware_serial(&self) -> Result<Option<String>> {
-        let serial = self.adb.hardware_serial(&self.serial).await?;
-        if serial.is_empty() {
-            return Err(Error::Transport {
-                detail: "the phone did not report its serial number (`getprop ro.serialno`)".into(),
-            });
-        }
-        Ok(Some(serial))
+        Ok(Some(self.adb.hardware_serial(&self.serial).await?))
     }
 
     async fn app_op(&self, op: AppOp, app: &AppId) -> Result<()> {

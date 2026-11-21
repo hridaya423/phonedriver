@@ -82,13 +82,16 @@ impl AdbSource {
 
 impl AdbSource {
     /// `os` is the Android version label, one `getprop` round trip per device the first time it is listed; a caller that
-    /// only needs the ids skips it.
-    async fn listed(&self, with_os: bool) -> Result<Vec<Listed>, Error> {
+    /// only needs the ids skips it. A device an entry of `denied` names by id is left out before anything is asked of it.
+    async fn listed(&self, with_os: bool, denied: &[String]) -> Result<Vec<Listed>, Error> {
         let devices: Vec<AdbDevice> = self
             .devices()
             .await?
             .into_iter()
-            .filter(|d| d.state == DeviceState::Device)
+            .filter(|d| {
+                d.state == DeviceState::Device
+                    && !super::policy::denies_id(denied, &format!("android:{}", d.serial))
+            })
             .collect();
         let key = |d: &AdbDevice| (d.serial.clone(), d.transport_id);
         let devices = if with_os && devices.len() > 1 {
@@ -267,7 +270,11 @@ impl AdbSource {
 #[async_trait]
 impl DeviceSource for AdbSource {
     async fn list(&self) -> Result<Vec<Listed>, Error> {
-        self.listed(true).await
+        self.listed(true, &[]).await
+    }
+
+    async fn list_except(&self, denied: &[String]) -> Result<Vec<Listed>, Error> {
+        self.listed(true, denied).await
     }
 
     async fn off(&self) -> Vec<DeviceSummary> {
@@ -305,7 +312,7 @@ impl DeviceSource for AdbSource {
     /// A request that names a device sees every connection, so an id that the unnamed listing folded into
     /// another connection of the same phone still resolves.
     async fn list_for(&self, requested: Option<&str>) -> Result<Vec<Listed>, Error> {
-        self.listed(requested.is_none()).await
+        self.listed(requested.is_none(), &[]).await
     }
 
     /// Always the phone's `ro.serialno`, read once per connection: an emulator's adb name (`emulator-5554`) and a
