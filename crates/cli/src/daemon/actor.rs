@@ -3313,7 +3313,6 @@ impl Actor {
     /// One drag that stops under the finger, or with `until` drags until the text shows (architecture 10.1). The
     /// end of the content is two drags in a row that change nothing.
     #[allow(clippy::too_many_arguments)]
-    #[allow(clippy::too_many_arguments)]
     async fn scroll(
         &mut self,
         s: &mut Session,
