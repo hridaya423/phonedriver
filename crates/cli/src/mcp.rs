@@ -23,7 +23,7 @@ use tokio::sync::Mutex;
 
 use crate::client::{Client, Failure};
 use crate::commands::{Globals, Verb, ask_env, execute_with, run_batch};
-use crate::wire::{Approval, ScreenshotResult};
+use crate::wire::{Approval, Approved, ScreenshotResult};
 
 struct Shot {
     device: Option<String>,
@@ -49,6 +49,7 @@ struct Held {
     key: String,
     step: usize,
     asked: String,
+    shown: Approved,
 }
 
 /// The device line (`device <id> · <model> · <os> · <size> · <orientation>`) of the last reply this server sent. The
@@ -286,6 +287,8 @@ struct SwipeArgs {
     distance: Option<f32>,
     /// A quick flick that may fling.
     fast: Option<bool>,
+    #[serde(default, deserialize_with = "flag")]
+    autonomous: Option<bool>,
 }
 
 #[derive(Deserialize, JsonSchema)]
@@ -300,6 +303,8 @@ struct ScrollArgs {
     until: Option<String>,
     /// Give up after this many scrolls. Default 30.
     max: Option<u32>,
+    #[serde(default, deserialize_with = "flag")]
+    autonomous: Option<bool>,
 }
 
 #[derive(Deserialize, JsonSchema)]
@@ -307,6 +312,8 @@ struct ScrollArgs {
 struct PressArgs {
     device: Option<String>,
     key: String,
+    #[serde(default, deserialize_with = "flag")]
+    autonomous: Option<bool>,
 }
 
 #[derive(Deserialize, JsonSchema)]
@@ -410,12 +417,14 @@ impl SwipeArgs {
                     .from
                     .ok_or("`to` needs `from`: where the drag starts")?,
                 to,
+                autonomous: false,
             }),
             (_, None, Some(direction)) if direction == "in" || direction == "out" => {
                 Ok(Verb::Pinch {
                     direction,
                     at: self.from,
                     distance: self.distance,
+                    autonomous: false,
                 })
             }
             (_, None, Some(_)) => Err("`pinch` is `in` or `out`"),
@@ -424,6 +433,7 @@ impl SwipeArgs {
                 from: self.from,
                 distance: self.distance,
                 fast: self.fast.unwrap_or(false),
+                autonomous: false,
             }),
             (None, None, None) => Err("pass `direction`, `to` or `pinch`"),
             _ => Err("pass one of `direction`, `to` or `pinch`"),
@@ -438,6 +448,7 @@ impl ScrollArgs {
             within: self.r#in,
             until: self.until,
             max: self.max,
+            autonomous: false,
         }
     }
 }
@@ -484,6 +495,7 @@ fn step_verb(step: serde_json::Value) -> Result<Verb, String> {
             .verb()),
         "press" => Ok(Verb::Press {
             key: serde_json::from_value::<PressArgs>(rest).map_err(args)?.key,
+            autonomous: false,
         }),
         "wait" => serde_json::from_value::<WaitArgs>(rest)
             .map_err(args)?
@@ -496,7 +508,10 @@ fn step_verb(step: serde_json::Value) -> Result<Verb, String> {
             let a = serde_json::from_value::<TypeArgs>(rest).map_err(args)?;
             if a.text.is_empty() {
                 return match a.into {
-                    Some(target) => Ok(Verb::Clear { target }),
+                    Some(target) => Ok(Verb::Clear {
+                        target,
+                        autonomous: false,
+                    }),
                     None => Err("to clear a field pass `into`: the field to empty".into()),
                 };
             }
@@ -589,6 +604,7 @@ impl Mcp {
                 &std::env::var("PHONEDRIVER_DISPLAY").unwrap_or_default(),
             ),
             approval: None,
+            approved: None,
             ask: self.ask.clone(),
         }
     }
@@ -634,6 +650,7 @@ impl Mcp {
                 Decision::Once => globals.approval = Some(Approval::Once),
                 Decision::Session => globals.approval = Some(Approval::Session),
             }
+            globals.approved = Some(held.shown);
         }
         let first = self
             .with_client(async |client| {
@@ -645,6 +662,7 @@ impl Mcp {
             return Outcome::Done(self.reply(&globals, first).await);
         };
         let asked = commitment(&label, app.as_deref(), category, &details);
+        let shown = Approved { label, details };
         let prompt = format!("Your agent wants to do this on your phone:\n{asked}\nAllow it?");
         let reply = match channel {
             Channel::Mrtr {
@@ -656,6 +674,7 @@ impl Mcp {
                         key,
                         step: 0,
                         asked,
+                        shown,
                     });
                     return Outcome::Ask(q);
                 }
@@ -681,6 +700,7 @@ impl Mcp {
                     Decision::Session => Approval::Session,
                     _ => Approval::Once,
                 });
+                globals.approved = Some(shown);
                 let second = self
                     .with_client(async |client| {
                         execute_with(client, verb(), secret, &globals).await
@@ -719,6 +739,7 @@ impl Mcp {
                 Decision::Session => globals.approval = Some(Approval::Session),
             }
             from = held.step;
+            globals.approved = Some(held.shown);
         }
         loop {
             let rest = steps[from..].to_vec();
@@ -726,6 +747,7 @@ impl Mcp {
                 .with_client(async |client| run_batch(client, rest, &globals).await)
                 .await;
             globals.approval = None;
+            globals.approved = None;
             let Some((label, app, category, details)) =
                 result.as_ref().err().and_then(approval_needed)
             else {
@@ -737,6 +759,7 @@ impl Mcp {
                 .and_then(held_step)
                 .map_or(from, |n| from + n - 1);
             let asked = commitment(&label, app.as_deref(), category, &details);
+            let shown = Approved { label, details };
             let prompt = format!("Your agent wants to do this on your phone:\n{asked}\nAllow it?");
             let reply = match &channel {
                 Channel::Mrtr {
@@ -748,6 +771,7 @@ impl Mcp {
                             key,
                             step: held,
                             asked,
+                            shown,
                         });
                         return Outcome::Ask(q);
                     }
@@ -773,6 +797,7 @@ impl Mcp {
                 Decision::Once => globals.approval = Some(Approval::Once),
                 Decision::Session => globals.approval = Some(Approval::Session),
             }
+            globals.approved = Some(shown);
             from = held;
         }
     }
@@ -838,6 +863,31 @@ impl Mcp {
                 }
                 Err(why) => Outcome::Done(bad(&why)),
             }
+        } else if request.name == "swipe" {
+            let a: SwipeArgs = serde_json::from_value(args).map_err(invalid)?;
+            let (device, autonomous) = (a.device.clone(), a.autonomous.unwrap_or(false));
+            match a.verb() {
+                Ok(verb) => {
+                    self.guarded(channel, key, device, || verb.clone(), None, autonomous)
+                        .await
+                }
+                Err(why) => Outcome::Done(bad(why)),
+            }
+        } else if request.name == "scroll" {
+            let a: ScrollArgs = serde_json::from_value(args).map_err(invalid)?;
+            let (device, autonomous) = (a.device.clone(), a.autonomous.unwrap_or(false));
+            let verb = a.verb();
+            self.guarded(channel, key, device, || verb.clone(), None, autonomous)
+                .await
+        } else if request.name == "press" {
+            let a: PressArgs = serde_json::from_value(args).map_err(invalid)?;
+            let autonomous = a.autonomous.unwrap_or(false);
+            let verb = Verb::Press {
+                key: a.key,
+                autonomous: false,
+            };
+            self.guarded(channel, key, a.device, || verb.clone(), None, autonomous)
+                .await
         } else if request.name == "tap" {
             let mut a: TapArgs = serde_json::from_value(args).map_err(invalid)?;
             let (device, autonomous) = (a.device.clone(), a.autonomous.unwrap_or(false));
@@ -1543,13 +1593,27 @@ impl Mcp {
                 .await
                 .complete();
         }
-        if a.text.is_empty() && !secret {
-            return match a.into {
-                Some(target) => self.run(a.device, Verb::Clear { target }, None).await,
-                None => bad("to clear a field pass `into`: the field to empty"),
-            };
-        }
         let autonomous = a.autonomous.unwrap_or(false);
+        if a.text.is_empty() && !secret {
+            let Some(target) = a.into else {
+                return bad("to clear a field pass `into`: the field to empty");
+            };
+            let verb = || Verb::Clear {
+                target: target.clone(),
+                autonomous: false,
+            };
+            return self
+                .guarded(
+                    Channel::Peer(&peer),
+                    String::new(),
+                    a.device,
+                    verb,
+                    None,
+                    autonomous,
+                )
+                .await
+                .complete();
+        }
         let device = a.device.clone();
         let text = secret.then(|| a.text.clone());
         let outcome = self
@@ -1575,12 +1639,26 @@ impl Mcp {
             open_world_hint = true
         )
     )]
-    async fn swipe(&self, Parameters(a): Parameters<SwipeArgs>) -> CallToolResult {
-        let device = a.device.clone();
-        match a.verb() {
-            Ok(verb) => self.run(device, verb, None).await,
-            Err(why) => bad(why),
-        }
+    async fn swipe(
+        &self,
+        peer: Peer<RoleServer>,
+        Parameters(a): Parameters<SwipeArgs>,
+    ) -> CallToolResult {
+        let (device, autonomous) = (a.device.clone(), a.autonomous.unwrap_or(false));
+        let verb = match a.verb() {
+            Ok(verb) => verb,
+            Err(why) => return bad(why),
+        };
+        self.guarded(
+            Channel::Peer(&peer),
+            String::new(),
+            device,
+            || verb.clone(),
+            None,
+            autonomous,
+        )
+        .await
+        .complete()
     }
 
     #[tool(
@@ -1593,9 +1671,23 @@ impl Mcp {
             open_world_hint = true
         )
     )]
-    async fn scroll(&self, Parameters(a): Parameters<ScrollArgs>) -> CallToolResult {
-        let device = a.device.clone();
-        self.run(device, a.verb(), None).await
+    async fn scroll(
+        &self,
+        peer: Peer<RoleServer>,
+        Parameters(a): Parameters<ScrollArgs>,
+    ) -> CallToolResult {
+        let (device, autonomous) = (a.device.clone(), a.autonomous.unwrap_or(false));
+        let verb = a.verb();
+        self.guarded(
+            Channel::Peer(&peer),
+            String::new(),
+            device,
+            || verb.clone(),
+            None,
+            autonomous,
+        )
+        .await
+        .complete()
     }
 
     #[tool(
@@ -1608,8 +1700,26 @@ impl Mcp {
             open_world_hint = true
         )
     )]
-    async fn press(&self, Parameters(a): Parameters<PressArgs>) -> CallToolResult {
-        self.run(a.device, Verb::Press { key: a.key }, None).await
+    async fn press(
+        &self,
+        peer: Peer<RoleServer>,
+        Parameters(a): Parameters<PressArgs>,
+    ) -> CallToolResult {
+        let autonomous = a.autonomous.unwrap_or(false);
+        let verb = || Verb::Press {
+            key: a.key.clone(),
+            autonomous: false,
+        };
+        self.guarded(
+            Channel::Peer(&peer),
+            String::new(),
+            a.device,
+            verb,
+            None,
+            autonomous,
+        )
+        .await
+        .complete()
     }
 
     #[tool(
@@ -1683,7 +1793,12 @@ impl ServerHandler for Mcp {
         let mrtr = context
             .protocol_version()
             .is_some_and(|v| v >= ProtocolVersion::V_2026_07_28);
-        if mrtr && matches!(request.name.as_ref(), "tap" | "type" | "batch") {
+        if mrtr
+            && matches!(
+                request.name.as_ref(),
+                "tap" | "type" | "batch" | "swipe" | "scroll" | "press"
+            )
+        {
             return self.call_guarded(request, &context).await;
         }
         let call = rmcp::handler::server::tool::ToolCallContext::new(self, request, context);

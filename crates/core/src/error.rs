@@ -641,7 +641,7 @@ impl Error {
                 format!("Use one of these keys: {}.", valid.join("; "))
             }
             Error::SecretField { .. } => "Use `--secret` (the text on stdin or in PHONEDRIVER_SECRET). A batch on the command line cannot carry secret text: run that `type` on its own.".into(),
-            Error::NeedsApproval { .. } => "Ask the user in chat whether to tap it; tap again with `--autonomous` only when they say yes or have granted full autonomy.".into(),
+            Error::NeedsApproval { .. } => "Ask the user in chat whether to do it; run the same command again with `--autonomous` only when they say yes or have granted full autonomy.".into(),
             Error::NoApp { similar, .. } if !similar.is_empty() => {
                 format!("Use one of these installed apps: {}.", similar.join("; "))
             }

@@ -43,7 +43,7 @@ use super::shell;
 use super::verify::{Expect, Verdict, Verify};
 use super::{guard, secret_field};
 use crate::wire::{
-    ActParams, Action, ActionResult, AppParams, Approval, BatchParams, BatchResult,
+    ActParams, Action, ActionResult, AppParams, Approval, Approved, BatchParams, BatchResult,
     ClipboardParams, Crashed, FindParams, JournalParams, Kind, LogsParams, Observation, PageParams,
     PinchDirection, RecordAction, RecordParams, ScreenshotParams, ScreenshotResult, SettingParams,
     ShellParams, ShellResult, SnapshotParams, Step, StepFailure, StepResult, Target, TypeMode,
@@ -1237,6 +1237,7 @@ impl Actor {
                     app: None,
                 },
                 approval: None,
+                approved: None,
                 ask: Vec::new(),
                 settle: p.settle,
                 timeout_ms: p.timeout_ms,
@@ -2098,28 +2099,66 @@ impl Actor {
     }
 
     /// A tap on a button that spends money or cannot be undone needs the human's word (decision D27). A point is
-    /// matched to the element under it on a fresh read.
+    /// matched to the element under it on a fresh read; an element that takes no touch of its own counts as the row
+    /// it sits in.
     async fn guard_tap(
         &mut self,
         s: &mut Session,
-        approval: Option<Approval>,
-        ask: &[Category],
+        c: &Consent,
         target: &Target,
         found: Option<&Element>,
         at: Point,
     ) -> Result<Option<&'static str>, Error> {
-        if approval == Some(Approval::Autonomous) {
+        if c.approval == Some(Approval::Autonomous) {
             return Ok(None);
         }
         let button = match (found, target) {
-            (Some(e), _) => Some(e.clone()),
+            (Some(e), _) => match s
+                .last
+                .as_ref()
+                .and_then(|now| Some((now, now.index_of(e.r#ref)?)))
+            {
+                Some((now, i)) => guard::receiver(now, &now.elements[i], &c.ask).cloned(),
+                None => guard::guarded(e, &c.ask).map(|_| e.clone()),
+            },
             (None, Target::Point { .. }) => {
                 let now = self.screen_for_guard(s).await?;
-                guard::hit(&now, at).cloned()
+                guard::clicked(&now, at, &c.ask).cloned()
             }
             _ => None,
         };
-        self.guard_button(s, approval, ask, button).await
+        self.guard_button(s, c, button).await
+    }
+
+    /// Every other touch a verb sends (decision D104): a finger that goes down and lifts on a guarded element, or a
+    /// stroke along a "Slide to pay" track, commits it as a tap would. It is checked against a screen already in
+    /// hand (`on`, or the session's last screen when it is sure), so an ordinary swipe costs no read; only a gesture
+    /// shaped like a tap, or a drop, reads the screen when none is.
+    async fn guard_touch(
+        &mut self,
+        s: &mut Session,
+        c: &Consent,
+        g: &Gesture,
+        drop: bool,
+        on: Option<&Rendered>,
+        start: Option<&Element>,
+    ) -> Result<Option<&'static str>, Error> {
+        if c.approval == Some(Approval::Autonomous) {
+            return Ok(None);
+        }
+        let known = on.or(s.last.as_ref().filter(|_| !s.unsure));
+        let button = match known {
+            Some(now) => guard::touched(now, g, drop, &c.ask).cloned(),
+            None if start.is_some() && !drop => {
+                start.filter(|e| guard::strokes(e, g, &c.ask)).cloned()
+            }
+            None if drop || guard::tap_like(g) => {
+                let now = self.screen_for_guard(s).await?;
+                guard::touched(&now, g, drop, &c.ask).cloned()
+            }
+            None => None,
+        };
+        self.guard_button(s, c, button).await
     }
 
     async fn screen_for_guard(&mut self, s: &mut Session) -> Result<Rendered, Error> {
@@ -2134,43 +2173,81 @@ impl Actor {
         Ok(view)
     }
 
-    /// `type --submit` presses enter, which sends the form: guarded when the field's own form holds such a button.
+    /// Enter sends the form: guarded when the field's own form holds such a button, enabled or not yet (a Pay
+    /// button that the form turns on once the field is filled). The session's last screen is used when it is sure.
     async fn guard_submit(
         &mut self,
         s: &mut Session,
-        approval: Option<Approval>,
-        ask: &[Category],
+        c: &Consent,
         field: Option<&Element>,
     ) -> Result<Option<&'static str>, Error> {
-        let button = field
-            .zip(s.last.as_ref())
-            .and_then(|(f, now)| guard::submit_button(now, f, ask))
-            .cloned();
-        self.guard_button(s, approval, ask, button).await
+        if c.approval == Some(Approval::Autonomous) {
+            return Ok(None);
+        }
+        let now = match s.last.clone().filter(|_| !s.unsure) {
+            Some(last) => last,
+            None => self.fresh(s).await?,
+        };
+        let button = guard::submit_button(&now, field, &c.ask).cloned();
+        self.guard_button(s, c, button).await
+    }
+
+    /// `press enter` sends what has focus: a focused guarded button, or the focused field's form.
+    async fn guard_enter(
+        &mut self,
+        s: &mut Session,
+        c: &Consent,
+    ) -> Result<Option<&'static str>, Error> {
+        if c.approval == Some(Approval::Autonomous) {
+            return Ok(None);
+        }
+        let now = match s.last.clone().filter(|_| !s.unsure) {
+            Some(last) => last,
+            None => self.fresh(s).await?,
+        };
+        let button = guard::entered(&now, &c.ask).cloned();
+        self.guard_button(s, c, button).await
     }
 
     async fn guard_button(
         &mut self,
         s: &mut Session,
-        approval: Option<Approval>,
-        ask: &[Category],
+        c: &Consent,
         button: Option<Element>,
     ) -> Result<Option<&'static str>, Error> {
-        let Some((button, category)) = button.and_then(|b| guard::guarded(&b, ask).map(|c| (b, c)))
+        let Some((button, category)) =
+            button.and_then(|b| guard::category(&b, &c.ask).map(|k| (b, k)))
         else {
             return Ok(None);
         };
-        match guard::stance(s, approval, category) {
+        let label = button
+            .label
+            .clone()
+            .or(button.value.clone())
+            .unwrap_or_default();
+        let ask = |now: &Rendered, details: Vec<String>| Error::NeedsApproval {
+            label: label.clone(),
+            category,
+            app: guard::app_name(now),
+            details,
+        };
+        if let Some(shown) = c
+            .approved
+            .as_ref()
+            .filter(|_| matches!(c.approval, Some(Approval::Once | Approval::Session)))
+        {
+            let now = self.fresh(s).await?;
+            let details = guard::context(&now, &button);
+            if shown.label != label || shown.details != details {
+                return Err(ask(&now, details));
+            }
+        }
+        match guard::stance(s, c.approval, category) {
             guard::Stance::Run(note) => Ok(note),
             guard::Stance::Ask => {
                 let now = self.fresh(s).await?;
                 let details = guard::context(&now, &button);
-                Err(Error::NeedsApproval {
-                    label: button.label.or(button.value).unwrap_or_default(),
-                    category,
-                    app: guard::app_name(&now),
-                    details,
-                })
+                Err(ask(&now, details))
             }
         }
     }
@@ -2252,6 +2329,11 @@ impl Actor {
             cfg.expect_change = Some(COLD_CHANGE_WAIT);
         }
         let device = self.device()?;
+        let consent = Consent {
+            approval: p.approval,
+            ask: p.ask.clone(),
+            approved: p.approved.clone(),
+        };
         match p.action {
             Action::Tap {
                 target,
@@ -2324,7 +2406,7 @@ impl Actor {
                     });
                 }
                 let approved = self
-                    .guard_tap(s, p.approval, &p.ask, &target, found.as_ref(), at)
+                    .guard_tap(s, &consent, &target, found.as_ref(), at)
                     .await?;
                 let started = self.begin_action();
                 let t = Instant::now();
@@ -2410,24 +2492,28 @@ impl Actor {
                     "this device cannot inject touches",
                 )?;
                 let screen = self.screen_rect();
-                let (start, line) = match &from {
+                let (start, line, from_element) = match &from {
                     Some(t) => {
                         let r = self.resolve_target(s, t).await?;
-                        (Some(r.at), r.line)
+                        (Some(r.at), r.line, r.element)
                     }
-                    None => (None, None),
+                    None => (None, None, None),
                 };
                 let distance = distance.unwrap_or(0.5);
                 let g = match start {
                     Some(at) => gesture::swipe_from(at, screen, direction, distance, fast),
                     None => gesture::swipe(screen, direction, distance, fast),
                 };
+                let approved = self
+                    .guard_touch(s, &consent, &g, false, None, from_element.as_ref())
+                    .await?;
                 let started = self.begin_action();
                 self.watching(device.gesture(g)).await?;
                 let from_text = line
                     .map(|l| format!(" from {}", short(&l)))
                     .unwrap_or_default();
-                let summary = format!("swiped {}{from_text}", direction.name());
+                let summary =
+                    approved_summary(format!("swiped {}{from_text}", direction.name()), approved);
                 self.finish(s, p.settle, cfg, started, summary, None, None)
                     .await
             }
@@ -2439,16 +2525,20 @@ impl Actor {
                 )?;
                 let a = self.resolve_target(s, &from).await?;
                 let b = self.resolve_target(s, &to).await?;
-                let started = self.begin_action();
-                self.watching(device.gesture(gesture::press_drag(a.at, b.at)))
+                let g = gesture::press_drag(a.at, b.at);
+                let approved = self
+                    .guard_touch(s, &consent, &g, true, None, a.element.as_ref())
                     .await?;
+                let started = self.begin_action();
+                self.watching(device.gesture(g)).await?;
                 let label = |r: &Resolved| {
                     r.line.as_deref().map_or_else(
                         || format!("{},{}", r.at.x.round(), r.at.y.round()),
                         |l| short(l).to_string(),
                     )
                 };
-                let summary = format!("dragged {} to {}", label(&a), label(&b));
+                let summary =
+                    approved_summary(format!("dragged {} to {}", label(&a), label(&b)), approved);
                 self.finish(s, p.settle, cfg, started, summary, None, None)
                     .await
             }
@@ -2463,22 +2553,27 @@ impl Actor {
                     "this device cannot inject two-finger touches",
                 )?;
                 let screen = self.screen_rect();
-                let (center, line) = match &at {
+                let (center, line, pinched) = match &at {
                     Some(t) => {
                         let r = self.resolve_target(s, t).await?;
-                        (r.at, r.line)
+                        (r.at, r.line, r.element)
                     }
-                    None => (screen.center(), None),
+                    None => (screen.center(), None, None),
                 };
                 let out = direction == PinchDirection::Out;
-                let started = self.begin_action();
-                device
-                    .gesture(gesture::pinch(center, screen, out, distance.unwrap_or(0.5)))
+                let g = gesture::pinch(center, screen, out, distance.unwrap_or(0.5));
+                let approved = self
+                    .guard_touch(s, &consent, &g, false, None, pinched.as_ref())
                     .await?;
+                let started = self.begin_action();
+                device.gesture(g).await?;
                 let on = line
                     .map(|l| format!(" on {}", short(&l)))
                     .unwrap_or_default();
-                let summary = format!("pinched {}{on}", if out { "out" } else { "in" });
+                let summary = approved_summary(
+                    format!("pinched {}{on}", if out { "out" } else { "in" }),
+                    approved,
+                );
                 self.finish(s, p.settle, cfg, started, summary, None, None)
                     .await
             }
@@ -2501,9 +2596,11 @@ impl Actor {
                         })
                         .collect(),
                 };
+                let approved = self.guard_touch(s, &consent, &g, false, None, None).await?;
                 let started = self.begin_action();
                 self.watching(device.gesture(g)).await?;
-                let summary = format!("gestured with {} fingers", fingers.len());
+                let summary =
+                    approved_summary(format!("gestured with {} fingers", fingers.len()), approved);
                 self.finish(s, p.settle, cfg, started, summary, None, None)
                     .await
             }
@@ -2646,7 +2743,7 @@ impl Actor {
                     Op::Gesture,
                     "this device cannot inject touches",
                 )?;
-                self.scroll(s, p.settle, cfg, direction, within, until, max)
+                self.scroll(s, &consent, p.settle, cfg, direction, within, until, max)
                     .await
             }
             Action::Press { key } if key == "hide-keyboard" => {
@@ -2682,12 +2779,18 @@ impl Actor {
                 Ok(result)
             }
             Action::Press { key } => {
+                let approved = if key == "enter" {
+                    self.guard_enter(s, &consent).await?
+                } else {
+                    None
+                };
                 let started = self.begin_action();
                 let via = self.watching(press(&*device, &key)).await?;
                 let summary = match via {
                     Some(how) => format!("pressed {key} via {how}"),
                     None => format!("pressed {key}"),
                 };
+                let summary = approved_summary(summary, approved);
                 self.finish(s, p.settle, cfg, started, summary, via, None)
                     .await
             }
@@ -2699,6 +2802,9 @@ impl Actor {
                 )?;
                 let r = self.resolve_target(s, &target).await?;
                 let secure = r.element.as_ref().is_some_and(is_secure);
+                let approved = self
+                    .guard_tap(s, &consent, &target, r.element.as_ref(), r.at)
+                    .await?;
                 let started = self.begin_action();
                 device.gesture(gesture::tap(r.at, 1, None)).await?;
                 device
@@ -2722,7 +2828,7 @@ impl Actor {
                     p.settle,
                     cfg,
                     started,
-                    format!("cleared{label}"),
+                    approved_summary(format!("cleared{label}"), approved),
                     Some("set"),
                     Some(verify),
                 )
@@ -2851,12 +2957,18 @@ impl Actor {
                         kind,
                     });
                 }
-                let approved = if submit {
-                    self.guard_submit(s, p.approval, &p.ask, field.as_ref())
-                        .await?
+                let focus_tap = match (&into, tap_at) {
+                    (Some(t), Some(at)) => {
+                        self.guard_tap(s, &consent, t, field.as_ref(), at).await?
+                    }
+                    _ => None,
+                };
+                let sent = if submit {
+                    self.guard_submit(s, &consent, field.as_ref()).await?
                 } else {
                     None
                 };
+                let approved = focus_tap.or(sent);
                 let secure = secret || field.as_ref().is_some_and(is_secure);
                 let replace = into.is_some() && !append;
                 let mut held = field
@@ -3169,9 +3281,11 @@ impl Actor {
     /// One drag that stops under the finger, or with `until` drags until the text shows (architecture 10.1). The
     /// end of the content is two drags in a row that change nothing.
     #[allow(clippy::too_many_arguments)]
+    #[allow(clippy::too_many_arguments)]
     async fn scroll(
         &mut self,
         s: &mut Session,
+        consent: &Consent,
         settle: bool,
         cfg: Config,
         direction: Direction,
@@ -3192,12 +3306,16 @@ impl Actor {
             .map_or_else(|| self.screen_rect(), |e| e.bounds);
         let area = above_keyboard(area, now.header.keyboard);
         let holder = holder.map(|e| e.r#ref);
+        let first = gesture::scroll(area, direction);
+        let approved = self
+            .guard_touch(s, consent, &first, false, Some(&now), None)
+            .await?;
         let Some(until) = until else {
             let started = self.begin_action();
             let t = Instant::now();
-            device.gesture(gesture::scroll(area, direction)).await?;
+            device.gesture(first).await?;
             self.lap("gesture", t);
-            let summary = format!("scrolled {}", direction.name());
+            let summary = approved_summary(format!("scrolled {}", direction.name()), approved);
             return self
                 .finish(s, settle, cfg, started, summary, None, None)
                 .await;
@@ -3317,6 +3435,8 @@ impl Actor {
             } else {
                 gesture::scroll(area, dir)
             };
+            self.guard_touch(s, consent, &g, false, Some(&now), None)
+                .await?;
             device.gesture(g).await?;
             gestures += 1;
             last = Some(self.settle(cfg, started).await);
@@ -3600,6 +3720,7 @@ impl Actor {
                         ActParams {
                             action,
                             approval: p.approval.filter(|a| *a == Approval::Autonomous || i == 0),
+                            approved: p.approved.clone().filter(|_| i == 0),
                             ask: p.ask.clone(),
                             settle: true,
                             timeout_ms: p.timeout_ms,
@@ -4531,6 +4652,14 @@ async fn press(device: &dyn Device, key: &str) -> Result<Option<&'static str>, E
             "portrait".into(),
         ],
     })
+}
+
+/// What the human has said about held actions, for one action: their approval, the opt-in categories to ask about,
+/// and what they were shown when they approved.
+struct Consent {
+    approval: Option<Approval>,
+    ask: Vec<Category>,
+    approved: Option<Approved>,
 }
 
 fn stale(r: Ref, s: &Session) -> Error {

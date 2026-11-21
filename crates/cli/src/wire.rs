@@ -458,11 +458,23 @@ pub enum Approval {
     Autonomous,
 }
 
+/// What the human was shown when they approved a held action: the label and the screen's details. An approval
+/// that carries it covers only that commitment; if the button or the details changed before the action ran, the human
+/// is asked again (decision D104).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Approved {
+    pub label: String,
+    #[serde(default)]
+    pub details: Vec<String>,
+}
+
 #[derive(Debug, Deserialize)]
 pub struct ActParams {
     pub action: Action,
     #[serde(default)]
     pub approval: Option<Approval>,
+    #[serde(default)]
+    pub approved: Option<Approved>,
     /// The opt-in categories of tap to ask the human about, besides payments and account deletion (decision D30).
     #[serde(default)]
     pub ask: Vec<Category>,
@@ -563,6 +575,8 @@ pub struct BatchParams {
     /// Only `Autonomous` counts in a batch: a human approves one tap at a time.
     #[serde(default)]
     pub approval: Option<Approval>,
+    #[serde(default)]
+    pub approved: Option<Approved>,
     #[serde(default)]
     pub ask: Vec<Category>,
     pub timeout_ms: Option<u64>,

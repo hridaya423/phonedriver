@@ -206,7 +206,7 @@ fn own_options_only(cmd: clap::Command) -> clap::Command {
 
 const DIRECTIONS: [&str; 4] = ["up", "down", "left", "right"];
 
-#[derive(Subcommand)]
+#[derive(Subcommand, Clone)]
 pub(crate) enum Verb {
     /// List devices, tier, capabilities and leases.
     Devices,
@@ -277,6 +277,9 @@ pub(crate) enum Verb {
     Gesture {
         /// The fingers as JSON.
         spec: String,
+        /// Run it even when it commits a payment or another held action, without asking the human. Only when the user has granted full autonomy.
+        #[arg(long)]
+        autonomous: bool,
     },
     /// Press at `from`, hold, drag to `to` and lift: reorder a list, move an item, drag a handle. Targets are `@ref`, `x,y` or text.
     Drag {
@@ -284,6 +287,9 @@ pub(crate) enum Verb {
         from: String,
         /// Where it lifts.
         to: String,
+        /// Run it even when it commits a payment or another held action, without asking the human. Only when the user has granted full autonomy.
+        #[arg(long)]
+        autonomous: bool,
     },
     /// Two fingers: `out` spreads them to zoom in, `in` closes them to zoom out. At the screen's center, or at `--at`.
     Pinch {
@@ -296,6 +302,9 @@ pub(crate) enum Verb {
         /// How far apart the fingers end (out) or start (in), as a share of the screen's shorter side; default 0.5.
         #[arg(long)]
         distance: Option<f32>,
+        /// Run it even when it commits a payment or another held action, without asking the human. Only when the user has granted full autonomy.
+        #[arg(long)]
+        autonomous: bool,
     },
     /// Open an app by name or package and show its first screen.
     Launch {
@@ -353,6 +362,9 @@ pub(crate) enum Verb {
         /// Drag quickly, which lets a list fling.
         #[arg(long)]
         fast: bool,
+        /// Run it even when it commits a payment or another held action, without asking the human. Only when the user has granted full autonomy.
+        #[arg(long)]
+        autonomous: bool,
     },
     /// Scroll the content so more of it shows in `direction`, or until `--until` text shows.
     Scroll {
@@ -368,6 +380,9 @@ pub(crate) enum Verb {
         /// Give up after this many scrolls (the default is 30).
         #[arg(long)]
         max: Option<u32>,
+        /// Run it even when it commits a payment or another held action, without asking the human. Only when the user has granted full autonomy.
+        #[arg(long)]
+        autonomous: bool,
     },
     /// List the elements whose text contains this text, in any case.
     Find {
@@ -404,6 +419,9 @@ pub(crate) enum Verb {
     Clear {
         /// `@ref`, `x,y` or the field's text.
         target: String,
+        /// Run it even when it commits a payment or another held action, without asking the human. Only when the user has granted full autonomy.
+        #[arg(long)]
+        autonomous: bool,
     },
     /// Run a command in the device's shell (Android: the agent's shell, no `adb` spawn, or `emu <command>` for an
     /// emulator's console; Simulator: `simctl spawn`, or `simctl <subcommand> ...` with the device filled in). Prints the exit code, trimmed output, and what changed on
@@ -518,6 +536,9 @@ pub(crate) enum Verb {
     Press {
         /// The key or button.
         key: String,
+        /// Run it even when it commits a payment or another held action, without asking the human. Only when the user has granted full autonomy.
+        #[arg(long)]
+        autonomous: bool,
     },
     /// `press back`.
     #[command(hide = true)]
@@ -609,13 +630,13 @@ pub(crate) enum Verb {
     Version,
 }
 
-#[derive(Subcommand)]
+#[derive(Subcommand, Clone)]
 pub(crate) enum DaemonCommand {
     /// Stop the running daemon and the iOS runners it started. Succeeds when none is running.
     Stop,
 }
 
-#[derive(Subcommand, Debug)]
+#[derive(Subcommand, Debug, Clone)]
 pub enum IosCommand {
     /// Check the signing team and each attached device, and do what needs no one at the device: show the Developer Mode switch, mount the
     /// developer disk image with Xcode's tool (the only step that talks to Apple). Then build, install and start the runner, so the next command answers at once. Prints `ok` for steps already done.
@@ -763,6 +784,7 @@ pub fn run(cli: Cli) -> ExitCode {
                 share: cli.share,
                 display: display_mode(&cli.display),
                 approval: None,
+                approved: None,
                 ask,
             };
             match rt.block_on(execute(verb, secret, &cli.session, &globals)) {
@@ -791,6 +813,8 @@ pub(crate) struct Globals {
     pub share: bool,
     pub display: DisplayMode,
     pub approval: Option<Approval>,
+    /// What the human approved, so the daemon runs the action only if the screen still shows it (decision D104).
+    pub approved: Option<crate::wire::Approved>,
     pub ask: Vec<Category>,
 }
 
@@ -842,6 +866,27 @@ fn guard_override(verb: &Verb, given: Option<Approval>, env: Option<&str>) -> Op
             autonomous: true,
             ..
         } | Verb::Type {
+            autonomous: true,
+            ..
+        } | Verb::Gesture {
+            autonomous: true,
+            ..
+        } | Verb::Swipe {
+            autonomous: true,
+            ..
+        } | Verb::Drag {
+            autonomous: true,
+            ..
+        } | Verb::Pinch {
+            autonomous: true,
+            ..
+        } | Verb::Scroll {
+            autonomous: true,
+            ..
+        } | Verb::Clear {
+            autonomous: true,
+            ..
+        } | Verb::Press {
             autonomous: true,
             ..
         }
@@ -963,6 +1008,9 @@ pub(crate) async fn execute_with(
         let mut p = json!({"action": action, "settle": !g.no_settle});
         if let Some(a) = approval {
             p["approval"] = json!(a);
+        }
+        if let Some(shown) = &g.approved {
+            p["approved"] = json!(shown);
         }
         if !g.ask.is_empty() {
             p["ask"] = json!(g.ask);
@@ -1504,7 +1552,7 @@ pub(crate) fn step_json(verb: &Verb, secret: Option<&str>) -> Result<Value, Fail
             }
             a
         }
-        Verb::Gesture { spec } => {
+        Verb::Gesture { spec, .. } => {
             let mut a: Value = serde_json::from_str(spec)
                 .map_err(|e| Failure::Local(format!("the gesture is not JSON: {e}")))?;
             a["kind"] = json!("gesture");
@@ -1515,6 +1563,7 @@ pub(crate) fn step_json(verb: &Verb, secret: Option<&str>) -> Result<Value, Fail
             from,
             distance,
             fast,
+            ..
         } => {
             let mut a = json!({"kind": "swipe", "direction": direction, "fast": fast});
             if let Some(f) = from {
@@ -1530,6 +1579,7 @@ pub(crate) fn step_json(verb: &Verb, secret: Option<&str>) -> Result<Value, Fail
             within,
             until,
             max,
+            ..
         } => {
             let mut a = json!({"kind": "scroll", "direction": direction});
             if let Some(w) = within {
@@ -1543,13 +1593,14 @@ pub(crate) fn step_json(verb: &Verb, secret: Option<&str>) -> Result<Value, Fail
             }
             a
         }
-        Verb::Drag { from, to } => {
+        Verb::Drag { from, to, .. } => {
             json!({"kind": "drag", "from": parse_target(from), "to": parse_target(to)})
         }
         Verb::Pinch {
             direction,
             at,
             distance,
+            ..
         } => {
             let mut a = json!({"kind": "pinch", "direction": direction});
             if let Some(t) = at {
@@ -1587,8 +1638,8 @@ pub(crate) fn step_json(verb: &Verb, secret: Option<&str>) -> Result<Value, Fail
             }
             a
         }
-        Verb::Clear { target } => json!({"kind": "clear", "target": parse_target(target)}),
-        Verb::Press { key } => json!({"kind": "press", "key": key}),
+        Verb::Clear { target, .. } => json!({"kind": "clear", "target": parse_target(target)}),
+        Verb::Press { key, .. } => json!({"kind": "press", "key": key}),
         Verb::Back => json!({"kind": "press", "key": "back"}),
         Verb::Home => json!({"kind": "press", "key": "home"}),
         Verb::Wait { condition, app } => {
@@ -1663,6 +1714,9 @@ pub(crate) async fn run_batch(
         p["approval"] = json!(Approval::Autonomous);
     } else if let Some(a) = g.approval {
         p["approval"] = json!(a);
+    }
+    if let Some(shown) = &g.approved {
+        p["approved"] = json!(shown);
     }
     if !g.ask.is_empty() {
         p["ask"] = json!(g.ask);
