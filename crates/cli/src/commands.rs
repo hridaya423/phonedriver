@@ -2797,6 +2797,9 @@ fn show_action(result: &Value, json: bool) -> Result<String, Failure> {
             head.push_str(" · no element changed");
         }
     }
+    if r.observation.loading && r.observation.kind != Kind::Full {
+        head.push_str(" · still loading");
+    }
     if r.woke {
         head.push_str(" · woke the screen first");
     }
@@ -3123,6 +3126,19 @@ mod tests {
             show_action(&typed, false).unwrap(),
             "ok typed into @e4 · verified"
         );
+    }
+
+    #[test]
+    fn a_reply_whose_screen_is_still_loading_says_so_in_its_first_line() {
+        let mut loading = action(true, "diff", "+ @e51 progress \"in progress\"");
+        loading["observation"]["loading"] = json!(true);
+        let shown = show_action(&loading, false).unwrap();
+        assert!(
+            shown.starts_with("ok tapped @e1 · still loading\n"),
+            "{shown}"
+        );
+        let shown = show_action(&action(true, "diff", "~ @e1 x → y"), false).unwrap();
+        assert!(!shown.contains("loading"), "{shown}");
     }
 
     #[test]
