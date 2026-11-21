@@ -206,7 +206,7 @@ async fn until(what: &str, mut done: impl FnMut() -> bool) {
 }
 
 #[tokio::test]
-async fn a_recording_started_mid_stream_opens_with_the_picture_on_screen_and_runs_to_the_stop() {
+async fn a_recording_whose_keyframe_never_comes_starts_from_the_kept_units_after_a_second() {
     let (mut agent, host) = tokio::io::duplex(1 << 22);
     let video = VideoStream::spawn(host, FrameStore::new(2.0));
     let dir = tempfile::tempdir().unwrap();
@@ -224,6 +224,7 @@ async fn a_recording_started_mid_stream_opens_with_the_picture_on_screen_and_run
     video.record_start(&path).unwrap();
     assert!(video.recording());
     assert!(video.record_start(&dir.path().join("second.mp4")).is_err());
+    tokio::time::sleep(Duration::from_millis(1100)).await;
     agent.write_all(&FIXTURE[half..]).await.unwrap();
     until("the rest to decode", || {
         video.store.latest().is_some_and(|f| f.seq >= 59)
@@ -268,7 +269,7 @@ async fn a_recording_started_mid_stream_opens_with_the_picture_on_screen_and_run
         .count();
     assert_eq!(
         frames, 59,
-        "the cached start and the live rest decode to every frame"
+        "the kept start and the live rest decode to every frame"
     );
     assert!(
         *t.durations.last().unwrap() >= 90_000 / 10,
@@ -276,6 +277,81 @@ async fn a_recording_started_mid_stream_opens_with_the_picture_on_screen_and_run
         t.durations.last()
     );
     assert_eq!(stopped.recorded.frames as usize, t.sizes.len());
+}
+
+#[tokio::test]
+async fn a_recording_starts_at_the_first_keyframe_after_its_start_and_holds_nothing_from_before() {
+    let (mut agent, host) = tokio::io::duplex(1 << 22);
+    let video = VideoStream::spawn(host, FrameStore::new(2.0));
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("fresh.mp4");
+    agent.write_all(&FIXTURE[..offset_after(30)]).await.unwrap();
+    until("the screen before the start", || {
+        video.store.latest().is_some_and(|f| f.seq >= 20)
+    })
+    .await;
+    let began = std::time::Instant::now();
+    video.record_start(&path).unwrap();
+    tokio::time::sleep(Duration::from_millis(200)).await;
+    agent.write_all(&FIXTURE[offset_after(1)..]).await.unwrap();
+    until("the stream after the start", || {
+        video.store.latest().is_some_and(|f| f.seq >= 20 + 59)
+    })
+    .await;
+    let stopped = video.record_stop().unwrap().expect("a recording");
+    let wall_ms = began.elapsed().as_millis() as u64;
+    let (_, units) = fixture_units().await;
+    let after: Vec<usize> = units
+        .iter()
+        .filter(|u| !u.config)
+        .map(|u| u.data.len())
+        .collect();
+    let file = std::fs::read(&path).unwrap();
+    let t = track(&file);
+    assert_eq!(
+        t.sizes.len(),
+        after.len(),
+        "only the pictures from the keyframe after the start"
+    );
+    assert_eq!(t.sync.first(), Some(&1));
+    assert!(
+        file.windows(4).any(|w| w == b"elst"),
+        "the 200 ms before the keyframe show nothing"
+    );
+    assert!(
+        stopped.recorded.ms <= wall_ms && stopped.recorded.ms + 60 >= wall_ms,
+        "{} ms against {wall_ms}",
+        stopped.recorded.ms
+    );
+    let mut decoder = Decoder::new().unwrap();
+    let mut config = vec![0, 0, 0, 1];
+    config.extend_from_slice(&t.sps);
+    config.extend_from_slice(&[0, 0, 0, 1]);
+    config.extend_from_slice(&t.pps);
+    decoder.decode(&config).unwrap();
+    let frames = annex_b(&file, &t)
+        .iter()
+        .filter(|unit| decoder.decode(unit).unwrap().is_some())
+        .count();
+    assert_eq!(frames, 59);
+}
+
+#[tokio::test]
+async fn a_recording_of_a_screen_that_never_changes_holds_no_picture_from_before_it() {
+    let (mut agent, host) = tokio::io::duplex(1 << 22);
+    let video = VideoStream::spawn(host, FrameStore::new(2.0));
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("idle.mp4");
+    agent.write_all(&FIXTURE[..offset_after(30)]).await.unwrap();
+    until("the screen before the start", || {
+        video.store.latest().is_some_and(|f| f.seq >= 20)
+    })
+    .await;
+    video.record_start(&path).unwrap();
+    tokio::time::sleep(Duration::from_millis(300)).await;
+    let stopped = video.record_stop().unwrap().expect("a recording");
+    assert_eq!(stopped.recorded.frames, 0);
+    assert!(stopped.recorded.ms >= 250, "{}", stopped.recorded.ms);
 }
 
 #[tokio::test]
@@ -292,7 +368,10 @@ async fn a_stream_that_ends_finishes_the_recording_and_stop_says_why() {
     until("the recording to end", || !video.recording()).await;
     let stopped = video.record_stop().unwrap().expect("the ended recording");
     assert_eq!(stopped.early, Some("the device's video stream ended"));
-    assert!(!track(&std::fs::read(&path).unwrap()).sizes.is_empty());
+    assert!(
+        track(&std::fs::read(&path).unwrap()).sizes.is_empty(),
+        "no picture came after the start, and none from before it is kept"
+    );
     assert_eq!(video.record_stop().unwrap(), None);
 }
 

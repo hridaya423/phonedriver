@@ -442,7 +442,12 @@ impl Device for AndroidDevice {
         self.video_caught_up(Op::Record).await?;
         self.video.record_start(path).map_err(|e| Error::Transport {
             detail: format!("cannot record to {}: {e}", path.display()),
-        })
+        })?;
+        if let Err(e) = self.simple(Op::Record, json!({"op": "sync_frame"})).await {
+            let _ = self.video.record_stop();
+            return Err(e);
+        }
+        Ok(())
     }
 
     async fn record_stop(&self) -> Result<Option<Recorded>> {

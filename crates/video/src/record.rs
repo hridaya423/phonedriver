@@ -40,6 +40,7 @@ pub struct Recording {
     samples: Vec<Sample>,
     bytes: u64,
     mdat_at: u64,
+    lead: u32,
     finished: bool,
 }
 
@@ -195,6 +196,7 @@ impl Recording {
             samples: Vec::new(),
             bytes: 0,
             mdat_at,
+            lead: 0,
             finished: false,
         })
     }
@@ -226,6 +228,12 @@ impl Recording {
         Ok(())
     }
 
+    /// Makes the video start `us` before its first sample, with nothing shown until then (an empty edit), so the
+    /// first picture plays when it came.
+    pub fn delay_start(&mut self, us: u64) {
+        self.lead = ticks(us);
+    }
+
     /// Sets how long the newest sample lasts.
     pub fn stretch_last(&mut self, lasts_us: u64) {
         if let Some(last) = self.samples.last_mut() {
@@ -243,8 +251,9 @@ impl Recording {
 
     fn close(&mut self) -> io::Result<Recorded> {
         self.finished = true;
-        let total: u64 = self.samples.iter().map(|s| u64::from(s.duration)).sum();
-        let moov = self.moov(total);
+        let media: u64 = self.samples.iter().map(|s| u64::from(s.duration)).sum();
+        let total = media + u64::from(self.lead);
+        let moov = self.moov(media, total);
         self.file.write_all(&moov)?;
         self.file.seek(SeekFrom::Start(self.mdat_at + 8))?;
         self.file
@@ -259,8 +268,9 @@ impl Recording {
         })
     }
 
-    fn moov(&self, total: u64) -> Vec<u8> {
+    fn moov(&self, media: u64, total: u64) -> Vec<u8> {
         let duration = total.min(u64::from(u32::MAX)) as u32;
+        let media = media.min(u64::from(u32::MAX)) as u32;
         let mut mvhd = vec![0u8; 8];
         mvhd.extend_from_slice(&TIMESCALE.to_be_bytes());
         mvhd.extend_from_slice(&duration.to_be_bytes());
@@ -286,7 +296,7 @@ impl Recording {
 
         let mut mdhd = vec![0u8; 8];
         mdhd.extend_from_slice(&TIMESCALE.to_be_bytes());
-        mdhd.extend_from_slice(&duration.to_be_bytes());
+        mdhd.extend_from_slice(&media.to_be_bytes());
         mdhd.extend_from_slice(&0x55c4u16.to_be_bytes());
         mdhd.extend_from_slice(&[0u8; 2]);
 
@@ -311,6 +321,15 @@ impl Recording {
         mdia.extend_from_slice(&boxed(b"minf", &minf));
 
         let mut trak = full(b"tkhd", 3, &tkhd);
+        if self.lead > 0 {
+            let mut elst = 2u32.to_be_bytes().to_vec();
+            for (length, from) in [(self.lead, u32::MAX), (media, 0)] {
+                elst.extend_from_slice(&length.to_be_bytes());
+                elst.extend_from_slice(&from.to_be_bytes());
+                elst.extend_from_slice(&0x0001_0000u32.to_be_bytes());
+            }
+            trak.extend_from_slice(&boxed(b"edts", &full(b"elst", 0, &elst)));
+        }
         trak.extend_from_slice(&boxed(b"mdia", &mdia));
 
         let mut moov = full(b"mvhd", 0, &mvhd);
