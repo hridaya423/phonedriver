@@ -406,14 +406,26 @@ async fn a_denied_simulator_is_neither_booted_nor_listed_as_off() {
     let (d, _home) = daemon(bench.clone(), Policy::new("", "sim:DENIED-UDID", None));
     for name in ["sim:DENIED-UDID", "DENIED-UDID", "Staff iPhone"] {
         let e = err(&d, "boot", json!({"name": name})).await;
-        assert!(e.message.contains("no device named"), "{name}: {}", e.message);
-        assert!(!e.to_json().to_string().contains("Staff iPhone (iOS"), "{name}: {e:?}");
+        assert!(
+            e.message.contains("no device named"),
+            "{name}: {}",
+            e.message
+        );
+        assert!(
+            !e.to_json().to_string().contains("Staff iPhone (iOS"),
+            "{name}: {e:?}"
+        );
     }
     let off = ok(&d, "boot", json!({})).await;
     assert_eq!(off["off"].as_array().unwrap().len(), 1, "{off}");
     assert!(!off.to_string().contains("DENIED"), "{off}");
     assert!(
-        !bench.boots.lock().unwrap().iter().any(|b| b.contains("DENIED") || b == "Staff iPhone"),
+        !bench
+            .boots
+            .lock()
+            .unwrap()
+            .iter()
+            .any(|b| b.contains("DENIED") || b == "Staff iPhone"),
         "{:?}",
         bench.boots.lock().unwrap()
     );
@@ -435,7 +447,10 @@ impl DeviceSource for Broken {
 
 #[tokio::test]
 async fn a_device_that_is_not_found_while_a_source_fails_names_no_hidden_device() {
-    let bench = Bench::new(&[("android:STAFF-PHONE-1", None), ("android:emulator-5554", None)]);
+    let bench = Bench::new(&[
+        ("android:STAFF-PHONE-1", None),
+        ("android:emulator-5554", None),
+    ]);
     let sources = phonedriver::daemon::sources::Sources(vec![
         ("android:", bench.clone() as Arc<dyn DeviceSource>),
         ("sim:", Arc::new(Broken)),

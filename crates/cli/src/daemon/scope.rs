@@ -325,7 +325,12 @@ impl Device for ScopedDevice {
             .iter()
             .filter(|w| w.kind == "application")
             .find_map(|w| w.package.clone().filter(|p| self.scope.allows(p)))
-            .ok_or_else(|| refused(format!("no app in the app scope is in front. {}", self.lift())))?;
+            .ok_or_else(|| {
+                refused(format!(
+                    "no app in the app scope is in front. {}",
+                    self.lift()
+                ))
+            })?;
         self.inner.page(Some(&AppId(approved))).await
     }
 

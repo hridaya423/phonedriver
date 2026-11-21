@@ -786,7 +786,11 @@ mod tests {
         );
         let lines = vec![format!("owned pid=4242 host={host}")];
         let e = not_ready(Some(OWNED), false, READY_TIMEOUT, &lines, "emulator-5556");
-        assert!(e.hint().contains("`kill 4242` on this computer"), "{}", e.hint());
+        assert!(
+            e.hint().contains("`kill 4242` on this computer"),
+            "{}",
+            e.hint()
+        );
         let lines = vec!["owned pid=4242 host=0123456789abcdef".to_string()];
         let e = not_ready(Some(OWNED), false, READY_TIMEOUT, &lines, "emulator-5556");
         assert!(e.hint().contains("on another computer"), "{}", e.hint());

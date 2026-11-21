@@ -97,7 +97,8 @@ async fn once_tracking_listing_devices_does_not_ask_the_adb_server_again() {
 
 #[tokio::test]
 async fn an_empty_serial_answer_is_a_failed_read_that_a_deny_list_hides_and_that_is_asked_again() {
-    const WIFI: &str = "192.168.1.20:5555      device product:p model:Phone device:d transport_id:9\n";
+    const WIFI: &str =
+        "192.168.1.20:5555      device product:p model:Phone device:d transport_id:9\n";
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap().to_string();
     let requests = Arc::new(Mutex::new(Vec::new()));
@@ -113,7 +114,11 @@ async fn an_empty_serial_answer_is_a_failed_read_that_a_deny_list_hides_and_that
     assert!(read.is_err(), "an empty answer with exit 1: {read:?}");
     let gated = Gated::new(source.clone(), Policy::new("", "R5CT123", None));
     let listed = gated.list().await.unwrap();
-    assert!(listed.is_empty(), "{:?}", listed.iter().map(|l| &l.id).collect::<Vec<_>>());
+    assert!(
+        listed.is_empty(),
+        "{:?}",
+        listed.iter().map(|l| &l.id).collect::<Vec<_>>()
+    );
     let asked = requests
         .lock()
         .unwrap()
@@ -138,11 +143,14 @@ async fn listing_through_a_deny_list_never_asks_a_device_it_names_by_id() {
     });
     let source = Arc::new(AdbSource::new(Adb::from_socket_spec(Some(&addr))));
     let gated = Gated::new(source, Policy::new("", "android:R5CTDENIED", None));
-    let listed: Vec<String> = gated.list().await.unwrap().into_iter().map(|l| l.id).collect();
+    let listed: Vec<String> = gated
+        .list()
+        .await
+        .unwrap()
+        .into_iter()
+        .map(|l| l.id)
+        .collect();
     assert_eq!(listed, ["android:emulator-5554"]);
     let seen = requests.lock().unwrap().clone();
-    assert!(
-        !seen.iter().any(|r| r.contains("R5CTDENIED")),
-        "{seen:?}"
-    );
+    assert!(!seen.iter().any(|r| r.contains("R5CTDENIED")), "{seen:?}");
 }

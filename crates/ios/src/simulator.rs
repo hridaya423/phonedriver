@@ -724,7 +724,8 @@ mod tests {
         assert!(shell_args("U", "simctl openurl 'unclosed", std::path::Path::new("/r")).is_err());
     }
 
-    const TESTBED: &str = "/x/Containers/Bundle/Application/1F2E3D4C-0000-4ABC-8DEF-0123456789AB/Testbed.app";
+    const TESTBED: &str =
+        "/x/Containers/Bundle/Application/1F2E3D4C-0000-4ABC-8DEF-0123456789AB/Testbed.app";
 
     #[test]
     fn the_log_stream_is_one_program_that_runs_with_or_without_a_shell_in_the_system() {

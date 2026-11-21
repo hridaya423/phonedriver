@@ -315,7 +315,8 @@ mod tests {
 
     #[test]
     fn a_bar_shaped_window_is_a_bar_only_when_the_system_ui_owns_it() {
-        let overlay = r#"{"id":3,"type":"system","package":"com.chat","layer":1,"bounds":[0,0,400,48]}"#;
+        let overlay =
+            r#"{"id":3,"type":"system","package":"com.chat","layer":1,"bounds":[0,0,400,48]}"#;
         let t = tree(
             &format!("{},{overlay}", app_window(1, "com.mine")),
             &[root(1), root(3), text(3, 1, "your PIN is 4711")].join(","),

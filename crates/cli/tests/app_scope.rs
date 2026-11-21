@@ -777,8 +777,8 @@ async fn an_iphone_or_simulator_opens_no_link_under_a_scope_because_it_ignores_t
 
 #[tokio::test(start_paused = true)]
 async fn an_empty_tree_is_outside_the_scope_until_a_tree_names_the_app() {
-    let empty = RawTree::from_android_json(r#"{"windows":[],"nodes":[]}"#, Scale { density: 1.0 })
-        .unwrap();
+    let empty =
+        RawTree::from_android_json(r#"{"windows":[],"nodes":[]}"#, Scale { density: 1.0 }).unwrap();
     let (d, fake, _home) = setup(vec![empty]);
     let e = err(&d, "act", act(json!({"kind": "press", "key": "enter"}))).await;
     assert_eq!(e.code, -32025, "{e:?}");
@@ -854,10 +854,9 @@ async fn on_an_iphone_back_and_hiding_the_keyboard_are_refused_while_another_app
     fake.set_tree(mine(&["Save"]));
     ok(&d, "act", act(json!({"kind": "press", "key": "back"}))).await;
     assert!(
-        fake.calls().iter().any(|c| matches!(
-            c,
-            Call::Button(phonedriver_core::device::Button::Back)
-        )),
+        fake.calls()
+            .iter()
+            .any(|c| matches!(c, Call::Button(phonedriver_core::device::Button::Back))),
         "{:?}",
         fake.calls()
     );

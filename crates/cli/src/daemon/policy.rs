@@ -318,7 +318,8 @@ impl DeviceSource for Gated {
         if rules.is_empty() {
             return self.inner.list().await;
         }
-        self.visible(self.inner.list_except(&rules.deny).await?).await
+        self.visible(self.inner.list_except(&rules.deny).await?)
+            .await
     }
 
     async fn list_for(&self, requested: Option<&str>) -> Result<Vec<Listed>, Error> {
