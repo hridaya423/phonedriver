@@ -130,9 +130,7 @@ struct SettingArgs {
 struct DevicesArgs {
     device: Option<String>,
     release: Option<bool>,
-    /// Start a simulator or emulator that is off, by name.
     boot: Option<String>,
-    /// Send the other tools to this device from now on.
     #[serde(rename = "use")]
     use_device: Option<String>,
 }
@@ -142,9 +140,7 @@ struct DevicesArgs {
 struct ScreenshotArgs {
     device: Option<String>,
     marks: Option<bool>,
-    /// Reply with what changed since your last screenshot, as text and no image.
     compare: Option<bool>,
-    /// `start`, later `stop` (Android, iOS Simulator).
     record: Option<String>,
 }
 
@@ -153,11 +149,10 @@ struct ScreenshotArgs {
 struct ReplayArgs {
     device: Option<String>,
     file: String,
-    /// Write the file instead of running it.
     save: Option<bool>,
     /// Start at this step.
     from: Option<u32>,
-    /// Values for `{{name}}`. Not for secrets.
+    /// Not for secrets.
     vars: Option<std::collections::BTreeMap<String, String>>,
 }
 
@@ -334,11 +329,8 @@ struct LaunchArgs {
 struct WaitArgs {
     device: Option<String>,
     condition: Option<String>,
-    /// `up` or `down`.
     vpn: Option<String>,
-    /// Text of a log line written from now on.
     log: Option<String>,
-    /// With `log`: this app's lines only.
     app: Option<String>,
     /// Default 5000.
     timeout_ms: Option<u64>,
@@ -1544,7 +1536,7 @@ impl Mcp {
     }
 
     #[tool(
-        description = "Image of the screen, for what the snapshot lacks (canvas, map, photo). `marks` boxes tappable elements with their @ref. `compare` replies with what changed since your last screenshot, as text. `record` saves a video of the screen instead, with the actions done meanwhile.",
+        description = "Image of the screen, for what the snapshot lacks (canvas, map, photo). `marks` boxes tappable elements with their @ref. `compare`: what changed since your last screenshot, as text. `record` `start`, later `stop`: a video, with the actions done meanwhile (Android, Simulator).",
         annotations(title = "Screenshot", read_only_hint = true, open_world_hint = true)
     )]
     async fn screenshot(&self, Parameters(a): Parameters<ScreenshotArgs>) -> CallToolResult {

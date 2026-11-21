@@ -536,8 +536,8 @@ async fn the_tool_list_every_turn_re_reads_fits_a_budget_and_hides_what_agents_n
         })
         .sum();
     assert!(
-        total < 9_999,
-        "what a model reads of tools/list is {total} characters"
+        total < 6_600,
+        "what a model reads of tools/list is {total} characters (6,371 in 0.1.7); every turn re-reads it, so raise this only for a tool or argument worth its cost"
     );
     for t in &tools {
         let text = serde_json::to_string(&*t.input_schema).unwrap();
