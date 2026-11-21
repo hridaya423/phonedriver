@@ -24,13 +24,17 @@ pub fn dir(dir: &Path) -> io::Result<()> {
 
 /// Options that create a file owner-only.
 pub fn options() -> OpenOptions {
-    let mut options = OpenOptions::new();
     #[cfg(unix)]
     {
         use std::os::unix::fs::OpenOptionsExt;
+        let mut options = OpenOptions::new();
         options.mode(0o600);
+        options
     }
-    options
+    #[cfg(not(unix))]
+    {
+        OpenOptions::new()
+    }
 }
 
 /// Writes `bytes` to a new owner-only file at `path`, replacing one that is there.
