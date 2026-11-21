@@ -3223,6 +3223,29 @@ async fn a_launch_waits_for_an_app_that_comes_to_the_front_late() {
 }
 
 #[tokio::test(start_paused = true)]
+async fn a_launch_whose_app_starts_slowly_still_settles_after_it_starts() {
+    let (source, fake) = installed();
+    fake.launch(&AppId("com.launcher".into())).await.unwrap();
+    fake.set_launch_takes(22);
+    let (d, _home) = daemon(source);
+    let started = tokio::time::Instant::now();
+    let r = ok(
+        &d,
+        "default",
+        "act",
+        act_with(json!({"kind": "launch", "app": "Calculator"})),
+    )
+    .await;
+    assert!(
+        started.elapsed() > Duration::from_secs(6),
+        "the start alone outlasts the settle timeout: {:?}",
+        started.elapsed()
+    );
+    assert_eq!(r["settled"], true, "{r}");
+    assert_eq!(r["summary"], "launched Calculator", "{r}");
+}
+
+#[tokio::test(start_paused = true)]
 async fn a_launch_with_restart_stops_the_app_first_so_it_opens_on_its_first_screen() {
     let (source, fake) = installed();
     let (d, _home) = daemon(source);

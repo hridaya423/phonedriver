@@ -2711,6 +2711,7 @@ impl Actor {
                         front.map_or("nothing".to_string(), |f| f.0)
                     );
                 }
+                cfg.timeout += self.now().saturating_sub(started);
                 self.finish(s, p.settle, cfg, started, summary, None, None)
                     .await
             }
@@ -2743,6 +2744,7 @@ impl Actor {
                 }
                 self.lap("page", waited);
                 self.cold_until = Some(self.now() + COLD_APP_WINDOW);
+                cfg.timeout += self.now().saturating_sub(started);
                 let summary = format!("opened {url}");
                 self.finish(s, p.settle, cfg, started, summary, None, None)
                     .await
