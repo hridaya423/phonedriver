@@ -1706,3 +1706,19 @@ An outside review of 0.1.6 found places where D101 and D102 did not hold, and th
 **`file:` links on a Simulator (added at the merge).** `open` with a `file:` URL on a Simulator goes through the runner to the Simulator's default handler, which reads the Mac's file system; a screenshot then shows the file. `phonedriver_ios` refuses it unless the switch is set (`names_a_mac_file`, unit test `a_file_link_names_a_mac_file_in_any_case_and_a_web_link_does_not`). On a phone or an Android device a `file:` link names a file of the device and is left alone. The `install` verb on a Simulator still installs an `.app` from any path the agent names, and that app runs as the Mac's user: installing the person's own build is the verb's job, so this stays and is named here as a limit.
 
 **Reopen if.** A test needs a Simulator program often enough that the switch becomes habit (then a typed verb for it); Apple sandboxes Simulator processes from the Mac's files; the emulator console adds a command that acts on the emulator and a test needs it.
+
+## D109. A saved run keeps the build of each app it launches, and a replay refuses another build (2026-11-22, #41)
+
+**Choice.** `save` adds `"build": "<version> (<build number>)"` to each `launch` step, read from the device once per app when the steps are saved: Android `dumpsys package` (`versionName (versionCode)`), the Simulator `simctl appinfo` (`CFBundleShortVersionString (CFBundleVersion)`). Before its first step, `replay` reads the build of each app the steps from `--from` on launch, once per app, and stops before any step when one differs, naming both builds. `replay --any-build` (MCP `any_build: true`) runs it anyway. A file with no `build`, and a device that cannot tell (a physical iPhone), replay as before. Daemon method `build {app}` → `{build}`.
+
+**Why.** Issue #41 (giulioc84) checked replayed scripts against the code: a saved file held no version, so a replay ran its steps on a build whose screens it was never saved on, and a step that still matched text could land on a changed screen. The steps were seen to work on one build; that is all a file can promise.
+
+**Rejected.** Reading the build at every `launch`: it would cost a shell read on every launch of every agent, for a value only `save` needs. Refusing a file with no `build`: files saved before 0.1.8 would all stop.
+
+The GitHub Action passes `--any-build`: it installs the build under test before every replay, so a new version code is the point, not a sign of a stale file.
+
+**Cost.** One `dumpsys package` (Android) or `simctl appinfo` read per launched app at `save`, and the same at the start of a replay whose file has builds. None in a session that does not save or replay. The `replay` tool gains one argument (`any_build`).
+
+**Limits.** A flow that does not launch its app (it starts on a screen already open) records no build. A build that changed without a new version name or number (a debug build installed again) is not told apart. A physical iPhone reports no build.
+
+**Reopen if.** Debug builds of the same version are replayed across code changes often enough to need the install time (D90's `installed_at`) as well.

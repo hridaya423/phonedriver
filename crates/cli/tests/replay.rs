@@ -586,3 +586,52 @@ async fn a_replayed_type_and_submit_whose_text_landed_sends_enter_once_and_says_
     );
     assert!(shown.contains("pressed enter"), "{shown}");
 }
+
+/// Issue #41: a saved file holds no version, so a replay ran its steps on another build of the app, whose screens it
+/// was never saved on. `save` keeps the build of each app it launches.
+#[tokio::test(start_paused = true)]
+async fn save_keeps_the_build_of_each_app_it_launches() {
+    let (d, fake, _home) = setup(vec![tree(&["One"])]);
+    fake.install(&[("com.example", "Example")]);
+    fake.set_app_build("4.37.1 (437001)");
+    ok(
+        &d,
+        "act",
+        json!({"action": {"kind": "launch", "app": "com.example"}}),
+    )
+    .await;
+    let saved = ok(&d, "journal", json!({"keep": true})).await;
+    assert_eq!(saved["steps"][0]["build"], "4.37.1 (437001)", "{saved}");
+    let asked = ok(&d, "build", json!({"app": "com.example"})).await;
+    assert_eq!(asked["build"], "4.37.1 (437001)", "{asked}");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_replay_refuses_another_build_of_an_app_it_launches_unless_told_any_build() {
+    let fake = Arc::new(FakeDevice::new(vec![tree(&["One"])]).lacking(Capabilities::FRAMES));
+    fake.install(&[("com.example", "Example")]);
+    fake.set_app_build("5.0 (500)");
+    let (home, socket) = served(fake.clone()).await;
+    let steps = home.path().join("old.steps");
+    let launch = json!({"method": "act", "params": {"action": {"kind": "launch", "app": "com.example"}}, "summary": "launched com.example", "build": "4.37.1 (437001)"});
+    std::fs::write(&steps, format!("{launch}\n")).unwrap();
+    let file = steps.to_str().unwrap();
+
+    let (replayed, shown) = run(&home, &socket, &["replay", file]).await;
+    assert!(!replayed, "{shown}");
+    assert!(
+        shown.contains("4.37.1 (437001)") && shown.contains("5.0 (500)"),
+        "{shown}"
+    );
+    assert!(shown.contains("--any-build"), "{shown}");
+    assert!(
+        !fake
+            .calls()
+            .iter()
+            .any(|c| matches!(c, phonedriver_core::testing::Call::Launch(_))),
+        "a step ran on the other build"
+    );
+
+    let (replayed, shown) = run(&home, &socket, &["replay", file, "--any-build"]).await;
+    assert!(replayed, "{shown}");
+}

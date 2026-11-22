@@ -442,6 +442,11 @@ pub trait Device: Send + Sync {
     async fn installed_at(&self, _app: &AppId) -> Result<Option<String>> {
         Ok(None)
     }
+    /// The installed app's version as its store shows it, with its build number: `4.37.1 (437001)`. `None` where
+    /// the device cannot tell.
+    async fn app_build(&self, _app: &AppId) -> Result<Option<String>> {
+        Ok(None)
+    }
     /// The phone's own serial number, which stays the same when its connection changes. `None` where the device's id
     /// already is that.
     async fn hardware_serial(&self) -> Result<Option<String>> {

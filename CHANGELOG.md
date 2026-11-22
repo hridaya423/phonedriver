@@ -8,6 +8,7 @@ Every release of phonedriver, newest first. Binaries and checksums for each vers
 - **Saved files hold up better** (#41): a field the keyboard pushed off the screen is saved by its label, and a failed `scroll --until` that moved the list is kept as the scrolls the next step needs.
 - **Read-backs** (#41): `save` names typed values no later step reads back, and `wait` finds a phone number however the app formats it, never behind a country code it did not type.
 - **Blanks with examples**: `{{day1:Tuesday}}` tells whoever fills the blank the wording the screen uses.
+- **A replay checks the app's build**: `save` keeps the build of each app it launches, and `replay` stops before its first step when the app is now another build; `--any-build` runs it anyway (#41).
 
 ## 0.1.7
 

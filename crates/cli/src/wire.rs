@@ -396,6 +396,12 @@ pub struct RecordParams {
     pub path: Option<std::path::PathBuf>,
 }
 
+/// An installed app's build (`docs/protocol.md`, `build`), which a replay compares with the one its file was saved on.
+#[derive(Debug, Deserialize)]
+pub struct BuildParams {
+    pub app: String,
+}
+
 /// The session's steps (`docs/protocol.md`, `journal`): taken out, read in place with `keep`, or the first `drop` of them
 /// removed once the client has stored them.
 #[derive(Debug, Default, Deserialize)]

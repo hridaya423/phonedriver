@@ -29,6 +29,8 @@ $ phonedriver replay checkout.steps
 replayed 9 steps in 12.4 s
 ```
 
+A replay checks the build of each app its file launches against the build `save` recorded, and stops before the first step on another one; `--any-build` runs it anyway. The Action below passes `--any-build`, since a new build of your app is what it tests.
+
 A replay stops at the first step that fails, at a step that changed the screen when it was saved and now changes nothing, or at a `shell` step whose command exited with another status than the step expects (0, unless `save` kept the status the command had then, or you set `"expect_exit"` in the step). It prints the steps that ran, the screen as it is, and where to go on from:
 
 ```

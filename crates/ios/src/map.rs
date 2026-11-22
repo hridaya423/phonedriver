@@ -451,6 +451,18 @@ pub fn hidden(tags: &[&str]) -> bool {
 }
 
 /// Parses `simctl listapps` output converted to JSON by `plutil`.
+/// `CFBundleShortVersionString (CFBundleVersion)` from `simctl appinfo`.
+pub fn build(json: &Value) -> Option<String> {
+    let field = |name: &str| json[name].as_str().map(str::to_string);
+    match (
+        field("CFBundleShortVersionString"),
+        field("CFBundleVersion"),
+    ) {
+        (Some(version), Some(build)) => Some(format!("{version} ({build})")),
+        (version, build) => version.or(build),
+    }
+}
+
 pub fn apps(json: &Value) -> Vec<App> {
     let mut out: Vec<App> = json
         .as_object()
@@ -953,6 +965,13 @@ mod tests {
         });
         let ids: Vec<String> = apps(&json).into_iter().map(|a| a.id.0).collect();
         assert_eq!(ids, ["com.apple.Preferences"]);
+    }
+
+    #[test]
+    fn appinfo_gives_the_version_and_the_build() {
+        let info = json!({"CFBundleIdentifier": "com.example", "CFBundleShortVersionString": "2.1", "CFBundleVersion": "214"});
+        assert_eq!(build(&info).as_deref(), Some("2.1 (214)"));
+        assert_eq!(build(&json!({})), None);
     }
 
     #[test]

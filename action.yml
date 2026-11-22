@@ -204,7 +204,7 @@ runs:
             args=(--screens "$kept")
           fi
           [ "$RECORD" = true ] && phonedriver record start -o "$out/$name.mp4" > /dev/null
-          if phonedriver replay "$f" ${args[@]+"${args[@]}"} ${vars[@]+"${vars[@]}"} > "$out/$name.txt" 2>&1; then
+          if phonedriver replay "$f" --any-build ${args[@]+"${args[@]}"} ${vars[@]+"${vars[@]}"} > "$out/$name.txt" 2>&1; then
             passed=$((passed + 1))
             result=$(head -1 "$out/$name.txt")
           else

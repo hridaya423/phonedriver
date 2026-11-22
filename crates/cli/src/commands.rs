@@ -469,6 +469,9 @@ pub(crate) enum Verb {
         /// the file names (`PHONEDRIVER_SECRET_1`, ...).
         #[arg(long = "var", value_name = "NAME=VALUE", value_parser = parse_var)]
         vars: Vec<(String, String)>,
+        /// Run on another build of an app than the one the file was saved on, which it otherwise refuses.
+        #[arg(long)]
+        any_build: bool,
     },
     /// Record the screen to an MP4 file (Android and the iOS Simulator): `record start`, the actions to show, then `record stop`, which
     /// prints the file and, beside it, a `.steps.jsonl` file of the actions done meanwhile with their times.
@@ -1233,6 +1236,7 @@ pub(crate) async fn execute_with(
             from,
             screens,
             vars,
+            any_build,
         } => {
             let text = std::fs::read_to_string(&file)
                 .map_err(|e| Failure::Local(format!("cannot read {}: {e}", file.display())))?;
@@ -1267,6 +1271,7 @@ pub(crate) async fn execute_with(
                 steps,
                 from,
                 screens,
+                any_build,
                 run: used.contains(variables::RUN).then_some(id),
             };
             run.play(client, &act, &with, g.json).await
@@ -2176,6 +2181,7 @@ pub(crate) struct Replay {
     pub from: usize,
     pub screens: Option<PathBuf>,
     pub run: Option<String>,
+    pub any_build: bool,
 }
 
 /// The screen after a replayed step against the screenshot kept for it.
@@ -2298,6 +2304,45 @@ impl Replay {
         Ok(r)
     }
 
+    /// Refuses before any step runs when an app the steps launch is installed in another build than the one they
+    /// were saved on: their screens may have changed. One read per app.
+    async fn same_builds(
+        &self,
+        client: &mut Client,
+        with: &(dyn Fn(Value) -> Value + Sync),
+    ) -> Result<(), Failure> {
+        let mut checked = std::collections::BTreeSet::new();
+        for step in &self.steps[self.from - 1..] {
+            let (Some(app), Some(saved)) = (
+                step["params"]["action"]["app"].as_str(),
+                step["build"].as_str(),
+            ) else {
+                continue;
+            };
+            if !checked.insert(app) {
+                continue;
+            }
+            let now = client.call("build", with(json!({"app": app}))).await?;
+            let Some(now) = now["build"].as_str().filter(|b| *b != saved) else {
+                continue;
+            };
+            let Failure::Rpc(mut error) = refused(&format!(
+                "{} was saved on {app} {saved}, and {now} is installed: its screens may differ",
+                self.file
+            )) else {
+                unreachable!()
+            };
+            if let Some(data) = error.data.as_object_mut() {
+                data.insert(
+                    "hint".into(),
+                    json!("Replay with --any-build (MCP: any_build) to run it on this build, or save the steps again on it."),
+                );
+            }
+            return Err(Failure::Rpc(error));
+        }
+        Ok(())
+    }
+
     pub async fn play(
         &self,
         client: &mut Client,
@@ -2313,6 +2358,9 @@ impl Replay {
                 plural(total as u64, "step"),
                 self.from
             )));
+        }
+        if !self.any_build {
+            self.same_builds(client, with).await?;
         }
         let started = std::time::Instant::now();
         let any_field = std::env::var(variables::SECRET_ANY_FIELD).is_ok_and(|v| v == "1");

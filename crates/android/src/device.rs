@@ -669,6 +669,21 @@ impl Device for AndroidDevice {
             })
     }
 
+    async fn app_build(&self, app: &AppId) -> Result<Option<String>> {
+        package_name(app)?;
+        let out = self
+            .adb
+            .shell(
+                &self.serial,
+                &format!(
+                    "dumpsys package {} | grep -E 'versionCode=|versionName='",
+                    app.0
+                ),
+            )
+            .await?;
+        Ok(version(&out.stdout_text()))
+    }
+
     async fn hardware_serial(&self) -> Result<Option<String>> {
         Ok(Some(self.adb.hardware_serial(&self.serial).await?))
     }
@@ -808,6 +823,21 @@ fn listed_packages(out: &ShellOutput) -> Result<Vec<String>> {
         });
     }
     Ok(packages)
+}
+
+/// `versionName (versionCode)` from `dumpsys package`, whose `versionCode=437001 minSdk=26 targetSdk=36` line comes
+/// before `versionName=4.37.1`. The first of each is the installed package; an updated system app lists its
+/// factory version after it.
+fn version(dump: &str) -> Option<String> {
+    let field = |name: &str| {
+        dump.split_whitespace()
+            .find_map(|w| w.strip_prefix(name))
+            .map(str::to_string)
+    };
+    match (field("versionName="), field("versionCode=")) {
+        (Some(name), Some(code)) => Some(format!("{name} ({code})")),
+        (name, code) => name.or(code),
+    }
 }
 
 fn first_install_time(dump: &str) -> Option<String> {
@@ -1138,7 +1168,7 @@ mod permission_tests {
 mod package_tests {
     use crate::adb::ShellOutput;
 
-    use super::{first_install_time, listed_packages};
+    use super::{first_install_time, listed_packages, version};
 
     fn output(stdout: &str, exit_code: i32) -> ShellOutput {
         ShellOutput {
@@ -1164,6 +1194,13 @@ mod package_tests {
     fn a_package_listing_names_each_package() {
         let listed = listed_packages(&output("package:com.a\npackage:com.b\n", 0)).unwrap();
         assert_eq!(listed, ["com.a", "com.b"]);
+    }
+
+    #[test]
+    fn the_version_is_read_from_the_package_dump_and_the_installed_one_comes_first() {
+        let dump = "    versionCode=437001 minSdk=26 targetSdk=36\n    versionName=4.37.1\n    versionCode=1 minSdk=26 targetSdk=36\n    versionName=1.0\n";
+        assert_eq!(version(dump).as_deref(), Some("4.37.1 (437001)"));
+        assert_eq!(version("Unable to find package: com.a\n"), None);
     }
 
     #[test]

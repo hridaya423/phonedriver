@@ -44,10 +44,10 @@ use super::verify::{Expect, Verdict, Verify};
 use super::{guard, secret_field};
 use crate::wire::{
     ActParams, Action, ActionResult, AppParams, Approval, Approved, BatchParams, BatchResult,
-    ClipboardParams, Crashed, FindParams, JournalParams, Kind, LogsParams, Observation, PageParams,
-    PinchDirection, RecordAction, RecordParams, ScreenshotParams, ScreenshotResult, SettingParams,
-    ShellParams, ShellResult, SnapshotParams, Step, StepFailure, StepResult, Target, TypeMode,
-    VpnState, WaitCondition, WaitParams,
+    BuildParams, ClipboardParams, Crashed, FindParams, JournalParams, Kind, LogsParams,
+    Observation, PageParams, PinchDirection, RecordAction, RecordParams, ScreenshotParams,
+    ScreenshotResult, SettingParams, ShellParams, ShellResult, SnapshotParams, Step, StepFailure,
+    StepResult, Target, TypeMode, VpnState, WaitCondition, WaitParams,
 };
 
 pub const LEASE_TTL: Duration = Duration::from_secs(600);
@@ -154,6 +154,7 @@ pub enum Call {
     Page(PageParams),
     Record(RecordParams),
     Journal(JournalParams),
+    Build(BuildParams),
     /// What `doctor` needs: the device answers a tree read, and a frame arrives.
     Health,
     Release,
@@ -697,6 +698,36 @@ impl Actor {
         }
     }
 
+    /// Steps about to be saved, each launch with the build of the app it launches, read once per app. A replay
+    /// refuses another build: the steps were saved on that one's screens.
+    async fn with_builds(&self, mut journal: Value) -> Value {
+        let Ok(device) = self.device() else {
+            return journal;
+        };
+        let mut builds: HashMap<String, Option<String>> = HashMap::new();
+        let Some(steps) = journal["steps"].as_array_mut() else {
+            return journal;
+        };
+        for step in steps {
+            let action = &step["params"]["action"];
+            let Some(app) = action["app"]
+                .as_str()
+                .filter(|_| action["kind"] == "launch")
+            else {
+                continue;
+            };
+            let app = app.to_string();
+            if !builds.contains_key(&app) {
+                let build = device.app_build(&AppId(app.clone())).await.ok().flatten();
+                builds.insert(app.clone(), build);
+            }
+            if let Some(build) = &builds[&app] {
+                step["build"] = json!(build);
+            }
+        }
+        journal
+    }
+
     async fn dispatch(&mut self, s: &mut Session, call: Call) -> Result<Value, Error> {
         let value = match call {
             Call::Snapshot(p) => {
@@ -793,9 +824,10 @@ impl Actor {
                     s.journal.drop_first(n);
                     json!({})
                 }
-                None if p.keep => s.journal.peek(),
-                None => s.journal.take(),
+                None if p.keep => self.with_builds(s.journal.peek()).await,
+                None => self.with_builds(s.journal.take()).await,
             },
+            Call::Build(p) => json!({"build": self.device()?.app_build(&AppId(p.app)).await?}),
             Call::Logs(p) => self.logs(s, p).await?,
             Call::Network => to_value(self.device()?.network().await?),
             Call::Page(p) => self.page(p).await?,
