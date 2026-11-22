@@ -28,7 +28,18 @@ use crate::wire::{
     ShellResult, VERSION,
 };
 
-const USAGE: &str = "usage: phonedriver <command>\n\nrun `phonedriver --help` for the options and exit codes\n\ncommands:\n  devices\n  snapshot\n  screenshot\n  find\n  launch\n  open\n  apps\n  swipe\n  drag\n  pinch\n  scroll\n  gesture\n  tap\n  type\n  clear\n  clipboard\n  shell\n  press\n  wait\n  batch\n  release\n  daemon\n  doctor\n  pair\n  untether\n  ios\n  mcp\n  skill\n  version";
+fn usage() -> String {
+    use clap::CommandFactory;
+    let verbs: Vec<String> = Cli::command()
+        .get_subcommands()
+        .filter(|c| !c.is_hide_set())
+        .map(|c| format!("  {}", c.get_name()))
+        .collect();
+    format!(
+        "usage: phonedriver <command>\n\nrun `phonedriver --help` for the options and exit codes\n\ncommands:\n{}",
+        verbs.join("\n")
+    )
+}
 
 const AFTER_HELP: &str = "Examples:
   phonedriver devices
@@ -44,8 +55,8 @@ Exit codes:
   4  no device matches, or it was disconnected
   5  the action spends money or cannot be undone and the human has not approved it; ask them, then add --autonomous
 
-When something goes wrong, see Debugging in the README: traces, daemon.log and the runner log.
-Settings by environment variable are in the README's table (PHONEDRIVER_HOME, PHONEDRIVER_TEAM, ...).";
+When something goes wrong, see Debugging in docs/reference.md (https://github.com/hridaya423/phonedriver/blob/main/docs/reference.md#debugging): traces, daemon.log and the runner log.
+Settings by environment variable are in its Environment variables table (PHONEDRIVER_HOME, PHONEDRIVER_TEAM, ...).";
 
 #[derive(Parser)]
 #[command(
@@ -670,7 +681,7 @@ pub enum IosCommand {
 
 pub fn run(cli: Cli) -> ExitCode {
     let Some(verb) = cli.command else {
-        eprintln!("{USAGE}");
+        eprintln!("{}", usage());
         return ExitCode::from(2);
     };
     match verb {
@@ -3132,6 +3143,32 @@ fn run_daemon(trace: TraceOptions) -> ExitCode {
 #[cfg(test)]
 mod tests {
     use serde_json::json;
+
+    #[test]
+    fn the_command_list_names_every_command_and_the_help_names_no_missing_readme_section() {
+        use clap::CommandFactory;
+        let usage = super::usage();
+        for verb in super::Cli::command()
+            .get_subcommands()
+            .filter(|c| !c.is_hide_set())
+        {
+            assert!(
+                usage.lines().any(|l| l.trim() == verb.get_name()),
+                "{} is missing from {usage}",
+                verb.get_name()
+            );
+        }
+        assert!(
+            !super::AFTER_HELP.contains("README"),
+            "{}",
+            super::AFTER_HELP
+        );
+        let reference = include_str!("../../../docs/reference.md");
+        assert!(
+            reference.contains("\n## Debugging\n")
+                && reference.contains("\n## Environment variables\n")
+        );
+    }
 
     #[test]
     fn a_saved_step_that_is_not_an_action_gets_no_action_key_and_an_old_one_is_dropped() {
