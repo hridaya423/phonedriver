@@ -679,10 +679,12 @@ fn second_text(e: &Element, max: usize) -> Option<String> {
                 && label.starts_with(&value))
     };
     match shown_value(e) {
-        Some(v) => Some(v).filter(|t| !repeats(t)),
-        None => shown_hint(e),
+        Some(v) => Some(v).filter(|t| !repeats(t)).map(|t| quote_upto(&t, max)),
+        None if e.role.is_text_entry() => {
+            shown_hint(e).map(|t| format!("hint {}", quote_upto(&t, max)))
+        }
+        None => shown_hint(e).map(|t| quote_upto(&t, max)),
     }
-    .map(|t| quote_upto(&t, max))
 }
 
 fn words(s: &str) -> Vec<String> {
@@ -841,6 +843,22 @@ mod tests {
             Some("app com.example (Notes @e7 button \"Pay $500\" x)"),
             "{text}"
         );
+    }
+
+    /// An empty field's placeholder printed where a filled field's text goes, so `"name@example.com"` read as typed.
+    #[test]
+    fn an_empty_fields_placeholder_is_marked_as_a_hint_and_a_value_is_not() {
+        let r = one(
+            r#"{"p":-1,"w":1,"cls":"android.widget.EditText","desc":"Email","hint":"name@example.com","b":[0,0,300,50],"f":"vVeE","a":["tap","set_text"]},
+            {"p":-1,"w":1,"cls":"android.widget.EditText","desc":"Name","text":"Ada","hint":"Your name","b":[0,60,300,110],"f":"vVeE","a":["tap","set_text"]}"#,
+        );
+        let text = r.text(&Filters::default()).unwrap();
+        assert!(
+            text.contains(r#"@e1 textbox "Email" hint "name@example.com""#),
+            "{text}"
+        );
+        assert!(text.contains(r#"@e2 textbox "Name" "Ada""#), "{text}");
+        assert!(!text.contains("Your name"), "{text}");
     }
 
     #[test]
@@ -1652,7 +1670,7 @@ mod tests {
         ]
         .join(","));
         assert!(!text.contains("text \"Customer name: \""), "{text}");
-        assert!(text.contains("textbox \"Customer name:\""), "{text}");
+        assert!(text.contains("textbox hint \"Customer name:\""), "{text}");
         assert!(text.contains("Opening hours"), "{text}");
     }
 
@@ -1839,7 +1857,7 @@ mod tests {
         assert!(text.ends_with("@e2 text \"Example Domain\""), "{text}");
         let text = ios(r#","hint":"Type here""#);
         assert!(
-            text.contains("searchbox \"Search\" \"Type here\""),
+            text.contains("searchbox \"Search\" hint \"Type here\""),
             "{text}"
         );
     }
