@@ -1413,7 +1413,11 @@ impl Actor {
                     let before: Vec<String> =
                         done.iter().map(|(k, v)| format!("{k} = {v}")).collect();
                     return Err(Error::Refused {
-                        detail: format!("{detail}; already set: {}", before.join(", ")),
+                        detail: format!(
+                            "{detail}{}{}",
+                            phonedriver_core::error::ALREADY_SET,
+                            before.join(", ")
+                        ),
                     });
                 }
                 Err(e) => return Err(e),

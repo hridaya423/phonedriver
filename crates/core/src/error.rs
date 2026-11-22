@@ -531,6 +531,9 @@ pub fn needs_approval(
     text
 }
 
+/// Ends a `Refused` detail when some of the asked writes were made before the refusal; the writes follow it.
+pub const ALREADY_SET: &str = "; already set: ";
+
 fn ids(devices: &[DeviceSummary]) -> String {
     devices
         .iter()
@@ -734,6 +737,7 @@ impl Error {
                 format!("Stop {holder}, then retry the command.")
             }
             Error::Transport { .. } => "Run `phonedriver doctor` to check the connection.".into(),
+            Error::Refused { detail } if detail.contains(ALREADY_SET) => "Check what the message names before you run the command again: the writes it lists as already set were made, the rest were not.".into(),
             Error::Refused { .. } => "Check what the message names and run the command again; nothing was changed.".into(),
         }
     }

@@ -178,6 +178,9 @@ async fn nothing_is_written_when_one_of_several_keys_is_wrong_and_a_refusal_says
         "{}",
         e.message
     );
+    let hint = e.data["hint"].as_str().unwrap();
+    assert!(!hint.contains("nothing was changed"), "{hint}");
+    assert!(hint.contains("already set"), "{hint}");
 }
 
 #[tokio::test(start_paused = true)]
