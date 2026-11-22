@@ -4537,17 +4537,22 @@ fn mode_name(m: TypeMode) -> &'static str {
 
 /// `snapshot --audit`'s lines: how many problems the screen has and the first `AUDIT_LINES` of them (decision D90).
 fn audited(r: &Rendered) -> String {
+    use phonedriver_core::audit::Finding;
     let found = phonedriver_core::audit::audit(r);
     if found.is_empty() {
         return "\naudit: no unnamed controls or small tap targets".into();
     }
     let mut out = format!("\naudit: {}", plural(found.len() as u64, "finding"));
-    for line in found.iter().take(AUDIT_LINES) {
+    for f in found.iter().take(AUDIT_LINES) {
         out.push('\n');
-        out.push_str(line);
+        out.push_str(f.line());
     }
     if found.len() > AUDIT_LINES {
         out.push_str(&format!("\nand {} more", found.len() - AUDIT_LINES));
+    }
+    if found.iter().any(|f| matches!(f, Finding::SmallTarget(_))) {
+        out.push('\n');
+        out.push_str(phonedriver_core::audit::MEASURED_FROM);
     }
     out
 }
