@@ -284,21 +284,44 @@ impl PhysicalSource {
     /// tunnel opened while the display stream runs stopped its frames (observed 2026-11-06 on the iPad: the
     /// daemon listed devices on every request and the screenshot went stale).
     async fn found(&self) -> Result<Vec<(transport::Attached, discovery::Found)>, Error> {
+        described_only(self.each_found().await?)
+    }
+
+    async fn each_found(
+        &self,
+    ) -> Result<Vec<(transport::Attached, Result<discovery::Found, Error>)>, Error> {
         let mut described = self.described.lock().await;
         let mut out = Vec::new();
         for attached in self.attached().await? {
             let known = described.iter().find(|f| f.udid == attached.udid).cloned();
             let found = match known {
-                Some(f) => f,
-                None => {
-                    let f = discovery::describe(&attached).await?;
+                Some(f) => Ok(f),
+                None => discovery::describe(&attached).await.inspect(|f| {
                     described.push(f.clone());
-                    f
-                }
+                }),
             };
             out.push((attached, found));
         }
         Ok(out)
+    }
+}
+
+/// The devices that could be described. One that could not (locked, not trusted yet) is left out while others list,
+/// and its error is the answer only when it is the only device: it made the whole list fail for every device.
+fn described_only<A, F>(each: Vec<(A, Result<F, Error>)>) -> Result<Vec<(A, F)>, Error> {
+    let mut out = Vec::new();
+    let mut first_error = None;
+    for (attached, found) in each {
+        match found {
+            Ok(f) => out.push((attached, f)),
+            Err(e) => {
+                first_error.get_or_insert(e);
+            }
+        }
+    }
+    match first_error {
+        Some(e) if out.is_empty() => Err(e),
+        _ => Ok(out),
     }
 }
 
@@ -336,11 +359,12 @@ impl DeviceSource for PhysicalSource {
     async fn connect(&self, id: &str) -> Result<Arc<dyn Device>, Error> {
         let udid = id.strip_prefix("ios:").unwrap_or(id);
         let (attached, found) = self
-            .found()
+            .each_found()
             .await?
             .into_iter()
             .find(|(w, _)| w.udid == udid)
             .ok_or_else(|| Error::DeviceGone { id: id.to_string() })?;
+        let found = found?;
         if tier_of(found.tier) == discovery::Tier::CoreDevice {
             return Ok(Arc::new(
                 CoreDevice::connect(&attached, &found.model).await?,
@@ -367,6 +391,16 @@ impl DeviceSource for PhysicalSource {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_device_that_cannot_be_described_leaves_the_others_listed() {
+        let gone = || Error::DeviceGone { id: "ios:b".into() };
+        let listed = described_only(vec![("a", Ok(1)), ("b", Err(gone())), ("c", Ok(3))]).unwrap();
+        assert_eq!(listed, vec![("a", 1), ("c", 3)]);
+        let alone = described_only::<&str, i32>(vec![("b", Err(gone()))]).unwrap_err();
+        assert!(matches!(alone, Error::DeviceGone { .. }), "{alone:?}");
+        assert!(described_only::<&str, i32>(vec![]).unwrap().is_empty());
+    }
 
     fn ids(udids: &[&str]) -> Vec<String> {
         udids.iter().map(|u| u.to_string()).collect()
