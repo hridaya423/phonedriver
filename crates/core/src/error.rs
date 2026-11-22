@@ -595,7 +595,11 @@ impl Error {
                 "Connect a device or start an emulator; `phonedriver doctor` says what is missing (adb, USB debugging, a dropped tunnel).".into()
             }
             Error::AmbiguousDevice { connected } => {
-                format!("Pass `--device <id>` with one of: {}.", ids(connected))
+                let named: Vec<String> = connected
+                    .iter()
+                    .map(|d| format!("{} ({})", d.id, d.model))
+                    .collect();
+                format!("Pass `--device <id>` with one of: {}.", named.join(", "))
             }
             Error::DeviceGone { .. } => {
                 "Reconnect the device, then run `phonedriver devices`.".into()
@@ -796,6 +800,24 @@ mod tests {
     }
     use crate::element::Ref;
     use crate::geometry::Rect;
+
+    #[test]
+    fn several_devices_are_named_with_their_models() {
+        let e = Error::AmbiguousDevice {
+            connected: vec![
+                summary(),
+                DeviceSummary {
+                    id: "ios:00008110".into(),
+                    model: "iPhone 17".into(),
+                    os: "iOS 26.5".into(),
+                },
+            ],
+        };
+        assert_eq!(
+            e.hint(),
+            "Pass `--device <id>` with one of: android:emulator-5554 (Pixel 9), ios:00008110 (iPhone 17)."
+        );
+    }
 
     fn summary() -> DeviceSummary {
         DeviceSummary {

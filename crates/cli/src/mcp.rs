@@ -1316,6 +1316,10 @@ fn for_mcp(hint: &str) -> String {
             "`--grep words` keeps only the lines with them, `--all` prints everything",
             "`find` keeps only the lines with those words",
         ),
+        (
+            "Pass `--device <id>` with one of",
+            "Call `devices` with `use` set to one of",
+        ),
         ("`--device <id>`", "`device`"),
         ("`phonedriver boot <name>`", "`devices` with `boot: <name>`"),
         ("`--timeout`", "`timeout_ms`"),
@@ -2205,8 +2209,8 @@ mod tests {
                 "Use `secret: true`. It works on a `type` call and on a `type` step of a batch.",
             ),
             (
-                "Pass `--device <id>` with one of: a, b.",
-                "Pass `device` with one of: a, b.",
+                "Pass `--device <id>` with one of: a (Pixel 7), b (iPhone 17).",
+                "Call `devices` with `use` set to one of: a (Pixel 7), b (iPhone 17).",
             ),
             (
                 "Increase `--timeout`, or run `phonedriver snapshot` to check the screen.",
