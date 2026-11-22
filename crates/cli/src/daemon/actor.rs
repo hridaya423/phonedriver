@@ -2782,17 +2782,36 @@ impl Actor {
                         self.until_app_content(leaving.as_ref()).await?;
                     }
                 }
+                let mut crashed = None;
                 if elsewhere(&front) && !prompted {
-                    summary = format!(
-                        "{summary}, but {} is not in front after {} s ({} is): it is still starting, or it quit at start; `snapshot` shows which",
-                        found.name,
-                        started_launch.elapsed().as_secs(),
-                        front.map_or("nothing".to_string(), |f| f.0)
-                    );
+                    let asked = LogRequest {
+                        app: found.id.clone(),
+                        since: started_launch.elapsed() + CRASH_MARGIN,
+                        crashes: true,
+                    };
+                    crashed = device.logs(&asked).await.ok().and_then(|r| r.crash);
+                    summary = match &crashed {
+                        Some(_) => format!(
+                            "{summary}, but {} crashed at start (`logs {}` prints its last lines)",
+                            found.name, found.id.0
+                        ),
+                        None => format!(
+                            "{summary}, but {} is not in front after {} s ({} is): it is still starting, or it quit at start; `snapshot` shows which",
+                            found.name,
+                            started_launch.elapsed().as_secs(),
+                            front.map_or("nothing".to_string(), |f| f.0)
+                        ),
+                    };
                 }
                 cfg.timeout += self.now().saturating_sub(started);
-                self.finish(s, p.settle, cfg, started, summary, None, None)
-                    .await
+                let mut r = self
+                    .finish(s, p.settle, cfg, started, summary, None, None)
+                    .await?;
+                r.crashed = crashed.map(|what| Crashed {
+                    app: found.id.0.clone(),
+                    what,
+                });
+                Ok(r)
             }
             Action::Open { url, app } => {
                 self.need(

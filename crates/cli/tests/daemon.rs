@@ -3327,6 +3327,34 @@ async fn a_launch_whose_app_is_not_in_front_afterwards_says_which_app_is() {
     );
 }
 
+/// An app that crashed at start left the agent reading "still starting, or it quit at start" and launching it again; its
+/// crash log says which.
+#[tokio::test(start_paused = true)]
+async fn a_launch_whose_app_crashed_at_start_says_so_with_the_crash() {
+    let (source, fake) = installed();
+    fake.launch(&AppId("com.launcher".into())).await.unwrap();
+    fake.set_quits_at_launch(true);
+    fake.answer_logs(phonedriver_core::device::LogReply {
+        text: String::new(),
+        crash: Some("java.lang.IllegalStateException: no config".into()),
+    });
+    let (d, _home) = daemon(source);
+    let r = ok(
+        &d,
+        "default",
+        "act",
+        act_with(json!({"kind": "launch", "app": "Calculator"})),
+    )
+    .await;
+    let summary = r["summary"].as_str().unwrap();
+    assert!(summary.contains("crashed at start"), "{summary}");
+    assert!(!summary.contains("still starting"), "{summary}");
+    assert_eq!(
+        r["crashed"]["what"], "java.lang.IllegalStateException: no config",
+        "{r}"
+    );
+}
+
 /// Seen on the iOS 26.5 Simulator: Maps asked for the location at start, iOS put SpringBoard's prompt in front of it,
 /// and `launch Maps` waited 13 s and said Maps was not in front.
 #[tokio::test(start_paused = true)]
