@@ -1970,16 +1970,26 @@ fn parse_var(text: &str) -> Result<(String, String), String> {
     }
 }
 
-/// A file's `{{name}}`s that no `--var` gave, refused before any step runs.
-fn missing_variables(file: &str, missing: &[String]) -> Failure {
+/// A file's `{{name}}`s that no `--var` gave, with the example each blank holds, refused before any step runs.
+fn missing_variables(file: &str, missing: &[variables::Blank]) -> Failure {
+    let named: Vec<String> = missing
+        .iter()
+        .map(|b| match &b.example {
+            Some(e) => format!("{} (like \"{e}\")", b.name),
+            None => b.name.clone(),
+        })
+        .collect();
     let Failure::Rpc(mut error) = refused(&format!(
         "{file} needs {} nobody gave: {}",
         plural(missing.len() as u64, "variable"),
-        missing.join(", ")
+        named.join(", ")
     )) else {
         unreachable!()
     };
-    let give: Vec<String> = missing.iter().map(|n| format!("--var {n}=VALUE")).collect();
+    let give: Vec<String> = missing
+        .iter()
+        .map(|b| format!("--var {}=VALUE", b.name))
+        .collect();
     if let Some(data) = error.data.as_object_mut() {
         data.insert("hint".into(), json!(format!(
             "Add {} (MCP: vars). {{{{{}}}}} is filled in by phonedriver; variables are not secrets, so they may show in replies.",

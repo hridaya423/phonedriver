@@ -25,22 +25,38 @@ pub fn run_id() -> String {
     format!("{:08x}", hasher.finish() as u32)
 }
 
+/// A `{{name}}` with no value, and the example it was written with (`{{day1:Tuesday}}`).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Blank {
+    pub name: String,
+    pub example: Option<String>,
+}
+
 /// The steps with every `{{name}}` in the strings of the parameters of those from `from` on (1 is the first)
-/// replaced by its value, except the name of the variable a secret is read from, and the names that were used. When some name has no value, every such name is returned
-/// instead, once each, in order.
+/// replaced by its value, except the name of the variable a secret is read from, and the names that were used. A
+/// blank may hold an example after a colon (`{{day1:Tuesday}}`), the wording the screen uses. When some name has no
+/// value, every such name is returned instead, once each, in order, with the first example it was given.
 pub fn fill(
     steps: &[Value],
     from: usize,
     vars: &BTreeMap<String, String>,
-) -> Result<(Vec<Value>, BTreeSet<String>), Vec<String>> {
-    let (mut used, mut missing) = (BTreeSet::new(), BTreeSet::new());
+) -> Result<(Vec<Value>, BTreeSet<String>), Vec<Blank>> {
+    let mut used = BTreeSet::new();
+    let mut missing: BTreeMap<String, Option<String>> = BTreeMap::new();
     let mut filled = steps.to_vec();
-    let mut lookup = |name: &str| {
+    let mut lookup = |name: &str, example: Option<&str>| {
         let found = vars.get(name).cloned();
         match found {
-            Some(_) => used.insert(name.to_string()),
-            None => missing.insert(name.to_string()),
-        };
+            Some(_) => {
+                used.insert(name.to_string());
+            }
+            None => {
+                let kept = missing.entry(name.to_string()).or_default();
+                if kept.is_none() {
+                    *kept = example.map(str::to_string);
+                }
+            }
+        }
         found
     };
     for step in filled.iter_mut().skip(from.saturating_sub(1)) {
@@ -51,11 +67,16 @@ pub fn fill(
     if missing.is_empty() {
         Ok((filled, used))
     } else {
-        Err(missing.into_iter().collect())
+        Err(missing
+            .into_iter()
+            .map(|(name, example)| Blank { name, example })
+            .collect())
     }
 }
 
-fn walk(value: &mut Value, lookup: &mut dyn FnMut(&str) -> Option<String>) {
+type Lookup<'a> = dyn FnMut(&str, Option<&str>) -> Option<String> + 'a;
+
+fn walk(value: &mut Value, lookup: &mut Lookup) {
     match value {
         Value::String(text) => *text = replace(text, lookup),
         Value::Array(items) => items.iter_mut().for_each(|v| walk(v, lookup)),
@@ -67,15 +88,16 @@ fn walk(value: &mut Value, lookup: &mut dyn FnMut(&str) -> Option<String>) {
     }
 }
 
-fn replace(text: &str, lookup: &mut dyn FnMut(&str) -> Option<String>) -> String {
+fn replace(text: &str, lookup: &mut Lookup) -> String {
     let mut out = String::with_capacity(text.len());
     let mut rest = text;
     while let Some(open) = rest.find("{{") {
         let after = &rest[open + 2..];
         match after.find("}}") {
-            Some(end) if is_name(&after[..end]) => {
+            Some(end) if is_name(blank(&after[..end]).0) => {
                 out.push_str(&rest[..open]);
-                match lookup(&after[..end]) {
+                let (name, example) = blank(&after[..end]);
+                match lookup(name, example) {
                     Some(value) => out.push_str(&value),
                     None => out.push_str(&rest[open..open + end + 4]),
                 }
@@ -89,6 +111,15 @@ fn replace(text: &str, lookup: &mut dyn FnMut(&str) -> Option<String>) -> String
     }
     out.push_str(rest);
     out
+}
+
+/// The name of a blank, and its example when it has one.
+fn blank(inside: &str) -> (&str, Option<&str>) {
+    match inside.split_once(':') {
+        Some((name, example)) if !example.is_empty() => (name, Some(example)),
+        Some((name, _)) => (name, None),
+        None => (inside, None),
+    }
 }
 
 pub fn is_name(name: &str) -> bool {
@@ -139,6 +170,45 @@ mod tests {
         assert_eq!(out[0]["params"]["action"]["into"]["text"], "ADMIN");
     }
 
+    /// Issue #41: two alarm replays were given `day1: "Tue"` where the buttons say `Tuesday`, and stopped there. A
+    /// blank may carry an example after a colon, which the "needs" message shows, and is filled like any other.
+    #[test]
+    fn a_blank_carries_an_example_that_a_missing_value_names_and_a_given_one_replaces() {
+        let steps = vec![
+            json!({
+                "method": "act",
+                "params": {"action": {"kind": "tap", "target": {"text": "{{day1:Tuesday}}"}}}
+            }),
+            json!({"params": {"command": "echo {{hour:6}} {{day1}} {{note}}"}}),
+        ];
+        let missing = fill(&steps, 1, &vars(&[])).unwrap_err();
+        assert_eq!(
+            missing,
+            [
+                Blank {
+                    name: "day1".into(),
+                    example: Some("Tuesday".into())
+                },
+                Blank {
+                    name: "hour".into(),
+                    example: Some("6".into())
+                },
+                Blank {
+                    name: "note".into(),
+                    example: None
+                }
+            ]
+        );
+        let (out, _) = fill(
+            &steps,
+            1,
+            &vars(&[("day1", "Thursday"), ("hour", "7"), ("note", "x")]),
+        )
+        .unwrap();
+        assert_eq!(out[0]["params"]["action"]["target"]["text"], "Thursday");
+        assert_eq!(out[1]["params"]["command"], "echo 7 Thursday x");
+    }
+
     #[test]
     fn text_that_is_not_a_name_between_braces_stays_as_it_is() {
         let steps = vec![json!({"params": {"command": "echo {{ a }} {{}} {{a b}} {{ {{a}}"}})];
@@ -155,7 +225,11 @@ mod tests {
             json!({"params": {"command": "{{skipped}}"}}),
             json!({"params": {"command": "{{b}} {{a}} {{b}}"}}),
         ];
-        assert_eq!(fill(&steps, 2, &vars(&[])).unwrap_err(), ["a", "b"]);
+        let missing = fill(&steps, 2, &vars(&[])).unwrap_err();
+        assert_eq!(
+            missing.iter().map(|b| b.name.as_str()).collect::<Vec<_>>(),
+            ["a", "b"]
+        );
         assert!(fill(&steps, 2, &vars(&[("a", ""), ("b", "")])).is_ok());
     }
 }
