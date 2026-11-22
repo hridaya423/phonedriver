@@ -630,6 +630,42 @@ async fn empty_text_clears_the_field_on_either_protocol(v: ProtocolVersion) {
     assert!(cleared, "{:?}", m.rig.fake.calls());
 }
 
+/// A serde error quotes the value it could not read, and a misplaced secret is exactly that value.
+async fn a_malformed_argument_is_named_without_its_value(v: ProtocolVersion) {
+    let m = mcp(None, v).await;
+    let said = |r: Result<CallToolResult, rmcp::ServiceError>| match r {
+        Ok(r) => text(&r),
+        Err(e) => e.to_string(),
+    };
+    let r = m
+        .client
+        .call_tool(
+            CallToolRequestParams::new("type").with_arguments(
+                json!({"text": "x", "secret": "hunter2pass"})
+                    .as_object()
+                    .unwrap()
+                    .clone(),
+            ),
+        )
+        .await;
+    let t = said(r);
+    assert!(!t.contains("hunter2pass"), "{t}");
+    let r = m
+        .client
+        .call_tool(
+            CallToolRequestParams::new("batch").with_arguments(
+                json!({"steps": [{"tool": "type", "text": "x", "into": "Field", "secret": "hunter2pass"}]})
+                    .as_object()
+                    .unwrap()
+                    .clone(),
+            ),
+        )
+        .await;
+    let t = said(r);
+    assert!(!t.contains("hunter2pass"), "{t}");
+    assert!(t.contains("expected"), "{t}");
+}
+
 macro_rules! on_both_protocols {
     ($($name:ident),*) => {
         mod legacy {
@@ -665,7 +701,8 @@ on_both_protocols!(
     a_declined_swipe_sends_no_touch,
     a_client_that_cannot_ask_gets_the_question_for_a_swipe_too,
     autonomous_holds_for_a_batch_and_a_then_chain,
-    empty_text_clears_the_field_on_either_protocol
+    empty_text_clears_the_field_on_either_protocol,
+    a_malformed_argument_is_named_without_its_value
 );
 
 #[allow(dead_code)]

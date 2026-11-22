@@ -9,8 +9,13 @@ use serde::{Deserialize, Serialize};
 
 /// What a serde error says about the action, without any value it echoes: a field name or a type, never the text typed.
 pub fn malformed_reason(e: &serde_json::Error) -> String {
-    let m = e.to_string();
-    let m = m.split(" at line ").next().unwrap_or_default();
+    without_value(&e.to_string())
+}
+
+/// A serde message without the value it quotes (`invalid type: string "…", expected a boolean`): the value may be a
+/// secret put in the wrong field. Field names stay, since they are the schema's.
+pub fn without_value(message: &str) -> String {
+    let m = message.split(" at line ").next().unwrap_or_default();
     if m.starts_with("missing field") || m.starts_with("unknown field") {
         return m.to_string();
     }
