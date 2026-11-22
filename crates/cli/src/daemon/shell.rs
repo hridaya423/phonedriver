@@ -168,9 +168,10 @@ pub fn only_reads(command: &str) -> bool {
             let second = w.get(1).map(String::as_str);
             match w[0].as_str() {
                 "echo" | "cat" | "ls" | "getprop" | "dumpsys" | "ps" | "id" | "whoami"
-                | "uname" | "df" | "date" | "grep" | "head" | "tail" | "wc" | "find" | "stat"
-                | "du" | "uptime" | "printenv" | "readlink" | "pidof" | "sort" | "cut" | "true"
+                | "uname" | "df" | "date" | "grep" | "head" | "tail" | "wc" | "stat" | "du"
+                | "uptime" | "printenv" | "readlink" | "pidof" | "sort" | "cut" | "true"
                 | "sleep" => true,
+                "find" => !w.iter().any(|t| FIND_ACTS.contains(&t.as_str())),
                 "defaults" => second == Some("read"),
                 "settings" => matches!(second, Some("get" | "list")),
                 "pm" => matches!(
@@ -210,6 +211,9 @@ const SDCARD_ROOTS: &[&str] = &[
     "/data/user/0",
 ];
 
+/// The `find` expressions that change files or run another program.
+const FIND_ACTS: &[&str] = &["-delete", "-exec", "-execdir", "-ok", "-okdir"];
+
 /// Why a physical device should not run this command, or `None`. `mine` are the packages phonedriver installed there
 /// and nobody has installed again since.
 pub fn refuse_on_physical(command: &str, mine: &[String]) -> Option<&'static str> {
@@ -225,6 +229,17 @@ pub fn refuse_on_physical(command: &str, mine: &[String]) -> Option<&'static str
             "input" if !rest.is_empty() => {
                 return refuse!(
                     "`input` sends touches and keys the approval guard does not see; tap, type, swipe and press check what they touch"
+                );
+            }
+            "find"
+                if rest.iter().any(|a| FIND_ACTS.contains(a))
+                    && rest
+                        .iter()
+                        .take_while(|a| !a.starts_with('-'))
+                        .any(|a| SDCARD_ROOTS.contains(&a.trim_end_matches('/'))) =>
+            {
+                return refuse!(
+                    "it deletes or rewrites the user's files from the storage root or /data"
                 );
             }
             "am" if rest
@@ -428,6 +443,18 @@ mod tests {
         ] {
             assert!(refuse_on_physical(c, &[]).is_some(), "{c}");
         }
+        for c in [
+            "find /sdcard -delete",
+            "find /storage/emulated/0/ -name '*' -delete",
+            "find /data -exec rm -rf {} +",
+        ] {
+            assert!(refuse_on_physical(c, &[]).is_some(), "{c}");
+            assert!(!only_reads(c), "{c}");
+        }
+        assert_eq!(
+            refuse_on_physical("find /sdcard/Download -name '*.tmp' -delete", &[]),
+            None
+        );
         for c in [
             "input",
             "ime list -s",
