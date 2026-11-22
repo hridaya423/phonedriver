@@ -1,15 +1,23 @@
 name: replay action
 on:
   push:
-    paths: [action.yml, .github/workflows/replay-action.yml, "testbeds/**"]
+    branches: [main]
+    paths: [action.yml, .github/workflows/replay-action.yml, "testbeds/**", "crates/**", "android-agent/**", "ios-runner/**", Cargo.toml, Cargo.lock]
   pull_request:
-    paths: [action.yml, .github/workflows/replay-action.yml, "testbeds/**"]
+    paths: [action.yml, .github/workflows/replay-action.yml, "testbeds/**", "crates/**", "android-agent/**", "ios-runner/**", Cargo.toml, Cargo.lock]
   workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 jobs:
   android:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
         with:
           toolchain: stable
@@ -52,6 +60,8 @@ jobs:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
         with:
           toolchain: stable
