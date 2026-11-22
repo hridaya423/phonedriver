@@ -2059,6 +2059,9 @@ fn own_params(params: &Value) -> Value {
     if let Some(fields) = params.as_object_mut() {
         fields.remove("device");
         fields.remove("share");
+        if fields.get("action").is_some_and(Value::is_null) {
+            fields.remove("action");
+        }
     }
     params
 }
@@ -2093,7 +2096,9 @@ fn secret_hint(why: &NoSecret, n: usize, total: usize) -> String {
 fn name_secrets(steps: &mut [Value]) {
     let mut n = 0;
     for step in steps {
-        let action = &mut step["params"]["action"];
+        let Some(action) = step.pointer_mut("/params/action") else {
+            continue;
+        };
         if action["kind"] == "type" && action["secret"] == true && action["secret_env"].is_null() {
             n += 1;
             action["secret_env"] = json!(format!("{}{n}", variables::SECRET_PREFIX));
@@ -3126,6 +3131,26 @@ fn run_daemon(trace: TraceOptions) -> ExitCode {
 
 #[cfg(test)]
 mod tests {
+    use serde_json::json;
+
+    #[test]
+    fn a_saved_step_that_is_not_an_action_gets_no_action_key_and_an_old_one_is_dropped() {
+        let shell = json!({"method": "shell", "params": {"command": "exit 3"}});
+        let typed = json!({"method": "act", "params": {"action": {"kind": "type", "text": "", "secret": true}}});
+        let mut steps = vec![shell.clone(), typed];
+        super::name_secrets(&mut steps);
+        assert_eq!(steps[0], shell);
+        assert_eq!(
+            steps[1]["params"]["action"]["secret_env"],
+            "PHONEDRIVER_SECRET_1"
+        );
+        let saved_by_0_1_7 = json!({"command": "exit 3", "action": null, "device": "fake:1"});
+        assert_eq!(
+            super::own_params(&saved_by_0_1_7),
+            json!({"command": "exit 3"})
+        );
+    }
+
     #[test]
     fn the_apps_under_test_list_splits_on_commas_and_drops_blanks() {
         assert_eq!(
