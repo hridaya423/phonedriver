@@ -883,9 +883,6 @@ impl Actor {
     }
 }
 
-/// For a target like "Row 500" among rows labelled "Row 12", "Row 13": whether the target lies against `direction`,
-/// how many rows away it is, and how many rows are visible. Lets the search fling across a long list and come back
-/// instead of dragging a screen at a time.
 /// A reply that only takes lines away is a window caught while it opens: the old screen is gone and the new one is
 /// not in the tree yet.
 fn only_lost_lines(s: &Session, now: &Rendered) -> bool {
@@ -979,6 +976,9 @@ fn moved_beyond(s: &Session, now: &Rendered, field: Option<Ref>) -> bool {
     })
 }
 
+/// For a target like "Row 500" among rows labelled "Row 12", "Row 13": whether the target lies against `direction`,
+/// how many rows away it is, and how many rows are visible. Lets the search fling across a long list and come back
+/// instead of dragging a screen at a time.
 fn numbered_distance(
     until: &Target,
     now: &Rendered,
