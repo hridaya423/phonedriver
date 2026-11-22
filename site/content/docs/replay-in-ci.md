@@ -4,7 +4,7 @@ seo: Replay an AI agent's mobile app run in GitHub Actions on an Android emulato
 nav: Replay in CI
 description: Save what an agent did on your app as a steps file, replay it with no model, and run the files on every commit with the phonedriver GitHub Action on an Android emulator or an iOS Simulator.
 meta: Save an agent's run on your app as a steps file and replay it on every commit with the phonedriver GitHub Action, on an Android emulator or the iOS Simulator.
-updated: 2026-11-21
+updated: 2026-11-22
 date: 2026-11-17
 ---
 
@@ -53,7 +53,9 @@ A replay reads that variable from the environment of the process that runs it an
 
 A replay types a secret only into a password field or a one-time code field. A steps file is text an agent can edit, and a secret typed into a plain field shows on the screen, where a screenshot can read it. If your flow types a secret into a plain field, such as an API key in a settings form, set `PHONEDRIVER_REPLAY_SECRET_ANY_FIELD=1` where the replay runs: in the job's `env`, or the MCP server's.
 
-`{{name}}` in a step's text is filled from `--var name=value` (MCP: `vars`), and `{{run}}` is a short id new in every replay, for data that must be fresh, such as `test+{{run}}@example.com`. A variable the file uses and nobody gave is refused before the first step, with every missing name listed. Variables are not secrets and may show in replies; use the environment variable for a secret. In a `shell` step a value is shell text: `--var app='com.x; pm clear com.other'` runs two commands. Quote the place in the file, `am start -n '{{app}}/.Main'`, and give only values you trust. `save` never writes variables: edit them into the file where a value should change.
+`{{name}}` in a step's text is filled from `--var name=value` (MCP: `vars`), and `{{run}}` is a short id new in every replay, for data that must be fresh, such as `test+{{run}}@example.com`. A variable the file uses and nobody gave is refused before the first step, with every missing name listed. Variables are not secrets and may show in replies; use the environment variable for a secret. In a `shell` step a value is shell text: `--var app='com.x; pm clear com.other'` runs two commands. Quote the place in the file, `am start -n '{{app}}/.Main'`, and give only values you trust. `save` never writes variables: edit them into the file where a value should change. Give a blank an example after a colon, `{{day1:Tuesday}}`, and the message that asks for a value shows it, so whoever fills it uses the screen's wording (`Tuesday`, not `Tue`).
+
+A replay checks what it types. A step whose field shows other text than typed, such as `+10655555552` for `0655555552`, stops the replay, and a saved `type --submit` presses Enter only once the field shows the text. That proves the field, not what the app kept: `save` names each typed value no later step reads back, so end a flow that saves something with a `wait` for each value on a screen that shows it. A phone number matches however the app formats it.
 
 Over MCP, `replay` with `save: true` writes only a `.steps` file inside the server's working directory, and it replaces a file there only if that file is already a steps file.
 

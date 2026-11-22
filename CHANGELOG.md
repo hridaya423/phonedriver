@@ -2,6 +2,13 @@
 
 Every release of phonedriver, newest first. Binaries and checksums for each version are on [GitHub Releases](https://github.com/hridaya423/phonedriver/releases).
 
+## Unreleased
+
+- **Replays check what they type** (#41, #42): a replayed step whose field shows other text than typed, or that nothing confirms, stops the replay; a saved `type --submit` sends Enter only once the field shows the text; the first line says how many typed texts were verified.
+- **Saved files hold up better** (#41): a field the keyboard pushed off the screen is saved by its label, and a failed `scroll --until` that moved the list is kept as the scrolls the next step needs.
+- **Read-backs** (#41): `save` names typed values no later step reads back, and `wait` finds a phone number however the app formats it, never behind a country code it did not type.
+- **Blanks with examples**: `{{day1:Tuesday}}` tells whoever fills the blank the wording the screen uses.
+
 ## 0.1.7
 
 Released 21 November 2026.

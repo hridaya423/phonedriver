@@ -3636,3 +3636,20 @@ The user asked for the real items of the new issues to go into 0.1.7. Each was c
 - **Not changed:** #37 (a failed single action returning the screen; 0 in the reviewer's 21 runs, measure first),
   #38 items 3 to 6 (no realistic trigger found, or read-only and self-correcting).
 - **PR #39** merged into the release branch (progress.md conflict unioned).
+
+## 2026-11-22: replays check what they type, and saved files hold up (#41, after #42)
+
+giulioc84's benchmark (#41) found a replay that saved `+10655555552` for `0655555552` and said `replayed 6 steps`; #42 (merged) fixed the phone rule and made a `verified: false` stop the replay. This branch does the rest of the issue's bugs and the cheap half of its closed-loop proposal.
+
+- `Replay::act` (`commands.rs`): a typed step whose text is not confirmed stops, including a verdict nothing can give; a saved `type --submit` is sent without Enter, and `press enter` follows once the field shows the text. First line: `replayed 1 step in 0.4 s, 1 typed text verified`; `--json` has `verified`.
+- `same_phone_number` (`verify.rs`) is the typed-field rule as one function; `Session::seek` uses it as a last resort for a search text of six or more digits, so `wait "0655555552"` finds `065-555-5552` and `(065) 555 5552`, and not `+1 065-555-5552`.
+- `show_saved` names each typed value no later `wait` reads back.
+- `lasting()` (`journal.rs`) names a ref the last screen dropped by the label of the field as last seen (bug 3). `Actor::act` keeps a failed `scroll --until` that moved the list as the plain scrolls that moved it (bug 4), and `Kept` drops `changed` after a failed action.
+- `{{name:example}}` blanks (`variables.rs`): the "needs" message shows `day1 (like "Tuesday")`.
+- Docs: D60 and D98 amended, `docs/reference.md` saving and variables, the site's replay-in-CI page, CHANGELOG Unreleased.
+
+Tests, Mac mini, `cargo test --locked -p phonedriver` with the 0.1.6 agent jar (no device):
+- First runs: `a_replayed_type_and_submit_whose_text_did_not_land_sends_no_enter` failed with `left: 1 right: 0` ("Enter went out with the wrong text"); `..._landed_sends_enter_once_and_says_verified` failed on the missing `pressed enter`; `a_wait_for_a_typed_phone_number_finds_it_formatted_but_not_behind_a_country_code` panicked at its first lookup (`065-555-5552` not found); `a_blank_carries_an_example...` did not compile against the old `fill` (its error type had no examples). The two tests #42 parked: with only the scroll kept, `a_failed_scroll_that_moved_the_list_is_kept_for_the_step_after_it` still failed at the tap (`it changed nothing this time; when it was saved it changed the screen`), because the tap's `changed` had been measured against the screen before the failed scroll; dropping `changed` after a failure fixed it. `save_names_each_typed_value_no_later_wait_reads_back` was written after its code, not before.
+- After: lib `161 passed` (162 with the blanks test), `cli 33`, `daemon 210`, `mcp 55`, `replay 11 passed; 0 ignored`. `cargo clippy --locked -p phonedriver --all-targets -- -D warnings`: clean. `cargo fmt --all`: applied.
+
+Not run on a device: the submit split costs one more settle per saved `type --submit` (`TYPED_QUIET`, 150 ms, on a fake device); no emulator replay of the contact flow yet.
