@@ -56,6 +56,9 @@ pub struct Kept {
     action: Action,
     by_position: bool,
     secret: bool,
+    /// The action before this one failed, so the screen it is measured against may not be the device's, and
+    /// whether it changed the screen says nothing a replay can hold it to.
+    unsure: bool,
 }
 
 impl Kept {
@@ -89,7 +92,36 @@ impl Kept {
             action,
             by_position,
             secret,
+            unsure: s.unsure,
         }
+    }
+
+    /// The steps for a `scroll --until` that failed after moving the list `times` times: a step after it may need
+    /// the list where the scrolls left it, so they are kept as plain scrolls (issue #41). Each may move nothing in a
+    /// replay that starts nearer the list's end, so none says it changed the screen.
+    pub fn scrolled(&self, times: u32) -> Vec<Value> {
+        let Action::Scroll {
+            direction, within, ..
+        } = &self.action
+        else {
+            return Vec::new();
+        };
+        let plain = Action::Scroll {
+            direction: *direction,
+            within: within.clone(),
+            until: None,
+            max: None,
+        };
+        (0..times)
+            .map(|_| {
+                let mut step = call("act", json!({"action": plain}));
+                step["summary"] = json!(format!("scrolled {}", direction.name()));
+                if self.by_position {
+                    step["by_position"] = json!(true);
+                }
+                step
+            })
+            .collect()
     }
 
     /// The step for this action once it has worked. `changed` lets a replay tell a step that did nothing this time.
@@ -101,7 +133,9 @@ impl Kept {
                 .map(|a| a.remove("text"));
         }
         step["summary"] = json!(result.summary);
-        step["changed"] = json!(result.changed);
+        if !self.unsure {
+            step["changed"] = json!(result.changed);
+        }
         if self.by_position {
             step["by_position"] = json!(true);
         }
@@ -125,7 +159,8 @@ pub fn wait(condition: &WaitCondition, s: &Session) -> Value {
 /// What finds the element of `target` in a later run, best first: an id the app gave it (with its text beside it,
 /// for a run where the id is gone), its label or a hint with its role, and last its centre. Each is used only when
 /// it singles the element out on the screen the agent saw. `android:id/…` names a slot every app has (`button1`
-/// is the confirming button of any dialog), not a thing, so it is never used.
+/// is the confirming button of any dialog), not a thing, so it is never used. A text field the last screen dropped
+/// (a keyboard that opened shrank its list) is named by its label, which a replay brings back as `type` does live.
 fn lasting(target: &Target, s: &Session, by_position: &mut bool) -> Target {
     let r = match target {
         Target::Text { .. } | Target::Id { .. } => return target.clone(),
@@ -140,7 +175,13 @@ fn lasting(target: &Target, s: &Session, by_position: &mut bool) -> Target {
         .as_ref()
         .and_then(|last| Some((last, &last.elements[last.index_of(r)?])))
     else {
-        return target.clone();
+        return match s.gone_field(r) {
+            Some(gone) => Target::Text {
+                text: gone.label.clone().unwrap_or_default(),
+                role: Some(gone.role),
+            },
+            None => target.clone(),
+        };
     };
     let finds_it = |named: &Target| {
         s.resolve(named, last)

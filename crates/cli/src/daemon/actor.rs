@@ -2299,6 +2299,16 @@ impl Actor {
         let began = Instant::now();
         let kept = Kept::of(&p.action, s);
         let acted = self.act_now(s, p).await;
+        if let Err(Error::NotReached { scrolls, end, .. }) = &acted {
+            let moved = match end {
+                ScrollEnd::Stuck => 0,
+                ScrollEnd::Ended => scrolls.saturating_sub(2),
+                ScrollEnd::Limit => *scrolls,
+            };
+            for step in kept.scrolled(moved) {
+                s.journal.push(step);
+            }
+        }
         if acted.is_err() {
             self.awake = None;
             s.unsure = true;
