@@ -129,7 +129,6 @@ pub struct FrameStore {
     inner: Mutex<Inner>,
     tx: watch::Sender<FrameRef>,
     decode_errors: AtomicU64,
-    publishes_skipped: AtomicU64,
 }
 
 impl FrameStore {
@@ -156,7 +155,6 @@ impl FrameStore {
             }),
             tx: watch::Sender::new(FrameRef::default()),
             decode_errors: AtomicU64::new(0),
-            publishes_skipped: AtomicU64::new(0),
         }
     }
 
@@ -319,15 +317,6 @@ impl FrameStore {
             return false;
         }
         (r0..r1).all(|r| (c0..c1).all(|c| thumb.samples[r * thumb.cols + c] <= BLACK_LEVEL))
-    }
-
-    pub fn record_skipped_publish(&self) {
-        self.publishes_skipped.fetch_add(1, Ordering::Relaxed);
-    }
-
-    /// Pictures decoded but not shown because the receiver was far behind (see `receive::Pacing`).
-    pub fn publishes_skipped(&self) -> u64 {
-        self.publishes_skipped.load(Ordering::Relaxed)
     }
 
     pub fn record_decode_error(&self) {

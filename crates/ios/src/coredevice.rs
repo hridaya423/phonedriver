@@ -341,7 +341,7 @@ fn decode(
             Signal::Decoded(timestamp) => {
                 let _ = feedback.send(Feedback::FrameDecoded(timestamp));
             }
-            Signal::PublishSkipped { .. } => store.record_skipped_publish(),
+            Signal::PublishSkipped { .. } => {}
             Signal::DecodeFailed => {
                 store.record_decode_error();
                 let _ = feedback.send(Feedback::Keyframe);
