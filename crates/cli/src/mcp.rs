@@ -46,6 +46,15 @@ pub struct Mcp {
     folder: Option<PathBuf>,
 }
 
+/// The call a held question belongs to, as a keyed hash of its tool and arguments: a retry is matched to it without
+/// the server keeping a `type`'s secret text while the question is open.
+fn held_key(call: &serde_json::Value) -> String {
+    use std::hash::BuildHasher;
+    static KEYS: std::sync::LazyLock<std::hash::RandomState> =
+        std::sync::LazyLock::new(std::hash::RandomState::new);
+    format!("{:016x}", KEYS.hash_one(call.to_string()))
+}
+
 /// The question a 2026-07-28 call returned: the call it belongs to, the batch step it holds and what it asked.
 /// A retry's answer counts only for the call that was asked.
 struct Held {
@@ -751,7 +760,7 @@ impl Mcp {
         timeout: Option<u64>,
         autonomous: bool,
     ) -> Outcome {
-        let key = json!(["batch", &device, &steps, timeout]).to_string();
+        let key = held_key(&json!(["batch", &device, &steps, timeout]));
         let mut globals = self.globals(device);
         globals.timeout = timeout;
         if autonomous {
@@ -962,7 +971,7 @@ impl Mcp {
             .as_ref()
             .and_then(|r| r.get(APPROVAL_KEY));
         let channel = Channel::Mrtr { can_ask, answer };
-        let key = json!([&request.name, &args]).to_string();
+        let key = held_key(&json!([&request.name, &args]));
         let tool = Touch::parse(&request.name, args)
             .map_err(|e| rmcp::ErrorData::invalid_params(crate::wire::malformed_reason(&e), None))?
             .ok_or_else(|| rmcp::ErrorData::invalid_params("not a touch tool", None))?;
@@ -2055,6 +2064,18 @@ mod tests {
         }
         let abs = dir.path().join("out.steps");
         assert!(replayable(&folder, &abs).is_err());
+    }
+
+    #[test]
+    fn a_held_call_is_known_by_a_hash_that_holds_none_of_its_text() {
+        let call = json!(["type", {"text": "hunter2pass", "secret": true}]);
+        let key = held_key(&call);
+        assert!(!key.contains("hunter2pass"), "{key}");
+        assert_eq!(key, held_key(&call));
+        assert_ne!(
+            key,
+            held_key(&json!(["type", {"text": "other", "secret": true}]))
+        );
     }
 
     #[test]
