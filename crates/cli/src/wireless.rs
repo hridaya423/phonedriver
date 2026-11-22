@@ -120,10 +120,15 @@ fn random_text(len: usize) -> String {
     ulid::Ulid::generate().to_string()[26 - len..].to_string()
 }
 
-async fn mdns_services(adb: &Adb) -> Vec<MdnsService> {
+async fn mdns_services(adb: &Adb) -> Result<Vec<MdnsService>, (u8, String)> {
     match adb.mdns_services().await {
-        Ok(text) => parse_mdns_services(&text),
-        Err(_) => Vec::new(),
+        Ok(text) => Ok(parse_mdns_services(&text)),
+        Err(e) => Err((
+            1,
+            format!(
+                "adb could not list the phones it hears over mDNS ({e}). Run `phonedriver pair` again."
+            ),
+        )),
     }
 }
 
@@ -154,7 +159,7 @@ async fn pair_flow(adb: &Adb) -> Result<String, (u8, String)> {
 
     let deadline = tokio::time::Instant::now() + SCAN_WINDOW;
     let pairing = loop {
-        if let Some(found) = find_pairing(&mdns_services(adb).await, &name) {
+        if let Some(found) = find_pairing(&mdns_services(adb).await?, &name) {
             break found.clone();
         }
         if tokio::time::Instant::now() >= deadline {
@@ -179,7 +184,7 @@ async fn pair_flow(adb: &Adb) -> Result<String, (u8, String)> {
 
     let deadline = tokio::time::Instant::now() + CONNECT_WINDOW;
     loop {
-        let services = mdns_services(adb).await;
+        let services = mdns_services(adb).await?;
         if let Some(connect) = find_connect(&services, &pairing.addr) {
             let devices = adb.devices().await.unwrap_or_default();
             if let Some(serial) = connected_serial(&devices, connect) {
@@ -375,6 +380,43 @@ pub fn untether(device: Option<&str>) -> ExitCode {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    async fn adb_whose_mdns_listing_fails() -> Adb {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap().to_string();
+        tokio::spawn(async move {
+            loop {
+                let (mut s, _) = listener.accept().await.unwrap();
+                let mut len = [0u8; 4];
+                if s.read_exact(&mut len).await.is_err() {
+                    continue;
+                }
+                let n = usize::from_str_radix(std::str::from_utf8(&len).unwrap(), 16).unwrap();
+                let mut query = vec![0u8; n];
+                s.read_exact(&mut query).await.unwrap();
+                let (status, body) = match std::str::from_utf8(&query).unwrap() {
+                    "host:mdns:check" => {
+                        ("OKAY", "mdns daemon version [Openscreen discovery 0.0.0]")
+                    }
+                    "host:mdns:services" => ("FAIL", "the mdns responder stopped"),
+                    _ => ("OKAY", "failed to connect"),
+                };
+                let reply = format!("{status}{:04x}{body}", body.len());
+                let _ = s.write_all(reply.as_bytes()).await;
+            }
+        });
+        Adb::with_addr(&addr)
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn a_failing_adb_ends_the_wait_for_a_scan_with_its_own_error() {
+        let adb = adb_whose_mdns_listing_fails().await;
+        let (code, message) = pair_flow(&adb).await.unwrap_err();
+        assert_eq!(code, 1, "{message}");
+        assert!(message.contains("the mdns responder stopped"), "{message}");
+        assert!(!message.contains("scanned"), "{message}");
+    }
 
     fn svc(instance: &str, kind: ServiceKind, addr: &str) -> MdnsService {
         MdnsService {
