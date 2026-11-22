@@ -10,8 +10,26 @@ const IOS_TARGET: f32 = 44.0;
 /// Android's accessibility guidelines ask for 48 by 48 dp.
 const ANDROID_TARGET: f32 = 48.0;
 
-/// One line for each problem on the screen, in screen order.
-pub fn audit(r: &Rendered) -> Vec<String> {
+/// Says what the size of a small target is measured from, for the reader to judge the finding.
+pub const MEASURED_FROM: &str = "sizes are the bounds accessibility reports; a touch area the app enlarges (React Native `hitSlop`) is not seen";
+
+/// One problem on the screen, as its line.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Finding {
+    Unnamed(String),
+    SmallTarget(String),
+}
+
+impl Finding {
+    pub fn line(&self) -> &str {
+        match self {
+            Finding::Unnamed(l) | Finding::SmallTarget(l) => l,
+        }
+    }
+}
+
+/// One finding for each problem on the screen, in screen order.
+pub fn audit(r: &Rendered) -> Vec<Finding> {
     let device = r.header.device.as_ref();
     let target = match device {
         Some(d) if d.id.starts_with("android:") => ANDROID_TARGET,
@@ -29,17 +47,20 @@ pub fn audit(r: &Rendered) -> Vec<String> {
             continue;
         }
         if !named(r, i) {
-            out.push(format!("{}: no name a screen reader can say", r.line(e)));
+            out.push(Finding::Unnamed(format!(
+                "{}: no name a screen reader can say",
+                r.line(e)
+            )));
         } else if (e.bounds.w < target || e.bounds.h < target)
             && e.role != Role::Link
             && !cut_off(r, i, screen)
         {
-            out.push(format!(
+            out.push(Finding::SmallTarget(format!(
                 "{}: {:.0}x{:.0}pt, under {target:.0}x{target:.0}pt",
                 r.line(e),
                 e.bounds.w,
                 e.bounds.h
-            ));
+            )));
         }
     }
     out
@@ -144,7 +165,7 @@ mod tests {
     fn a_control_with_nothing_to_say_and_a_small_target_are_found_and_the_rest_is_not() {
         let r = screen("android:emulator-5554", NODES);
         assert_eq!(
-            audit(&r),
+            audit(&r).iter().map(Finding::line).collect::<Vec<_>>(),
             [
                 "@e1 button: no name a screen reader can say",
                 "@e3 button \"Close\": 24x24pt, under 48x48pt",
@@ -161,7 +182,10 @@ mod tests {
             {"p":0,"w":1,"cls":"android.widget.Button","text":"OK","b":[100,100,146,146],"f":"vVe","a":["tap"]},
             {"p":0,"w":1,"cls":"android.widget.Button","text":"Help","b":[200,100,240,140],"f":"vVe","a":["tap"]}"#;
         assert_eq!(
-            audit(&screen("sim:E02F", nodes)),
+            audit(&screen("sim:E02F", nodes))
+                .iter()
+                .map(Finding::line)
+                .collect::<Vec<_>>(),
             ["@e2 button \"Help\": 40x40pt, under 44x44pt"]
         );
     }

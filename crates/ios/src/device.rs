@@ -902,6 +902,15 @@ impl Device for IosDevice {
         Ok(map::apps(&json))
     }
 
+    async fn app_build(&self, app: &AppId) -> Result<Option<String>> {
+        if !matches!(self.host, Host::Simulator) {
+            return Ok(None);
+        }
+        let plist = simctl(&["appinfo", &self.udid, &app.0]).await?;
+        let json = crate::simulator::plist_to_json(&plist).await?;
+        Ok(map::build(&json))
+    }
+
     async fn launch(&self, app: &AppId) -> Result<()> {
         {
             let _busy = Busy::new(&self.activity);

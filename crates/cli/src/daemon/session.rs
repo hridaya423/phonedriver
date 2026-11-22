@@ -8,6 +8,7 @@ use phonedriver_core::refs::RefTable;
 use phonedriver_core::render::{Rendered, TextMatch, shown_value};
 use phonedriver_core::similar::{SUGGEST_WITHIN, normalized_distance};
 
+use super::verify::same_phone_number;
 use crate::wire::{PointJson, Target};
 
 /// The screen a new one replaced, kept while the agent is still shown that new one (`covering` is its refs).
@@ -181,6 +182,21 @@ impl Session {
                         let v = normalize(&v);
                         v == q || (sentences && holds_as_words(&v, &q, None))
                     })
+                })
+                .map(|e| e.r#ref)
+                .collect();
+        }
+        if refs.is_empty() && phone_number(text) {
+            refs = now
+                .elements
+                .iter()
+                .filter(|e| role.is_none_or(|r| e.role == r))
+                .filter(|e| {
+                    e.label
+                        .iter()
+                        .cloned()
+                        .chain(shown_value(e))
+                        .any(|t| phone_runs(&t).any(|run| same_phone_number(text, run)))
                 })
                 .map(|e| e.r#ref)
                 .collect();
@@ -586,6 +602,20 @@ fn find_text(
 
 const EXTRA_WORDS: usize = 4;
 
+/// A search text that is a phone number: digits, perhaps with `+-(). `, six or more of them.
+fn phone_number(text: &str) -> bool {
+    text.chars()
+        .all(|c| c.is_ascii_digit() || "+-(). ".contains(c))
+        && text.chars().filter(char::is_ascii_digit).count() >= 6
+}
+
+/// The stretches of `text` written as a phone number is, each starting and ending with a digit or a `+`.
+fn phone_runs(text: &str) -> impl Iterator<Item = &str> {
+    text.split(|c: char| !(c.is_ascii_digit() || "+-(). ".contains(c)))
+        .map(|run| run.trim_matches(|c: char| !(c.is_ascii_digit() || c == '+')))
+        .filter(|run| run.chars().any(|c| c.is_ascii_digit()))
+}
+
 fn normalize(s: &str) -> String {
     s.split_whitespace()
         .collect::<Vec<_>>()
@@ -836,6 +866,21 @@ mod tests {
     #[test]
     fn a_search_keeps_word_boundaries() {
         assert!(sought(&["Row 364"], "Row 3").is_err());
+    }
+
+    /// A saved flow reads back the number it typed (`wait "{{phone}}"`), and Contacts shows it formatted. A `+1` in
+    /// front of a number typed with its leading 0 is another number (issue #41), so the wait must not end on it.
+    #[test]
+    fn a_wait_for_a_typed_phone_number_finds_it_formatted_but_not_behind_a_country_code() {
+        let line = sought(&["Mobile", "065-555-5552"], "0655555552").unwrap();
+        assert!(line.contains("065-555-5552"), "{line}");
+        let line = sought(&["Call mobile (065) 555 5552"], "0655555552").unwrap();
+        assert!(line.contains("5552"), "{line}");
+        assert!(sought(&["+1 065-555-5552"], "0655555552").is_err());
+        assert!(sought(&["Mobile 065-555-5553"], "0655555552").is_err());
+        let line = sought(&["+1 371-065-8"], "3710658").unwrap();
+        assert!(line.contains("371-065-8"), "{line}");
+        assert!(sought(&["2026"], "202").is_err());
     }
 
     #[test]

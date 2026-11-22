@@ -319,7 +319,7 @@ impl Daemon {
             }
             "release" | "snapshot" | "screenshot" | "act" | "wait" | "batch" | "find" | "apps"
             | "app" | "clipboard" | "health" | "shell" | "setting" | "logs" | "network"
-            | "page" | "record" | "journal" => {
+            | "page" | "record" | "journal" | "build" => {
                 let common: Common = rpc::params(params)?;
                 if method == "release" && common.device.is_none() {
                     self.release_everywhere(session).await;
@@ -334,6 +334,7 @@ impl Daemon {
                     "app" => Call::App(rpc::params(params)?),
                     "health" => Call::Health,
                     "journal" => Call::Journal(rpc::params(params)?),
+                    "build" => Call::Build(rpc::params(params)?),
                     "clipboard" => Call::Clipboard(rpc::params(params)?),
                     "shell" => {
                         let p: ShellParams = rpc::params(params)?;

@@ -154,6 +154,8 @@ struct ReplayArgs {
     from: Option<u32>,
     /// Not for secrets.
     vars: Option<std::collections::BTreeMap<String, String>>,
+    /// Run on another build of an app than the file was saved on.
+    any_build: Option<bool>,
 }
 
 #[derive(Deserialize, JsonSchema)]
@@ -1444,6 +1446,7 @@ impl Mcp {
                 from: a.from.map_or(1, |n| n as usize),
                 screens: None,
                 vars: a.vars.unwrap_or_default().into_iter().collect(),
+                any_build: a.any_build.unwrap_or(false),
             }
         };
         self.run(a.device, verb, None).await

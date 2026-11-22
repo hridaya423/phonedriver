@@ -640,6 +640,27 @@ async fn snapshot_audit_adds_the_screens_accessibility_problems() {
     );
 }
 
+/// Issue #43: a React Native app enlarges a touch area with `hitSlop`, which the bounds accessibility reports do not
+/// show, so a small-target finding there may be wrong; the audit says so once, and only beside such a finding.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_small_target_finding_says_its_size_is_the_reported_bounds() {
+    let small = phonedriver_core::raw::RawTree::from_android_json(
+        r#"{"windows":[{"id":1,"type":"application","package":"com.example","bounds":[0,0,360,800]}],"nodes":[
+        {"p":-1,"w":1,"cls":"android.widget.FrameLayout","b":[0,0,360,800],"f":"vVe"},
+        {"p":0,"w":1,"cls":"android.view.ViewGroup","desc":"Language","b":[100,100,269,140],"f":"vVe","a":["tap"]}]}"#,
+        phonedriver_core::geometry::Scale { density: 1.0 },
+    )
+    .unwrap();
+    let (home, socket) = fake_daemon(vec![small]).await;
+    let out = cli(&home, &socket, &["snapshot", "--audit"]).await;
+    assert!(
+        out.ends_with(
+            "\naudit: 1 finding\n@e1 button \"Language\": 169x40pt, under 44x44pt\nsizes are the bounds accessibility reports; a touch area the app enlarges (React Native `hitSlop`) is not seen\n"
+        ),
+        "{out}"
+    );
+}
+
 async fn cli_with(
     home: &tempfile::TempDir,
     socket: &PathBuf,

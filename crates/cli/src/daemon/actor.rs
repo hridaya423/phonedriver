@@ -44,10 +44,10 @@ use super::verify::{Expect, Verdict, Verify};
 use super::{guard, secret_field};
 use crate::wire::{
     ActParams, Action, ActionResult, AppParams, Approval, Approved, BatchParams, BatchResult,
-    ClipboardParams, Crashed, FindParams, JournalParams, Kind, LogsParams, Observation, PageParams,
-    PinchDirection, RecordAction, RecordParams, ScreenshotParams, ScreenshotResult, SettingParams,
-    ShellParams, ShellResult, SnapshotParams, Step, StepFailure, StepResult, Target, TypeMode,
-    VpnState, WaitCondition, WaitParams,
+    BuildParams, ClipboardParams, Crashed, FindParams, JournalParams, Kind, LogsParams,
+    Observation, OnScreen, PageParams, PinchDirection, RecordAction, RecordParams,
+    ScreenshotParams, ScreenshotResult, SettingParams, ShellParams, ShellResult, SnapshotParams,
+    Step, StepFailure, StepResult, Target, TypeMode, VpnState, WaitCondition, WaitParams,
 };
 
 pub const LEASE_TTL: Duration = Duration::from_secs(600);
@@ -154,6 +154,7 @@ pub enum Call {
     Page(PageParams),
     Record(RecordParams),
     Journal(JournalParams),
+    Build(BuildParams),
     /// What `doctor` needs: the device answers a tree read, and a frame arrives.
     Health,
     Release,
@@ -697,6 +698,36 @@ impl Actor {
         }
     }
 
+    /// Steps about to be saved, each launch with the build of the app it launches, read once per app. A replay
+    /// refuses another build: the steps were saved on that one's screens.
+    async fn with_builds(&self, mut journal: Value) -> Value {
+        let Ok(device) = self.device() else {
+            return journal;
+        };
+        let mut builds: HashMap<String, Option<String>> = HashMap::new();
+        let Some(steps) = journal["steps"].as_array_mut() else {
+            return journal;
+        };
+        for step in steps {
+            let action = &step["params"]["action"];
+            let Some(app) = action["app"]
+                .as_str()
+                .filter(|_| action["kind"] == "launch")
+            else {
+                continue;
+            };
+            let app = app.to_string();
+            if !builds.contains_key(&app) {
+                let build = device.app_build(&AppId(app.clone())).await.ok().flatten();
+                builds.insert(app.clone(), build);
+            }
+            if let Some(build) = &builds[&app] {
+                step["build"] = json!(build);
+            }
+        }
+        journal
+    }
+
     async fn dispatch(&mut self, s: &mut Session, call: Call) -> Result<Value, Error> {
         let value = match call {
             Call::Snapshot(p) => {
@@ -793,9 +824,10 @@ impl Actor {
                     s.journal.drop_first(n);
                     json!({})
                 }
-                None if p.keep => s.journal.peek(),
-                None => s.journal.take(),
+                None if p.keep => self.with_builds(s.journal.peek()).await,
+                None => self.with_builds(s.journal.take()).await,
             },
+            Call::Build(p) => json!({"build": self.device()?.app_build(&AppId(p.app)).await?}),
             Call::Logs(p) => self.logs(s, p).await?,
             Call::Network => to_value(self.device()?.network().await?),
             Call::Page(p) => self.page(p).await?,
@@ -1257,6 +1289,7 @@ impl Actor {
                 timeout_ms: p.timeout_ms,
                 expect_change_ms: p.expect_change_ms,
                 secret_field_only: false,
+                on: None,
             };
             let mut result = self.act(s, act).await?;
             result.summary = format!("opened the settings screen {screen}");
@@ -1527,26 +1560,27 @@ impl Actor {
         let nodes = prune(tree);
         let refs = s.refs.assign(tree, &nodes);
         let alerts = phonedriver_core::alert::find(tree, screen);
+        let front = tree
+            .windows
+            .iter()
+            .filter(|w| !alerts.iter().any(|(id, _)| *id == w.id))
+            .find(|w| w.kind == "application" && w.package.is_some());
+        let popup = tree.outside.is_empty()
+            && front.is_some_and(|w| w.bounds.x > 1.0 || w.bounds.x + w.bounds.w < screen.w - 1.0);
         let app = match tree.outside.first() {
             Some(o) => Some(AppLine {
                 id: o.package.clone().unwrap_or_else(|| "unknown".into()),
                 name: Some(phonedriver_core::scope::OUTSIDE_NAME.into()),
             }),
-            None => tree
-                .windows
-                .iter()
-                .filter(|w| !alerts.iter().any(|(id, _)| *id == w.id))
-                .find(|w| w.kind == "application" && w.package.is_some())
-                .and_then(|w| w.package.clone())
-                .map(|id| {
-                    let name = self
-                        .names
-                        .lock()
-                        .unwrap_or_else(|e| e.into_inner())
-                        .get(&id)
-                        .cloned();
-                    AppLine { id, name }
-                }),
+            None => front.and_then(|w| w.package.clone()).map(|id| {
+                let name = self
+                    .names
+                    .lock()
+                    .unwrap_or_else(|e| e.into_inner())
+                    .get(&id)
+                    .cloned();
+                AppLine { id, name }
+            }),
         };
         let keyboard = tree
             .windows
@@ -1570,6 +1604,7 @@ impl Actor {
             settle,
             secure_hidden,
             alerts: alerts.into_iter().map(|(_, a)| a).collect(),
+            popup,
         };
         Rendered::build(nodes, &refs, header)
     }
@@ -2267,6 +2302,36 @@ impl Actor {
         }
     }
 
+    /// A replayed step runs only on the kind of screen it was saved on: the same app, and a dialog in front exactly
+    /// when there was one. It reads the screen only when the session has none it is sure of.
+    async fn on_screen(&mut self, s: &mut Session, saved: &OnScreen) -> Result<(), Error> {
+        let fresh;
+        let now = match s.last.as_ref().filter(|_| !s.unsure) {
+            Some(last) => last,
+            None => {
+                fresh = self.fresh(s).await?;
+                &fresh
+            }
+        };
+        let app = now.header.app.as_ref().map(|a| a.id.as_str());
+        let over = now.dialog_in_front();
+        let differs = match (saved.app.as_deref(), app) {
+            (Some(was), Some(is)) if was != is => Some(format!("{is} is in front")),
+            _ if saved.over && !over => Some("the dialog it was saved on is not in front".into()),
+            _ if !saved.over && over => {
+                Some("a dialog is in front, which was not there when it was saved".into())
+            }
+            _ => None,
+        };
+        let Some(differs) = differs else {
+            return Ok(());
+        };
+        let was = saved.app.as_deref().unwrap_or("its app");
+        Err(Error::Refused {
+            detail: format!("this step was saved on {was}, and {differs}; nothing was touched"),
+        })
+    }
+
     async fn act(&mut self, s: &mut Session, p: ActParams) -> Result<ActionResult, Error> {
         let t = Instant::now();
         let prepared = self.prepare(&p.action).await;
@@ -2297,8 +2362,21 @@ impl Actor {
             .and_then(|last| last.header.app.as_ref())
             .map(|app| app.id.clone());
         let began = Instant::now();
+        if let Some(on) = &p.on {
+            self.on_screen(s, on).await?;
+        }
         let kept = Kept::of(&p.action, s);
         let acted = self.act_now(s, p).await;
+        if let Err(Error::NotReached { scrolls, end, .. }) = &acted {
+            let moved = match end {
+                ScrollEnd::Stuck => 0,
+                ScrollEnd::Ended => scrolls.saturating_sub(2),
+                ScrollEnd::Limit => *scrolls,
+            };
+            for step in kept.scrolled(moved) {
+                s.journal.push(step);
+            }
+        }
         if acted.is_err() {
             self.awake = None;
             s.unsure = true;
@@ -3764,6 +3842,7 @@ impl Actor {
                             timeout_ms: p.timeout_ms,
                             expect_change_ms: p.expect_change_ms,
                             secret_field_only: false,
+                            on: None,
                         },
                     )
                     .await
@@ -4527,17 +4606,22 @@ fn mode_name(m: TypeMode) -> &'static str {
 
 /// `snapshot --audit`'s lines: how many problems the screen has and the first `AUDIT_LINES` of them (decision D90).
 fn audited(r: &Rendered) -> String {
+    use phonedriver_core::audit::Finding;
     let found = phonedriver_core::audit::audit(r);
     if found.is_empty() {
         return "\naudit: no unnamed controls or small tap targets".into();
     }
     let mut out = format!("\naudit: {}", plural(found.len() as u64, "finding"));
-    for line in found.iter().take(AUDIT_LINES) {
+    for f in found.iter().take(AUDIT_LINES) {
         out.push('\n');
-        out.push_str(line);
+        out.push_str(f.line());
     }
     if found.len() > AUDIT_LINES {
         out.push_str(&format!("\nand {} more", found.len() - AUDIT_LINES));
+    }
+    if found.iter().any(|f| matches!(f, Finding::SmallTarget(_))) {
+        out.push('\n');
+        out.push_str(phonedriver_core::audit::MEASURED_FROM);
     }
     out
 }

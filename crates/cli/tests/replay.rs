@@ -99,6 +99,7 @@ async fn the_journal_holds_each_action_that_worked_with_a_target_that_outlives_i
             "params": {"action": {"kind": "tap", "target": {"text": "One", "role": "button"}, "count": null, "long": null}},
             "summary": "tapped @e1 \"One\"",
             "changed": false,
+            "on": {"app": "com.example", "over": false},
         })
     );
     assert_eq!(
@@ -430,7 +431,6 @@ fn drags(g: &phonedriver_core::device::Gesture) -> bool {
 /// the daemon scrolled it back and typed, and the steps file kept `"into": {"ref": "e24"}`, which names nothing in
 /// a later run, and `save` said nothing about it.
 #[tokio::test(start_paused = true)]
-#[ignore = "open bug: lasting() keeps a ref the last screen does not hold (journal.rs); remove this line with the fix"]
 async fn a_typed_field_the_last_screen_had_dropped_is_not_saved_by_its_session_ref() {
     let (d, fake, _home) = setup(vec![form(false, Some(600.0))]);
     let snap = ok(&d, "snapshot", json!({})).await;
@@ -499,7 +499,6 @@ fn scrolling_list() -> Arc<FakeDevice> {
 /// `tap "Email"`, worked only because of that scroll. The failed scroll was not saved, so the replay stopped at the
 /// tap.
 #[tokio::test(flavor = "multi_thread")]
-#[ignore = "open bug: a failed call that moved the screen is not journaled (actor.rs, journal pushed after acted?); remove this line with the fix"]
 async fn a_failed_scroll_that_moved_the_list_is_kept_for_the_step_after_it() {
     let (home, socket) = served(scrolling_list()).await;
     let (scrolled, shown) = run(&home, &socket, &["scroll", "down", "--until", "Add email"]).await;
@@ -517,5 +516,210 @@ async fn a_failed_scroll_that_moved_the_list_is_kept_for_the_step_after_it() {
     assert!(
         replayed,
         "the tap on \"Email\" needs the scroll before it, which the file does not hold:\n{kept}\n{shown}"
+    );
+}
+
+/// A saved `type --submit` sent Enter before anything could tell the text was wrong, and a field that closes on Enter
+/// leaves the verdict unknown, so the replay went on. A replay checks the text first and sends Enter only after.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_replayed_type_and_submit_whose_text_did_not_land_sends_no_enter() {
+    let fake = Arc::new(FakeDevice::new(vec![field("")]).lacking(Capabilities::FRAMES));
+    fake.on_text(|t| match t {
+        TextInput::Paste(v) | TextInput::SetValue(v) | TextInput::Keystrokes(v)
+            if v == "0655555552" =>
+        {
+            Some(vec![field("+10655555552")])
+        }
+        _ => None,
+    });
+    let (home, socket) = served(fake.clone()).await;
+    let steps = home.path().join("search.steps");
+    let typed = json!({"method": "act", "params": {"action": {"kind": "type", "text": "0655555552", "into": {"text": "Field", "role": "text_field"}, "submit": true}}, "summary": "typed into @e1"});
+    std::fs::write(&steps, format!("{typed}\n")).unwrap();
+
+    let (succeeded, shown) = run(&home, &socket, &["replay", steps.to_str().unwrap()]).await;
+    assert!(!succeeded, "the field holds +10655555552: {shown}");
+    assert!(shown.contains("+10655555552"), "{shown}");
+    let enters = fake
+        .calls()
+        .into_iter()
+        .filter(|c| {
+            matches!(
+                c,
+                phonedriver_core::testing::Call::Key(phonedriver_core::device::Key::Enter)
+            )
+        })
+        .count();
+    assert_eq!(enters, 0, "Enter went out with the wrong text: {shown}");
+}
+
+/// The same step with text that landed: one Enter, and the step line says the text was checked.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_replayed_type_and_submit_whose_text_landed_sends_enter_once_and_says_verified() {
+    let fake = Arc::new(FakeDevice::new(vec![field("")]).lacking(Capabilities::FRAMES));
+    fake.on_text(|t| match t {
+        TextInput::Paste(v) | TextInput::SetValue(v) | TextInput::Keystrokes(v) => {
+            Some(vec![field(v)])
+        }
+        _ => None,
+    });
+    let (home, socket) = served(fake.clone()).await;
+    let steps = home.path().join("search.steps");
+    let typed = json!({"method": "act", "params": {"action": {"kind": "type", "text": "pizza", "into": {"text": "Field", "role": "text_field"}, "submit": true}}, "summary": "typed into @e1"});
+    std::fs::write(&steps, format!("{typed}\n")).unwrap();
+
+    let (succeeded, shown) = run(&home, &socket, &["replay", steps.to_str().unwrap()]).await;
+    assert!(succeeded, "{shown}");
+    let enters = fake
+        .calls()
+        .into_iter()
+        .filter(|c| {
+            matches!(
+                c,
+                phonedriver_core::testing::Call::Key(phonedriver_core::device::Key::Enter)
+            )
+        })
+        .count();
+    assert_eq!(enters, 1, "{shown}");
+    assert!(
+        shown.contains("1. typed") && shown.contains("· verified"),
+        "{shown}"
+    );
+    assert!(shown.contains("pressed enter"), "{shown}");
+}
+
+/// Issue #41: a saved file holds no version, so a replay ran its steps on another build of the app, whose screens it
+/// was never saved on. `save` keeps the build of each app it launches.
+#[tokio::test(start_paused = true)]
+async fn save_keeps_the_build_of_each_app_it_launches() {
+    let (d, fake, _home) = setup(vec![tree(&["One"])]);
+    fake.install(&[("com.example", "Example")]);
+    fake.set_app_build("4.37.1 (437001)");
+    ok(
+        &d,
+        "act",
+        json!({"action": {"kind": "launch", "app": "com.example"}}),
+    )
+    .await;
+    let saved = ok(&d, "journal", json!({"keep": true})).await;
+    assert_eq!(saved["steps"][0]["build"], "4.37.1 (437001)", "{saved}");
+    let asked = ok(&d, "build", json!({"app": "com.example"})).await;
+    assert_eq!(asked["build"], "4.37.1 (437001)", "{asked}");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_replay_refuses_another_build_of_an_app_it_launches_unless_told_any_build() {
+    let fake = Arc::new(FakeDevice::new(vec![tree(&["One"])]).lacking(Capabilities::FRAMES));
+    fake.install(&[("com.example", "Example")]);
+    fake.set_app_build("5.0 (500)");
+    let (home, socket) = served(fake.clone()).await;
+    let steps = home.path().join("old.steps");
+    let launch = json!({"method": "act", "params": {"action": {"kind": "launch", "app": "com.example"}}, "summary": "launched com.example", "build": "4.37.1 (437001)"});
+    std::fs::write(&steps, format!("{launch}\n")).unwrap();
+    let file = steps.to_str().unwrap();
+
+    let (replayed, shown) = run(&home, &socket, &["replay", file]).await;
+    assert!(!replayed, "{shown}");
+    assert!(
+        shown.contains("4.37.1 (437001)") && shown.contains("5.0 (500)"),
+        "{shown}"
+    );
+    assert!(shown.contains("--any-build"), "{shown}");
+    assert!(
+        !fake
+            .calls()
+            .iter()
+            .any(|c| matches!(c, phonedriver_core::testing::Call::Launch(_))),
+        "a step ran on the other build"
+    );
+
+    let (replayed, shown) = run(&home, &socket, &["replay", file, "--any-build"]).await;
+    assert!(replayed, "{shown}");
+}
+
+/// A dialog window over the app, inset from the screen's edges as Android draws one (`real_dialog.json`).
+fn dialog_over(labels: &[&str]) -> RawTree {
+    let nodes: Vec<String> = std::iter::once(
+        r#"{"p":-1,"w":2,"cls":"android.widget.FrameLayout","b":[20,300,340,500],"f":"vVe"}"#
+            .to_string(),
+    )
+    .chain(labels.iter().enumerate().map(|(i, l)| {
+        let top = 320 + 60 * i as i32;
+        format!(
+            r#"{{"p":0,"w":2,"cls":"android.widget.Button","text":"{l}","b":[40,{top},320,{}],"f":"vVe","a":["tap"]}}"#,
+            top + 50
+        )
+    }))
+    .collect();
+    let json = format!(
+        r#"{{"windows":[{{"id":2,"type":"application","package":"com.example","bounds":[20,300,340,500]}}],"nodes":[{}]}}"#,
+        nodes.join(",")
+    );
+    RawTree::from_android_json(&json, Scale { density: 1.0 }).unwrap()
+}
+
+/// Issue #41: a replay checked nothing about the screen before a step, so a dialog in front, or another app, took a
+/// step saved by position or by a common word ("OK"). Each step keeps the app it was saved on and whether a dialog
+/// was in front.
+#[tokio::test(start_paused = true)]
+async fn a_saved_step_keeps_its_app_and_whether_a_dialog_was_in_front() {
+    let (d, fake, _home) = setup(vec![tree(&["One", "Two"])]);
+    ok(&d, "snapshot", json!({})).await;
+    ok(&d, "act", tap_ref("e1")).await;
+    fake.set_tree(dialog_over(&["OK"]));
+    ok(&d, "snapshot", json!({})).await;
+    ok(
+        &d,
+        "act",
+        json!({"action": {"kind": "tap", "target": {"text": "OK"}}}),
+    )
+    .await;
+    let saved = ok(&d, "journal", json!({})).await;
+    assert_eq!(
+        saved["steps"][0]["on"],
+        json!({"app": "com.example", "over": false}),
+        "{saved}"
+    );
+    assert_eq!(saved["steps"][1]["on"]["over"], true, "{saved}");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_replayed_step_stops_before_touching_a_dialog_that_was_not_in_front_when_it_was_saved() {
+    let fake =
+        Arc::new(FakeDevice::new(vec![dialog_over(&["OK", "One"])]).lacking(Capabilities::FRAMES));
+    let (home, socket) = served(fake.clone()).await;
+    let steps = home.path().join("tap.steps");
+    let tap = json!({"method": "act", "params": {"action": {"kind": "tap", "target": {"text": "One"}}}, "summary": "tapped \"One\"", "on": {"app": "com.example", "over": false}});
+    std::fs::write(&steps, format!("{tap}\n")).unwrap();
+
+    let (replayed, shown) = run(&home, &socket, &["replay", steps.to_str().unwrap()]).await;
+    assert!(!replayed, "{shown}");
+    assert!(shown.contains("dialog"), "{shown}");
+    assert!(
+        !fake
+            .calls()
+            .iter()
+            .any(|c| matches!(c, phonedriver_core::testing::Call::Gesture(_))),
+        "the tap went out: {shown}"
+    );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_replayed_step_saved_in_another_app_stops_before_touching_this_one() {
+    let fake = Arc::new(FakeDevice::new(vec![tree(&["One"])]).lacking(Capabilities::FRAMES));
+    let (home, socket) = served(fake.clone()).await;
+    let steps = home.path().join("tap.steps");
+    let tap = json!({"method": "act", "params": {"action": {"kind": "tap", "target": {"text": "One"}}}, "summary": "tapped \"One\"", "on": {"app": "com.other", "over": false}});
+    std::fs::write(&steps, format!("{tap}\n")).unwrap();
+
+    let (replayed, shown) = run(&home, &socket, &["replay", steps.to_str().unwrap()]).await;
+    assert!(!replayed, "{shown}");
+    assert!(shown.contains("com.other"), "{shown}");
+    assert!(
+        !fake
+            .calls()
+            .iter()
+            .any(|c| matches!(c, phonedriver_core::testing::Call::Gesture(_))),
+        "the tap went out: {shown}"
     );
 }

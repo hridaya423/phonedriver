@@ -469,6 +469,9 @@ pub(crate) enum Verb {
         /// the file names (`PHONEDRIVER_SECRET_1`, ...).
         #[arg(long = "var", value_name = "NAME=VALUE", value_parser = parse_var)]
         vars: Vec<(String, String)>,
+        /// Run on another build of an app than the one the file was saved on, which it otherwise refuses.
+        #[arg(long)]
+        any_build: bool,
     },
     /// Record the screen to an MP4 file (Android and the iOS Simulator): `record start`, the actions to show, then `record stop`, which
     /// prints the file and, beside it, a `.steps.jsonl` file of the actions done meanwhile with their times.
@@ -1233,6 +1236,7 @@ pub(crate) async fn execute_with(
             from,
             screens,
             vars,
+            any_build,
         } => {
             let text = std::fs::read_to_string(&file)
                 .map_err(|e| Failure::Local(format!("cannot read {}: {e}", file.display())))?;
@@ -1267,6 +1271,7 @@ pub(crate) async fn execute_with(
                 steps,
                 from,
                 screens,
+                any_build,
                 run: used.contains(variables::RUN).then_some(id),
             };
             run.play(client, &act, &with, g.json).await
@@ -1970,16 +1975,26 @@ fn parse_var(text: &str) -> Result<(String, String), String> {
     }
 }
 
-/// A file's `{{name}}`s that no `--var` gave, refused before any step runs.
-fn missing_variables(file: &str, missing: &[String]) -> Failure {
+/// A file's `{{name}}`s that no `--var` gave, with the example each blank holds, refused before any step runs.
+fn missing_variables(file: &str, missing: &[variables::Blank]) -> Failure {
+    let named: Vec<String> = missing
+        .iter()
+        .map(|b| match &b.example {
+            Some(e) => format!("{} (like \"{e}\")", b.name),
+            None => b.name.clone(),
+        })
+        .collect();
     let Failure::Rpc(mut error) = refused(&format!(
         "{file} needs {} nobody gave: {}",
         plural(missing.len() as u64, "variable"),
-        missing.join(", ")
+        named.join(", ")
     )) else {
         unreachable!()
     };
-    let give: Vec<String> = missing.iter().map(|n| format!("--var {n}=VALUE")).collect();
+    let give: Vec<String> = missing
+        .iter()
+        .map(|b| format!("--var {}=VALUE", b.name))
+        .collect();
     if let Some(data) = error.data.as_object_mut() {
         data.insert("hint".into(), json!(format!(
             "Add {} (MCP: vars). {{{{{}}}}} is filled in by phonedriver; variables are not secrets, so they may show in replies.",
@@ -2122,6 +2137,28 @@ pub(crate) fn show_saved(path: &str, steps: &[Value], over: bool) -> String {
             names.join(", ")
         ));
     }
+    let unread: Vec<String> = steps
+        .iter()
+        .enumerate()
+        .filter_map(|(i, s)| {
+            let a = &s["params"]["action"];
+            let text = a["text"]
+                .as_str()
+                .filter(|t| a["kind"] == "type" && !t.is_empty())?;
+            let read = steps[i..]
+                .iter()
+                .any(|later| later["params"]["condition"]["appears"]["text"] == text);
+            let cut: String = text.chars().take(SAVED_STEP_CHARS).collect();
+            let more = if cut.len() < text.len() { "…" } else { "" };
+            (!read).then(|| format!("\"{cut}{more}\""))
+        })
+        .collect();
+    if !unread.is_empty() {
+        out.push_str(&format!(
+            "\nno step reads back {} after typing it: to check what the app kept, end with `wait` for it on a screen that shows it (a phone number matches however the app formats it)",
+            unread.join(", ")
+        ));
+    }
     let manual = count("manual");
     if manual > 0 {
         out.push_str(&format!(
@@ -2144,6 +2181,7 @@ pub(crate) struct Replay {
     pub from: usize,
     pub screens: Option<PathBuf>,
     pub run: Option<String>,
+    pub any_build: bool,
 }
 
 /// The screen after a replayed step against the screenshot kept for it.
@@ -2213,6 +2251,102 @@ impl Replay {
         }
     }
 
+    /// Runs one saved action. Typed text must be confirmed in its field, as a live `type` reply confirms it: a step
+    /// whose field shows other text, or whose text cannot be confirmed, fails. A `type --submit` is sent without its
+    /// Enter, which goes out only once the text is confirmed, because a field that closes on Enter leaves nothing to
+    /// confirm and a wrong number would already be saved.
+    async fn act(
+        client: &mut Client,
+        act: &(dyn Fn(Value) -> Value + Sync),
+        mut action: Value,
+        on: &Value,
+        secret_field_only: Option<bool>,
+    ) -> Result<Value, Failure> {
+        let typing = action["kind"] == "type";
+        let submit = typing && action["submit"] == true;
+        if submit {
+            action["submit"] = json!(false);
+        }
+        let mut params = act(action);
+        if !on.is_null() {
+            params["on"] = on.clone();
+        }
+        if let Some(only) = secret_field_only {
+            params["secret_field_only"] = json!(only);
+        }
+        let mut r = client.call("act", params).await?;
+        if typing && r["verified"] != true {
+            let u = &r["unverified"];
+            let mut why = String::from(if r["verified"] == false {
+                "the text did not land as typed"
+            } else {
+                "nothing on screen confirms the text landed"
+            });
+            if let Some(shows) = u["shows"].as_str() {
+                why.push_str(&format!(": {shows}"));
+            }
+            if let Some(hint) = u["hint"].as_str() {
+                why.push_str(&format!(" ({hint})"));
+            }
+            return Err(refused(&why));
+        }
+        if submit {
+            let enter = client
+                .call("act", act(json!({"kind": "press", "key": "enter"})))
+                .await?;
+            let summary = format!(
+                "{}, then {}",
+                r["summary"].as_str().unwrap_or("typed"),
+                enter["summary"].as_str().unwrap_or("pressed enter")
+            );
+            let changed = r["changed"] == true || enter["changed"] == true;
+            r = enter;
+            r["summary"] = json!(summary);
+            r["changed"] = json!(changed);
+            r["verified"] = json!(true);
+        }
+        Ok(r)
+    }
+
+    /// Refuses before any step runs when an app the steps launch is installed in another build than the one they
+    /// were saved on: their screens may have changed. One read per app.
+    async fn same_builds(
+        &self,
+        client: &mut Client,
+        with: &(dyn Fn(Value) -> Value + Sync),
+    ) -> Result<(), Failure> {
+        let mut checked = std::collections::BTreeSet::new();
+        for step in &self.steps[self.from - 1..] {
+            let (Some(app), Some(saved)) = (
+                step["params"]["action"]["app"].as_str(),
+                step["build"].as_str(),
+            ) else {
+                continue;
+            };
+            if !checked.insert(app) {
+                continue;
+            }
+            let now = client.call("build", with(json!({"app": app}))).await?;
+            let Some(now) = now["build"].as_str().filter(|b| *b != saved) else {
+                continue;
+            };
+            let Failure::Rpc(mut error) = refused(&format!(
+                "{} was saved on {app} {saved}, and {now} is installed: its screens may differ",
+                self.file
+            )) else {
+                unreachable!()
+            };
+            if let Some(data) = error.data.as_object_mut() {
+                data.insert(
+                    "hint".into(),
+                    json!("Replay with --any-build (MCP: any_build) to run it on this build, or save the steps again on it."),
+                );
+            }
+            return Err(Failure::Rpc(error));
+        }
+        Ok(())
+    }
+
     pub async fn play(
         &self,
         client: &mut Client,
@@ -2229,6 +2363,9 @@ impl Replay {
                 self.from
             )));
         }
+        if !self.any_build {
+            self.same_builds(client, with).await?;
+        }
         let started = std::time::Instant::now();
         let any_field = std::env::var(variables::SECRET_ANY_FIELD).is_ok_and(|v| v == "1");
         let mut typed = Vec::new();
@@ -2240,12 +2377,9 @@ impl Replay {
                 (Some(what), _) => Err(refused(what)),
                 (None, Some("act")) => match with_secret(&step["params"]["action"]) {
                     Ok((action, secret)) => {
-                        let mut params = act(action);
-                        if let Some(secret) = secret {
-                            typed.push(secret);
-                            params["secret_field_only"] = json!(!any_field);
-                        }
-                        client.call("act", params).await
+                        let field_only = secret.is_some().then_some(!any_field);
+                        typed.extend(secret);
+                        Replay::act(client, act, action, &step["on"], field_only).await
                     }
                     Err(why) => {
                         hint = Some(secret_hint(&why, i + 1, total));
@@ -2265,21 +2399,6 @@ impl Replay {
                 Ok(r) if step["changed"] == true && r["changed"] == false => Err(refused(
                     "it changed nothing this time; when it was saved it changed the screen",
                 )),
-                other => other,
-            };
-            // The live reply says NOT verified for a field that holds other text than typed; so does a replay.
-            let outcome = match outcome {
-                Ok(r) if r["verified"] == false => {
-                    let u = &r["unverified"];
-                    let mut why = String::from("the text did not land as typed");
-                    if let Some(shows) = u["shows"].as_str() {
-                        why.push_str(&format!(": {shows}"));
-                    }
-                    if let Some(hint) = u["hint"].as_str() {
-                        why.push_str(&format!(" ({hint})"));
-                    }
-                    Err(refused(&why))
-                }
                 other => other,
             };
             let mut line = match outcome {
@@ -2322,9 +2441,13 @@ impl Replay {
             done.push(line);
         }
         let ran = done.len() as u64;
+        let verified = self.steps[self.from - 1..]
+            .iter()
+            .filter(|s| s["params"]["action"]["kind"] == "type")
+            .count() as u64;
         let ms = started.elapsed().as_millis() as u64;
         if json {
-            let mut out = json!({"ok": true, "steps": ran, "ms": ms});
+            let mut out = json!({"ok": true, "steps": ran, "verified": verified, "ms": ms});
             if let Some(run) = &self.run {
                 out["run"] = json!(run);
             }
@@ -2338,8 +2461,13 @@ impl Replay {
             .as_ref()
             .map(|id| format!(" (run {id})"))
             .unwrap_or_default();
+        let checked = if verified > 0 {
+            format!(", {} verified", plural(verified, "typed text"))
+        } else {
+            String::new()
+        };
         let mut out = format!(
-            "replayed {} in {:.1} s{run}\n{}",
+            "replayed {} in {:.1} s{checked}{run}\n{}",
             plural(ran, "step"),
             ms as f64 / 1000.0,
             done.join("\n")
@@ -3002,6 +3130,31 @@ mod tests {
     }
 
     use super::*;
+
+    /// Issue #41: a saved contact flow ended with `wait "{{first}} {{last}}"`, which passed with the wrong number.
+    /// `save` names each typed value no later step reads back.
+    #[test]
+    fn save_names_each_typed_value_no_later_wait_reads_back() {
+        let typed = |text: &str| json!({"method": "act", "params": {"action": {"kind": "type", "text": text, "into": {"text": "Phone"}}}});
+        let tap = json!({"method": "act", "params": {"action": {"kind": "tap", "target": {"text": "Save"}}}});
+        let wait = |text: &str| json!({"method": "wait", "params": {"condition": {"appears": {"text": text, "role": null}}}});
+        let saved = show_saved(
+            "c.steps",
+            &[typed("Ada"), typed("0655555552"), tap.clone(), wait("Ada")],
+            false,
+        );
+        assert!(
+            saved.contains("no step reads back \"0655555552\" after typing it"),
+            "{saved}"
+        );
+        assert!(!saved.contains("\"Ada\" after"), "{saved}");
+        let saved = show_saved(
+            "c.steps",
+            &[typed("0655555552"), tap, wait("0655555552")],
+            false,
+        );
+        assert!(!saved.contains("reads back"), "{saved}");
+    }
 
     #[test]
     fn a_wait_step_is_described_as_the_command_that_waits() {
