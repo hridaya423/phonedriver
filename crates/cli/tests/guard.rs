@@ -584,6 +584,52 @@ async fn a_client_that_cannot_ask_gets_the_question_for_a_swipe_too(v: ProtocolV
     assert_eq!(m.rig.gestures(), 1);
 }
 
+/// `autonomous` is the agent's word that the user approved, and holds for every touch tool, so a batch and a `then`
+/// chain take it too: the batch tool refused the argument, and a chain dropped it on the floor.
+async fn autonomous_holds_for_a_batch_and_a_then_chain(v: ProtocolVersion) {
+    let m = mcp(None, v).await;
+    let r = m
+        .call(
+            "batch",
+            json!({"steps": [step("Back"), step("Place order")], "autonomous": true}),
+        )
+        .await;
+    assert!(!text(&r).contains("Needs the human"), "{}", text(&r));
+    assert_eq!(m.rig.gestures(), 2);
+    let r = m
+        .tap(json!({"target": "Back", "then": ["Place order"], "autonomous": true}))
+        .await;
+    assert!(!text(&r).contains("Needs the human"), "{}", text(&r));
+    assert_eq!(m.rig.gestures(), 4);
+    let r = m
+        .call(
+            "type",
+            json!({"text": "x", "into": "Place order", "then": ["Back"], "autonomous": true}),
+        )
+        .await;
+    assert!(!text(&r).contains("Needs the human"), "{}", text(&r));
+    let r = m
+        .call(
+            "batch",
+            json!({"steps": [{"tool": "tap", "target": "Place order", "autonomous": true}]}),
+        )
+        .await;
+    assert!(text(&r).contains("on the batch"), "{}", text(&r));
+    assert!(m.asked.lock().unwrap().is_empty());
+}
+
+async fn empty_text_clears_the_field_on_either_protocol(v: ProtocolVersion) {
+    let m = mcp(None, v).await;
+    m.call("type", json!({"text": "", "into": "180,525"})).await;
+    let cleared = m
+        .rig
+        .fake
+        .calls()
+        .iter()
+        .any(|c| matches!(c, Call::Text(phonedriver_core::device::TextInput::SetValue(t)) if t.is_empty()));
+    assert!(cleared, "{:?}", m.rig.fake.calls());
+}
+
 macro_rules! on_both_protocols {
     ($($name:ident),*) => {
         mod legacy {
@@ -617,7 +663,9 @@ on_both_protocols!(
     a_then_tap_that_needs_approval_is_asked_and_the_chain_goes_on,
     a_held_swipe_press_or_clear_is_asked_and_runs_inside_the_same_call,
     a_declined_swipe_sends_no_touch,
-    a_client_that_cannot_ask_gets_the_question_for_a_swipe_too
+    a_client_that_cannot_ask_gets_the_question_for_a_swipe_too,
+    autonomous_holds_for_a_batch_and_a_then_chain,
+    empty_text_clears_the_field_on_either_protocol
 );
 
 #[allow(dead_code)]

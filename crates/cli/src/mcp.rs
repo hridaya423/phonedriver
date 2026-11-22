@@ -83,6 +83,32 @@ struct BatchArgs {
     device: Option<String>,
     steps: Vec<serde_json::Value>,
     timeout_ms: Option<u64>,
+    #[serde(default, deserialize_with = "flag")]
+    autonomous: Option<bool>,
+}
+
+/// The tools that touch the screen, each of which the guard may hold (decision D27).
+enum Touch {
+    Tap(TapArgs),
+    Type(TypeArgs),
+    Swipe(SwipeArgs),
+    Scroll(ScrollArgs),
+    Press(PressArgs),
+    Batch(BatchArgs),
+}
+
+impl Touch {
+    fn parse(tool: &str, args: serde_json::Value) -> Result<Option<Touch>, serde_json::Error> {
+        Ok(Some(match tool {
+            "tap" => Touch::Tap(serde_json::from_value(args)?),
+            "type" => Touch::Type(serde_json::from_value(args)?),
+            "swipe" => Touch::Swipe(serde_json::from_value(args)?),
+            "scroll" => Touch::Scroll(serde_json::from_value(args)?),
+            "press" => Touch::Press(serde_json::from_value(args)?),
+            "batch" => Touch::Batch(serde_json::from_value(args)?),
+            _ => return Ok(None),
+        }))
+    }
 }
 
 #[derive(Deserialize, JsonSchema)]
@@ -723,15 +749,20 @@ impl Mcp {
         device: Option<String>,
         steps: Vec<serde_json::Value>,
         timeout: Option<u64>,
+        autonomous: bool,
     ) -> Outcome {
         let key = json!(["batch", &device, &steps, timeout]).to_string();
         let mut globals = self.globals(device);
         globals.timeout = timeout;
+        if autonomous {
+            globals.approval = Some(Approval::Autonomous);
+        }
         let mut from = 0;
         if let Channel::Mrtr {
             answer: Some(reply),
             ..
         } = &channel
+            && !autonomous
         {
             let Some(held) = self.take_held(&key).await else {
                 return Outcome::Done(dismissed(None));
@@ -833,10 +864,85 @@ impl Mcp {
         channel: Channel<'_>,
         device: Option<String>,
         raw: Vec<serde_json::Value>,
+        timeout: Option<u64>,
+        autonomous: bool,
     ) -> Outcome {
         match batch_steps(raw) {
-            Ok(steps) => self.guarded_batch(channel, device, steps, None).await,
+            Ok(steps) => {
+                self.guarded_batch(channel, device, steps, timeout, autonomous)
+                    .await
+            }
             Err(why) => Outcome::Done(bad(&why)),
+        }
+    }
+
+    /// Every tool that touches the screen, on either protocol: `channel` says how the human is asked.
+    async fn touch(&self, channel: Channel<'_>, key: String, tool: Touch) -> Outcome {
+        match tool {
+            Touch::Batch(a) => {
+                let autonomous = a.autonomous.unwrap_or(false);
+                self.chain(channel, a.device, a.steps, a.timeout_ms, autonomous)
+                    .await
+            }
+            Touch::Swipe(a) => {
+                let (device, autonomous) = (a.device.clone(), a.autonomous.unwrap_or(false));
+                match a.verb() {
+                    Ok(verb) => {
+                        self.guarded(channel, key, device, || verb.clone(), None, autonomous)
+                            .await
+                    }
+                    Err(why) => Outcome::Done(bad(why)),
+                }
+            }
+            Touch::Scroll(a) => {
+                let (device, autonomous) = (a.device.clone(), a.autonomous.unwrap_or(false));
+                let verb = a.verb();
+                self.guarded(channel, key, device, || verb.clone(), None, autonomous)
+                    .await
+            }
+            Touch::Press(a) => {
+                let autonomous = a.autonomous.unwrap_or(false);
+                let verb = Verb::Press {
+                    key: a.key,
+                    autonomous: false,
+                };
+                self.guarded(channel, key, a.device, || verb.clone(), None, autonomous)
+                    .await
+            }
+            Touch::Tap(mut a) => {
+                let (device, autonomous) = (a.device.clone(), a.autonomous.unwrap_or(false));
+                match a.chain() {
+                    Some(steps) => self.chain(channel, device, steps, None, autonomous).await,
+                    None => {
+                        self.guarded(channel, key, device, || a.clone().verb(), None, autonomous)
+                            .await
+                    }
+                }
+            }
+            Touch::Type(mut a) => {
+                let secret = a.secret.unwrap_or(false);
+                let (device, autonomous) = (a.device.clone(), a.autonomous.unwrap_or(false));
+                if let Some(steps) = a.chain() {
+                    return self.chain(channel, device, steps, None, autonomous).await;
+                }
+                if a.text.is_empty() && !secret {
+                    let Some(target) = a.into else {
+                        return Outcome::Done(bad(
+                            "to clear a field pass `into`: the field to empty",
+                        ));
+                    };
+                    let verb = || Verb::Clear {
+                        target: target.clone(),
+                        autonomous: false,
+                    };
+                    return self
+                        .guarded(channel, key, device, verb, None, autonomous)
+                        .await;
+                }
+                let text = secret.then(|| a.text.clone());
+                self.guarded(channel, key, device, || a.type_verb(), text, autonomous)
+                    .await
+            }
         }
     }
 
@@ -857,64 +963,10 @@ impl Mcp {
             .and_then(|r| r.get(APPROVAL_KEY));
         let channel = Channel::Mrtr { can_ask, answer };
         let key = json!([&request.name, &args]).to_string();
-        let invalid = |e: serde_json::Error| rmcp::ErrorData::invalid_params(e.to_string(), None);
-        let outcome = if request.name == "batch" {
-            let a: BatchArgs = serde_json::from_value(args).map_err(invalid)?;
-            match batch_steps(a.steps) {
-                Ok(steps) => {
-                    self.guarded_batch(channel, a.device, steps, a.timeout_ms)
-                        .await
-                }
-                Err(why) => Outcome::Done(bad(&why)),
-            }
-        } else if request.name == "swipe" {
-            let a: SwipeArgs = serde_json::from_value(args).map_err(invalid)?;
-            let (device, autonomous) = (a.device.clone(), a.autonomous.unwrap_or(false));
-            match a.verb() {
-                Ok(verb) => {
-                    self.guarded(channel, key, device, || verb.clone(), None, autonomous)
-                        .await
-                }
-                Err(why) => Outcome::Done(bad(why)),
-            }
-        } else if request.name == "scroll" {
-            let a: ScrollArgs = serde_json::from_value(args).map_err(invalid)?;
-            let (device, autonomous) = (a.device.clone(), a.autonomous.unwrap_or(false));
-            let verb = a.verb();
-            self.guarded(channel, key, device, || verb.clone(), None, autonomous)
-                .await
-        } else if request.name == "press" {
-            let a: PressArgs = serde_json::from_value(args).map_err(invalid)?;
-            let autonomous = a.autonomous.unwrap_or(false);
-            let verb = Verb::Press {
-                key: a.key,
-                autonomous: false,
-            };
-            self.guarded(channel, key, a.device, || verb.clone(), None, autonomous)
-                .await
-        } else if request.name == "tap" {
-            let mut a: TapArgs = serde_json::from_value(args).map_err(invalid)?;
-            let (device, autonomous) = (a.device.clone(), a.autonomous.unwrap_or(false));
-            match a.chain() {
-                Some(steps) => self.chain(channel, device, steps).await,
-                None => {
-                    self.guarded(channel, key, device, || a.clone().verb(), None, autonomous)
-                        .await
-                }
-            }
-        } else {
-            let mut a: TypeArgs = serde_json::from_value(args).map_err(invalid)?;
-            let secret = a.secret.unwrap_or(false);
-            let (device, autonomous) = (a.device.clone(), a.autonomous.unwrap_or(false));
-            match a.chain() {
-                Some(steps) => self.chain(channel, device, steps).await,
-                None => {
-                    let text = secret.then(|| a.text.clone());
-                    self.guarded(channel, key, device, || a.type_verb(), text, autonomous)
-                        .await
-                }
-            }
-        };
+        let tool = Touch::parse(&request.name, args)
+            .map_err(|e| rmcp::ErrorData::invalid_params(e.to_string(), None))?
+            .ok_or_else(|| rmcp::ErrorData::invalid_params("not a touch tool", None))?;
+        let outcome = self.touch(channel, key, tool).await;
         Ok(match outcome {
             Outcome::Done(r) => r.into(),
             Outcome::Ask(q) => q.into(),
@@ -991,6 +1043,16 @@ fn chained(mut first: serde_json::Value, then: Vec<String>) -> Vec<serde_json::V
 fn batch_steps(raw: Vec<serde_json::Value>) -> Result<Vec<serde_json::Value>, String> {
     let mut steps = Vec::new();
     for (i, step) in raw.into_iter().enumerate() {
+        if matches!(&step["autonomous"], serde_json::Value::Bool(true))
+            || step["autonomous"]
+                .as_str()
+                .is_some_and(|t| t.eq_ignore_ascii_case("true"))
+        {
+            return Err(format!(
+                "step {}: `autonomous` goes on the batch, not on a step",
+                i + 1
+            ));
+        }
         let json = step_verb(step)
             .and_then(|v| crate::commands::step_json(&v, None).map_err(|f| f.message()));
         match json {
@@ -1648,27 +1710,11 @@ impl Mcp {
     async fn tap(
         &self,
         peer: Peer<RoleServer>,
-        Parameters(mut a): Parameters<TapArgs>,
+        Parameters(a): Parameters<TapArgs>,
     ) -> CallToolResult {
-        if let Some(steps) = a.chain() {
-            return self
-                .chain(Channel::Peer(&peer), a.device, steps)
-                .await
-                .complete();
-        }
-        let device = a.device.clone();
-        let autonomous = a.autonomous.unwrap_or(false);
-        let outcome = self
-            .guarded(
-                Channel::Peer(&peer),
-                String::new(),
-                device,
-                || a.clone().verb(),
-                None,
-                autonomous,
-            )
-            .await;
-        outcome.complete()
+        self.touch(Channel::Peer(&peer), String::new(), Touch::Tap(a))
+            .await
+            .complete()
     }
 
     #[tool(
@@ -1685,49 +1731,11 @@ impl Mcp {
     async fn r#type(
         &self,
         peer: Peer<RoleServer>,
-        Parameters(mut a): Parameters<TypeArgs>,
+        Parameters(a): Parameters<TypeArgs>,
     ) -> CallToolResult {
-        let secret = a.secret.unwrap_or(false);
-        if let Some(steps) = a.chain() {
-            return self
-                .chain(Channel::Peer(&peer), a.device, steps)
-                .await
-                .complete();
-        }
-        let autonomous = a.autonomous.unwrap_or(false);
-        if a.text.is_empty() && !secret {
-            let Some(target) = a.into else {
-                return bad("to clear a field pass `into`: the field to empty");
-            };
-            let verb = || Verb::Clear {
-                target: target.clone(),
-                autonomous: false,
-            };
-            return self
-                .guarded(
-                    Channel::Peer(&peer),
-                    String::new(),
-                    a.device,
-                    verb,
-                    None,
-                    autonomous,
-                )
-                .await
-                .complete();
-        }
-        let device = a.device.clone();
-        let text = secret.then(|| a.text.clone());
-        let outcome = self
-            .guarded(
-                Channel::Peer(&peer),
-                String::new(),
-                device,
-                || a.type_verb(),
-                text,
-                autonomous,
-            )
-            .await;
-        outcome.complete()
+        self.touch(Channel::Peer(&peer), String::new(), Touch::Type(a))
+            .await
+            .complete()
     }
 
     #[tool(
@@ -1745,21 +1753,9 @@ impl Mcp {
         peer: Peer<RoleServer>,
         Parameters(a): Parameters<SwipeArgs>,
     ) -> CallToolResult {
-        let (device, autonomous) = (a.device.clone(), a.autonomous.unwrap_or(false));
-        let verb = match a.verb() {
-            Ok(verb) => verb,
-            Err(why) => return bad(why),
-        };
-        self.guarded(
-            Channel::Peer(&peer),
-            String::new(),
-            device,
-            || verb.clone(),
-            None,
-            autonomous,
-        )
-        .await
-        .complete()
+        self.touch(Channel::Peer(&peer), String::new(), Touch::Swipe(a))
+            .await
+            .complete()
     }
 
     #[tool(
@@ -1777,18 +1773,9 @@ impl Mcp {
         peer: Peer<RoleServer>,
         Parameters(a): Parameters<ScrollArgs>,
     ) -> CallToolResult {
-        let (device, autonomous) = (a.device.clone(), a.autonomous.unwrap_or(false));
-        let verb = a.verb();
-        self.guarded(
-            Channel::Peer(&peer),
-            String::new(),
-            device,
-            || verb.clone(),
-            None,
-            autonomous,
-        )
-        .await
-        .complete()
+        self.touch(Channel::Peer(&peer), String::new(), Touch::Scroll(a))
+            .await
+            .complete()
     }
 
     #[tool(
@@ -1806,21 +1793,9 @@ impl Mcp {
         peer: Peer<RoleServer>,
         Parameters(a): Parameters<PressArgs>,
     ) -> CallToolResult {
-        let autonomous = a.autonomous.unwrap_or(false);
-        let verb = || Verb::Press {
-            key: a.key.clone(),
-            autonomous: false,
-        };
-        self.guarded(
-            Channel::Peer(&peer),
-            String::new(),
-            a.device,
-            verb,
-            None,
-            autonomous,
-        )
-        .await
-        .complete()
+        self.touch(Channel::Peer(&peer), String::new(), Touch::Press(a))
+            .await
+            .complete()
     }
 
     #[tool(
@@ -1856,11 +1831,7 @@ impl Mcp {
         peer: Peer<RoleServer>,
         Parameters(a): Parameters<BatchArgs>,
     ) -> CallToolResult {
-        let steps = match batch_steps(a.steps) {
-            Ok(s) => s,
-            Err(why) => return bad(&why),
-        };
-        self.guarded_batch(Channel::Peer(&peer), a.device, steps, a.timeout_ms)
+        self.touch(Channel::Peer(&peer), String::new(), Touch::Batch(a))
             .await
             .complete()
     }

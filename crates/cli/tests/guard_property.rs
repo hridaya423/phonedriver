@@ -198,8 +198,9 @@ enum Ans {
 }
 
 impl Ans {
+    /// An accept without one of the offered choices is no answer (D27 update 2026-11-22).
     fn licenses(self) -> bool {
-        matches!(self, Ans::Allow | Ans::Session | Ans::AcceptBare)
+        matches!(self, Ans::Allow | Ans::Session)
     }
 
     fn elicit(self) -> ElicitResult {
