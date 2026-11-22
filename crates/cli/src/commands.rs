@@ -2122,6 +2122,28 @@ pub(crate) fn show_saved(path: &str, steps: &[Value], over: bool) -> String {
             names.join(", ")
         ));
     }
+    let unread: Vec<String> = steps
+        .iter()
+        .enumerate()
+        .filter_map(|(i, s)| {
+            let a = &s["params"]["action"];
+            let text = a["text"]
+                .as_str()
+                .filter(|t| a["kind"] == "type" && !t.is_empty())?;
+            let read = steps[i..]
+                .iter()
+                .any(|later| later["params"]["condition"]["appears"]["text"] == text);
+            let cut: String = text.chars().take(SAVED_STEP_CHARS).collect();
+            let more = if cut.len() < text.len() { "…" } else { "" };
+            (!read).then(|| format!("\"{cut}{more}\""))
+        })
+        .collect();
+    if !unread.is_empty() {
+        out.push_str(&format!(
+            "\nno step reads back {} after typing it: to check what the app kept, end with `wait` for it on a screen that shows it (a phone number matches however the app formats it)",
+            unread.join(", ")
+        ));
+    }
     let manual = count("manual");
     if manual > 0 {
         out.push_str(&format!(
@@ -2213,6 +2235,59 @@ impl Replay {
         }
     }
 
+    /// Runs one saved action. Typed text must be confirmed in its field, as a live `type` reply confirms it: a step
+    /// whose field shows other text, or whose text cannot be confirmed, fails. A `type --submit` is sent without its
+    /// Enter, which goes out only once the text is confirmed, because a field that closes on Enter leaves nothing to
+    /// confirm and a wrong number would already be saved.
+    async fn act(
+        client: &mut Client,
+        act: &(dyn Fn(Value) -> Value + Sync),
+        mut action: Value,
+        secret_field_only: Option<bool>,
+    ) -> Result<Value, Failure> {
+        let typing = action["kind"] == "type";
+        let submit = typing && action["submit"] == true;
+        if submit {
+            action["submit"] = json!(false);
+        }
+        let mut params = act(action);
+        if let Some(only) = secret_field_only {
+            params["secret_field_only"] = json!(only);
+        }
+        let mut r = client.call("act", params).await?;
+        if typing && r["verified"] != true {
+            let u = &r["unverified"];
+            let mut why = String::from(if r["verified"] == false {
+                "the text did not land as typed"
+            } else {
+                "nothing on screen confirms the text landed"
+            });
+            if let Some(shows) = u["shows"].as_str() {
+                why.push_str(&format!(": {shows}"));
+            }
+            if let Some(hint) = u["hint"].as_str() {
+                why.push_str(&format!(" ({hint})"));
+            }
+            return Err(refused(&why));
+        }
+        if submit {
+            let enter = client
+                .call("act", act(json!({"kind": "press", "key": "enter"})))
+                .await?;
+            let summary = format!(
+                "{}, then {}",
+                r["summary"].as_str().unwrap_or("typed"),
+                enter["summary"].as_str().unwrap_or("pressed enter")
+            );
+            let changed = r["changed"] == true || enter["changed"] == true;
+            r = enter;
+            r["summary"] = json!(summary);
+            r["changed"] = json!(changed);
+            r["verified"] = json!(true);
+        }
+        Ok(r)
+    }
+
     pub async fn play(
         &self,
         client: &mut Client,
@@ -2240,12 +2315,9 @@ impl Replay {
                 (Some(what), _) => Err(refused(what)),
                 (None, Some("act")) => match with_secret(&step["params"]["action"]) {
                     Ok((action, secret)) => {
-                        let mut params = act(action);
-                        if let Some(secret) = secret {
-                            typed.push(secret);
-                            params["secret_field_only"] = json!(!any_field);
-                        }
-                        client.call("act", params).await
+                        let field_only = secret.is_some().then_some(!any_field);
+                        typed.extend(secret);
+                        Replay::act(client, act, action, field_only).await
                     }
                     Err(why) => {
                         hint = Some(secret_hint(&why, i + 1, total));
@@ -2265,21 +2337,6 @@ impl Replay {
                 Ok(r) if step["changed"] == true && r["changed"] == false => Err(refused(
                     "it changed nothing this time; when it was saved it changed the screen",
                 )),
-                other => other,
-            };
-            // The live reply says NOT verified for a field that holds other text than typed; so does a replay.
-            let outcome = match outcome {
-                Ok(r) if r["verified"] == false => {
-                    let u = &r["unverified"];
-                    let mut why = String::from("the text did not land as typed");
-                    if let Some(shows) = u["shows"].as_str() {
-                        why.push_str(&format!(": {shows}"));
-                    }
-                    if let Some(hint) = u["hint"].as_str() {
-                        why.push_str(&format!(" ({hint})"));
-                    }
-                    Err(refused(&why))
-                }
                 other => other,
             };
             let mut line = match outcome {
@@ -2322,9 +2379,13 @@ impl Replay {
             done.push(line);
         }
         let ran = done.len() as u64;
+        let verified = self.steps[self.from - 1..]
+            .iter()
+            .filter(|s| s["params"]["action"]["kind"] == "type")
+            .count() as u64;
         let ms = started.elapsed().as_millis() as u64;
         if json {
-            let mut out = json!({"ok": true, "steps": ran, "ms": ms});
+            let mut out = json!({"ok": true, "steps": ran, "verified": verified, "ms": ms});
             if let Some(run) = &self.run {
                 out["run"] = json!(run);
             }
@@ -2338,8 +2399,13 @@ impl Replay {
             .as_ref()
             .map(|id| format!(" (run {id})"))
             .unwrap_or_default();
+        let checked = if verified > 0 {
+            format!(", {} verified", plural(verified, "typed text"))
+        } else {
+            String::new()
+        };
         let mut out = format!(
-            "replayed {} in {:.1} s{run}\n{}",
+            "replayed {} in {:.1} s{checked}{run}\n{}",
             plural(ran, "step"),
             ms as f64 / 1000.0,
             done.join("\n")
@@ -3002,6 +3068,31 @@ mod tests {
     }
 
     use super::*;
+
+    /// Issue #41: a saved contact flow ended with `wait "{{first}} {{last}}"`, which passed with the wrong number.
+    /// `save` names each typed value no later step reads back.
+    #[test]
+    fn save_names_each_typed_value_no_later_wait_reads_back() {
+        let typed = |text: &str| json!({"method": "act", "params": {"action": {"kind": "type", "text": text, "into": {"text": "Phone"}}}});
+        let tap = json!({"method": "act", "params": {"action": {"kind": "tap", "target": {"text": "Save"}}}});
+        let wait = |text: &str| json!({"method": "wait", "params": {"condition": {"appears": {"text": text, "role": null}}}});
+        let saved = show_saved(
+            "c.steps",
+            &[typed("Ada"), typed("0655555552"), tap.clone(), wait("Ada")],
+            false,
+        );
+        assert!(
+            saved.contains("no step reads back \"0655555552\" after typing it"),
+            "{saved}"
+        );
+        assert!(!saved.contains("\"Ada\" after"), "{saved}");
+        let saved = show_saved(
+            "c.steps",
+            &[typed("0655555552"), tap, wait("0655555552")],
+            false,
+        );
+        assert!(!saved.contains("reads back"), "{saved}");
+    }
 
     #[test]
     fn a_wait_step_is_described_as_the_command_that_waits() {

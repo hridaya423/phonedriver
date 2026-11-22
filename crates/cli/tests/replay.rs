@@ -519,3 +519,72 @@ async fn a_failed_scroll_that_moved_the_list_is_kept_for_the_step_after_it() {
         "the tap on \"Email\" needs the scroll before it, which the file does not hold:\n{kept}\n{shown}"
     );
 }
+
+/// A saved `type --submit` sent Enter before anything could tell the text was wrong, and a field that closes on Enter
+/// leaves the verdict unknown, so the replay went on. A replay checks the text first and sends Enter only after.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_replayed_type_and_submit_whose_text_did_not_land_sends_no_enter() {
+    let fake = Arc::new(FakeDevice::new(vec![field("")]).lacking(Capabilities::FRAMES));
+    fake.on_text(|t| match t {
+        TextInput::Paste(v) | TextInput::SetValue(v) | TextInput::Keystrokes(v)
+            if v == "0655555552" =>
+        {
+            Some(vec![field("+10655555552")])
+        }
+        _ => None,
+    });
+    let (home, socket) = served(fake.clone()).await;
+    let steps = home.path().join("search.steps");
+    let typed = json!({"method": "act", "params": {"action": {"kind": "type", "text": "0655555552", "into": {"text": "Field", "role": "text_field"}, "submit": true}}, "summary": "typed into @e1"});
+    std::fs::write(&steps, format!("{typed}\n")).unwrap();
+
+    let (succeeded, shown) = run(&home, &socket, &["replay", steps.to_str().unwrap()]).await;
+    assert!(!succeeded, "the field holds +10655555552: {shown}");
+    assert!(shown.contains("+10655555552"), "{shown}");
+    let enters = fake
+        .calls()
+        .into_iter()
+        .filter(|c| {
+            matches!(
+                c,
+                phonedriver_core::testing::Call::Key(phonedriver_core::device::Key::Enter)
+            )
+        })
+        .count();
+    assert_eq!(enters, 0, "Enter went out with the wrong text: {shown}");
+}
+
+/// The same step with text that landed: one Enter, and the step line says the text was checked.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_replayed_type_and_submit_whose_text_landed_sends_enter_once_and_says_verified() {
+    let fake = Arc::new(FakeDevice::new(vec![field("")]).lacking(Capabilities::FRAMES));
+    fake.on_text(|t| match t {
+        TextInput::Paste(v) | TextInput::SetValue(v) | TextInput::Keystrokes(v) => {
+            Some(vec![field(v)])
+        }
+        _ => None,
+    });
+    let (home, socket) = served(fake.clone()).await;
+    let steps = home.path().join("search.steps");
+    let typed = json!({"method": "act", "params": {"action": {"kind": "type", "text": "pizza", "into": {"text": "Field", "role": "text_field"}, "submit": true}}, "summary": "typed into @e1"});
+    std::fs::write(&steps, format!("{typed}\n")).unwrap();
+
+    let (succeeded, shown) = run(&home, &socket, &["replay", steps.to_str().unwrap()]).await;
+    assert!(succeeded, "{shown}");
+    let enters = fake
+        .calls()
+        .into_iter()
+        .filter(|c| {
+            matches!(
+                c,
+                phonedriver_core::testing::Call::Key(phonedriver_core::device::Key::Enter)
+            )
+        })
+        .count();
+    assert_eq!(enters, 1, "{shown}");
+    assert!(
+        shown.contains("1. typed") && shown.contains("· verified"),
+        "{shown}"
+    );
+    assert!(shown.contains("pressed enter"), "{shown}");
+}
