@@ -177,6 +177,9 @@ pub fn shell_args(
     host: bool,
 ) -> std::result::Result<Vec<String>, String> {
     let words = split_words(command)?;
+    if words.iter().all(|w| w.is_empty()) {
+        return Err("no command to run: pass the program and its arguments".into());
+    }
     if words.first().map(String::as_str) != Some("simctl") {
         if host {
             return spawn_words(udid, command, &words, root);
@@ -1009,6 +1012,17 @@ mod tests {
                     let args = shell_args("U", command, root.path(), true).unwrap();
                     assert_eq!(args[..2], ["spawn", "U"], "{command}");
                 }
+            }
+        }
+    }
+
+    #[test]
+    fn an_empty_command_is_refused_instead_of_panicking() {
+        let root = std::path::Path::new("/r");
+        for command in ["", "   ", "''"] {
+            for host in [false, true] {
+                let e = shell_args("U", command, root, host).unwrap_err();
+                assert!(e.contains("no command"), "{command:?}: {e}");
             }
         }
     }
