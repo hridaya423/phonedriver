@@ -1,5 +1,5 @@
 //! Live tests against approved physical devices. `PHONEDRIVER_TEST_IOS_EXPECT` lists `udid=tier` pairs, for example
-//! `00008142-001971E2346B801C=coredevice,00008110-00142036217A201E=runner`.
+//! `<iPad Pro udid>=coredevice,<iPhone 14 Plus udid>=runner`.
 
 use phonedriver_ios::discovery;
 

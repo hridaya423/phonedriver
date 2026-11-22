@@ -72,13 +72,13 @@ Same simulator, screens and client machine as I4. Runner: `snapshot` with `max_d
 
 **Runner screenshots** (`XCUIScreen.mainScreen.screenshot`, 1206 x 2622 px, 50 runs): JPEG q80 p50 75 to 81 ms, JPEG q30 74 to 78 ms, PNG 62 to 64 ms. Encoding is not the bottleneck (q30 saves 2 ms), so task 5.6's "JPEG q30 at half scale for settle polling" idea needs scaling, not just quality, to help. All are under the 300 ms threshold in task 5.6.
 
-## Device access probe, Mamata's iPhone (2026-11-06, task 6.2 start; stopped)
+## Device access probe, an iPhone 14 Plus (2026-11-06, task 6.2 start; stopped)
 
 Not I2 yet: nothing could be paired or tunneled. What was observed, with `xcrun devicectl` and a throwaway idevice 0.1.68 program (`spikes/ios-device/`, deleted):
 
-- The phone is **iOS 26.1** (build 23B85), not 26.5 as the planning notes say. Developer Mode is enabled. Model iPhone14,8, UDID 00008110-00142036217A201E.
+- The phone is **iOS 26.1** (build 23B85), not 26.5 as the planning notes say. Developer Mode is enabled. Model iPhone14,8, UDID <iPhone 14 Plus udid>.
 - It is reachable **only over the network**, not USB: `devicectl` reports `transportType: localNetwork`, `tunnelState: disconnected` when idle (the CoreDevice tunnel exists only while a `devicectl` or `xcodebuild` command holds it), `system_profiler SPUSBDataType` and `ioreg -p IOUSB` list no iPhone, `dns-sd` finds a `_remotepairing._tcp` advertisement and no `_apple-mobdev2._tcp`, and idevice's `UsbmuxdConnection::get_devices()` returned an empty list. The usbmuxd and lockdown path that `crates/ios/src/transport.rs` assumes therefore cannot see this phone. idevice also has a `remote_pairing` module for the network path; it needs its own pairing record, created by a person approving a prompt on the phone, and was not tried.
-- Signing works: the testbed built for `generic/platform=iOS` with `-allowProvisioningUpdates DEVELOPMENT_TEAM=DV6NC6KRYL CODE_SIGN_STYLE=Automatic CODE_SIGN_IDENTITY="Apple Development"` in 10 s, signed by "Apple Development: Mukesh Agrawal (HSLSDPZZDT)", profile "iOS Team Provisioning Profile: *" (wildcard, team Mukesh Agrawal, expires 2027-10-20, lists this UDID). `devicectl device install app` installed `dev.phonedriver.testbed` without a prompt.
+- Signing works: the testbed built for `generic/platform=iOS` with `-allowProvisioningUpdates DEVELOPMENT_TEAM=<team id> CODE_SIGN_STYLE=Automatic CODE_SIGN_IDENTITY="Apple Development"` in 10 s, signed by "Apple Development: <developer name> (<certificate id>)", profile "iOS Team Provisioning Profile: *" (wildcard, team <developer name>, expires 2027-10-20, lists this UDID). `devicectl device install app` installed `dev.phonedriver.testbed` without a prompt.
 - `devicectl device process launch dev.phonedriver.testbed` failed: `Locked ("Unable to launch dev.phonedriver.testbed because the device was not, or could not be, unlocked")`. The phone is locked with a passcode, and phonedriver never enters passcodes, so work stopped here.
 
 ## I2: RSD services by iOS version (2026-11-06, task 6.2)

@@ -27,7 +27,7 @@ Not done: win-pc emulators (busy), physical devices (not mine), any model call. 
 | 10 | `launch Settings`, `tap General`, `scroll down`, `find About` | Mac mini | 0.1 to 3 s each | works, and diffs read well. First tap from a cold launch reports `settled in 3000ms` (the timeout), with no hint |
 | 11 | `claude mcp add phonedriver -- /path/to/phonedriver mcp` | - | not run (changes the user's Claude config) | I checked by hand that `phonedriver mcp` answers `initialize` and `tools/list` over stdio with 11 tools. The README gives no way to confirm the server connected, and no `PHONEDRIVER_HOME` or `--device` advice for the first run |
 | 12 | `phonedriver skill` | MacBook | 0 s | prints SKILL.md. Nothing says where an agent should have it (Claude Code skills folder, `AGENTS.md`, or MCP `instructions` only) |
-| 13 | iPhone path: `PHONEDRIVER_TEAM` | MacBook | - | `snapshot` with no `--device` picked the one paired iPhone and failed: `error: connection error: set PHONEDRIVER_TEAM to the Apple developer team that signs the runner (for example DV6NC6KRYL)` |
+| 13 | iPhone path: `PHONEDRIVER_TEAM` | MacBook | - | `snapshot` with no `--device` picked the one paired iPhone and failed: `error: connection error: set PHONEDRIVER_TEAM to the Apple developer team that signs the runner (for example <team id>)` |
 | 14 | `phonedriver ios setup` | Mac mini (no device) | 0 s | `no iOS device is connected over USB`, exit 1. Not run against the MacBook's iPhone (physical). README never mentions `ios setup` |
 | 15 | Development: `blaze build` | MacBook | 2 m 32 s cold | ok. README does not say where blaze comes from; CI uses `cargo test` |
 
@@ -63,12 +63,12 @@ README: "To skip that step, set `PHONEDRIVER_AGENT_JAR` to a built `phonedriver-
 
 ```
 $ phonedriver snapshot       # one paired iPhone, no simulator booted
-error: connection error: set PHONEDRIVER_TEAM to the Apple developer team that signs the runner (for example DV6NC6KRYL)
+error: connection error: set PHONEDRIVER_TEAM to the Apple developer team that signs the runner (for example <team id>)
 hint: Run `phonedriver doctor` to check the connection.
 exit=1
 ```
 
-Problems: the hint points at `doctor`, but the action is "set `PHONEDRIVER_TEAM`"; no text says where a team id comes from (Xcode > Settings > Accounts, or `security find-identity -v -p codesigning`); `DV6NC6KRYL` looks like a real team id used as an example; "connection error" is wrong, nothing failed to connect; and the README mentions `PHONEDRIVER_TEAM` only inside the Supported devices table. `ios setup` is not in the README at all. Fix (S): drop the real id from the example, drop the `doctor` hint for this error, say how to find the team id. Fix (M): a README section "iPhone or iPad" with `ios setup`, `PHONEDRIVER_TEAM`, the weekly re-sign for free accounts, and the first-run time.
+Problems: the hint points at `doctor`, but the action is "set `PHONEDRIVER_TEAM`"; no text says where a team id comes from (Xcode > Settings > Accounts, or `security find-identity -v -p codesigning`); `<team id>` looks like a real team id used as an example; "connection error" is wrong, nothing failed to connect; and the README mentions `PHONEDRIVER_TEAM` only inside the Supported devices table. `ios setup` is not in the README at all. Fix (S): drop the real id from the example, drop the `doctor` hint for this error, say how to find the team id. Fix (M): a README section "iPhone or iPad" with `ios setup`, `PHONEDRIVER_TEAM`, the weekly re-sign for free accounts, and the first-run time.
 
 ### High (slow most people)
 
