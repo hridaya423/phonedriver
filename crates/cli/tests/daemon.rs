@@ -2012,7 +2012,45 @@ const PLAIN_FIELDS: &[FieldNames] = &[
     (None, Some("Your name"), None),
     (None, None, Some("com.shop:id/promo_code")),
     (Some("优惠码"), None, None),
+    (Some("Pin location"), None, None),
+    (None, Some("Search pins"), None),
+    (Some("Spinner"), None, None),
 ];
+
+const CARD_CODE_FIELDS: &[FieldNames] = &[
+    (Some("CVV"), None, None),
+    (None, Some("CVC"), None),
+    (Some("Security code"), None, None),
+    (None, Some("Card security code"), None),
+    (Some("PIN"), None, None),
+    (None, Some("Enter your PIN"), None),
+    (None, None, Some("com.bank:id/cvv_input")),
+    (None, None, Some("com.bank:id/pin_entry")),
+    (Some("Código de seguridad"), None, None),
+    (Some("Sicherheitscode"), None, None),
+    (Some("セキュリティコード"), None, None),
+];
+
+#[tokio::test(start_paused = true)]
+async fn plain_text_is_refused_in_a_pin_or_card_security_code_field() {
+    for (label, hint, id) in CARD_CODE_FIELDS {
+        let (source, fake) = FakeSource::with(vec![
+            coded_field(*label, *hint, *id),
+            coded_field(*label, *hint, *id),
+        ]);
+        let (d, _home) = daemon(source);
+        ok(&d, "default", "snapshot", json!({})).await;
+        let e = err(&d, "default", "act", type_params("4931", false)).await;
+        assert_eq!(e.code, -32020, "{label:?} {hint:?} {id:?}: {e:?}");
+        assert!(
+            e.message.contains("PIN or card security code"),
+            "{}",
+            e.message
+        );
+        assert!(!e.to_json().to_string().contains("4931"));
+        assert!(fake.calls().is_empty(), "{:?}", fake.calls());
+    }
+}
 
 #[tokio::test(start_paused = true)]
 async fn plain_text_is_refused_in_a_one_time_code_field_but_a_secret_goes_in() {

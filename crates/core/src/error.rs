@@ -98,6 +98,7 @@ impl Category {
 pub enum SecretKind {
     Password,
     Code,
+    CardCode,
 }
 
 impl SecretKind {
@@ -105,6 +106,7 @@ impl SecretKind {
         match self {
             SecretKind::Password => "a password field",
             SecretKind::Code => "a one-time code field",
+            SecretKind::CardCode => "a PIN or card security code field",
         }
     }
 }

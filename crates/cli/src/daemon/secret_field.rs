@@ -1,4 +1,5 @@
-//! Fields the model must not fill with plain text (decision D30): passwords and one-time codes.
+//! Fields the model must not fill with plain text (decision D30): passwords, one-time codes, PINs and card security
+//! codes.
 
 use phonedriver_core::element::{Element, ElementState, Role};
 use phonedriver_core::error::SecretKind;
@@ -65,6 +66,65 @@ const BARE_CODE: &[&str] = &[
     "your code",
 ];
 
+const CARD_CODE_PHRASES: &[&str] = &[
+    "cvv",
+    "cvv2",
+    "cvc",
+    "cvc2",
+    "csc",
+    "security code",
+    "card security code",
+    "card verification code",
+    "card verification value",
+    "código de seguridad",
+    "código de segurança",
+    "code de sécurité",
+    "cryptogramme",
+    "sicherheitscode",
+    "prüfnummer",
+    "codice di sicurezza",
+    "beveiligingscode",
+    "セキュリティコード",
+    "安全码",
+    "보안코드",
+];
+
+/// A PIN is named only by a whole label (`PIN`, `Enter your PIN`): `Pin location` and `Search pins` are not one.
+const BARE_PIN: &[&str] = &[
+    "pin",
+    "pin code",
+    "enter pin",
+    "enter your pin",
+    "your pin",
+    "card pin",
+    "atm pin",
+];
+
+const PIN_IDS: &[&str] = &["pin", "pin code", "pin entry", "pin input", "pin field"];
+
+fn names_a_card_code(text: &str, whole_label: bool) -> bool {
+    let words = tokens(text);
+    let joined = words.join(" ");
+    if whole_label && BARE_PIN.contains(&joined.as_str()) {
+        return true;
+    }
+    if !whole_label {
+        let tail = joined.rsplit(" id ").next().unwrap_or(&joined);
+        if PIN_IDS.contains(&tail) {
+            return true;
+        }
+    }
+    let spaced = format!(" {joined} ");
+    let packed: String = text.to_lowercase().split_whitespace().collect();
+    CARD_CODE_PHRASES.iter().any(|p| {
+        if p.chars().any(is_cjk) {
+            packed.contains(p)
+        } else {
+            spaced.contains(&format!(" {p} "))
+        }
+    })
+}
+
 fn names_a_code(text: &str, whole_label: bool) -> bool {
     let words = tokens(text);
     let spaced = format!(" {} ", words.join(" "));
@@ -90,10 +150,15 @@ pub fn kind(e: &Element) -> Option<SecretKind> {
     if !e.role.is_text_entry() {
         return None;
     }
-    let by_words = [e.label.as_deref(), e.hint.as_deref()]
-        .into_iter()
-        .flatten()
-        .any(|t| names_a_code(t, true));
-    let by_id = e.id.as_deref().is_some_and(|i| names_a_code(i, false));
-    (by_words || by_id).then_some(SecretKind::Code)
+    let words = [e.label.as_deref(), e.hint.as_deref()];
+    let names = |f: fn(&str, bool) -> bool| {
+        words.into_iter().flatten().any(|t| f(t, true))
+            || e.id
+                .as_deref()
+                .is_some_and(|i| f(&i.replace('_', " "), false))
+    };
+    if names(names_a_code) {
+        return Some(SecretKind::Code);
+    }
+    names(names_a_card_code).then_some(SecretKind::CardCode)
 }
