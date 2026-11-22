@@ -21,3 +21,4 @@ pub mod settle;
 pub mod similar;
 #[cfg(any(test, feature = "testing"))]
 pub mod testing;
+pub mod text;

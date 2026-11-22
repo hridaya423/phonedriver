@@ -72,10 +72,9 @@ pub fn app_name(now: &Rendered) -> Option<String> {
 const MAX_WORDS: usize = 9;
 
 pub(crate) fn tokens(text: &str) -> Vec<String> {
-    let lower: String = text
-        .to_lowercase()
+    let lower: String = phonedriver_core::text::fold(text)
         .chars()
-        .filter(|c| !matches!(c, '\'' | '’'))
+        .filter(|c| *c != '\'')
         .map(|c| {
             if c.is_alphanumeric()
                 || SYMBOLS.contains(&c)
@@ -209,6 +208,7 @@ pub fn classify(role: Role, label: &str) -> Option<Category> {
     if !role_can_commit(role) {
         return None;
     }
+    let label = &phonedriver_core::text::fold(label);
     if label.trim_start().starts_with(is_cjk) {
         return classify_cjk(label);
     }
@@ -633,6 +633,31 @@ mod tests {
 
     fn by_default(role: Role, label: &str) -> bool {
         classify(role, label).is_some_and(|c| asks(c, &[]))
+    }
+
+    #[test]
+    fn a_label_in_another_code_point_form_is_the_same_label() {
+        for label in [
+            "\u{FF30}\u{FF41}\u{FF59} \u{FF4E}\u{FF4F}\u{FF57}",
+            "Pay\u{200B} now",
+            "P\u{00AD}ay now",
+            "Place\u{00A0}order",
+            "Buy\u{2060} now",
+            "\u{202E}Pay now",
+            "Pl\u{0430}ce order",
+        ] {
+            let got = classify(Role::Button, label);
+            if label.contains('\u{0430}') {
+                assert_eq!(got, None, "a Cyrillic look-alike is not folded: {label:?}");
+            } else {
+                assert_eq!(got, Some(Category::Payment), "{label:?}");
+            }
+        }
+        assert_eq!(classify(Role::Button, "Don\u{2019}t buy"), None);
+        assert_eq!(
+            classify(Role::Button, "購入する ￥１，２００"),
+            classify(Role::Button, "購入する ¥1,200")
+        );
     }
 
     #[test]
