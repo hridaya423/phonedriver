@@ -1722,3 +1722,17 @@ The GitHub Action passes `--any-build`: it installs the build under test before 
 **Limits.** A flow that does not launch its app (it starts on a screen already open) records no build. A build that changed without a new version name or number (a debug build installed again) is not told apart. A physical iPhone reports no build.
 
 **Reopen if.** Debug builds of the same version are replayed across code changes often enough to need the install time (D90's `installed_at`) as well.
+
+## D110. A saved step keeps the kind of screen it was saved on, and a replay checks it before touching (2026-11-22, #41)
+
+**Choice.** Each saved `act` step holds `"on": {"app": "<package or bundle id>", "over": <bool>}` from the screen the agent last saw before the action: the app in front, and whether a dialog, sheet or alert was over it. `over` is true when the front app window does not span the screen's width (Android draws a dialog as a window of its own, inset from both edges: `real_dialog.json`, `real_permission_dialog.json` and `vpn_consent_dialog.json` all start 28 px in, every full-screen capture starts at 0), when the header lists a system alert, or when an element is a dialog or an alert (iOS alerts and sheets). A replay sends `on` with the step, and the daemon refuses the action before any touch on another app, with a dialog in front where there was none, or with none where there was one; the replay then stops with its usual "do step N yourself" hint. `launch`, `open`, `press back` and `press home` keep no `on`, since they leave whatever is in front; nor does an action after a failed one (D60's `unsure`). The check uses the screen the session holds, and reads one only when the session has none it is sure of. A file saved before this replays as before.
+
+**Why.** Issue #41 checked replayed scripts against the code and found nothing about the screen was checked before a step: a banner or a dialog put another button under a position step, and a saved text such as `OK` matched a dialog the run was never saved on. Its proposal 5 is a signature of the screen, compared before dispatch.
+
+**Rejected.** Ids, roles and text in the signature, as the proposal had them: they change with content (a list with other rows, a counter, an empty state against a full one), so a good replay would stop on screens that are the same screen. App and front window catch the two cases the report and its attack found dangerous, at no read and no false stop on content. A read of the screen before every step: the screen the last step settled on is the one the next step resolves its target on anyway.
+
+**Cost.** About 40 characters a step in the file. No read in a session that does not replay, and none per replayed step while the session holds a sure screen.
+
+**Limits.** A dialog drawn inside the app's own full-screen window (a Compose `Dialog` in some versions, a bottom sheet whose window spans the screen, a web modal) is not seen as one. A file saved on a phone and replayed on a tablet in split screen sees every screen as `over`. A screen that changed inside the same app with no dialog (another page) passes the check; the step's own target is what catches that.
+
+**Reopen if.** A replay stops for a dialog that is the screen itself (an app whose main screen is a floating window), or a replay runs a step on a dialog this misses.

@@ -2259,6 +2259,7 @@ impl Replay {
         client: &mut Client,
         act: &(dyn Fn(Value) -> Value + Sync),
         mut action: Value,
+        on: &Value,
         secret_field_only: Option<bool>,
     ) -> Result<Value, Failure> {
         let typing = action["kind"] == "type";
@@ -2267,6 +2268,9 @@ impl Replay {
             action["submit"] = json!(false);
         }
         let mut params = act(action);
+        if !on.is_null() {
+            params["on"] = on.clone();
+        }
         if let Some(only) = secret_field_only {
             params["secret_field_only"] = json!(only);
         }
@@ -2375,7 +2379,7 @@ impl Replay {
                     Ok((action, secret)) => {
                         let field_only = secret.is_some().then_some(!any_field);
                         typed.extend(secret);
-                        Replay::act(client, act, action, field_only).await
+                        Replay::act(client, act, action, &step["on"], field_only).await
                     }
                     Err(why) => {
                         hint = Some(secret_hint(&why, i + 1, total));

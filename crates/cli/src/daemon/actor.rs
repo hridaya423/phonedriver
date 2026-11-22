@@ -45,9 +45,9 @@ use super::{guard, secret_field};
 use crate::wire::{
     ActParams, Action, ActionResult, AppParams, Approval, Approved, BatchParams, BatchResult,
     BuildParams, ClipboardParams, Crashed, FindParams, JournalParams, Kind, LogsParams,
-    Observation, PageParams, PinchDirection, RecordAction, RecordParams, ScreenshotParams,
-    ScreenshotResult, SettingParams, ShellParams, ShellResult, SnapshotParams, Step, StepFailure,
-    StepResult, Target, TypeMode, VpnState, WaitCondition, WaitParams,
+    Observation, OnScreen, PageParams, PinchDirection, RecordAction, RecordParams,
+    ScreenshotParams, ScreenshotResult, SettingParams, ShellParams, ShellResult, SnapshotParams,
+    Step, StepFailure, StepResult, Target, TypeMode, VpnState, WaitCondition, WaitParams,
 };
 
 pub const LEASE_TTL: Duration = Duration::from_secs(600);
@@ -1289,6 +1289,7 @@ impl Actor {
                 timeout_ms: p.timeout_ms,
                 expect_change_ms: p.expect_change_ms,
                 secret_field_only: false,
+                on: None,
             };
             let mut result = self.act(s, act).await?;
             result.summary = format!("opened the settings screen {screen}");
@@ -1559,26 +1560,27 @@ impl Actor {
         let nodes = prune(tree);
         let refs = s.refs.assign(tree, &nodes);
         let alerts = phonedriver_core::alert::find(tree, screen);
+        let front = tree
+            .windows
+            .iter()
+            .filter(|w| !alerts.iter().any(|(id, _)| *id == w.id))
+            .find(|w| w.kind == "application" && w.package.is_some());
+        let popup = tree.outside.is_empty()
+            && front.is_some_and(|w| w.bounds.x > 1.0 || w.bounds.x + w.bounds.w < screen.w - 1.0);
         let app = match tree.outside.first() {
             Some(o) => Some(AppLine {
                 id: o.package.clone().unwrap_or_else(|| "unknown".into()),
                 name: Some(phonedriver_core::scope::OUTSIDE_NAME.into()),
             }),
-            None => tree
-                .windows
-                .iter()
-                .filter(|w| !alerts.iter().any(|(id, _)| *id == w.id))
-                .find(|w| w.kind == "application" && w.package.is_some())
-                .and_then(|w| w.package.clone())
-                .map(|id| {
-                    let name = self
-                        .names
-                        .lock()
-                        .unwrap_or_else(|e| e.into_inner())
-                        .get(&id)
-                        .cloned();
-                    AppLine { id, name }
-                }),
+            None => front.and_then(|w| w.package.clone()).map(|id| {
+                let name = self
+                    .names
+                    .lock()
+                    .unwrap_or_else(|e| e.into_inner())
+                    .get(&id)
+                    .cloned();
+                AppLine { id, name }
+            }),
         };
         let keyboard = tree
             .windows
@@ -1602,6 +1604,7 @@ impl Actor {
             settle,
             secure_hidden,
             alerts: alerts.into_iter().map(|(_, a)| a).collect(),
+            popup,
         };
         Rendered::build(nodes, &refs, header)
     }
@@ -2299,6 +2302,36 @@ impl Actor {
         }
     }
 
+    /// A replayed step runs only on the kind of screen it was saved on: the same app, and a dialog in front exactly
+    /// when there was one. It reads the screen only when the session has none it is sure of.
+    async fn on_screen(&mut self, s: &mut Session, saved: &OnScreen) -> Result<(), Error> {
+        let fresh;
+        let now = match s.last.as_ref().filter(|_| !s.unsure) {
+            Some(last) => last,
+            None => {
+                fresh = self.fresh(s).await?;
+                &fresh
+            }
+        };
+        let app = now.header.app.as_ref().map(|a| a.id.as_str());
+        let over = now.dialog_in_front();
+        let differs = match (saved.app.as_deref(), app) {
+            (Some(was), Some(is)) if was != is => Some(format!("{is} is in front")),
+            _ if saved.over && !over => Some("the dialog it was saved on is not in front".into()),
+            _ if !saved.over && over => {
+                Some("a dialog is in front, which was not there when it was saved".into())
+            }
+            _ => None,
+        };
+        let Some(differs) = differs else {
+            return Ok(());
+        };
+        let was = saved.app.as_deref().unwrap_or("its app");
+        Err(Error::Refused {
+            detail: format!("this step was saved on {was}, and {differs}; nothing was touched"),
+        })
+    }
+
     async fn act(&mut self, s: &mut Session, p: ActParams) -> Result<ActionResult, Error> {
         let t = Instant::now();
         let prepared = self.prepare(&p.action).await;
@@ -2329,6 +2362,9 @@ impl Actor {
             .and_then(|last| last.header.app.as_ref())
             .map(|app| app.id.clone());
         let began = Instant::now();
+        if let Some(on) = &p.on {
+            self.on_screen(s, on).await?;
+        }
         let kept = Kept::of(&p.action, s);
         let acted = self.act_now(s, p).await;
         if let Err(Error::NotReached { scrolls, end, .. }) = &acted {
@@ -3806,6 +3842,7 @@ impl Actor {
                             timeout_ms: p.timeout_ms,
                             expect_change_ms: p.expect_change_ms,
                             secret_field_only: false,
+                            on: None,
                         },
                     )
                     .await

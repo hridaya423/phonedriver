@@ -9,6 +9,7 @@ Every release of phonedriver, newest first. Binaries and checksums for each vers
 - **Read-backs** (#41): `save` names typed values no later step reads back, and `wait` finds a phone number however the app formats it, never behind a country code it did not type.
 - **Blanks with examples**: `{{day1:Tuesday}}` tells whoever fills the blank the wording the screen uses.
 - **A replay checks the app's build**: `save` keeps the build of each app it launches, and `replay` stops before its first step when the app is now another build; `--any-build` runs it anyway (#41).
+- **A replay checks the screen before each step**: a step runs only in the app it was saved in, and with a dialog in front exactly when there was one, so a surprise dialog or another app is never tapped (#41).
 
 ## 0.1.7
 

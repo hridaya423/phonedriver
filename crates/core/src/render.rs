@@ -55,6 +55,10 @@ pub struct Header {
     /// System alerts over the screen, topmost first.
     #[serde(default)]
     pub alerts: Vec<crate::alert::AlertLine>,
+    /// The front app window does not span the screen's width: Android draws a dialog as a window of its own, inset
+    /// from both edges (`real_dialog.json`, the permission and VPN consent dialogs all start 28 px in).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub popup: bool,
 }
 
 /// A screen ready to print: header plus elements with refs, in preorder.
@@ -82,6 +86,17 @@ pub enum TextMatch {
 }
 
 impl Rendered {
+    /// A dialog, sheet or alert is in front of the app's screen: a window of its own, a system alert, or an element
+    /// the platform calls one (an iOS alert or sheet).
+    pub fn dialog_in_front(&self) -> bool {
+        self.header.popup
+            || !self.header.alerts.is_empty()
+            || self
+                .elements
+                .iter()
+                .any(|e| matches!(e.role, Role::Dialog | Role::Alert))
+    }
+
     pub fn build(nodes: Vec<Node>, refs: &[Ref], header: Header) -> Rendered {
         let parents: Vec<Option<usize>> = nodes.iter().map(|n| n.parent).collect();
         let mut elements: Vec<Element> = nodes
@@ -831,6 +846,7 @@ mod tests {
             }),
             secure_hidden: false,
             alerts: Vec::new(),
+            popup: false,
         }
     }
 

@@ -3,7 +3,24 @@
 use serde_json::{Value, json};
 
 use super::session::Session;
-use crate::wire::{Action, ActionResult, PointJson, Target, WaitCondition};
+use crate::wire::{Action, ActionResult, OnScreen, PointJson, Target, WaitCondition};
+
+impl OnScreen {
+    /// The screen the agent last saw, for an action aimed at it. A launch, a link, back and home leave whatever is
+    /// in front, so they keep none.
+    fn of(action: &Action, s: &Session) -> Option<OnScreen> {
+        let leaves = match action {
+            Action::Launch { .. } | Action::Open { .. } => true,
+            Action::Press { key } => matches!(key.as_str(), "back" | "home"),
+            _ => false,
+        };
+        let last = s.last.as_ref().filter(|_| !leaves && !s.unsure)?;
+        Some(OnScreen {
+            app: last.header.app.as_ref().map(|a| a.id.clone()),
+            over: last.dialog_in_front(),
+        })
+    }
+}
 
 /// A session keeps this many steps and says so when more were done: a run that long is not one to replay blind.
 pub const MAX: usize = 500;
@@ -59,11 +76,14 @@ pub struct Kept {
     /// The action before this one failed, so the screen it is measured against may not be the device's, and
     /// whether it changed the screen says nothing a replay can hold it to.
     unsure: bool,
+    /// The screen the action was saved on (`OnScreen`), for an action aimed at that screen.
+    on: Option<OnScreen>,
 }
 
 impl Kept {
     pub fn of(action: &Action, s: &Session) -> Kept {
         let secret = matches!(action, Action::Type { secret: true, .. });
+        let on = OnScreen::of(action, s);
         let mut action = action.clone();
         if let Action::Type { text, .. } = &mut action
             && secret
@@ -93,6 +113,7 @@ impl Kept {
             by_position,
             secret,
             unsure: s.unsure,
+            on,
         }
     }
 
@@ -116,6 +137,9 @@ impl Kept {
             .map(|_| {
                 let mut step = call("act", json!({"action": plain}));
                 step["summary"] = json!(format!("scrolled {}", direction.name()));
+                if let Some(on) = &self.on {
+                    step["on"] = json!(on);
+                }
                 if self.by_position {
                     step["by_position"] = json!(true);
                 }
@@ -138,6 +162,9 @@ impl Kept {
         }
         if self.by_position {
             step["by_position"] = json!(true);
+        }
+        if let Some(on) = &self.on {
+            step["on"] = json!(on);
         }
         step
     }

@@ -99,6 +99,7 @@ async fn the_journal_holds_each_action_that_worked_with_a_target_that_outlives_i
             "params": {"action": {"kind": "tap", "target": {"text": "One", "role": "button"}, "count": null, "long": null}},
             "summary": "tapped @e1 \"One\"",
             "changed": false,
+            "on": {"app": "com.example", "over": false},
         })
     );
     assert_eq!(
@@ -634,4 +635,91 @@ async fn a_replay_refuses_another_build_of_an_app_it_launches_unless_told_any_bu
 
     let (replayed, shown) = run(&home, &socket, &["replay", file, "--any-build"]).await;
     assert!(replayed, "{shown}");
+}
+
+/// A dialog window over the app, inset from the screen's edges as Android draws one (`real_dialog.json`).
+fn dialog_over(labels: &[&str]) -> RawTree {
+    let nodes: Vec<String> = std::iter::once(
+        r#"{"p":-1,"w":2,"cls":"android.widget.FrameLayout","b":[20,300,340,500],"f":"vVe"}"#
+            .to_string(),
+    )
+    .chain(labels.iter().enumerate().map(|(i, l)| {
+        let top = 320 + 60 * i as i32;
+        format!(
+            r#"{{"p":0,"w":2,"cls":"android.widget.Button","text":"{l}","b":[40,{top},320,{}],"f":"vVe","a":["tap"]}}"#,
+            top + 50
+        )
+    }))
+    .collect();
+    let json = format!(
+        r#"{{"windows":[{{"id":2,"type":"application","package":"com.example","bounds":[20,300,340,500]}}],"nodes":[{}]}}"#,
+        nodes.join(",")
+    );
+    RawTree::from_android_json(&json, Scale { density: 1.0 }).unwrap()
+}
+
+/// Issue #41: a replay checked nothing about the screen before a step, so a dialog in front, or another app, took a
+/// step saved by position or by a common word ("OK"). Each step keeps the app it was saved on and whether a dialog
+/// was in front.
+#[tokio::test(start_paused = true)]
+async fn a_saved_step_keeps_its_app_and_whether_a_dialog_was_in_front() {
+    let (d, fake, _home) = setup(vec![tree(&["One", "Two"])]);
+    ok(&d, "snapshot", json!({})).await;
+    ok(&d, "act", tap_ref("e1")).await;
+    fake.set_tree(dialog_over(&["OK"]));
+    ok(&d, "snapshot", json!({})).await;
+    ok(
+        &d,
+        "act",
+        json!({"action": {"kind": "tap", "target": {"text": "OK"}}}),
+    )
+    .await;
+    let saved = ok(&d, "journal", json!({})).await;
+    assert_eq!(
+        saved["steps"][0]["on"],
+        json!({"app": "com.example", "over": false}),
+        "{saved}"
+    );
+    assert_eq!(saved["steps"][1]["on"]["over"], true, "{saved}");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_replayed_step_stops_before_touching_a_dialog_that_was_not_in_front_when_it_was_saved() {
+    let fake =
+        Arc::new(FakeDevice::new(vec![dialog_over(&["OK", "One"])]).lacking(Capabilities::FRAMES));
+    let (home, socket) = served(fake.clone()).await;
+    let steps = home.path().join("tap.steps");
+    let tap = json!({"method": "act", "params": {"action": {"kind": "tap", "target": {"text": "One"}}}, "summary": "tapped \"One\"", "on": {"app": "com.example", "over": false}});
+    std::fs::write(&steps, format!("{tap}\n")).unwrap();
+
+    let (replayed, shown) = run(&home, &socket, &["replay", steps.to_str().unwrap()]).await;
+    assert!(!replayed, "{shown}");
+    assert!(shown.contains("dialog"), "{shown}");
+    assert!(
+        !fake
+            .calls()
+            .iter()
+            .any(|c| matches!(c, phonedriver_core::testing::Call::Gesture(_))),
+        "the tap went out: {shown}"
+    );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_replayed_step_saved_in_another_app_stops_before_touching_this_one() {
+    let fake = Arc::new(FakeDevice::new(vec![tree(&["One"])]).lacking(Capabilities::FRAMES));
+    let (home, socket) = served(fake.clone()).await;
+    let steps = home.path().join("tap.steps");
+    let tap = json!({"method": "act", "params": {"action": {"kind": "tap", "target": {"text": "One"}}}, "summary": "tapped \"One\"", "on": {"app": "com.other", "over": false}});
+    std::fs::write(&steps, format!("{tap}\n")).unwrap();
+
+    let (replayed, shown) = run(&home, &socket, &["replay", steps.to_str().unwrap()]).await;
+    assert!(!replayed, "{shown}");
+    assert!(shown.contains("com.other"), "{shown}");
+    assert!(
+        !fake
+            .calls()
+            .iter()
+            .any(|c| matches!(c, phonedriver_core::testing::Call::Gesture(_))),
+        "the tap went out: {shown}"
+    );
 }

@@ -493,6 +493,17 @@ pub struct ActParams {
     /// secrets it reads from the environment.
     #[serde(default)]
     pub secret_field_only: bool,
+    /// A replayed step: the screen it was saved on. The action is refused before any touch on another app, or with
+    /// a dialog in front where there was none, or none where there was one (decision D110).
+    #[serde(default)]
+    pub on: Option<OnScreen>,
+}
+
+/// The screen a saved step was done on: the app in front, and whether a dialog, sheet or alert was over it.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct OnScreen {
+    pub app: Option<String>,
+    pub over: bool,
 }
 
 fn yes() -> bool {
