@@ -624,6 +624,15 @@ impl Mcp {
         result
     }
 
+    /// Ends this server's leases on its way out, over the connection it holds. With none there is nothing to release,
+    /// and connecting would start a daemon only to stop using it.
+    async fn leave(&self) {
+        let Some(mut client) = self.client.lock().await.take() else {
+            return;
+        };
+        let _ = execute_with(&mut client, Verb::Release, None, &self.globals(None)).await;
+    }
+
     fn globals(&self, device: Option<String>) -> Globals {
         Globals {
             device: device
@@ -2039,7 +2048,7 @@ pub fn run(device: Option<String>) -> ExitCode {
             }
         };
         let _ = running.waiting().await;
-        held.run(None, Verb::Release, None).await;
+        held.leave().await;
         ExitCode::SUCCESS
     })
 }
@@ -2076,6 +2085,16 @@ mod tests {
             key,
             held_key(&json!(["type", {"text": "other", "secret": true}]))
         );
+    }
+
+    #[tokio::test]
+    async fn a_server_that_never_connected_leaves_without_connecting() {
+        let dir = tempfile::tempdir().unwrap();
+        let mcp = Mcp::new(Some(dir.path().join("no-daemon.sock")), "s".into());
+        tokio::time::timeout(std::time::Duration::from_secs(1), mcp.leave())
+            .await
+            .expect("leave tried to reach a daemon");
+        assert!(mcp.client.lock().await.is_none());
     }
 
     #[test]
