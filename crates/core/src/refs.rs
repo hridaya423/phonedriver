@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet};
 
 use crate::element::{Ref, Role};
-use crate::geometry::Point;
+use crate::geometry::{Point, Rect};
 use crate::prune::Node;
 use crate::raw::RawTree;
 
@@ -28,7 +28,34 @@ struct Seen {
     label: Option<String>,
     key: StructuralKey,
     center: Point,
+    bounds: Rect,
     package: Option<String>,
+}
+
+/// The center or a corner stayed: a text as wide as its words grows or shrinks from the edge it is anchored to.
+fn stayed(before: Rect, now: Rect) -> bool {
+    let corners = |b: Rect| {
+        [
+            b.center(),
+            Point { x: b.x, y: b.y },
+            Point {
+                x: b.x + b.w,
+                y: b.y,
+            },
+            Point {
+                x: b.x,
+                y: b.y + b.h,
+            },
+            Point {
+                x: b.x + b.w,
+                y: b.y + b.h,
+            },
+        ]
+    };
+    corners(before)
+        .iter()
+        .zip(corners(now))
+        .any(|(a, b)| a.distance(b) < SAME_PLACE_PT)
 }
 
 fn in_list(nodes: &[Node], i: usize) -> bool {
@@ -100,7 +127,7 @@ impl RefTable {
                 continue;
             };
             let prev = &self.last[j];
-            let same_place = prev.center.distance(n.bounds.center()) < SAME_PLACE_PT;
+            let same_place = stayed(prev.bounds, n.bounds);
             // A list recycles one view for many items, so an item at the old place with another label is another
             // item; elsewhere a new label at the old place is the same element changing (a counter, a clock).
             let continuous = prev.label == n.label || (same_place && !in_list(nodes, i));
@@ -274,6 +301,7 @@ impl RefTable {
                 label: n.label.clone(),
                 key,
                 center: n.bounds.center(),
+                bounds: n.bounds,
                 package,
             })
             .collect();
@@ -422,6 +450,24 @@ mod tests {
             |label: &str| android_in("android.widget.LinearLayout", &[("c", label, 0.0)]);
         refs(&mut t, &in_a_group("3 items"));
         assert_eq!(refs(&mut t, &in_a_group("4 items")), ["e1", "e2"]);
+    }
+
+    /// Issue #43: a React Native language switch turned "Language" into "Lingua". The text is as wide as its words,
+    /// so it shrank from its right edge and its center moved 10 points, and the diff said `- @e1` and `+ @e16`.
+    #[test]
+    fn a_text_that_shrinks_to_its_new_label_keeps_its_ref() {
+        let label = |text: &str, right: f32| {
+            let json = format!(
+                r#"{{"windows":[],"nodes":[
+                {{"p":-1,"w":1,"cls":"android.widget.ScrollView","b":[0,0,400,800],"f":"vVeS","a":["scroll_down"],"n":"root"}},
+                {{"p":0,"w":1,"cls":"android.view.ViewGroup","b":[0,0,400,800],"f":"vVe","n":"group"}},
+                {{"p":1,"w":1,"cls":"android.widget.TextView","text":"{text}","b":[16,100,{right},124],"f":"vVe","n":"lang"}}]}}"#
+            );
+            RawTree::from_android_json(&json, Scale { density: 1.0 }).unwrap()
+        };
+        let mut t = RefTable::default();
+        let before = refs(&mut t, &label("Language", 96.0));
+        assert_eq!(refs(&mut t, &label("Lingua", 76.0)), before);
     }
 
     #[test]
