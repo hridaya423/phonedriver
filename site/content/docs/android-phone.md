@@ -1,19 +1,19 @@
 ---
 title: How to control a real Android phone with phonedriver
 nav: Real Android phone
-meta: Turn on USB or Wi-Fi debugging, connect an Android phone and let an agent operate it with phonedriver. What has and has not been tested.
-description: Turn on USB debugging or Wi-Fi debugging, connect an Android phone or tablet, and let an agent operate it with phonedriver. Notes on what has and has not been tested.
+meta: Turn on USB or Wi-Fi debugging, plug in an Android phone, and let an agent drive it—even on a hidden second display while you keep using the phone.
+description: Connect a real Android phone over USB or Wi-Fi debugging, optionally give the agent a hidden second screen, and see what has been tested on hardware.
 seo: How to let an AI agent control a real Android phone over MCP
 updated: 2026-11-21
 ---
 
-Plug in an Android phone or tablet with USB debugging on, and phonedriver can drive it. No app is installed on the phone, and no accessibility service has to be switched on. It is the same code path as the emulator, and it has been tested on one physical phone, a HONOR X8 ([what was tested](#what-has-been-tested)).
+Plug in an Android phone or tablet with USB debugging switched on, and phonedriver drives it straight over `adb`. No APK to install, no accessibility service to hunt down in Settings, no root required.
 
 ## Over USB
 
-1. On the phone, turn on Developer options, then USB debugging.
-2. Plug the phone in and accept the "Allow USB debugging" prompt.
-3. Check phonedriver sees it:
+1. On the phone, enable **Developer options**, then **USB debugging**.
+2. Plug it in and accept the **"Allow USB debugging"** prompt.
+3. Verify phonedriver sees it:
 
 ```sh
 phonedriver devices
@@ -22,11 +22,18 @@ phonedriver doctor --device android:<serial>
 
 `doctor` without `--device` lists the phone but does not start the agent on it.
 
-The phone appears as `android:<serial>`. The daemon pushes a small agent over adb and starts it as the shell user.
+Your phone shows up as `android:<serial>`. The daemon pushes its tiny helper jar over `adb` and runs it as the shell user (the same trick `scrcpy` uses).
 
 ## Over Wi-Fi
 
-An Android 11 or later phone on the same network needs no cable. On the phone, turn on Developer options, then Wireless debugging, and choose Pair device with pairing code. Then:
+On Android 11+, you can lose the cable. The quickest path is one QR scan:
+
+```sh
+phonedriver pair      # scans from Wireless debugging → Pair device with QR code
+phonedriver untether  # switches a USB-plugged phone to adb over TCP (handy for Tailscale)
+```
+
+Or pair manually through `adb` using the addresses shown under **Developer options → Wireless debugging**:
 
 ```sh
 adb pair 192.168.1.20:37099
@@ -34,15 +41,13 @@ adb connect 192.168.1.20:41233
 phonedriver devices
 ```
 
-The first address and the six-digit code are on the pairing screen. The second address is on the Wireless debugging screen, and its port changes each time wireless debugging is switched on. The phone then appears as `android:192.168.1.20:41233`. If it shows `offline`, `phonedriver doctor` says what to check.
-
-`phonedriver pair` does the same with one scan: it shows a QR code, and you choose Pair device with QR code on the phone. `phonedriver untether` switches a phone that is on the cable to adb over TCP, for networks such as Tailscale. I tested both on the HONOR X8 on one Wi-Fi network. On a Mac, both commands restart an adb server that macOS keeps off the local network. A phone connected in more than one way is one line in `phonedriver devices`.
+(The connection port changes whenever you toggle Wireless debugging off and on. If a device goes `offline`, `phonedriver doctor` points out why. A phone connected over both USB and Wi-Fi appears once in `phonedriver devices`.)
 
 ## A hidden screen for the agent
 
-On Android 13 and later, the agent can work on a hidden second screen, so your own screen stays yours. Set `PHONEDRIVER_DISPLAY=hidden` in the MCP config, or pass `--display hidden` to the CLI. It has been tested on an emulator and on the HONOR X8. The phone has to be unlocked: while it is locked the hidden screen shows the lock screen too, so phonedriver says the phone is locked and leaves it asleep. While the agent works, phonedriver keeps the phone's own screen on, so it does not lock under the agent; `phonedriver release` lets it sleep again. On the phone, launching Settings and Calculator, tapping, typing, pressing back and home, and taking screenshots all worked on the hidden screen while the phone's own screen kept showing another app.
+On Android 13+, set `PHONEDRIVER_DISPLAY=hidden` (or pass `--display hidden`) so the agent works on a virtual display while your own screen stays untouched. The phone has to be unlocked: while it is locked the hidden screen shows the lock screen too, so phonedriver says the phone is locked and leaves it asleep.
 
-Typing into an app's own fields leaves no trace on your screen. Typing into a web page shows the system's clipboard note, and your clipboard is put back after. `press lock` and `press notifications` are not available in this mode. The first launch took 8.4 s on the HONOR X8 while the screen and the video encoder started, and later launches settled in about 1.1 s. Switching modes restarts the agent, which takes a few seconds. Some makers' builds may refuse a hidden screen, and I have not tried Xiaomi, Samsung or Oppo phones.
+Typing into native app fields stays invisible on your screen. Typing into web pages still triggers Android's system clipboard toast (your clipboard is restored afterward), and `press lock` / `press notifications` aren't available in hidden mode. On a HONOR X8, the first hidden-screen launch took 8.4 s while the virtual display and encoder spun up, then ~1.1 s afterward. Some OEM ROMs (Xiaomi, Samsung, Oppo—not yet tested) may restrict virtual displays.
 
 ### Several agents on one phone
 
@@ -50,17 +55,15 @@ Add `+` and a short name to the device id, such as `--device emulator-5554+a` an
 
 ## What has been tested
 
-I have tested one physical Android phone, a HONOR X8 (MagicOS, Android 13), over USB and over Wi-Fi. On it, reading the screen took 78.5 ms against 2,506.6 ms for adb's `uiautomator dump` (32 times faster), and a screenshot took 16.4 ms against 1,005.7 ms for `screencap` (61 times faster). On the phone's main Settings page `uiautomator dump` failed with "could not get idle state" after 11.5 s, and phonedriver read it in 110 ms. That pass covered two operations, not typing or taps, and the full suite of scenarios was run on emulators. Other phones use the same path, and bug reports from them are welcome. The iOS devices I tested are covered on [the iPhone page](/docs/iphone/).
+Hardware testing so far covers one physical Android phone: a **HONOR X8** (MagicOS, Android 13) over both USB and Wi-Fi. On USB, screen reads took **78.5 ms** vs. `uiautomator dump`'s **2,506.6 ms (32x)**, and screenshots took **16.4 ms** vs. `screencap`'s **1,005.7 ms (61x)**. On the phone's main Settings page, `uiautomator dump` gave up after 11.5 seconds with `"could not get idle state"` while phonedriver read it in 110 ms. Other Android phones follow the exact same path; if yours behaves weirdly, open an issue.
 
-## What stays with you
+## What stays in your hands
 
-Unlocking the phone, a USB debugging prompt and a biometric prompt are yours. When one blocks the agent, the error says what to do on the device and the command line exits with code 3. The agent tells you and continues when you say it is done.
+Unlocking the phone, approving USB debugging, and passing biometrics stay strictly yours. Whenever one blocks an action, phonedriver exits with code 3 and tells the agent what you need to do on the phone.
 
-phonedriver keeps the phone awake while it is in use: for 10 minutes after each command it resets the screen timeout every 10 seconds, on the phone's own screen and on the hidden one, and `phonedriver release` stops that. The screen still dims on its usual schedule; it only does not go off. This comes with 0.1.5.
+While the agent works, phonedriver keeps the phone awake: for 10 minutes after each command it resets the screen timeout every 10 seconds, on the phone's own screen and on the hidden one, so the phone does not lock under the agent. The screen still dims on its usual schedule. `phonedriver release` stops this and lets the phone sleep again. This comes with 0.1.5.
 
-## Safety on a real phone
-
-A physical Android device refuses wipes and removing apps phonedriver did not install, unless the command passes `--force`. For an app you are developing, name its package in `PHONEDRIVER_APPS_UNDER_TEST` in the environment the daemon starts with, and `apps clear`, `uninstall`, `grant` and `revoke` work on it ([how](/docs/claude-code/#an-app-you-are-developing)). The [approval guard](/docs/approval-guard/) is on by default, which matters more on a phone with real accounts than on an emulator. Do not hand an agent a phone with a payment app signed in until you have read what the guard does not catch.
+On physical Android devices, destructive commands (wiping app data or uninstalling apps phonedriver didn't install) are refused unless `--force` is passed. For an app you are developing, name its package in `PHONEDRIVER_APPS_UNDER_TEST` in the environment the daemon starts with, and `apps clear`, `uninstall`, `grant` and `revoke` work on it ([how](/docs/claude-code/#an-app-you-are-developing)). The [approval guard](/docs/approval-guard/) is also on by default—read [what it misses](/docs/approval-guard/#what-it-does-not-catch) before handing an agent a phone signed into banking or shopping apps.
 
 ## Keep the agent in your app
 
@@ -79,16 +82,16 @@ Not covered: the package name of the app in front is shown, notification icons a
 
 ### Does phonedriver install an app on my Android phone?
 
-No. There is no app and no accessibility service to switch on. The daemon pushes a small jar over adb and starts it with `app_process` as the shell user, the way scrcpy starts its server. It leaves two files in `/data/local/tmp`: the jar, and `phonedriver-owner`, which names the daemon that started the agent by its process id and a hash of the computer's name, so a second daemon does not take over its agent. Releases before 0.1.7 wrote the computer's name itself. `adb shell rm /data/local/tmp/phonedriver-*` removes both.
+No. No APK and no accessibility service—just a small jar pushed over adb and started via `app_process` as the shell user, like `scrcpy`. It leaves two files in `/data/local/tmp`: the jar, and `phonedriver-owner`, which names the daemon that started the agent (its process id and a hash of the computer's name) so a second daemon doesn't take over. Releases before 0.1.7 wrote the computer's name itself. `adb shell rm /data/local/tmp/phonedriver-*` removes both.
 
 ### Do I need root?
 
-No. The agent runs as the shell user, which is what USB debugging gives adb.
+No. Everything runs under the standard `adb` shell user.
 
 ### Which Android versions has it been tested on?
 
-Emulators on API 26 and API 37 pass the 21-scenario suite. Release 0.1.4 fixed screen reads on Android 12 and was tested on an API 31 emulator. The one physical phone I have tested is a HONOR X8 on Android 13. Wi-Fi debugging needs Android 11 or later and the hidden screen needs Android 13 or later.
+Emulators on API 26 and API 37 pass the 21-scenario suite; API 31 (Android 12) was verified in 0.1.4; physical hardware testing covers a HONOR X8 on Android 13. Wi-Fi debugging needs Android 11+ and hidden displays need Android 13+.
 
 ### How fast is it on a real phone?
 
-On the HONOR X8 over USB, reading the screen took 78.5 ms against 2,506.6 ms for `uiautomator dump`, and a screenshot took 16.4 ms against 1,005.7 ms for `screencap` (9 November 2026). Typing and taps were not measured on the phone. The full table, measured on an emulator, is in [phonedriver vs adb](/compare/adb/).
+On a HONOR X8 over USB, reading the screen took 78.5 ms vs. 2,506.6 ms for `uiautomator dump` (32x faster), and screenshots took 16.4 ms vs. 1,005.7 ms for `screencap` (61x faster). Full emulator table in [phonedriver vs adb](/compare/adb/).

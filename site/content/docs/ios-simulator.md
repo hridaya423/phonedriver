@@ -1,21 +1,21 @@
 ---
 title: How to control the iOS Simulator with phonedriver
 nav: iOS Simulator
-meta: Boot an iPhone Simulator on a Mac and let an agent drive it with phonedriver. Needs Xcode. Covers the runner build and tap latency.
-description: Boot an iPhone Simulator on a Mac and let an agent drive it with phonedriver. Needs Xcode. Covers the first-run runner build and the Simulator's tap latency.
+meta: Boot an iPhone Simulator on a Mac with Xcode and let an AI agent drive it with phonedriver—native Simulator input, display-buffer settling, and app installs.
+description: Boot an iOS Simulator on a Mac with Xcode and hand it to your agent. Covers the auto-built runner, 0.1.5 native Simulator input, and simctl shell shortcuts.
 seo: How to let an AI agent control the iOS Simulator over MCP
-updated: 2026-11-20
+updated: 2026-11-21
 ---
 
-To let an AI agent control the iOS Simulator, boot a Simulator on a Mac with Xcode and add phonedriver to your agent as an MCP server. The agent reads the screen as text through an XCTest runner that phonedriver builds for you, and its taps go to the Simulator's own touch input.
+Boot an iOS Simulator on a Mac with Xcode, wire up phonedriver, and your agent can drive iOS apps immediately—no `idb`, no WebDriverAgent setup, no separate downloads. It reads the screen as text through an XCTest runner that phonedriver builds for you, and its taps go to the Simulator's own touch input.
 
-The iOS Simulator is a tested target: the 12-scenario suite passes on iOS 26.5, three runs in a row. One scenario, `settings-dark-appearance`, failed twice in six full runs and I have not found the cause.
+The 12-scenario iOS suite passes on iOS 26.5. (One scenario, `settings-dark-appearance`, flaked twice across six full runs; I haven't pinned down why yet.)
 
 ## What you need
 
-A Mac with Xcode 15 or later (I use Xcode 27). There is no Android toolchain involved: the iOS-only build (`--no-default-features`) skips it.
+A Mac with Xcode 15 or later (tested on Xcode 27). No Android SDK is required; building from source with `--no-default-features` skips Android altogether.
 
-## Boot a Simulator
+## Boot and connect
 
 `phonedriver boot` starts a Simulator that is off and waits until it has booted:
 
@@ -23,27 +23,33 @@ A Mac with Xcode 15 or later (I use Xcode 27). There is no Android toolchain inv
 phonedriver boot "iPhone 17"
 ```
 
-You can also boot one in Simulator.app, or with `simctl`:
+You can also start one from Simulator.app, or via `simctl`:
 
 ```sh
 xcrun simctl list devices available
 xcrun simctl boot <udid>
 ```
 
-Then:
+Then check it:
 
 ```sh
 phonedriver devices
 phonedriver snapshot
 ```
 
-The first command that needs the runner builds a small XCTest runner on your Mac. The sources are inside the phonedriver binary, so nothing is downloaded. The command says what it is doing if it takes more than a second. The build log is at `~/.phonedriver/runner/<hash>/build.log` and the runner's output at `~/.phonedriver/runner/<udid>.log`.
+On first use, phonedriver compiles its own small XCTest runner from sources embedded right inside the binary (zero network downloads). If the first build takes more than a second, it tells you what it's doing; logs live at `~/.phonedriver/runner/<hash>/build.log` and `~/.phonedriver/runner/<udid>.log`.
 
-## Use the shell
+## Shell shortcuts
 
-`phonedriver shell "simctl ui appearance dark"` fills in the device for `simctl` subcommands that act on the Simulator alone, such as `ui`, `openurl`, `privacy`, `location` and `status_bar`.
+`phonedriver shell` fills in the target Simulator for `simctl` subcommands that act on the Simulator alone, such as `ui`, `openurl`, `privacy`, `location`, and `status_bar`:
 
-A Simulator's programs run on your Mac as your Mac user, and they can read and write your Mac's files. The Simulator's own settings and log work with nothing set: `defaults read -g AppleLocale`, `defaults write ...` and `log show --last 1m` run as one program in the Simulator, as long as no argument names a file. Other programs, and the `simctl` forms that touch a Mac file, are refused by default: `spawn`, `install`, `addmedia`, `push`, `io screenshot`, `keychain add-cert`. The verbs `install`, `apps notify`, `screenshot` and `record` do those jobs. To allow the rest, stop the daemon with `phonedriver daemon stop` and start it again with `PHONEDRIVER_HOST_SHELL=1` set, for example in the MCP server's `env`. Then any command, such as `launchctl list`, runs inside the Simulator. The same switch allows `open` with a `file:` link, which on a Simulator would show a file of your Mac. An app you `install` on a Simulator also runs as your Mac user, so install only builds you trust. iOS 26 Simulators have no shell, so a command is one of their own programs, such as `launchctl`. See [the shell](/docs/shell/).
+```sh
+phonedriver shell "simctl ui appearance dark"
+```
+
+The Simulator's own settings and log work with nothing to set up: `defaults read -g AppleLocale`, `defaults write ...`, and `log show --last 1m` run as one program in the Simulator, as long as no argument names a file.
+
+A Simulator's programs run on your Mac as your Mac user and can read and write your Mac's files, so anything else—other programs, and the `simctl` forms that touch a Mac file (`spawn`, `install`, `addmedia`, `push`, `io screenshot`, `keychain add-cert`)—is refused by default. The verbs `install`, `apps notify`, `screenshot`, and `record` do those jobs. To allow the rest, run `phonedriver daemon stop` and restart with `PHONEDRIVER_HOST_SHELL=1` (for example in the MCP server's `env`); then any command, like `launchctl list`, runs inside the Simulator. The same switch allows `open` with a `file:` link. An app you `install` also runs as your Mac user, so install only builds you trust. See [the shell guide](/docs/shell/) for more.
 
 ## Push notifications and logs
 
@@ -53,22 +59,22 @@ A Simulator's programs run on your Mac as your Mac user, and they can read and w
 
 ## Speed
 
-Since 0.1.5 a one-finger tap goes to the Simulator's own touch input, and phonedriver watches the Simulator's screen as it is drawn to know when it has settled. On simulator-use's own benchmark a tap with its reply takes 316 ms and a read 29 ms, the fastest of four tools ([the benchmark](/benchmarks/#simulator)). Typing still goes through XCTest, which types exactly, and so do taps with several fingers, in an app on its side and under a notification banner.
+As of 0.1.5, single-finger gestures use native Simulator input and settle directly off the Simulator's display buffer, skipping XCTest's ~240 ms event confirmation. On simulator-use's own benchmark a tap with its reply takes **316 ms** and a read **29 ms**, the fastest of four tools ([the benchmark](/benchmarks/#simulator)). Typing, multi-finger taps, apps on their side and taps under a notification banner still go through the XCTest runner, which is exact ([D93]({{REPO}}/blob/main/docs/decisions.md)).
 
-## If it does not work
+## Troubleshooting
 
-Run `phonedriver doctor`. It checks Xcode and the booted simulators. With a booted Simulator and an iPhone that has no signing team, the Simulator is the default device. More in [troubleshooting](/docs/troubleshooting/).
+Run `phonedriver doctor` to check Xcode and booted Simulators. If both a Simulator and an unsigned physical iPhone are attached, phonedriver defaults to the Simulator. More in [troubleshooting](/docs/troubleshooting/).
 
 ## Questions
 
 ### Can Claude Code control the iOS Simulator?
 
-Yes. Boot a Simulator, run `claude mcp add phonedriver -- npx -y phonedriver mcp`, and ask. Claude Code gets the screen as a numbered text list and taps by number. See [the Claude Code guide](/docs/claude-code/).
+Yes. Boot a Simulator, run `npx -y phonedriver init` (or `claude mcp add phonedriver -- npx -y phonedriver mcp`), and ask Claude in plain English ([Claude Code guide](/docs/claude-code/)).
 
 ### Do I need idb or WebDriverAgent?
 
-No. phonedriver builds its own XCTest runner with Xcode the first time it is needed. Its sources are inside the phonedriver binary, so nothing is downloaded.
+No. phonedriver compiles its own minimal XCTest runner locally with Xcode on first use, straight from sources packed inside the binary.
 
 ### Can I install my app on the Simulator with it?
 
-Yes. `phonedriver apps install` takes the `.app` folder your build produces, and `phonedriver launch` opens it. See [testing your app](/docs/test-a-mobile-app/).
+Yes—`phonedriver apps install YourApp.app` installs the `.app` bundle your Xcode build produces, and `phonedriver launch` opens it ([testing your app](/docs/test-a-mobile-app/)).

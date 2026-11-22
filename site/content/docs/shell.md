@@ -1,11 +1,12 @@
 ---
 title: How to run device commands with the phonedriver shell
 nav: Shell
-meta: Run a setting, intent or key on the device in one call with phonedriver shell and see the exit code, output and what changed on screen.
-description: Run a setting, intent or key on the device in one call with phonedriver shell, and see the exit code, the output and what changed on screen. Android, iOS Simulator and physical device rules.
+meta: Run a setting, intent, or dumpsys command in one call with phonedriver shell and get back exit code, output, and the screen diff.
+description: Toggle settings, fire Android intents, or run simctl in one call—returning exit code, trimmed output, and what changed on screen.
+updated: 2026-11-21
 ---
 
-`phonedriver shell` runs one command on the device and prints the exit code, the output (cut at 40 lines; `--grep` and `--head` narrow it) and what changed on screen. For a setting or an intent it is one call, with no screens to tap through.
+Sometimes tapping through four menus to flip dark mode is silly when one command does it in 200 ms. `phonedriver shell` runs a command on the device and hands back its exit code, output (capped at 40 lines; narrow with `--grep` or `--head`), and the settled screen diff:
 
 ```sh
 phonedriver shell "cmd uimode night yes"
@@ -16,13 +17,13 @@ phonedriver shell "dumpsys window | grep mCurrentFocus"
 
 ## Android
 
-The command runs in the agent already on the device, over the open control stream, not in a new `adb shell`. After a command that changes state, phonedriver settles and returns the screen diff, as it does for any action.
+Commands run inside the helper already alive on the phone over the open control stream—no fresh `adb shell` spawn. Whenever a command changes device state, phonedriver settles and appends the screen diff just like a tap.
 
 On an emulator, a command that starts with `emu` goes to the emulator's console: `geo`, `sms`, `power`, `network speed`, `delay` and `status`, `sensor`, `rotate`, `finger`, `avd name` and `status`. The other console commands, some of which write files on your computer or end the emulator, need `PHONEDRIVER_HOST_SHELL=1` (below). A line break in a console command is always refused.
 
 ## iOS Simulator
 
-For `simctl` subcommands the device is filled in for you:
+The active Simulator's UDID is filled in automatically for `simctl` subcommands:
 
 ```sh
 phonedriver shell "simctl ui appearance dark"
@@ -55,8 +56,9 @@ A command that needs a shell, or a program the Simulator does not have (`ls`, `g
 
 ## Physical devices
 
-A physical iPhone has no shell. A physical Android device refuses wipes and removing apps phonedriver did not install, unless you pass `--force`. Pass it only when the person who owns the phone asked for exactly that.
+- **iPhone / iPad:** No device shell is available on physical iOS devices.
+- **Android:** Destructive commands (wiping app data or uninstalling apps phonedriver didn't install) are blocked unless you pass `--force`—only do that when the owner explicitly asked.
 
-## Limits
+## One safety note
 
-The [approval guard](/docs/approval-guard/) does not see a button pressed by shell input, so `input tap` through the shell skips it. Destructive device commands are guarded separately on physical devices. Design: decisions D21 and D108 in [the repository]({{REPO}}/blob/main/docs/decisions.md), and measurements in `docs/bench/history/shell.md`.
+The [approval guard](/docs/approval-guard/) inspects taps, not shell commands, so raw `input tap` via `shell` bypasses it. Destructive device commands are guarded separately on physical devices. Design notes live in decisions D21 and D108 in [the repository]({{REPO}}/blob/main/docs/decisions.md); measurements in `docs/bench/history/shell.md`.

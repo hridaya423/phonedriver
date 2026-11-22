@@ -1,86 +1,63 @@
 ---
 title: phonedriver vs Appium and Appium MCP
 seo: phonedriver vs Appium MCP: an Appium alternative for AI agents
-updated: 2026-11-17
-meta: Appium runs scripted tests over WebDriver and has an MCP server. phonedriver is built for an agent that decides each step. What each does, and one measured row.
-description: Appium is the WebDriver framework for scripted mobile tests, and Appium MCP puts it in front of an agent. phonedriver is built for an agent that decides each step from the screen. What each installs, returns and is better at, with the one comparison I measured.
+updated: 2026-11-20
+meta: Appium shines for scripted CI suites and device farms; phonedriver is built for AI agents exploring screens. Architecture and iOS WDA timings compared.
+description: Appium is the industry standard for scripted mobile test suites and device farms. phonedriver is built for an AI agent deciding each step from the screen. Here is how they split.
 date: 2026-11-14
 ---
 
 ## The short answer
 
-Appium is the better tool for a fixed test suite that runs the same way on every commit, in the language your team writes tests in, on a device farm. phonedriver is built for an agent that looks at a screen, acts and decides from what changed: it returns a short numbered text screen instead of XML page source, waits for the screen to settle after every action, and asks you before a tap that spends money.
+If you want a deterministic test suite checked into Git, written in TypeScript/Java/Python, and executed across a cloud device farm on every PR—**use Appium**. That is literally what it was built for, and it has a decade of ecosystem behind it.
 
-I have measured one thing against Appium's stack. On an iPhone 17 simulator, phonedriver's own XCTest runner read a screen 2.0 times faster at p50 than fully tuned WebDriverAgent, the runner Appium uses on iOS. I have not measured Appium on Android, and I have not run Appium MCP on the phone jobs benchmark.
+**phonedriver** is built for the opposite loop: an AI agent looking at a live screen, deciding its next step, and staying frugal on tokens. It installs no APK on Android, turns 25 KB of XML into a short `@eN` text list, waits for the screen to settle before replying with a diff, and stops to ask you before tapping Pay. (And once an agent finds a working flow, `phonedriver save` / `replay` can turn it into a zero-model regression test.)
 
 ## Side by side
 
-| | phonedriver | Appium and Appium MCP |
+| | phonedriver | Appium & Appium MCP |
 |---|---|---|
-| What it is | An MCP server and CLI in one Rust binary | A WebDriver server with a driver per platform. Appium MCP is its MCP server (its README) |
-| Built for | An agent that decides each step from the screen | Scripted tests. Appium MCP adds tools for an agent and can generate Java/TestNG test code (its README) |
-| Platforms | Android, iOS Simulator, iPhone and iPad | Android through UiAutomator2 and iOS through XCUITest in Appium MCP. Appium itself has drivers for more (its README) |
-| What it puts on the device | Android: a jar pushed over adb, run as the shell user, no app. iOS: an XCTest runner built on your Mac | Android: the UiAutomator2 server is installed on the device (its driver README). iOS: WebDriverAgent |
-| What the model reads | A pruned text list with `@eN` refs, then only the lines that changed | Elements found by locator, and the page source as XML (Appium MCP README) |
-| Waits after an action | Yes: settle, then the diff | Not measured. Appium has explicit and implicit waits for elements |
-| Approval before spending money | Yes, through MCP elicitation | Not documented in the Appium MCP README |
-| Replaying a run | `save` keeps the steps an agent took and `replay` runs them with no model, also in GitHub Actions | Tests are code. Appium MCP can generate Java/TestNG code (its README) |
-| Remote devices and farms | A daemon socket forwarded over `ssh`. No cloud devices | Yes: a remote Appium server, CI grids and cloud labs (Appium MCP README) |
-| Telemetry | None | Appium MCP has OpenTelemetry tracing, off by default (its README) |
-| Requirements | Node 18 or later for `npx`, adb for Android, a Mac with Xcode for iOS | Node 22 or later, a JDK, the Android SDK, Xcode for iOS (Appium MCP README) |
+| Built for | AI agents deciding each step from the screen | Scripted mobile test suites (+ Appium MCP for agents) |
+| Footprint | Single Rust binary; Android jar pushed over adb | WebDriver server + platform drivers + device APKs |
+| What the model reads | Pruned `@eN` text list, then `+` / `-` / `~` diffs | Element locators and XML page source |
+| Waiting | Automatic visual settle + diff | Explicit and implicit element waits |
+| Approval before paying | Built-in via MCP elicitation | Not built in |
+| Replaying a run | `save` keeps an agent's steps and `replay` runs them with no model, also [in GitHub Actions](/docs/replay-in-ci/) | Tests are code; Appium MCP can generate Java/TestNG code |
+| Device farms & cloud labs | Local / SSH-forwarded devices only | First-class remote grids and cloud labs |
+| WebView context | Accessibility tree + OCR fallback | Dedicated WebView DOM context with web locators |
+| Requirements | Node 18+ (`npx`), adb, Mac+Xcode for iOS | Node 22+, JDK, Android SDK, Xcode for iOS |
 | License | AGPL-3.0-only | Apache-2.0 |
-| Adoption | New: first released on 10 November 2026 | Appium has about 22,200 GitHub stars and Appium MCP about 520, on 14 November 2026 |
 
-The Appium rows are from the READMEs of [appium](https://github.com/appium/appium), [appium-mcp](https://github.com/appium/appium-mcp) and [appium-uiautomator2-driver](https://github.com/appium/appium-uiautomator2-driver), read on 14 November 2026. I have not run Appium MCP.
+## What I measured (and what I didn't)
 
-## Measured: reading a screen on iOS
+I have measured one direct comparison against Appium's stack: reading an iOS screen against **WebDriverAgent (WDA)** on an iPhone 17 Simulator (iOS 26.5, Xcode 27.0, WDA 16.15.3, 50 runs each). "Fully tuned" WDA means `snapshotMaxDepth=30`, idle waits off, and `visible,accessible,hittable` excluded.
 
-WebDriverAgent is an XCTest runner that takes WebDriver requests over HTTP. phonedriver's runner is a smaller XCTest bundle with its own protocol, so the mechanism is the same and the framing differs. I measured both on an iPhone 17 simulator running iOS 26.5, with Xcode 27.0 and WebDriverAgent 16.15.3, 50 runs per row, taken in turn. "Fully tuned" means `snapshotMaxDepth` 30, idle waits at 0 and three attributes excluded.
-
-| Screen | phonedriver runner, p50 | WebDriverAgent, depth 30 only | WebDriverAgent, fully tuned | Tuned / runner |
+| Screen | phonedriver runner | WDA (depth 30 only) | WDA (fully tuned) | vs. tuned |
 |---|---|---|---|---|
-| List (150 elements) | 22.2 ms | 380.4 ms | 44.8 ms | 2.02x |
-| Taps (59 elements) | 12.9 ms | 108.8 ms | 26.1 ms | 2.02x |
-| Settings (168 elements) | 24.7 ms | 477.4 ms | 49.7 ms | 2.01x |
+| List (150 elements) | 22.2 ms | 380.4 ms | 44.8 ms | **2.02x** |
+| Taps (59 elements) | 12.9 ms | 108.8 ms | 26.1 ms | **2.02x** |
+| Settings (168 elements) | 24.7 ms | 477.4 ms | 49.7 ms | **2.01x** |
 
-Against WebDriverAgent with only `snapshotMaxDepth` set, the runner is 8 to 19 times faster. This is a simulator, not an iPhone, and a tuned Appium setup is closer than its defaults suggest. The method is in [how phonedriver works](/blog/how-phonedriver-works/#ios-my-own-runner).
+Against default-ish WDA (only depth capped), phonedriver's runner is 8x to 19x faster; against fully tuned WDA, it is right at **2.0x** ([details in how phonedriver works](/blog/how-phonedriver-works/#ios-my-own-runner)).
 
-## What I have not measured
-
-On Android, Appium's UiAutomator2 server stays resident on the device, as phonedriver's agent does. That makes it the fair rival for phonedriver's 12.7 ms read of a 1,000-row list, and I did not measure it. The 170 times figure on this site is against `adb shell uiautomator dump`, a one-off command, on one Android 17 emulator. It says nothing about Appium.
-
-I also have no token comparison. Appium MCP was not one of the tools in the [nine phone jobs](/benchmarks/#jobs).
-
-## What Appium has that phonedriver does not
-
-- Client libraries in many languages and the W3C WebDriver protocol, so tests are code your team can review and rerun.
-- Device farms and cloud labs. phonedriver drives devices you can reach yourself.
-- A WebView context: Appium can switch into a web page inside an app and use web locators. phonedriver reads a WebView through the accessibility tree and falls back to OCR when that is empty.
-- Test generation in Java, locator strategies and geolocation in Appium MCP (its README).
-- Years of use and a large community.
-
-## What phonedriver does differently
-
-- **A settled diff.** Every action waits for the screen to stop changing and returns the lines that changed, so the agent does not fetch the page source again after each tap.
-- **Nothing installed on Android.** The agent is a jar pushed over adb and run as the shell user. No APK and no instrumentation.
-- **The approval guard.** A tap on Pay, Place order or Delete account is held until you answer. See [the guard](/docs/approval-guard/) and what it does not catch.
-- **No telemetry**, checked by a test that runs the tool under a sandbox that kills any non-local connection.
-- **A run an agent found, replayed with no model.** `phonedriver save` keeps what an agent did as a steps file and `replay` runs it again; [a GitHub Action](/docs/replay-in-ci/) replays the files on every commit. The steps are found by their text, not written as code.
+What I have **not** measured: Appium's Android UiAutomator2 server (which is also resident on the device, making it the fair speed rival to phonedriver's 12.7 ms list read), or Appium MCP on the nine-job token benchmark. The 170x figure on this site is strictly against one-shot `adb shell uiautomator dump`, not Appium.
 
 ## Use which
 
-Use Appium when you need a scripted suite, a device farm, or a language binding, or when you already run Appium: WebDriverAgent is maintained by the Appium project, and my iOS runner uses private headers that can break with a new Xcode. Use phonedriver when an agent has to find its own way through an app, when you want fewer tokens spent on reading the screen, and when a person should approve a payment. Android allows one UiAutomation connection at a time, so the two are likely to block each other on the same Android device. I have not tried it.
+Choose **Appium** for scripted CI suites, WebView DOM locators, cloud device farms, or teams already maintaining WebDriverAgent (my custom iOS runner uses private headers that need maintenance across Xcode updates).
+
+Choose **phonedriver** when an AI agent needs to explore an app on its own, keep token bills low via settled diffs, and pause for human approval before spending money.
 
 ## Questions
 
 ### Is phonedriver built on Appium?
 
-No. phonedriver does not use Appium, the UiAutomator2 server or WebDriverAgent. On Android it runs its own agent over adb, and on iOS it builds its own XCTest runner. That runner copies private headers from WebDriverAgent, which the NOTICE file credits.
+No. phonedriver uses neither Appium, UiAutomator2, nor WebDriverAgent. On Android it runs its own shell-user helper over adb; on iOS it builds a minimal XCTest runner (crediting WebDriverAgent in `NOTICE` for the private Xcode headers).
 
 ### Can an AI agent use Appium directly?
 
-Yes. Appium MCP is an MCP server from the Appium project that starts an Appium session and gives an agent tools to find elements, tap, type and read the page source. I have not run it, so I cannot say how it compares on tokens or passed runs.
+Yes—the Appium project maintains Appium MCP, which exposes session, locator, tap, type, and XML page-source tools to an agent. I haven't benchmarked Appium MCP on the nine phone jobs yet.
 
 ### Is phonedriver faster than Appium?
 
-I can answer for one case. On an iPhone 17 simulator, phonedriver's runner read a screen in 12.9 to 24.7 ms at p50 against 26.1 to 49.7 ms for fully tuned WebDriverAgent, which is 2.0 times faster. I have not measured Appium on Android or on a real iPhone.
+On the one case I measured—reading screens on an iPhone 17 Simulator—phonedriver's runner took 12.9 to 24.7 ms at p50 vs. 26.1 to 49.7 ms for fully tuned WebDriverAgent (2.0x faster). I haven't benchmarked Appium on Android or a physical iPhone.

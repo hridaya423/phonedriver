@@ -24,7 +24,7 @@ export default function Faq() {
         <article className="prose">
           <h1>Questions about phonedriver</h1>
           <p className="lede">
-            {ALL.length} short answers. Where an answer has a number, it says what was measured and when, and most answers link to the page with the method.
+            {ALL.length} short, straight answers—no fluff, real numbers, and links to the raw runs whenever a number shows up.
           </p>
           <div className="article">
             <div className="body">

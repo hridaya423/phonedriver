@@ -1,71 +1,58 @@
 ---
 title: phonedriver vs adb for AI agents on a phone
 seo: phonedriver vs adb: 170x faster screen reads for AI agents
-updated: 2026-11-14
-meta: phonedriver against adb on an Android emulator: 170x faster UI tree reads, 32x faster screenshots, 23x faster typing, and a tap 2.4 to 4.4x faster.
-description: phonedriver against plain adb on an Android emulator. 170x faster UI tree reads, 32x faster screenshots, 23x faster typing, and a bare tap that is 2.4 to 4.4 times faster. A HONOR X8 phone gave 32x and 61x on two operations. What adb still does better.
+updated: 2026-11-20
+meta: phonedriver vs plain adb: 170x faster list reads, Unicode typing, settled diffs, and why adb is still better for installs, logs, and fixed scripts.
+description: Plain adb starts a new JVM and waits a full quiet second on every screen read. phonedriver keeps a helper open—170x faster on a 1,000-row list—while still relying on adb underneath.
 ---
 
 ## The short answer
 
-adb is how most agents already touch an Android phone, one shell command at a time. On the same emulator, with both tools run on the emulator's own host and interleaved, phonedriver read a 1,000-row list in 12.7 ms where `uiautomator dump` took 2,163.7 ms at p50. That is 170 times faster (95% CI on the ratio 162.0 to 177.4). The bare tap is the closest row: 4.4 times faster when taps come back to back (the interval on that ratio is wide, 3.0 to 5.2) and 2.4 times when they are 1.5 s apart.
+phonedriver doesn't replace `adb`—it speaks to your `adb` server directly. The difference is what happens when an AI agent has to *look* at a phone.
 
-phonedriver is not a replacement for adb. It uses the adb server as its transport, and adb stays the better tool for installs, logs, port forwards and anything you script yourself.
+Plain `adb shell uiautomator dump` starts a fresh process on every call, waits for a full quiet second with zero accessibility events, and dumps raw XML. On an Android 17 emulator, reading a 1,000-row list took **2,163.7 ms** with `adb` and **12.7 ms** with phonedriver (**170x faster**, 95% CI 162.0–177.4). On a real HONOR X8 over USB, reading the screen was **78.5 ms vs. 2,506.6 ms (32x)**—and on Settings, `uiautomator dump` timed out after 11.5 seconds while phonedriver finished in 110 ms.
 
-## Measured
+For installs, `logcat`, port forwarding, or fixed shell scripts, stick with `adb`.
 
-p50 of 50 runs after 20 warm-ups, Android 17 emulator (API 37, headless, software rendering), phonedriver 0.1.1, 11 November 2026. Host CPU load was 31% to 80% around the rows, from other work on the machine. Source: [speed-2026-11-11]({{REPO}}/blob/main/docs/bench/speed.md), raw samples on the [benchmarks page](/benchmarks/#data).
+::figure[speed-race]
 
-| Operation | phonedriver | adb | adb / phonedriver (95% CI) |
-|---|---|---|---|
-| UI tree, 1,000-row list | 12.7 ms | 2,163.7 ms | 170x (162.0 to 177.4) |
-| UI tree, Settings | 51.0 ms | 2,215.7 ms | 43x (41.1 to 48.0) |
-| Screenshot | 9.1 ms | 291.2 ms | 32x (30.9 to 33.2) |
-| Type 100 characters | 158.3 ms | 3,638.4 ms | 23x (19.7 to 25.1) |
-| Tap, then what changed | 514.0 ms | 2,477.2 ms | 4.8x (4.7 to 5.2) |
-| Tap, back to back | 38.5 ms | 170.5 ms | 4.4x (3.0 to 5.2) |
-| Tap, 1.5 s apart | 28.7 ms | 69.4 ms | 2.4x (2.3 to 2.6) |
+## Where plain adb trips AI agents up
 
-The tap timed on the device itself, from the host sending it to the testbed's touch listener logging it, is left out of this run: the difference was inside the clock-offset error. On 7 November it was 45.0 ms against 77.0 ms for adb.
+- **Every look costs two seconds.** Process spawn + `UiAutomation` connect + a 1-second idle wait adds up fast—and screens with an animation or ticker can fail outright with `"could not get idle state"`.
+- **No Unicode typing.** `adb shell input text` chokes on accents, CJK, Arabic, and emoji. phonedriver typed 100 mixed-script characters in 160.6 ms without needing a custom keyboard APK.
+- **No settle, no diff.** `adb shell input tap` returns before the app reacts, leaving the model to guess how long to sleep and dump 25 KB of XML again. Comparing like-for-like ("tap, then see what changed") is **514.0 ms vs. 2,477.2 ms (4.8x)**.
+- **Bare taps are closer.** When you just fire a point tap and don't wait, phonedriver is 2.4x to 4.4x faster (28.7–38.5 ms vs. 69.4–170.5 ms)—the smallest gap in the suite.
 
-## What the numbers do not show
+## When raw adb actually wins
 
-- The outputs differ. adb returns raw XML and a tap that returns before the app reacts. phonedriver returns a pruned, numbered text tree and waits for the app. For "tap, then what changed" the adb row is a tap, a `uiautomator dump` and a diff written by the caller.
-- `adb shell input text` raises on non-ASCII text. phonedriver typed 100 mixed-script characters (ASCII, accents, CJK, Arabic, emoji) in 160.6 ms.
-- `uiautomator dump` waits for the UI to go idle and fails on screens that keep animating. I saw it fail with "could not get idle state" on the Contacts list screen. Plain `uiautomator dump` also fails while phonedriver's agent is attached, because Android allows one UiAutomation connection at a time.
-- I did not split adb's 2.16 s between process start and the idle wait, so I do not claim which part is which.
-- The main run is on an emulator. A smaller pass on a HONOR X8 (Android 13) over USB, on 9 November, measured two operations. Reading the screen took 78.5 ms against 2,506.6 ms for `uiautomator dump` (32 times faster), and a screenshot took 16.4 ms against 1,005.7 ms for `screencap` (61 times faster). On the phone's main Settings page `uiautomator dump` failed with "could not get idle state" after 11.5 s, and phonedriver read the page in 110 ms. Typing and taps were not measured on the phone.
+If a task has a one-line Android intent, raw `adb` is unbeatable. In my early evaluation, an agent given only `adb` set a 7:30 alarm in **2 calls and 18,607 tokens** via `SET_ALARM` without ever looking at the screen. On the two mixed jobs of [the nine-job benchmark](/blog/phonedriver-vs-mobile-mcp-vs-phone-harness-vs-adb-real-phone-jobs/), `adb` passed 4/4 in 203,751 tokens vs. phonedriver's 92,737—and on a WebView with no accessibility nodes, `adb` failed completely.
 
-## Tokens
+That's why phonedriver also exposes a [`shell`](/docs/shell/) tool: when a shell command is the cleanest route, your agent can run it without leaving the session.
 
-An agent given only adb finished three Android tasks in a token run as follows: it set an alarm in 2 calls and 18,607 tokens using the `SET_ALARM` intent, which the task allows, found Grace Hopper's birth date in 9 calls and 72,554 tokens, and failed the web form, a WebView with no accessibility nodes, because it could use nothing but adb. When the job has an intent, adb is hard to beat. When the screen is the only way in, it is not ([token benchmark](/benchmarks/#tokens)).
-
-On the two mixed jobs of the [real phone jobs benchmark](/blog/phonedriver-vs-mobile-mcp-vs-phone-harness-vs-adb-real-phone-jobs/), where any route was allowed, adb passed 4 of 4 with 203,751 tokens in total, and phonedriver passed 6 of 6 with 92,737 for the same two jobs (10 November 2026).
-
-## Where adb is better
-
-- Installing and removing apps, port forwarding, `logcat`, `dumpsys`, file transfer.
-- Scripts that always do the same thing: no model, no tokens, no daemon.
-- Every Android developer already has it. phonedriver needs adb too.
+:::receipts Measurements & 0.1.5 screenshot note
+- **Emulator run (11 November 2026, phonedriver 0.1.1):** Android 17 emulator (`emulator-5554`, headless, software rendering), 50 samples after 20 warm-ups, interleaved on `win-ts` (CPU load 31%–80%). Full table & raw CSV on [the benchmarks page](/benchmarks/#speed).
+- **0.1.5 screenshot correction:** The 9.1 ms emulator screenshot figure (32x vs. `screencap`'s 291.2 ms) came from 0.1.1's cached-frame path. In 0.1.5 screenshots wait on a freshness barrier ([speed post](/blog/how-phonedriver-reads-a-screen-170x-faster-than-adb/#a-video-stream-for-screenshots)).
+- **Fairer rival:** Appium's UiAutomator2 server is also resident on-device; I haven't timed it against phonedriver.
+:::
 
 ## Use which
 
-Use adb when you know the command. Use phonedriver when an agent has to look at a screen, act, and decide from what changed. phonedriver's [shell](/docs/shell/) runs adb-style commands in the on-device agent when an agent should run a setting or an intent without leaving the session.
+Use **adb** when you already know the shell command, or for app installs, port forwards, `dumpsys`, and deterministic scripts. Use **phonedriver** when an agent needs to inspect screens, act, and reason from what changed.
 
 ## Questions
 
 ### What is a faster alternative to uiautomator dump?
 
-A process that stays on the device with the accessibility connection open. `uiautomator dump` starts a new process and waits for the screen to go idle on every call. On one Android 17 emulator it took 2,163.7 ms to read a 1,000-row list, where phonedriver's resident agent took 12.7 ms (p50 of 50 runs, 11 November 2026). The Settings screen took 51.0 ms. Appium's UiAutomator2 server is also resident, and I did not measure it.
+Keep a resident helper on the device with the `UiAutomation` connection already open. Instead of paying a process boot and 1-second idle wait on every call (2,163.7 ms on a 1,000-row list), phonedriver's helper reads the same list in 12.7 ms (and Settings in 51.0 ms). Appium's UiAutomator2 server also stays resident, though I haven't benchmarked it here.
 
 ### Why does uiautomator dump fail with "could not get idle state"?
 
-It waits for the screen to go idle and gives up on a screen that keeps changing. I saw that on the Contacts list on an emulator, and on the main Settings page of a HONOR X8 after 11.5 s. phonedriver read that Settings page in 110 ms.
+`uiautomator dump` refuses to snapshot until Android's accessibility event stream stays completely silent for one full second, giving up after ten. Any live animation, spinner, or ticking label can break it—including the Contacts list on an emulator and the main Settings screen on a HONOR X8 (failed at 11.5 s; phonedriver read it in 110 ms).
 
 ### How do I type Unicode text or emoji over adb?
 
-`adb shell input text` raises on non-ASCII text, so accents, CJK, Arabic and emoji need another route. phonedriver types through its agent on the device and needs no keyboard app. It typed 100 mixed-script characters (ASCII, accents, CJK, Arabic, emoji) in 160.6 ms at p50 on one Android 17 emulator (50 runs, 11 November 2026).
+`adb shell input text` fails on non-ASCII characters. phonedriver injects text through its on-device helper without installing a keyboard app, typing 100 mixed-script characters (accents, CJK, Arabic, emoji) in 160.6 ms at p50 on an Android 17 emulator.
 
 ### Does phonedriver replace adb?
 
-No. phonedriver uses the adb server as its transport, so you still need adb. adb stays the better tool for installs, logs, port forwards and fixed scripts.
+No. phonedriver talks to your local `adb` server as its transport, so you still need `adb` installed, and `adb` remains the right tool for installs, logs, port forwarding, and fixed shell scripts.

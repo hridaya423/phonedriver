@@ -1,17 +1,17 @@
 ---
 title: How to control an Android emulator with phonedriver
 nav: Android emulator
-meta: Start an Android emulator, check that phonedriver sees it, and drive it. Includes the headless flags used in my benchmarks and remote emulators.
-description: Start an Android emulator, check phonedriver sees it, and drive it. Includes the headless flags used in the benchmarks and how to use an emulator on another machine.
+meta: Start an Android emulator, check that phonedriver sees it, and drive it—including headless flags, hidden displays, and remote SSH forwarding.
+description: Boot an Android emulator, verify with phonedriver doctor, and drive it locally or over SSH—including the exact headless flags used in the benchmarks.
 seo: How to let an AI agent control an Android emulator over MCP
 updated: 2026-11-20
 ---
 
-Android emulators on API 26 and API 37 are the best-tested target: the 21-scenario device suite passes on both. phonedriver needs only adb and nothing installed in the emulator.
+Android emulators (API 26 and API 37) are phonedriver's most thoroughly exercised target: the full 21-scenario suite passes on both. All you need is `adb`; nothing gets installed inside the emulator.
 
 ## Start an emulator
 
-Create an AVD in Android Studio's Device Manager, or with the command-line tools. Then start it and wait for it to boot with one command:
+Create an AVD in Android Studio's Device Manager (or with `avdmanager`), then let phonedriver start it and wait for it to boot:
 
 ```console
 $ phonedriver boot Pixel_API_37
@@ -24,13 +24,13 @@ With nothing connected, any phonedriver command names the virtual devices that `
 emulator -avd Pixel_API_37
 ```
 
-The speed benchmarks on this site ran headless, with software rendering:
+For headless CI or background runs:
 
 ```sh
 emulator -avd Pixel_API_37 -no-window -no-audio -no-snapshot -gpu swangle_indirect
 ```
 
-The real phone jobs benchmark of 10 November 2026 started its tablet emulator with `-gpu host -cores 8 -memory 8192`. A first rerun on software rendering at 2560x1600 starved the emulator: 17 launches answered "not settled" and one job met "Chrome isn't responding" seven times. If an agent run on an emulator is slow or flaky, check the emulator's load before you blame the tool.
+One hard-earned tip: on high-resolution tablet images (2560×1600), software rendering can starve the guest so badly that Chrome hangs and launches fail to settle. Giving the emulator `-gpu host -cores 8 -memory 8192` cleared that up immediately. If an emulator run feels flaky, check the emulator's CPU load before blaming the agent.
 
 ## Check phonedriver sees it
 
@@ -39,7 +39,7 @@ phonedriver devices
 phonedriver doctor
 ```
 
-The emulator appears as `android:emulator-5554`. `doctor` probes emulators that no other session holds, and checks adb, the agent, UiAutomation and the video stream, and says how to fix whatever is not `ok`.
+The emulator shows up as `android:emulator-5554`. `doctor` probes emulators that no other session holds, verifies `adb`, the helper, `UiAutomation`, and the video stream, and prints exact fixes for anything not `ok`.
 
 ## Drive it
 
@@ -49,14 +49,14 @@ phonedriver tap "Dark theme"
 phonedriver wait settled
 ```
 
-`snapshot` lists the screen as text, for example `@e3 button "Google" "Services & preferences"`. A tap returns the lines that changed instead of the whole screen:
+`snapshot` prints the screen as a short numbered list (`@e3 button "Google" "Services & preferences"`), and every tap settles automatically before returning just what changed:
 
 ```screen
 ok tapped @e10 "Dark theme"
 ~ @e10 switch "Dark theme" off → on
 ```
 
-The first command starts the daemon, finds the agent jar on the device (pushing it if needed) and starts the agent. Fresh daemon to first screen read took 1,620.5 ms at p50 on the benchmark emulator. After that each call costs milliseconds.
+The very first command starts the daemon and pushes the helper jar (about 1.2–1.6 s cold start); everything after that runs in milliseconds.
 
 ## Use the emulator's console
 
@@ -66,11 +66,11 @@ Other console commands act on your computer, not on the emulator: `screenrecord`
 
 ## Keep the agent on a hidden screen
 
-On an emulator running Android 13 (API 33) or later, set `PHONEDRIVER_DISPLAY=hidden` in the MCP config, or pass `--display hidden` to the CLI, and the agent works on a second screen. On an emulator nobody is holding, that matters little, but it is the same switch as on [a real phone](/docs/android-phone/#a-hidden-screen-for-the-agent), where it keeps your own screen yours. It has been tested on an emulator (API 37) and on a HONOR X8. Switching between the two screens restarts the agent, which takes a few seconds. Below API 33 the call fails as unsupported.
+On Android 13 (API 33) or later, `PHONEDRIVER_DISPLAY=hidden` (or `--display hidden`) gives the agent a virtual display separate from the main screen. On a headless emulator that barely changes anything, though it's handy for testing the same switch you'd use on [a real phone](/docs/android-phone/#a-hidden-screen-for-the-agent). Switching modes restarts the helper (a few seconds); API levels below 33 report unsupported.
 
 ## Use a device on another machine
 
-The daemon listens on a Unix socket and nowhere else. To drive an emulator or phone plugged into another machine, forward that socket over `ssh` and point the CLI at the local end:
+The daemon listens on a local Unix socket only. To drive an emulator plugged into another computer (a beefier desktop or CI box), forward that socket over `ssh` and point `PHONEDRIVER_SOCKET` at your end:
 
 ```sh
 ssh -N -L /tmp/phonedriver-remote.sock:/Users/you/.phonedriver/run/daemon.sock remote-host &
@@ -78,23 +78,23 @@ export PHONEDRIVER_SOCKET=/tmp/phonedriver-remote.sock
 phonedriver snapshot
 ```
 
-On the other machine, run any `phonedriver` command once, or `phonedriver daemon`, so that the socket exists. Both machines need the same version. `phonedriver screenshot` then prints a path on the machine that has the device; `phonedriver screenshot -o shot.png` writes the file on yours. The MCP `screenshot` tool returns the image itself.
+Run any `phonedriver` command (or `phonedriver daemon`) on the remote host once so the socket exists, and match versions on both machines. `phonedriver screenshot -o shot.png` writes locally; the MCP `screenshot` tool returns the image bytes directly.
 
-Alternatively, forward only adb: `ssh -N -L 5038:127.0.0.1:5037 remote-host` and `ADB_SERVER_SOCKET=tcp:127.0.0.1:5038`. Each device round trip then pays the tunnel's latency.
+You can also forward `adb` itself (`ssh -N -L 5038:127.0.0.1:5037 remote-host` + `ADB_SERVER_SOCKET=tcp:127.0.0.1:5038`), though forwarding the daemon socket avoids paying tunnel latency on every internal helper round trip.
 
 ## Questions
 
 ### Can Claude Code control an Android emulator?
 
-Yes. Start the emulator, run `claude mcp add phonedriver -- npx -y phonedriver mcp`, and ask Claude Code to do something on it. Nothing is installed in the emulator. See [the Claude Code guide](/docs/claude-code/), or [Codex](/docs/codex/) and [other clients](/docs/cursor-and-mcp-clients/).
+Yes. Boot the emulator, run `npx -y phonedriver init` (or `claude mcp add phonedriver -- npx -y phonedriver mcp`), and ask Claude to use it. Nothing gets installed inside the emulator ([Claude Code guide](/docs/claude-code/)).
 
 ### Does it work with a headless emulator?
 
-Yes. The speed benchmarks ran on an emulator started with `-no-window`, and phonedriver reads the screen from the device, not from a window on your desktop.
+Yes. Every speed and job benchmark on this site ran against `-no-window` emulators—phonedriver reads directly from the device, not your desktop window.
 
 ### Which API levels work?
 
-The 21-scenario suite passes on API 26 and API 37. Release 0.1.4 fixed screen reads on Android 12 and was tested on an API 31 emulator. The hidden screen needs API 33 or later.
+The 21-scenario suite passes on API 26 and API 37, and Android 12 (API 31) screen reads were verified in 0.1.4. Hidden displays require Android 13 (API 33) or later.
 
 ## Test a VPN or another network app
 

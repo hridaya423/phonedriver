@@ -1,107 +1,73 @@
 ---
 title: How phonedriver reads a phone's screen 170x faster than adb
 short: Reading a screen 170x faster than adb
-meta: How phonedriver reads a 1,000-row list in 12.7 ms against adb's 2,163.7 ms: the on-device agent, H.264 frames, settle detection, the fixes and the method.
-description: The on-device agent, UiAutomation, an H.264 stream and frame-change detection behind phonedriver's 12.7 ms read of a 1,000-row list against 2,163.7 ms for adb, the fixes I measured, and how I measured them.
+meta: How phonedriver reads a 1,000-row list in 12.7 ms against adb's 2,163.7 ms: profiling a 999 ms tap, bursty H.264 streams, and where the speedup disappears.
+description: Inside 12.7 ms vs. 2,163.7 ms: the micro-optimizations that barely moved the needle, the idle-stream bug that broke 18 of 40 screenshots, and the weak rows.
 date: 2026-11-07
-updated: 2026-11-17
+updated: 2026-11-20
 label: ENGINEERING
 short_card: How phonedriver reads a screen 170x faster than adb
-card_sub: The on-device agent, the video stream, settle detection and the method.
+card_sub: Profiling a 999 ms tap, bursty video streams, and where the speedup disappears.
 ---
 
-On an Android 17 emulator, phonedriver reads a 1,000-row list in 12.7 ms. `adb shell uiautomator dump` takes 2,163.7 ms for the same screen. At p50 of 50 runs that is 170 times faster, with a 95% confidence interval on the ratio of 162.0 to 177.4.
+On an Android 17 emulator, phonedriver reads a 1,000-row list in **12.7 ms**. `adb shell uiautomator dump` takes **2,163.7 ms** for the exact same screen. At p50 over 50 runs, that's **170x faster** (95% CI: 162.0 to 177.4).
 
-Those are the numbers of the 11 November run with phonedriver 0.1.1. When I first wrote this post, on 7 November, the same read took 24.0 ms and the headline was 98x. adb's time did not change between the two runs, so the gain is phonedriver's.
+Keep your eyebrows down, though: 170x is the high-water mark, not a magic multiplier on everything. It pits a pruned text tree from a resident process against a one-shot CLI dumping raw XML. Bare taps are only 2.4x to 4.4x faster, and a resident server like Appium's UiAutomator2 would land much closer (I haven't timed it).
 
-The number needs two warnings before anything else. It is the largest ratio of the seven rows I measured, which is why it is the headline; the median ratio across the seven rows is 23. And it compares two different outputs: adb returns raw XML, phonedriver returns a pruned, numbered text tree. This post explains where the time goes, what I built to avoid paying it, which fixes I measured and which did not help, and how the comparison was run so you can repeat it.
+What actually makes the numbers interesting is watching where milliseconds go once you profile a real phone loop, and how reliably your first guess about a slow path turns out to be wrong.
 
-## What adb does on every read
+::figure[speed-race]
 
-An agent that drives a phone with adb pays the same costs on every look. `adb shell input tap` starts an `adb` client process on the host and an `app_process` JVM on the phone for each tap. `uiautomator dump` waits for the UI to go idle before it reads the tree, and it refuses a screen that keeps animating. I saw it fail with "could not get idle state" on the Contacts list. `screencap -p` PNG-encodes the full-resolution frame on the phone for every screenshot. `input text` handles only ASCII.
+## Why adb pays a two-second toll
 
-I read the phone-harness source at commit `4bebff1` to confirm this for the tool that wraps adb this way (`android.py` lines 380, 430, 493 and 677 to 711 in that commit), and it matches what I see from adb itself. I did not split adb's 2.16 s between the process start and the idle wait, so I do not say how much each costs. The speed comes from not doing either per call, and the rest of this post is how.
+Driving Android through plain `adb` means paying a cold-start tax on every look. `adb shell input tap` forks an `adb` client on your laptop and spins up an `app_process` JVM on the phone for every tap. `uiautomator dump` does the same, attaches to `UiAutomation`, insists on one full quiet second with zero accessibility events (failing outright on animating screens like Contacts), and writes raw XML to disk. `screencap -p` PNG-encodes a full frame on the phone every time. `input text` gives up on anything outside ASCII.
 
-## A resident agent instead of a command per call
-
-Decision D2 in my design record: push a dex jar to the phone and run it with `app_process` as the shell user, the way scrcpy does. The agent stays up. It injects input through `InputManager`, reads the UI tree through a UiAutomation connection it holds open, mirrors the display into a MediaCodec encoder, and keeps one socket open to the host. A daemon on the host keeps the other end of that socket, so a CLI call or an MCP tool call is a message on an open connection.
-
-Nothing is installed on the phone, and no accessibility service has to be switched on. I rejected an installed AccessibilityService APK because the user has to enable it in Settings, it stays on the phone as an app, and it cannot inject input without extra permission. I rejected an instrumentation APK (the uiautomator2 and Appium route) because it needs installation, test-APK signing and still pays instrumentation overhead.
-
-On the phone, the agent answers a tree request in 11 ms at p50 for the Settings main screen, warm, from probes I added temporarily (`docs/audits/latency-profile-2026-11-07.md`). About 50 ms of an earlier 60 ms snapshot was `getChild` binder round trips for 155 nodes, one round trip per 2 to 4 nodes. Host-side pruning and rendering were 8 to 15 ms. In the benchmark, with every tool run on the emulator's own host, the Settings read is 51.0 ms and the 1,000-row list is 12.7 ms.
+phonedriver skips the per-call choreography by keeping a small Java helper alive on the phone (`app_process` as the shell user, the scrcpy way) and holding one socket open to a Rust daemon on your laptop. Nothing gets installed, and no accessibility toggle gets touched. On the phone itself, a warm Settings tree read takes **11 ms** at p50; most of the 51 ms end-to-end Settings read is Android binder round trips (`getChild`, about one per 2 to 4 nodes) plus host pruning.
 
 ## A video stream for screenshots
 
-D10: keep an H.264 stream running while a device is in use. The encoder runs on the phone, and the host decodes it with `openh264`. A screenshot is the latest decoded frame, not a new capture. That is why a screenshot takes 9.1 ms against 291.2 ms for `adb exec-out screencap`.
+Calling `screencap` on demand is slow, so the helper mirrors the display into an H.264 MediaCodec encoder and streams it to the daemon, which decodes it with OpenH264 (3.6–4.6 ms per 1080p frame on a Mac, up to roughly one CPU core at 1080p30; the first frame takes 219–433 ms once per device lease).
 
-The stream is not free. It costs one encoder on the phone and one software decoder on the host, which I measured at up to about one CPU core at 1080p30. Decoding a 1080-wide frame took 3.6 to 4.6 ms at p50 and 7.3 to 9.6 ms at p95 on the Mac. The first decoded frame after opening the stream took 219 ms (API 26) and 433 ms (API 37) at p50, which missed my 200 ms target; the software encoder takes 140 to 230 ms to start, and that cost is paid once per device lease.
+In version 0.1.1, `phonedriver screenshot` simply handed back the latest decoded frame sitting in memory: **9.1 ms** against `adb screencap`'s **291.2 ms**.
 
-One assumption was wrong. I first wrote that the stream sends frames at a steady rate on a static screen. On the API 37 emulator through an ssh tunnel it sent bursts of about 10 frames per second and then nothing for up to 5 s, and "no frame for 1 s" made 18 of 40 screenshots of an idle screen fail. Screenshots now serve the last frame unless the video socket has ended. Settle is unaffected, because it needs frames only when the screen changes.
+Then reality poked two tidy holes right through it.
 
-That fix hid a worse bug, found later: right after an action, the frame on hand could show the screen from before it, because newer frames were still inside the encoder. A screenshot is what an agent decides on, and an old one is worse than a slow one. Since 0.1.5 a screenshot waits for those frames when the encoder is behind, and it no longer waits when the encoder keeps up ([D74]({{REPO}}/blob/main/docs/decisions.md#d74-a-screenshot-waits-for-the-frames-the-encoder-still-holds-and-a-hidden-display-on-a-software-encoder-is-lighter)). The 9.1 ms in this post is the 11 November run, before that wait.
+::figure[bursty-stream]
 
-## Settle: knowing the screen has stopped
+First, I assumed a still screen still dripped frames at a polite, steady rate. It didn't. Over an SSH tunnel on API 37, the emulator's software encoder fired bursts of roughly 10 fps and then went completely silent for up to 5 seconds. My "no frame for 1 s = dead stream" rule promptly failed **18 of 40 screenshots** of an idle screen.
 
-The stream does a second job. After every action, phonedriver waits until the screen stops changing in a way that matters, then returns what changed. The agent never sleeps or polls. Settle takes two kinds of input:
+So I loosened the rule: serve the last decoded frame as long as the video socket stays open. Idle screenshots went green, and hole number two walked right in. Right after a tap, the frame sitting in memory could still be a photo from *before* the tap. In 0.1.5, `screenshot` waits on a device barrier and drains any frames still inside the encoder ([D74]({{REPO}}/blob/main/docs/decisions.md#d74-a-screenshot-waits-for-the-frames-the-encoder-still-holds-and-a-hidden-display-on-a-software-encoder-is-lighter)). That makes 9.1 ms a historical 0.1.1 number, not a current 0.1.5 timing.
 
-- A window event from accessibility (`TYPE_WINDOW_STATE_CHANGED`, `TYPE_WINDOWS_CHANGED`): a new activity, dialog, popup or keyboard.
-- A decoded frame, compared with the previous one by a luma thumbnail with one sample per 4 by 4 points. A sample counts as changed above 12 luma levels, and the changed area is the changed samples times 16.
+## Profiling a 999 ms tap (and winning almost nothing)
 
-Accessibility content-change events are deliberately not an input. Apps emit them for invisible changes and for tickers: a clock label that updates every 100 ms would never settle. Pixels are the ground truth for "the screen moved".
+The same stream drives settle detection: wait for a change above 128 pt² (Material toggles count, blinking carets don't), then wait 250 ms with no frame above 4,096 pt² (spinners don't trap you). [How phonedriver works](/blog/how-phonedriver-works/#knowing-when-the-screen-has-stopped-moving) lays out the two thresholds in detail.
 
-The detector is a state machine with two phases. First it waits up to 500 ms (3 s after `launch` or `open`) for a first change: a window event, or a frame that changes more than 128 pt². Only then does it wait for quiet: no window event and no frame above 4,096 pt² for 250 ms.
+Once settle worked, I profiled a settled tap over a 100 ms SSH tunnel expecting to find easy fat to trim. Total time: **999 ms**. Host-side pruning and rendering? **0.2 ms**. Almost every other millisecond was waiting on the phone, or waiting to be sure the phone was finished.
 
-The two thresholds come from a spike, 20 runs per case on API 26 and 37. A blinking caret changes at most 96 pt², an indeterminate spinner at most 480 pt², a Material switch toggle at most 432 pt², and a screen transition 13,000 to 254,000 pt². One threshold of 4,096 pt² would never see a toggle and would report that a tap that worked changed nothing. 128 pt² is just above the caret, so a toggle counts as a first change, and 4,096 pt² for quiet ignores the spinner and the caret.
+::figure[tap-waterfall]
 
-The known limit is written down next to the code. A video stream that delivers frames in bursts, such as the software encoder on the emulators during sustained full-screen motion, can show gaps over 250 ms in the middle of an animation, and the screen is then reported settled early. Phones with hardware encoders have not been measured. At the timeout (5 s for actions) the detector returns what it has with `settled: false` and the regions still changing. Looping video and carousels never settle, and the agent still needs to see the screen.
+Worse, 17 of 36 taps never triggered a frame above 128 pt² and sat out the entire 500 ms first-change timeout.
 
-## What comes back
+So I engineered three neat optimizations: start probing the accessibility tree 120 ms into the quiet window so matching reads skip stabilize; catch silent taps with a tree check at 100 ms; and skip stabilize's 100 ms sleep when the starting tree is already that old.
 
-The reply is the diff, not the screen. Each line has a ref that the daemon keeps pointing at the same element while it is on screen:
+Then I ran an interleaved A/B test. The grand victory: **918 ms down to 843 ms** (and **860 to 825 ms** on a second 90-sample set). Forty to seventy-five milliseconds, sitting well inside the random jitter of a bare tap between two identical builds. Over a 100 ms tunnel, only one probe read even fits inside a 250 ms quiet window, so stabilize still ran half the time anyway. I kept the code because it helps more on local USB, and went looking for actual mistakes instead.
 
-```screen
-ok tapped @e10 "Dark theme"
-~ @e10 switch "Dark theme" off → on
-```
+## Three mistakes that beat every micro-optimization
 
-`+`, `-` and `~` mark lines that appeared, left and changed. Refs are located again at tap time, so a list that shifted by a row still gets the right tap. This is also where the token savings in [my token benchmark](/benchmarks/#tokens) come from: the agent reads a few lines after each action, not a screen.
+- **Cold start (6,750 ms to 3,950 ms over tunnel; 1,176 ms local):** Packing jar check, stale-agent kill, and launch into one shell call—and opening the control and video sockets in parallel—cut pre-boot round trips from `6 + devices` down to 3.
+- **"The cold app swallowed my tap" (it didn't):** Clock simply took 0.6 to 1.1 seconds to open its time picker, arriving *after* my 500 ms first-change window. phonedriver replied `no change after 507ms`, so the agent obligingly tapped a second time, landing straight on the dialog that had just popped up. Widening the first-change window to 2 s for the 30 seconds after `launch` dropped false `no change` replies from 3/8 to 0/8.
+- **Back-to-back point taps (126 ms to 20 ms on API 26):** The approval guard reads the screen before every tap, and a read right after a tap queues behind Android's button ripple on the app's UI thread (94 ms vs. 33 ms at rest). Reusing the previous guard read for up to a second (cleared on any window change or significant repaint) cut tap replies 6x. The catch is written right next to the code: a tiny repaint that spawns a guarded button inside that second would slip past.
 
-## The fixes I measured
+## What the headline hides
 
-I profiled before I tuned. `docs/audits/latency-profile-2026-11-07.md` records each phase of a settled tap on the emulator through an ssh tunnel, where every device round trip costs about 100 ms. Before any change, a tap with a settled diff took 999 ms at p50: 131 ms to prepare the screen state, 130 ms for input, 318 ms of settle, 166 ms for the first tree read and 254 ms in a stabilize step that sleeps 100 ms, reads and compares twice. Host work (render) was 0.2 ms. Real work was input plus two tree reads. The rest was waiting, including 17 of 36 taps that never saw a frame above 128 pt² and sat out the whole 500 ms first-change window.
+- **Bare taps are the weak row.** 28.7 ms paced (2.4x faster than adb) and 38.5 ms back to back (4.4x, wide 3.0–5.2 CI, 175.6 ms p95 from ripple queueing). That misses my own 15 ms target, and 100-char typing misses its 150 ms target at 158.3 ms.
+- **Different outputs.** adb's tap returns before the app even blinks; phonedriver waits and returns a diff. Comparing like-for-like ("tap, then what changed", where adb has to dump and diff) is **514.0 ms vs. 2,477.2 ms (4.8x)**.
+- **Real phones are slower than an i9 emulator host.** On a HONOR X8 (Android 13, USB), reading the screen took **78.5 ms** vs. adb's **2,506.6 ms (32x)**, and screenshots took **16.4 ms** vs. **1,005.7 ms (61x)**. (iOS timings live in [the iOS runner section](/blog/how-phonedriver-works/#ios-my-own-runner). Since 0.1.5 a one-finger Simulator tap goes to the Simulator's own touch input, and a tap with its reply takes 316 ms on [simulator-use's benchmark](/benchmarks/#simulator).)
+- **The LLM still dominates wall time.** Fast device calls kill the 2-second stalls per look, but cutting *how many turns* the model spends matters far more. That is what the settled diff is really for.
 
-Three changes followed, after a fourth that added per-phase timings to the traces. While the screen is quiet but the quiet window is not over, the daemon now reads the tree starting 120 ms after the last significant frame, and if two reads agree it needs no stabilize step. A tap whose frame never shows is caught by a tree read 100 ms in that differs from what the agent last saw. Stabilize skips its 100 ms sleep when the tree it starts from was read at least 100 ms ago.
-
-The measured gain was small. Interleaved, same host, 12 alternations of 12 runs: 918 ms at p50 before, 843 ms after. A second set of 90 samples each gave 860 against 825. That is 40 to 75 ms, inside the noise of a bare tap between two identical builds (108 against 288 ms at p50). I kept the changes, because they remove round trips and sleeps that cost more on a local connection. I also wrote down what did not help: reading earlier than 120 ms after the last frame was not tried, and with a 100 ms round trip only one probe read fits in the quiet window, so stabilize still ran in about half of the settled taps.
-
-Other fixes were bigger because they removed a mistake rather than tuned a path:
-
-- Cold start, fresh daemon to first snapshot, dropped from 6,750 ms to 3,950 ms at p50 on a busy host through the tunnel, by checking for the jar, killing a stale agent and starting a new one in a single shell, opening the control and video streams at once, and not asking each device for its properties. Round trips before the agent boots went from 6 plus the number of devices to 3. In the final benchmark, on the host itself, cold start is 1,176.0 ms.
-- A cold app swallowed the first tap, I thought. I was wrong. The tap landed; Clock opened its time picker 0.6 to 1.1 s later, after the 500 ms first-change window, so the reply said `no change after 507ms` and the agent tapped again, onto the dialog. Actions in the 30 s after `launch` now wait up to 2 s for their first change. The reply said `no change` in 3 of 8 runs before and in 0 of 8 after.
-- Point taps in a row. A guard check reads the screen before a tap, and a read right after a tap queues behind the button's ripple on the app's UI thread: 94 ms at p50 back to back against 33 ms at rest. Reusing the screen the last check read for up to a second brought the tap reply from 126 ms to 20 ms on the API 26 emulator. The limit is that a change smaller than a significant repaint that adds a guarded button in that second is missed ([the approval guard post](/blog/letting-claude-order-dinner-without-letting-it-spend-your-money/) says what that means).
-
-## How I measured the 170x
-
-The first benchmark, M1, quoted 153 times against phone-harness for the same list read: 15.5 ms against 2,370 ms. A later run on a busy machine used a different baseline and a different load. Neither held the tools to one machine state. I ran it again.
-
-`bench/speed/run_speed.py` runs every tool in one process on one host, `win-ts` (Windows 11, Intel Core i9-13900K, 64 GB), against `emulator-5554`, an API 37 emulator at 1080x2424 and 420 dpi, headless with software rendering, with the default local adb server and no tunnel. On 11 November the host's CPU load was 31% to 80% around the rows, from other work on the machine (about 15% on 7 November). I recorded load before and after every operation.
-
-- Taps, screenshots and typing alternate tool by tool, sample by sample, with the start order rotating.
-- The tree reads cannot run at once, because phonedriver's agent holds the one UiAutomation connection that `uiautomator dump` needs. For those operations the tools take turns in five round-robin blocks of 10 samples, and phonedriver's daemon and agent are stopped while the others run.
-- 20 warm-up runs per tool and operation, discarded. 50 samples each.
-- p50 and p95 per tool. The interval on each p50 ratio is a bootstrap 95% CI, resampling each tool's samples alone 10,000 times with seed 7.
-- A row's headline is its p50 ratio, unless the interval's lower bound is below 90% of it, in which case the bound is the headline. The list read's bound (162.0) is above 153.0, so 170x stands. Typing's bound (19.7) is below 90% of its 23.0, so its headline is 20x.
-- The two tree reads were measured twice on 11 November. The list read gave 193.1x on the first pass and 170.0x on the second, and I use the lower.
-- The tap on the device is also timed from the other side: the Gestures tab logs each `ACTION_DOWN` to logcat, and latency is the logged time minus the host's send time with the emulator's clock offset measured (good to about 8 ms). That row does not use any reply from phonedriver. On 11 November it gave 0.2 ms for phonedriver with an interval that crosses zero, which is clock-offset noise, so it is left out of this run.
-
-phone-harness ran in process, which spares it a Python start per call and favours it. The raw samples, the machine description and the script that regenerates every table are linked from [the benchmarks page](/benchmarks/#data) (direct: [every sample as CSV](/benchmarks/data/speed-samples.csv), [medians and intervals as JSON](/benchmarks/data/speed.json), [the machine](/benchmarks/data/speed-meta.json)), and `bench/speed/reproduce.sh` repeats the run.
-
-## What the numbers do not show
-
-- **The bare tap.** This is the weak row. Host to reply it is 38.5 ms when taps come back to back (4.4 times faster than adb, with a wide interval, 3.0 to 5.2) and 28.7 ms when they are 1.5 s apart (2.4 times). On the device, from send to the app's touch listener, phonedriver took 45.0 ms against adb's 77.0 ms on 7 November; that row moves by tens of milliseconds between runs and is not a stable gain. My tap misses its 15 ms budget, and typing 100 characters misses its 150 ms budget at 158.3 ms.
-- **Different outputs.** adb's tap returns before the app reacts. phonedriver's waits. For "tap, then what changed" the adb row is a tap, a dump and a diff in the caller: 2,477.2 ms against 514.0 ms, 4.8 times.
-- **Mostly emulator.** The main run is an emulator, and no iOS device is in it. A smaller pass on a HONOR X8 (Android 13) over USB, on 9 November, covers two operations. Reading the screen took 78.5 ms against 2,506.6 ms for `uiautomator dump`, 32 times faster, and a screenshot took 16.4 ms against 1,005.7 ms for `screencap`, 61 times faster. On the main Settings page the dump failed with "could not get idle state" after 11.5 s, while phonedriver read it in 110 ms. The phone is slower than the emulator host: phonedriver's own read took 78.5 ms there, against 24.0 ms on the emulator two days earlier, and adb's dump takes about the same on both. Typing and taps were not measured on the phone. On an iPhone 14 Plus and an iPad Pro a tap takes 534 and 454 ms, because XCTest takes about 240 ms to confirm an event. On the iOS 26.5 Simulator it took 357 ms the same way; since 0.1.5 a one-finger tap there goes to the Simulator's own touch input and lands within a few milliseconds, and a tap with its reply takes 316 ms on [simulator-use's benchmark](/benchmarks/#simulator).
-- **Absolute times move with load.** Between 7 and 11 November adb's `screencap` went from 476.3 ms to 291.2 ms, so the screenshot ratio fell from 41 to 32 while phonedriver's own time moved from 11.6 to 9.1 ms. phone-harness's 100-character typing took 2,104.5 ms in M1, 5,523.3 ms on 7 November and 3,928.7 ms on 11 November. Absolute numbers are for this host.
-- **Model time dominates a task.** An agent task in my earlier evaluation took about 18 s and 6 tool calls. Faster tools shorten the part that is not the model. Fewer calls and fewer tokens matter more, and the settled diff is for that.
-
-Method, machine state, both passes and every row are in [`docs/bench/speed.md`]({{REPO}}/blob/main/docs/bench/speed.md). If you find a flaw in the setup, [open an issue]({{REPO}}/issues) with the run that shows it.
+:::receipts Measurement method, machine & raw data (11 November 2026)
+- **Host:** `win-ts` (Windows 11, Intel Core i9-13900K, 64 GB), local `adb`, headless Android 17 emulator (`emulator-5554`, 1080×2424, 420 dpi, software rendering), CPU load 31%–80% from other work.
+- **Protocol:** 20 discarded warm-ups, 50 timed samples per op. Taps, screenshots, and typing alternated sample-by-sample with rotating start order; tree reads ran in 5 round-robin blocks of 10 because Android allows one `UiAutomation` client at a time. `phone-harness` ran in-process (sparing it Python startup).
+- **Headline rule:** Report p50 ratio (10,000-resample bootstrap 95% CI, seed 7), or the lower CI bound if it drops below 90% of the ratio (so typing's 23.0x with a 19.7 lower bound is headlined 20x). The list read gave 193.1x on pass 1 and 170.0x on pass 2; I report the lower pass.
+- **Raw files:** [speed-samples.csv](/benchmarks/data/speed-samples.csv), [speed.json](/benchmarks/data/speed.json), [speed-meta.json](/benchmarks/data/speed-meta.json), [`docs/bench/speed.md`]({{REPO}}/blob/main/docs/bench/speed.md), and `bench/speed/reproduce.sh`.
+:::
