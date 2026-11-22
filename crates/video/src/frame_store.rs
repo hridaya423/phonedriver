@@ -75,8 +75,7 @@ impl Frame {
         }
     }
 
-    /// The picture turned a quarter turn clockwise: the left edge becomes the top. Width and height must be even so
-    /// the chroma planes turn with the luma.
+    /// The picture turned a quarter turn clockwise: the left edge becomes the top.
     pub fn rotated_cw(&self) -> Frame {
         let turn = |src: &[u8], w: usize, h: usize| {
             let mut out = vec![0; w * h];
@@ -92,8 +91,8 @@ impl Frame {
             self.height,
             self.width,
             turn(&self.y, w, h),
-            turn(&self.u, w / 2, h / 2),
-            turn(&self.v, w / 2, h / 2),
+            turn(&self.u, w.div_ceil(2), h.div_ceil(2)),
+            turn(&self.v, w.div_ceil(2), h.div_ceil(2)),
         )
     }
 }
@@ -343,6 +342,15 @@ impl FrameStore {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_picture_of_odd_width_and_height_turns_without_a_panic() {
+        let frame = Frame::from_i420(3, 5, (0..15).collect(), vec![1; 6], vec![2; 6]);
+        let turned = frame.rotated_cw();
+        assert_eq!((turned.width, turned.height), (5, 3));
+        assert_eq!(turned.y[..5], [12, 9, 6, 3, 0]);
+        assert_eq!((turned.u.len(), turned.v.len()), (6, 6));
+    }
 
     #[test]
     fn a_quarter_turn_clockwise_moves_the_left_edge_to_the_top() {
