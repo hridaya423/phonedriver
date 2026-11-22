@@ -10,6 +10,15 @@ Every release of phonedriver, newest first. Binaries and checksums for each vers
 - **Blanks with examples**: `{{day1:Tuesday}}` tells whoever fills the blank the wording the screen uses.
 - **A replay checks the app's build**: `save` keeps the build of each app it launches, and `replay` stops before its first step when the app is now another build; `--any-build` runs it anyway (#41).
 - **A replay checks the screen before each step**: a step runs only in the app it was saved in, and with a dialog in front exactly when there was one, so a surprise dialog or another app is never tapped (#41).
+- **The approval guard is harder to get past**: a button is judged by what it says when it is tapped, not when it was first seen; a label written in other characters (full-width letters, typographic quotes) is the same label; an approval needs one of the choices the prompt offered, and the prompt chooses none in advance. `autonomous` now covers a `batch` and a `then` chain as well as a single tap.
+- **On a physical Android phone**, `shell` also refuses `input` gestures, installs, intents that place a call, and `find` with `-delete` or `-exec` from the storage root; `open` takes an `intent:` link only when it views or opens an app.
+- **Secrets**: a PIN or card security code field takes only `--secret` text; an argument error never quotes the value it was given; a question waiting for an approval keeps a hash of the call, not its text; a secret is not sent to an iPhone over plain Wi-Fi from a Mac.
+- **`wait` answers with what changed**, as an action does, instead of the whole screen. `launch` says when the app crashed at start and points at `logs`. "The tap may have missed" follows only a tap.
+- **Fewer reads**: a connection lists its apps once instead of on every `launch`, and a launch turns off the last app's OCR.
+- **Clearer errors**: a daemon bug in the middle of a call says so (`crashed`) instead of "disconnected"; an option a method does not take is refused by name; several connected devices are listed with their models; `phonedriver pair` stops with adb's own error instead of waiting two minutes; the npm launcher says why a download failed and when Node ignores a set proxy; `phonedriver` alone lists every command.
+- **Steadier**: a rotation reported just before an action is kept; a client of another version no longer replaces a daemon someone else is using; the reads after a settle share one 10 s limit; an iPhone that cannot be described no longer empties `devices`; a failed Android serial or version read is tried again; `daemon.log` is moved aside past 4 MiB; an odd-sized iOS frame or a restarted iOS video stream no longer breaks screenshots.
+- **The screen text**: an app's or a device's own name cannot add a line to a snapshot, and an empty field's placeholder prints as `hint "…"` so it is not read as typed text.
+- **`save`** no longer writes an empty `action` into steps that are not actions (files saved before still replay), and `replay` over MCP reads only a `.steps` file in its folder.
 
 ## 0.1.7
 
