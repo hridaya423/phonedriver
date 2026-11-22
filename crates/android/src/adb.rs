@@ -9,6 +9,8 @@ use tokio::net::TcpStream;
 pub type Result<T> = std::result::Result<T, Error>;
 
 const SYNC_CHUNK: usize = 64 * 1024;
+/// adb's `MAX_PAYLOAD`: a shell v2 packet's length is read from the wire, and a longer one is not adb's.
+const MAX_SHELL_PACKET: usize = 1024 * 1024;
 
 fn transport(detail: impl Into<String>) -> Error {
     Error::Transport {
@@ -480,6 +482,11 @@ impl ShellStream {
             Err(e) => return Err(transport(format!("shell stream read failed: {e}"))),
         }
         let n = u32::from_le_bytes([head[1], head[2], head[3], head[4]]) as usize;
+        if n > MAX_SHELL_PACKET {
+            return Err(transport(format!(
+                "the adb server sent a shell packet of {n} bytes; adb sends at most {MAX_SHELL_PACKET}"
+            )));
+        }
         let mut body = vec![0u8; n];
         self.s
             .read_exact(&mut body)
@@ -496,6 +503,23 @@ impl ShellStream {
 
 #[cfg(test)]
 mod tests {
+    #[tokio::test]
+    async fn a_shell_packet_that_claims_gigabytes_is_an_error_not_an_allocation() {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        tokio::spawn(async move {
+            use tokio::io::AsyncWriteExt;
+            let (mut s, _) = listener.accept().await.unwrap();
+            s.write_all(&[1, 0xff, 0xff, 0xff, 0xff]).await.unwrap();
+            let _ = s.write_all(&[0u8; 16]).await;
+        });
+        let mut sh = super::ShellStream {
+            s: tokio::net::TcpStream::connect(addr).await.unwrap(),
+        };
+        let e = sh.next().await.unwrap_err();
+        assert!(format!("{e:?}").contains("packet"), "{e:?}");
+    }
+
     #[test]
     fn the_os_label_names_the_release_and_the_api_level() {
         assert_eq!(super::os_label("8.0.0\n26\n"), "Android 8.0.0 (API 26)");
