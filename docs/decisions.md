@@ -1655,6 +1655,8 @@ An outside review of 0.1.6 (advisories GHSA-522g-rv3m-hm5j and GHSA-g453-82w6-qq
 
 **Reopen if.** A device run fails any item above; the D47 path can reach the runner through a tunnel phonedriver can open; idevice upstream verifies M2 itself.
 
+
+**Update 2026-11-22 (audit).** A secret is refused on the plain Wi-Fi link (a Mac reaching the runner's port over TCP, which nothing encrypts) before anything is sent: `a secret is not typed into an iPhone over Wi-Fi from a Mac, because that link is not encrypted; connect the cable and type it again`. Plain text still goes over that link; the cable (usbmuxd) and the remote pairing's TLS-PSK tunnel take secrets as before.
 ## D107. The app scope and the device list hold where 0.1.6 let them slip (2026-11-21, GHSA-7qw6-v72h-4gvp, #32, GHSA-g453-82w6-qqx5)
 
 An outside review of 0.1.6 found places where D101 and D102 did not hold, and three Android items next to them. Each change below is the safe default; none has an opt-out, because each closes a way around a setting the person made.
