@@ -58,6 +58,12 @@ ok tapped @e10 "Dark theme"
 
 The very first command starts the daemon and pushes the helper jar (about 1.2–1.6 s cold start); everything after that runs in milliseconds.
 
+## Use the emulator's console
+
+`phonedriver shell "emu geo fix -122.41 37.77"` sends a command to the emulator's console, as `adb emu` does: `geo` sets the location, `sms send` delivers a text message, `power` sets the battery, `network speed` and `network delay` slow the network, `sensor` and `rotate` move the sensors, and `avd name` says which virtual device it is.
+
+Other console commands act on your computer, not on the emulator: `screenrecord` and `network capture` write files on it, `redir` opens a port on it, `kill` ends the emulator. `shell` refuses them. To allow every console command, stop the daemon with `phonedriver daemon stop` and start it again with `PHONEDRIVER_HOST_SHELL=1` set. A console command is one line, so a line break in it is always refused. A phone has no console.
+
 ## Keep the agent on a hidden screen
 
 On Android 13 (API 33) or later, `PHONEDRIVER_DISPLAY=hidden` (or `--display hidden`) gives the agent a virtual display separate from the main screen. On a headless emulator that barely changes anything, though it's handy for testing the same switch you'd use on [a real phone](/docs/android-phone/#a-hidden-screen-for-the-agent). Switching modes restarts the helper (a few seconds); API levels below 33 report unsupported.

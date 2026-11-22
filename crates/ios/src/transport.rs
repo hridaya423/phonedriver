@@ -68,6 +68,51 @@ fn usbmuxd_addr() -> UsbmuxdAddr {
     UsbmuxdAddr::from_env_var().unwrap_or_default()
 }
 
+/// `udid` as it may stand in a file name: letters, digits and `-`, as a device's or a Simulator's udid is written.
+pub(crate) fn file_udid(udid: &str) -> Result<&str, Error> {
+    if !udid.is_empty()
+        && udid.len() <= 64
+        && udid.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-')
+    {
+        Ok(udid)
+    } else {
+        Err(Error::Transport {
+            detail: format!("{udid:?} is not a device id"),
+        })
+    }
+}
+
+/// Writes `bytes` to `path` through a new file beside it and a rename, so a failure leaves the old file whole; the
+/// file is readable by its owner only on Unix. A file that already holds `bytes` is not written again.
+pub(crate) fn write_private(path: &Path, bytes: &[u8]) -> Result<(), Error> {
+    let io = |e: std::io::Error| Error::Transport {
+        detail: format!("cannot write {}: {e}", path.display()),
+    };
+    if let Some(dir) = path.parent() {
+        std::fs::create_dir_all(dir).map_err(io)?;
+    }
+    if std::fs::read(path).is_ok_and(|old| old == bytes) {
+        #[cfg(unix)]
+        std::fs::set_permissions(path, std::os::unix::fs::PermissionsExt::from_mode(0o600))
+            .map_err(io)?;
+        return Ok(());
+    }
+    let name = path.file_name().unwrap_or_default().to_string_lossy();
+    let new = path.with_file_name(format!(".{name}.{}.new", std::process::id()));
+    let mut options = std::fs::OpenOptions::new();
+    options.write(true).create(true).truncate(true);
+    #[cfg(unix)]
+    std::os::unix::fs::OpenOptionsExt::mode(&mut options, 0o600);
+    let written = options
+        .open(&new)
+        .and_then(|mut f| std::io::Write::write_all(&mut f, bytes).and_then(|()| f.sync_all()))
+        .and_then(|()| std::fs::rename(&new, path));
+    if written.is_err() {
+        let _ = std::fs::remove_file(&new);
+    }
+    written.map_err(io)
+}
+
 /// The record the cable pairing left with usbmuxd; it also opens a session over the network.
 pub async fn pair_record(udid: &str) -> Result<PairingFile, IdeviceError> {
     usbmuxd_addr().connect(0).await?.get_pair_record(udid).await

@@ -9,7 +9,7 @@ use async_trait::async_trait;
 use phonedriver_core::device::{Device, DisplayMode, lane_of};
 use phonedriver_core::error::{DeviceSummary, Error};
 
-use super::{Booted, DeviceSource, Listed};
+use super::{Booted, DeviceSource, Listed, named};
 
 const ID_PREFIXES: [&str; 3] = ["android:", "ios:", "sim:"];
 
@@ -147,6 +147,12 @@ fn names_id(entry: &str, id: &str) -> bool {
     id == entry || ID_PREFIXES.iter().any(|p| id == format!("{p}{entry}"))
 }
 
+/// Whether a deny entry names this device (or its lane) by id, which needs no read of the device.
+pub fn denies_id(deny: &[String], id: &str) -> bool {
+    let id = lane_of(id).0;
+    deny.iter().any(|e| names_id(e, id))
+}
+
 /// An entry that could be a phone's hardware serial: not an iOS or Simulator id, an emulator's name or an address.
 fn could_be_serial(entry: &str) -> bool {
     let bare = entry.strip_prefix("android:").unwrap_or(entry);
@@ -224,6 +230,28 @@ impl Gated {
         Ok(true)
     }
 
+    /// The devices that are off and may be started. An AVD is listed by its name (`avd:<name>`) and gets its adb id
+    /// only once it runs, so before a boot only a deny entry that names `avd:<name>` hides it; the started device is
+    /// judged by its id again.
+    async fn startable(&self, off: Vec<DeviceSummary>) -> Result<Vec<DeviceSummary>, Error> {
+        let rules = self.policy.rules()?;
+        if rules.is_empty() {
+            return Ok(off);
+        }
+        let mut out = Vec::new();
+        for d in off {
+            let shown = if d.id.starts_with("avd:") {
+                !rules.deny.contains(&d.id)
+            } else {
+                self.permits(&d.id).await?
+            };
+            if shown {
+                out.push(d);
+            }
+        }
+        Ok(out)
+    }
+
     async fn visible(&self, list: Vec<Listed>) -> Result<Vec<Listed>, Error> {
         if self.policy.rules()?.is_empty() {
             return Ok(list);
@@ -286,11 +314,41 @@ fn not_connected(id: &str) -> Error {
 #[async_trait]
 impl DeviceSource for Gated {
     async fn list(&self) -> Result<Vec<Listed>, Error> {
-        self.visible(self.inner.list().await?).await
+        let rules = self.policy.rules()?;
+        if rules.is_empty() {
+            return self.inner.list().await;
+        }
+        self.visible(self.inner.list_except(&rules.deny).await?)
+            .await
     }
 
     async fn list_for(&self, requested: Option<&str>) -> Result<Vec<Listed>, Error> {
-        self.visible(self.inner.list_for(requested).await?).await
+        if requested.is_none() {
+            return self.list().await;
+        }
+        match self.inner.list_for(requested).await {
+            Ok(list) => self.visible(list).await,
+            Err(Error::NoDevice {
+                requested,
+                connected,
+                unasked,
+                off,
+            }) => {
+                let mut shown = Vec::new();
+                for d in connected {
+                    if self.permits(&d.id).await? {
+                        shown.push(d);
+                    }
+                }
+                Err(Error::NoDevice {
+                    requested,
+                    connected: shown,
+                    unasked,
+                    off: self.startable(off).await?,
+                })
+            }
+            Err(e) => Err(e),
+        }
     }
 
     async fn connect(&self, id: &str) -> Result<Arc<dyn Device>, Error> {
@@ -308,11 +366,25 @@ impl DeviceSource for Gated {
     }
 
     async fn off(&self) -> Vec<DeviceSummary> {
-        self.inner.off().await
+        self.startable(self.inner.off().await)
+            .await
+            .unwrap_or_default()
     }
 
+    /// The name is resolved against the devices that may be started before anything is started, so a hidden
+    /// Simulator is never booted to be refused.
     async fn boot(&self, name: &str) -> Result<Option<Booted>, Error> {
-        match self.inner.boot(name).await? {
+        let mut target = name.to_string();
+        if !self.policy.rules()?.is_empty() {
+            let every = self.inner.off().await;
+            let shown = self.startable(every.clone()).await?;
+            match shown.iter().find(|d| named(name, &d.id, &d.model)) {
+                Some(d) => target = d.id.clone(),
+                None if every.iter().any(|d| named(name, &d.id, &d.model)) => return Ok(None),
+                None => {}
+            }
+        }
+        match self.inner.boot(&target).await? {
             Some(booted) if !self.permits(&booted.device.id).await? => Ok(None),
             booted => Ok(booted),
         }

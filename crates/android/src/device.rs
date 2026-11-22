@@ -440,9 +440,16 @@ impl Device for AndroidDevice {
             });
         }
         self.video_caught_up(Op::Record).await?;
-        self.video.record_start(path).map_err(|e| Error::Transport {
-            detail: format!("cannot record to {}: {e}", path.display()),
-        })
+        self.video
+            .record_start(path)
+            .map_err(|e| Error::Transport {
+                detail: format!("cannot record to {}: {e}", path.display()),
+            })?;
+        if let Err(e) = self.simple(Op::Record, json!({"op": "sync_frame"})).await {
+            let _ = self.video.record_stop();
+            return Err(e);
+        }
+        Ok(())
     }
 
     async fn record_stop(&self) -> Result<Option<Recorded>> {
@@ -462,10 +469,13 @@ impl Device for AndroidDevice {
         }))
     }
 
-    async fn page(&self) -> Result<WebPage> {
-        let front = self.foreground().await?.ok_or(Error::Refused {
-            detail: "no app is in front".into(),
-        })?;
+    async fn page(&self, app: Option<&AppId>) -> Result<WebPage> {
+        let front = match app {
+            Some(app) => app.clone(),
+            None => self.foreground().await?.ok_or(Error::Refused {
+                detail: "no app is in front".into(),
+            })?,
+        };
         devtools::page(&self.adb, &self.serial, &front).await
     }
 
@@ -660,13 +670,7 @@ impl Device for AndroidDevice {
     }
 
     async fn hardware_serial(&self) -> Result<Option<String>> {
-        let serial = self.adb.hardware_serial(&self.serial).await?;
-        if serial.is_empty() {
-            return Err(Error::Transport {
-                detail: "the phone did not report its serial number (`getprop ro.serialno`)".into(),
-            });
-        }
-        Ok(Some(serial))
+        Ok(Some(self.adb.hardware_serial(&self.serial).await?))
     }
 
     async fn app_op(&self, op: AppOp, app: &AppId) -> Result<()> {
@@ -698,6 +702,8 @@ impl Device for AndroidDevice {
 
     async fn shell(&self, req: &ShellRequest) -> Result<ShellReply> {
         if let Some(command) = req.command.trim_start().strip_prefix("emu ") {
+            console::check(command.trim(), phonedriver_core::device::host_shell())
+                .map_err(|detail| Error::Refused { detail })?;
             let (stream, token) = self
                 .console(
                     Op::Shell,

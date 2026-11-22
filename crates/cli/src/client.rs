@@ -277,26 +277,52 @@ fn log_path() -> PathBuf {
 async fn start_daemon() -> Result<(), Failure> {
     let exe = std::env::current_exe()
         .map_err(|e| Failure::Local(format!("cannot find the phonedriver binary: {e}")))?;
-    let log = std::fs::create_dir_all(socket::home()).and_then(|()| {
-        std::fs::OpenOptions::new()
+    let log = create_home(&socket::home()).and_then(|()| {
+        crate::private::options()
             .create(true)
             .append(true)
             .open(log_path())
     });
-    let ready = spawn_daemon(&exe, log)
+    let ready = spawn_daemon(&exe, log, daemon_env(std::env::vars_os()))
         .map_err(|e| Failure::Local(format!("cannot start the daemon: {e}")))?;
     let mut lines = BufReader::new(ready).lines();
     let _ = timeout(READY_WAIT, lines.next_line()).await;
     Ok(())
 }
 
+/// Creates phonedriver's home owner-only when it is missing. One that is there keeps its mode: `PHONEDRIVER_HOME` may
+/// name a folder the person made.
+fn create_home(home: &Path) -> std::io::Result<()> {
+    if home.is_dir() {
+        return Ok(());
+    }
+    crate::private::dir(home)
+}
+
+/// The environment the daemon starts with: this process's, without `PHONEDRIVER_SECRET` and every
+/// `PHONEDRIVER_SECRET_*` (decision D105). The CLI and a replay read those; the daemon is given secrets by its callers
+/// and outlives them.
+pub(crate) fn daemon_env(
+    vars: impl IntoIterator<Item = (std::ffi::OsString, std::ffi::OsString)>,
+) -> Vec<(std::ffi::OsString, std::ffi::OsString)> {
+    vars.into_iter()
+        .filter(|(name, _)| {
+            let name = name.to_string_lossy().to_ascii_uppercase();
+            name != "PHONEDRIVER_SECRET" && !name.starts_with(crate::variables::SECRET_PREFIX)
+        })
+        .collect()
+}
+
 #[cfg(unix)]
 fn spawn_daemon(
     exe: &Path,
     log: std::io::Result<std::fs::File>,
+    env: Vec<(std::ffi::OsString, std::ffi::OsString)>,
 ) -> std::io::Result<tokio::process::ChildStdout> {
     use std::process::Stdio;
     let mut child = tokio::process::Command::new(exe)
+        .env_clear()
+        .envs(env)
         .arg("daemon")
         .arg("--detach")
         .stdin(Stdio::null())
@@ -314,12 +340,13 @@ fn spawn_daemon(
 fn spawn_daemon(
     exe: &Path,
     log: std::io::Result<std::fs::File>,
+    env: Vec<(std::ffi::OsString, std::ffi::OsString)>,
 ) -> std::io::Result<tokio::fs::File> {
     let log = match log {
         Ok(file) => file,
         Err(_) => std::fs::OpenOptions::new().write(true).open("NUL")?,
     };
-    crate::detach::spawn_daemon(exe, &log).map(tokio::fs::File::from_std)
+    crate::detach::spawn_daemon(exe, &log, &env).map(tokio::fs::File::from_std)
 }
 
 #[cfg(test)]
@@ -334,6 +361,43 @@ mod tests {
             hello("cli", "s")["progress"],
             json!(std::io::stderr().is_terminal())
         );
+    }
+
+    #[test]
+    fn the_daemon_is_given_no_phonedriver_secret_variable() {
+        use std::ffi::OsString;
+        let given = [
+            ("PATH", "/bin"),
+            ("PHONEDRIVER_SECRET", "a"),
+            ("PHONEDRIVER_SECRET_1", "b"),
+            ("phonedriver_secret_app", "c"),
+            ("PHONEDRIVER_SECRETS", "d"),
+            ("PHONEDRIVER_HOME", "/h"),
+        ]
+        .map(|(k, v)| (OsString::from(k), OsString::from(v)));
+        let kept: Vec<OsString> = daemon_env(given).into_iter().map(|(k, _)| k).collect();
+        assert_eq!(kept, ["PATH", "PHONEDRIVER_SECRETS", "PHONEDRIVER_HOME"]);
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn a_spawned_daemon_sees_only_the_environment_it_is_given() {
+        use std::ffi::OsString;
+        use std::os::unix::fs::PermissionsExt;
+        use tokio::io::AsyncReadExt;
+        let dir = tempfile::tempdir().unwrap();
+        let exe = dir.path().join("fake-daemon");
+        std::fs::write(&exe, "#!/bin/sh\nenv\n").unwrap();
+        std::fs::set_permissions(&exe, std::fs::Permissions::from_mode(0o755)).unwrap();
+        let env = daemon_env([
+            (OsString::from("KEPT_HERE"), OsString::from("yes")),
+            (OsString::from("PHONEDRIVER_SECRET_1"), OsString::from("no")),
+        ]);
+        let mut out = spawn_daemon(&exe, Err(std::io::Error::other("no log")), env).unwrap();
+        let mut text = String::new();
+        out.read_to_string(&mut text).await.unwrap();
+        assert!(text.lines().any(|l| l == "KEPT_HERE=yes"), "{text}");
+        assert!(!text.contains("PHONEDRIVER_SECRET"), "{text}");
     }
 
     #[test]

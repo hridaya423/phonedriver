@@ -1408,6 +1408,160 @@ async fn a_secret_typed_into_a_plain_field_is_masked_in_a_batch_and_in_every_lat
     assert!(!trace.contains("hunter2"), "{trace}");
 }
 
+#[tokio::test(start_paused = true)]
+async fn a_long_secret_that_the_snapshot_cuts_short_shows_no_part_of_itself() {
+    let secret = format!("tok-{}", "Zq7".repeat(80));
+    let (source, fake) = FakeSource::polled(vec![field_tree("", false)]);
+    let shown = secret.clone();
+    fake.on_text(move |_| Some(vec![field_tree(&shown, false)]));
+    let (d, _home) = daemon(source);
+    ok(&d, "default", "snapshot", json!({})).await;
+    let typed = ok(&d, "default", "act", type_params(&secret, true)).await;
+    let shown = ok(&d, "default", "snapshot", json!({})).await;
+    for reply in [&typed, &shown] {
+        assert!(!reply.to_string().contains("Zq7Zq7"), "{reply}");
+    }
+    assert!(
+        shown["text"].as_str().unwrap().contains("\"•••…(+"),
+        "{shown}"
+    );
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_secret_the_field_reformats_is_masked_in_that_reply_and_on_later_screens() {
+    let (source, fake) = FakeSource::polled(vec![field_tree("", false)]);
+    fake.on_text(|_| Some(vec![field_tree("4000 1234 1234 1234", false)]));
+    let (d, _home) = daemon(source);
+    ok(&d, "default", "snapshot", json!({})).await;
+    let typed = ok(&d, "default", "act", type_params("4000123412341234", true)).await;
+    let shown = ok(&d, "default", "snapshot", json!({})).await;
+    fake.set_tree(tree(&["Paid with 4000-1234-1234-1234"]));
+    let receipt = ok(&d, "default", "snapshot", json!({})).await;
+    for reply in [&typed, &shown, &receipt] {
+        assert!(!reply.to_string().contains("1234 1234"), "{reply}");
+        assert!(!reply.to_string().contains("1234-1234"), "{reply}");
+    }
+    assert!(
+        shown["text"].as_str().unwrap().contains("\"•••\""),
+        "{shown}"
+    );
+    assert!(
+        receipt["text"]
+            .as_str()
+            .unwrap()
+            .contains("\"Paid with •••\""),
+        "{receipt}"
+    );
+
+    let (source, fake) = FakeSource::polled(vec![field_tree("", false)]);
+    fake.on_text(|_| Some(vec![field_tree("+1 (KQX) WZ7-PL4", false)]));
+    let (d, _home) = daemon(source);
+    ok(&d, "default", "snapshot", json!({})).await;
+    let typed = ok(&d, "default", "act", type_params("kqxwz7pl4", true)).await;
+    let shown = ok(&d, "default", "snapshot", json!({})).await;
+    for reply in [&typed, &shown] {
+        assert!(!reply.to_string().contains("WZ7"), "{reply}");
+    }
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_secret_with_quotes_and_backslashes_is_masked_where_a_reply_escapes_it() {
+    let secret = r#"pa"ss\word-9"#;
+    let (source, fake) = FakeSource::polled(vec![field_tree("", false)]);
+    fake.on_text(|_| Some(vec![field_tree(r#"pa\"ss\\word-9"#, false)]));
+    let (d, _home) = daemon(source);
+    ok(&d, "default", "snapshot", json!({})).await;
+    ok(&d, "default", "act", type_params(secret, true)).await;
+    let shown = ok(&d, "default", "snapshot", json!({})).await;
+    assert!(!shown.to_string().contains("word-9"), "{shown}");
+    assert!(
+        shown["text"]
+            .as_str()
+            .unwrap()
+            .contains("\"Field\" \"•••\""),
+        "{shown}"
+    );
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_replayed_secret_is_typed_only_into_a_password_or_one_time_code_field() {
+    let replayed = |text: &str| {
+        let mut p = type_params(text, true);
+        p["secret_field_only"] = json!(true);
+        p
+    };
+    let (source, fake) = FakeSource::with(vec![field_tree("", false)]);
+    let (d, home) = daemon(source);
+    ok(&d, "default", "snapshot", json!({})).await;
+    let e = err(&d, "default", "act", replayed("hunter2-r")).await;
+    assert!(
+        e.message
+            .contains("only into a password or one-time code field"),
+        "{e:?}"
+    );
+    assert!(!e.to_json().to_string().contains("hunter2-r"));
+    assert!(
+        !fake
+            .calls()
+            .iter()
+            .any(|c| matches!(c, Call::Text(_) | Call::Gesture(_))),
+        "{:?}",
+        fake.calls()
+    );
+    assert!(!trace_text(home.path()).contains("hunter2-r"));
+
+    let (source, fake) = FakeSource::with(vec![
+        field_tree("", true),
+        field_tree("", true),
+        field_tree("•••••••••", true),
+    ]);
+    let (d, _home) = daemon(source);
+    ok(&d, "default", "snapshot", json!({})).await;
+    let r = ok(&d, "default", "act", replayed("hunter2-r")).await;
+    assert_eq!(r["verified"], true, "{r}");
+    assert!(fake.calls().iter().any(|c| matches!(
+        c,
+        Call::Text(phonedriver_core::device::TextInput::PasteSecret(_))
+    )));
+}
+
+#[tokio::test(start_paused = true)]
+async fn mask_answers_the_text_with_every_remembered_secret_masked() {
+    let (source, _fake) = FakeSource::with(vec![tree(&["One"])]);
+    let (d, home) = daemon(source);
+    ok(
+        &d,
+        "default",
+        "shell",
+        json!({"command": "hunter2-mask", "secret": true, "settle": false}),
+    )
+    .await;
+    let r = ok(
+        &d,
+        "default",
+        "mask",
+        json!({"text": "+ \"hunter2-mask\" at 1,1"}),
+    )
+    .await;
+    assert_eq!(r["text"], "+ \"•••\" at 1,1");
+    assert!(!trace_text(home.path()).contains("hunter2-mask"));
+}
+
+#[cfg(unix)]
+#[tokio::test(start_paused = true)]
+async fn a_screenshot_the_daemon_keeps_can_be_read_only_by_its_owner() {
+    use std::os::unix::fs::PermissionsExt;
+    let (source, _fake) =
+        FakeSource::of(FakeDevice::new(vec![tree(&["One"])]).with_screenshot(fake_png()));
+    let (d, _home) = daemon(source);
+    let r = ok(&d, "default", "screenshot", json!({})).await;
+    let path = std::path::PathBuf::from(r["path"].as_str().unwrap());
+    let mode = |p: &Path| std::fs::metadata(p).unwrap().permissions().mode() & 0o777;
+    assert_eq!(mode(&path), 0o600, "{}", path.display());
+    assert_eq!(mode(path.parent().unwrap()), 0o700);
+    assert_eq!(mode(path.parent().unwrap().parent().unwrap()), 0o700);
+}
+
 fn article() -> WebPage {
     let body: String = (1..=200)
         .map(|n| format!("Paragraph {n} of the article, which is one line of text.\n\n"))
@@ -3066,6 +3220,29 @@ async fn a_launch_waits_for_an_app_that_comes_to_the_front_late() {
         "{:?}",
         started.elapsed()
     );
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_launch_whose_app_starts_slowly_still_settles_after_it_starts() {
+    let (source, fake) = installed();
+    fake.launch(&AppId("com.launcher".into())).await.unwrap();
+    fake.set_launch_takes(22);
+    let (d, _home) = daemon(source);
+    let started = tokio::time::Instant::now();
+    let r = ok(
+        &d,
+        "default",
+        "act",
+        act_with(json!({"kind": "launch", "app": "Calculator"})),
+    )
+    .await;
+    assert!(
+        started.elapsed() > Duration::from_secs(6),
+        "the start alone outlasts the settle timeout: {:?}",
+        started.elapsed()
+    );
+    assert_eq!(r["settled"], true, "{r}");
+    assert_eq!(r["summary"], "launched Calculator", "{r}");
 }
 
 #[tokio::test(start_paused = true)]
@@ -4829,6 +5006,54 @@ async fn a_batch_runs_its_steps_in_order_and_answers_with_one_diff_from_where_th
     assert_eq!(taps, 2);
 }
 
+async fn typed_then_tapped(shown: &'static str, typed: &str) -> (Value, usize) {
+    let (source, fake) = FakeSource::polled(vec![field_tree("", false)]);
+    fake.on_text(move |_| Some(vec![field_tree(shown, false)]));
+    let (d, _home) = daemon(source);
+    ok(&d, "default", "snapshot", json!({})).await;
+    let r = ok(
+        &d,
+        "default",
+        "batch",
+        batch(json!([
+            {"kind": "type", "text": typed, "into": {"ref": "e1"}},
+            {"kind": "tap", "target": {"point": {"x": 10.0, "y": 300.0}}},
+        ])),
+    )
+    .await;
+    let taps = fake
+        .calls()
+        .iter()
+        .filter(|c| matches!(c, Call::Gesture(_)))
+        .count();
+    (r, taps)
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_batch_stops_before_the_next_step_when_a_field_shows_other_text_than_typed() {
+    let (r, taps) = typed_then_tapped("5551299", "5551234").await;
+    assert_eq!(r["ok"], false, "{r}");
+    assert_eq!(r["failed"]["step"], 2, "{r}");
+    let message = r["failed"]["error"]["message"].as_str().unwrap();
+    assert!(
+        message.contains("step 1") && message.contains("5551299"),
+        "{message}"
+    );
+    assert_eq!(
+        taps, 1,
+        "only the focus tap of step 1, not step 2's tap: {r}"
+    );
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_batch_goes_on_when_a_field_only_spaced_or_cased_the_text_it_was_given() {
+    for (shown, typed) in [("4111 1111 1111 1111", "4111111111111111"), ("Ada", "ada")] {
+        let (r, taps) = typed_then_tapped(shown, typed).await;
+        assert_eq!(r["ok"], true, "{shown}: {r}");
+        assert_eq!(taps, 2, "{shown}: {r}");
+    }
+}
+
 #[tokio::test(start_paused = true)]
 async fn a_batch_stops_at_the_first_failing_step_and_says_which_one_failed_and_what_is_on_screen() {
     let (source, fake) = FakeSource::with(vec![tree(&["One", "Two"])]);
@@ -5383,6 +5608,36 @@ async fn an_app_installed_again_by_its_owner_is_no_longer_the_one_phonedriver_in
         })
         .count();
     assert_eq!(removed, 0);
+}
+
+#[tokio::test]
+async fn a_shell_clear_of_an_app_its_owner_installed_again_is_refused_like_the_typed_one() {
+    let (source, fake) = physical();
+    fake.set_installed_at("2026-11-19 10:04:31");
+    let (d, _home) = daemon(source);
+    install_apk(&d).await;
+    ok(
+        &d,
+        "default",
+        "shell",
+        json!({"command": "pm clear com.example.installed"}),
+    )
+    .await;
+    fake.set_installed_at("2026-11-19 18:30:02");
+    for command in [
+        "pm clear com.example.installed",
+        "cmd package uninstall com.example.installed",
+    ] {
+        let e = err(&d, "default", "shell", json!({"command": command})).await;
+        assert_eq!(e.code, -32011, "{command}: {}", e.message);
+        assert!(e.message.contains("installed again"), "{}", e.message);
+    }
+    let shells = fake
+        .calls()
+        .iter()
+        .filter(|c| matches!(c, Call::Shell(_)))
+        .count();
+    assert_eq!(shells, 1);
 }
 
 #[tokio::test]

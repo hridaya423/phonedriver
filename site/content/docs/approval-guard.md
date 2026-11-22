@@ -1,22 +1,31 @@
 ---
 title: How to keep an AI agent from spending your money on a phone
 nav: Approval guard
-meta: phonedriver holds taps on Pay, Place order, and Delete account and asks you first. How it works, PHONEDRIVER_ASK options, full autonomy, and blind spots.
+meta: phonedriver holds taps on Pay, Place order, and Delete account and asks you first. How it works, how to answer, full autonomy, and blind spots.
 description: phonedriver pauses taps on Pay, Place order, and Delete account and asks you directly via MCP elicitation. How it decides, how to tune it, and what it misses.
-updated: 2026-11-20
+updated: 2026-11-21
 ---
 
-On by default: before any tap touches the phone, the approval guard checks the target's label. If it looks like spending money or deleting an account, phonedriver freezes the tap and asks you directly. (For the design story and Domino's checkout walkthrough, see [Ordering dinner without spending your money](/blog/letting-claude-order-dinner-without-letting-it-spend-your-money/).)
+On by default: before any tap or touch reaches the phone, the approval guard checks the target's label. If it looks like spending money or deleting an account, phonedriver freezes the tap and asks you directly. (For the design story and Domino's checkout walkthrough, see [Ordering dinner without spending your money](/blog/letting-claude-order-dinner-without-letting-it-spend-your-money/).)
 
 ## What is guarded by default
 
 The guard reads button labels across eleven languages—English, Spanish, Portuguese, French, German, Italian, Dutch, Japanese, Chinese (Simplified), Korean, and Hindi—and catches:
 
 - Whole-label phrases like `Pay`, `Pay now`, `Buy now`, `Place order`, `Confirm payment`, `Send money`, `Transfer`, `Start subscription`, `Delete account`, `Pagar`, `Jetzt kaufen`, and `提交订单`.
-- Labels starting with `Buy with` (such as `Buy with GPay`).
-- Short labels (≤ 9 words) starting with a money verb and carrying an amount: `Place order · $34.10`, `Send $20.00 to Sam`, `Subscribe · $9.99/month`.
+- Labels starting with `Buy with` or `Pay with` (such as `Buy with GPay`).
+- Sliders like `Slide to pay` or `Swipe to confirm`.
+- Short labels (≤ 9 words) starting with a money verb and carrying an amount: `Place order · $34.10`, `Pay 50 kr`, `Send $20.00 to Sam`, `Subscribe · $9.99/month`.
 
-It covers `tap` (by ref, text, or coordinates), `type --submit` when a guarded button lives in the same form, and every step of a `batch`.
+It covers every way an agent can press such a button:
+
+- `tap` by ref, text, or coordinates—including a tap on a price or icon inside a guarded row.
+- `swipe`, `drag`, `pinch`, and `gesture` when the finger goes down and lifts on the button (the phone treats that as a click), a drag that drops onto it, and any stroke along a `Slide to pay` control.
+- `type --into` and `clear` aimed at the button.
+- `type --submit` and `press enter` when the field's form holds a guarded button, even one the form only enables once the field is filled.
+- Every step of a `batch`.
+
+An ordinary swipe, scroll, or pinch is never asked about and costs no extra time.
 
 Skipped on purpose so you don't drown in prompts: tabs, switches, text fields, menu items, order numbers containing `#`, `Add to cart`, `Buy again`, `Pay later`, a bare `Checkout`, a bare `Subscribe` (YouTube's is free), `Order status`, and plain chat `Send`.
 
@@ -40,9 +49,9 @@ Plain `type` into a password field—or any field labeled like a verification/OT
 
 In MCP clients that support elicitation (like Claude Code), a native prompt pops up showing the app, button label, and up to eight lines of nearby screen text with totals, items, or delivery addresses. Your three options:
 
-- **Allow** — re-resolves the target against a fresh screen and runs the tap in the same tool call.
-- **Allow for this session** — unlocks guarded taps in this category until the daemon exits (RAM only, never written to disk).
-- **Decline** — touches nothing and tells the agent `The human declined`.
+- **Allow** — runs the action in the same tool call; the reply says `approved by the human`. If the button or the amounts on screen changed in the meantime, you're asked again.
+- **Allow for this session** — the same, and later guarded taps in this category also run until the daemon exits (RAM only, never written to disk).
+- **Decline** (or cancel) — touches nothing and tells the agent `The human declined`.
 
 In clients without elicitation (or headless `claude -p`), nothing is tapped and the tool replies `Needs the human's approval; nothing was tapped` along with the screen details so the agent can ask you in chat.
 
@@ -50,16 +59,18 @@ In clients without elicitation (or headless `claude -p`), nothing is tapped and 
 
 Only disable the guard when you explicitly want the agent acting without confirmation:
 
-- Set `PHONEDRIVER_GUARD=off` in the MCP server's environment (where the agent cannot modify it).
-- Pass `--autonomous` on a single CLI command (CLI exits with code 5 whenever a tap is held).
+- Set `PHONEDRIVER_GUARD=off` in the environment of `phonedriver mcp` or the CLI (for MCP, the server's environment, where the agent can't modify it).
+- Pass `--autonomous` on a single CLI command (`tap`, `type`, `swipe`, `drag`, `pinch`, `gesture`, `scroll`, `press`, or `clear`). Exit code 5 means the action was held.
 
 ## What it does not catch
 
 - **Fixed list, eleven languages.** Unlabeled icon buttons, other languages, or unusual button copy won't match. No prompt is never proof a tap is safe.
 - **Not a security boundary.** An agent can pass `autonomous: true` over MCP or `--autonomous` on the CLI without asking. The guard stops cooperative models and screen-text prompt injections, not an adversarial model bypassing it.
 - **Merged containers.** Tapping a parent container only matches if the merged label itself matches.
-- **Shell bypass.** `input tap` via `phonedriver shell` doesn't pass through the tap classifier.
-- **One-second point-tap cache.** Rapid point taps reuse the previous guard tree read for up to 1 second (cleared on window changes or large repaints) to avoid queuing behind Android button ripples.
+- **Shell bypass.** `input tap` via `phonedriver shell` doesn't pass through the classifier.
+- **One-second point-tap cache.** Point taps in a row reuse the guard's last screen read for up to 1 second (cleared on window changes or large repaints), so a guarded button added by a smaller change inside that second is missed.
+- **Swipes use the last screen.** A swipe or drag is checked against the screen the agent last saw; a guarded button that appeared under the finger since is missed.
+- **`press fingerprint`.** On an emulator it answers a fingerprint prompt, which an app can use to confirm a payment. It isn't guarded.
 - **Text only.** MCP elicitation doesn't support images yet, so prompts show text lines without a screenshot.
 
 ## Questions

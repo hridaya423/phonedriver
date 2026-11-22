@@ -4,7 +4,7 @@ nav: No telemetry
 seo: Does phonedriver send telemetry? No, and a test proves it
 meta: phonedriver sends zero telemetry. Every network connection it makes, the macOS sandbox test that kills any stray socket, and how other tools compare.
 description: Zero telemetry, enforced by a sandbox test that SIGKILLs the process if it opens an unexpected socket. Every connection phonedriver makes—and how to verify it yourself.
-updated: 2026-11-20
+updated: 2026-11-21
 ---
 
 An agent driving your phone sees your messages, photos, and banking screens. Calling home with usage analytics in a tool like that feels wrong, so phonedriver sends **zero telemetry**—no install ID, no usage pings, no crash reports, no update checks. It isn't a toggle; it's a rule enforced in CI. After the first download of the binary it talks to your device and to nothing else, with the exceptions for iPhones listed below.
@@ -15,10 +15,11 @@ An agent driving your phone sees your messages, photos, and banking screens. Cal
 |---|---|---|
 | Local daemon socket | Every command | No |
 | Local `adb` server & Android device | Android commands | No (unless remote) |
+| `adb` server to your router at port 9, where nothing answers | Only `phonedriver pair` and `untether` on macOS, to tell whether macOS keeps the adb server off the local network | No |
 | `usbmuxd` & USB iPhone | Physical iOS | No |
 | Local mDNS & iPhone LAN IP | After `phonedriver ios wifi on` | No |
 | iOS Simulator | Simulator commands | No |
-| Apple signing server | Mounting an iOS developer disk image on a physical iPhone | Yes (Apple) |
+| Apple signing server | Mounting an iOS developer disk image on a physical iPhone: on a Mac, Xcode's `devicectl` asks; off a Mac, phonedriver sends the chip ID and nonces to `https://gs.apple.com/TSS/controller` over HTTPS and follows no redirect (plain HTTP before 0.1.7) | Yes (Apple) |
 | GitHub, `doronz88/DeveloperDiskImage` at a pinned commit | Only `phonedriver ios setup --download-ddi`, once, to fetch the iPhone developer disk image off a Mac; each file is checked against a pinned SHA-256 | Yes (GitHub) |
 | GitHub Releases | First `npx -y phonedriver` run of a new version only | Yes (GitHub) |
 
@@ -41,7 +42,7 @@ A control test proves the profile actually kills an outbound socket; the session
 
 ## What stays on disk (and what doesn't)
 
-Local logs and traces live under `$PHONEDRIVER_HOME` (`~/.phonedriver`) and are never uploaded. Text typed via `--secret` or MCP `secret: true` is never written to logs, traces, errors, or replies.
+Logs, traces, screenshots, and recordings live under `$PHONEDRIVER_HOME` (`~/.phonedriver`) and are never uploaded. On macOS and Linux only your account can read them: folders are created 0700, files 0600. Text typed via `--secret` or MCP `secret: true` shows as `•••` in logs, traces, errors, and replies—even when the field reformats it (a card number in groups of four), when a long text is cut mid-secret, and in the text a screen comparison reads. A screenshot or recording still shows whatever the phone shows ([troubleshooting](/docs/troubleshooting/) lists what each file holds).
 
 Keep in mind: screen text and screenshots returned by phonedriver still go to your AI client (Claude Code, Codex, Cursor), which sends them to your chosen model provider under its privacy terms.
 

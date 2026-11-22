@@ -4,7 +4,7 @@ seo: Replay an AI agent's mobile app run in GitHub Actions on an Android emulato
 nav: Replay in CI
 description: Save what an agent did on your app as a steps file, replay it with no model, and run the files on every commit with the phonedriver GitHub Action on an Android emulator or an iOS Simulator.
 meta: Save an agent's run on your app as a steps file and replay it on every commit with the phonedriver GitHub Action, on an Android emulator or the iOS Simulator.
-updated: 2026-11-20
+updated: 2026-11-21
 date: 2026-11-17
 ---
 
@@ -51,7 +51,11 @@ the secret text is not in the file: set PHONEDRIVER_SECRET_1 before replaying (r
 
 A replay reads that variable from the environment of the process that runs it and types it as a secret, so it is hidden in replies and traces like any `--secret` text. If the variable is not set, the replay stops at that step and the hint names it. A renamed variable must still begin `PHONEDRIVER_SECRET_`, so a steps file cannot make a replay type another variable. With MCP, put the variable in the MCP server's `env`, not in a tool argument.
 
-`{{name}}` in a step's text is filled from `--var name=value` (MCP: `vars`), and `{{run}}` is a short id new in every replay, for data that must be fresh, such as `test+{{run}}@example.com`. A variable the file uses and nobody gave is refused before the first step, with every missing name listed. Variables are not secrets and may show in replies; use the environment variable for a secret. `save` never writes variables: edit them into the file where a value should change.
+A replay types a secret only into a password field or a one-time code field. A steps file is text an agent can edit, and a secret typed into a plain field shows on the screen, where a screenshot can read it. If your flow types a secret into a plain field, such as an API key in a settings form, set `PHONEDRIVER_REPLAY_SECRET_ANY_FIELD=1` where the replay runs: in the job's `env`, or the MCP server's.
+
+`{{name}}` in a step's text is filled from `--var name=value` (MCP: `vars`), and `{{run}}` is a short id new in every replay, for data that must be fresh, such as `test+{{run}}@example.com`. A variable the file uses and nobody gave is refused before the first step, with every missing name listed. Variables are not secrets and may show in replies; use the environment variable for a secret. In a `shell` step a value is shell text: `--var app='com.x; pm clear com.other'` runs two commands. Quote the place in the file, `am start -n '{{app}}/.Main'`, and give only values you trust. `save` never writes variables: edit them into the file where a value should change.
+
+Over MCP, `replay` with `save: true` writes only a `.steps` file inside the server's working directory, and it replaces a file there only if that file is already a steps file.
 
 ```console
 $ PHONEDRIVER_SECRET_1=hunter2-test phonedriver replay signup.steps --var plan=pro
@@ -93,7 +97,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: ./gradlew assembleDebug
-      - uses: hridaya423/phonedriver@v0.1.6
+      - uses: hridaya423/phonedriver@v0.1.7
         with:
           app: app/build/outputs/apk/debug/app-debug.apk
           runs: e2e/*.steps

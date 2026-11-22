@@ -9,6 +9,10 @@ use serde_json::Value;
 /// other variable of the process (an API key) into a field.
 pub const SECRET_PREFIX: &str = "PHONEDRIVER_SECRET_";
 
+/// Set to `1` where a replay runs, a secret it reads goes into any field, not only a password or one-time code field
+/// (decision D105).
+pub const SECRET_ANY_FIELD: &str = "PHONEDRIVER_REPLAY_SECRET_ANY_FIELD";
+
 pub const RUN: &str = "run";
 
 /// A short id for one replay: the same in every step of it, different in the next one.
@@ -22,7 +26,7 @@ pub fn run_id() -> String {
 }
 
 /// The steps with every `{{name}}` in the strings of the parameters of those from `from` on (1 is the first)
-/// replaced by its value, and the names that were used. When some name has no value, every such name is returned
+/// replaced by its value, except the name of the variable a secret is read from, and the names that were used. When some name has no value, every such name is returned
 /// instead, once each, in order.
 pub fn fill(
     steps: &[Value],
@@ -55,7 +59,10 @@ fn walk(value: &mut Value, lookup: &mut dyn FnMut(&str) -> Option<String>) {
     match value {
         Value::String(text) => *text = replace(text, lookup),
         Value::Array(items) => items.iter_mut().for_each(|v| walk(v, lookup)),
-        Value::Object(fields) => fields.values_mut().for_each(|v| walk(v, lookup)),
+        Value::Object(fields) => fields
+            .iter_mut()
+            .filter(|(key, _)| *key != "secret_env")
+            .for_each(|(_, v)| walk(v, lookup)),
         _ => {}
     }
 }
@@ -116,6 +123,20 @@ mod tests {
         assert_eq!(out[0]["params"]["action"]["text"], "a-{{y}}-2-{{y}}");
         assert_eq!(out[0]["params"]["action"]["into"]["text"], "{{y}}");
         assert_eq!(out[0]["summary"], "{{x}}");
+    }
+
+    #[test]
+    fn the_variable_a_secret_is_read_from_is_not_filled() {
+        let steps = vec![json!({
+            "method": "act",
+            "params": {"action": {"kind": "type", "secret": true, "secret_env": "PHONEDRIVER_SECRET_{{who}}", "into": {"text": "{{who}}"}}}
+        })];
+        let (out, _) = fill(&steps, 1, &vars(&[("who", "ADMIN")])).unwrap();
+        assert_eq!(
+            out[0]["params"]["action"]["secret_env"],
+            "PHONEDRIVER_SECRET_{{who}}"
+        );
+        assert_eq!(out[0]["params"]["action"]["into"]["text"], "ADMIN");
     }
 
     #[test]

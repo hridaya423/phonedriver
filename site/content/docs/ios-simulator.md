@@ -4,7 +4,7 @@ nav: iOS Simulator
 meta: Boot an iPhone Simulator on a Mac with Xcode and let an AI agent drive it with phonedriver—native Simulator input, display-buffer settling, and app installs.
 description: Boot an iOS Simulator on a Mac with Xcode and hand it to your agent. Covers the auto-built runner, 0.1.5 native Simulator input, and simctl shell shortcuts.
 seo: How to let an AI agent control the iOS Simulator over MCP
-updated: 2026-11-20
+updated: 2026-11-21
 ---
 
 Boot an iOS Simulator on a Mac with Xcode, wire up phonedriver, and your agent can drive iOS apps immediately—no `idb`, no WebDriverAgent setup, no separate downloads. It reads the screen as text through an XCTest runner that phonedriver builds for you, and its taps go to the Simulator's own touch input.
@@ -41,13 +41,15 @@ On first use, phonedriver compiles its own small XCTest runner from sources embe
 
 ## Shell shortcuts
 
-`phonedriver shell` fills in the target Simulator automatically for `simctl` subcommands, and runs anything else inside the Simulator. iOS 26 Simulators have no shell, so a command there is one of their own programs, such as `defaults` or `log`:
+`phonedriver shell` fills in the target Simulator for `simctl` subcommands that act on the Simulator alone, such as `ui`, `openurl`, `privacy`, `location`, and `status_bar`:
 
 ```sh
 phonedriver shell "simctl ui appearance dark"
 ```
 
-See [the shell guide](/docs/shell/) for more.
+The Simulator's own settings and log work with nothing to set up: `defaults read -g AppleLocale`, `defaults write ...`, and `log show --last 1m` run as one program in the Simulator, as long as no argument names a file.
+
+A Simulator's programs run on your Mac as your Mac user and can read and write your Mac's files, so anything else—other programs, and the `simctl` forms that touch a Mac file (`spawn`, `install`, `addmedia`, `push`, `io screenshot`, `keychain add-cert`)—is refused by default. The verbs `install`, `apps notify`, `screenshot`, and `record` do those jobs. To allow the rest, run `phonedriver daemon stop` and restart with `PHONEDRIVER_HOST_SHELL=1` (for example in the MCP server's `env`); then any command, like `launchctl list`, runs inside the Simulator. The same switch allows `open` with a `file:` link. An app you `install` also runs as your Mac user, so install only builds you trust. See [the shell guide](/docs/shell/) for more.
 
 ## Push notifications and logs
 

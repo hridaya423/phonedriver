@@ -5,17 +5,16 @@ Run on the Mac that hosts the simulator:
 
     PHONEDRIVER_TEST_UDID=<udid> python3 ios-runner/tests/test_runner.py -v
 
-Builds the runner if needed, starts it with `xcodebuild test-without-building` unless one
-already answers `hello` on PHONEDRIVER_PORT (default 27753), and checks every op against the
-testbed's event log, not against the runner's own replies.
+Builds the runner if needed, starts it with `xcodebuild test-without-building` and a fresh token
+unless one started with PHONEDRIVER_TOKEN already answers `hello` on PHONEDRIVER_PORT (default
+27753), and checks every op against the testbed's event log, not against the runner's own replies.
 """
 
 import base64
 import glob
 import json
 import os
-import socket
-import struct
+import secrets
 import subprocess
 import sys
 import time
@@ -25,9 +24,12 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 RUNNER_DIR = os.path.dirname(HERE)
 REPO = os.path.dirname(RUNNER_DIR)
 sys.path.insert(0, os.path.join(REPO, "testbeds", "ios"))
+sys.path.insert(0, HERE)
 import testbed  # noqa: E402
+from runner_client import Runner as Client  # noqa: E402
 
 PORT = int(os.environ.get("PHONEDRIVER_PORT", "27753"))
+TOKEN = os.environ.get("PHONEDRIVER_TOKEN") or secrets.token_hex(32)
 TESTBED = testbed.BUNDLE_ID
 
 
@@ -40,54 +42,19 @@ def booted_udid():
     return next(d["udid"] for ds in devices.values() for d in ds)
 
 
-class Runner:
-    def __init__(self, port):
-        self.sock = socket.create_connection(("127.0.0.1", port), timeout=60)
-        self.sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
-        self.next_id = 1
-
-    def _read(self, n):
-        buf = b""
-        while len(buf) < n:
-            chunk = self.sock.recv(n - len(buf))
-            if not chunk:
-                raise ConnectionError("runner closed the connection")
-            buf += chunk
-        return buf
-
-    def raw(self, request):
-        body = json.dumps(request).encode()
-        self.sock.sendall(struct.pack(">I", len(body)) + body)
-        (length,) = struct.unpack(">I", self._read(4))
-        return json.loads(self._read(length))
-
-    def call(self, op, **fields):
-        rid = self.next_id
-        self.next_id += 1
-        reply = self.raw({"id": rid, "op": op, **fields})
-        assert reply.get("id") == rid, reply
-        return reply
-
-    def ok(self, op, **fields):
-        reply = self.call(op, **fields)
-        assert reply.get("ok") is True, reply
-        return reply
-
-    def close(self):
-        self.sock.close()
+def Runner(port):
+    r = Client(port, TOKEN)
+    assert r.first.get("ok") is True and r.proven, r.first
+    return r
 
 
 def try_hello():
     try:
-        r = Runner(PORT)
-    except OSError:
+        r = Client(PORT, TOKEN, timeout=2)
+    except (OSError, ConnectionError):
         return False
     try:
-        r.sock.settimeout(2)
-        r.ok("hello", version="0.1.0")
-        return True
-    except (OSError, AssertionError, ConnectionError):
-        return False
+        return r.first.get("ok") is True and r.proven
     finally:
         r.close()
 
@@ -99,7 +66,7 @@ def start_runner(udid):
          "-destination", f"id={udid}", "-derivedDataPath", build, "-quiet", "build-for-testing"],
         cwd=RUNNER_DIR, check=True)
     xctestrun = glob.glob(os.path.join(build, "Build", "Products", "*.xctestrun"))[0]
-    env = dict(os.environ, TEST_RUNNER_PHONEDRIVER_PORT=str(PORT))
+    env = dict(os.environ, TEST_RUNNER_PHONEDRIVER_PORT=str(PORT), TEST_RUNNER_PHONEDRIVER_TOKEN=TOKEN)
     log = open(RUNNER_LOG, "w")
     child = subprocess.Popen(
         ["xcodebuild", "test-without-building", "-xctestrun", xctestrun,
@@ -178,14 +145,14 @@ class Base(unittest.TestCase):
 
 class RunnerTests(Base):
     def test_hello_reports_screen_in_points(self):
-        reply = self.r.ok("hello", version="0.1.0")
+        reply = self.r.ok("hello", version="0.2.0")
         shot = self.r.ok("screenshot", format="png", quality=100)
         screen = reply["screen"]
         self.assertEqual(round(screen["w"] * screen["scale"]), shot["w"])
         self.assertEqual(round(screen["h"] * screen["scale"]), shot["h"])
         self.assertTrue(reply["ios"])
         self.assertTrue(reply["model"])
-        self.assertEqual(reply["version"], "0.1.0")
+        self.assertEqual(reply["version"], "0.2.0")
 
     def test_snapshot_has_testbed_identifiers_and_visible_flags(self):
         reply = self.snapshot()
@@ -219,7 +186,7 @@ class RunnerTests(Base):
         reply = self.r.call("fly")
         self.assertIs(reply["ok"], False)
         self.assertEqual(reply["error"]["code"], "bad_request")
-        self.r.ok("hello", version="0.1.0")
+        self.r.ok("hello", version="0.2.0")
 
     def test_screenshot_jpeg(self):
         reply = self.r.ok("screenshot", format="jpeg", quality=50)

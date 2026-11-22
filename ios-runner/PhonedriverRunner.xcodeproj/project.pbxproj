@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		0B6A3F1E9C2D4E5F60718293 /* Auth.m in Sources */ = {isa = PBXBuildFile; fileRef = 1C7B4A2FAD3E5F60718293A4 /* Auth.m */; };
 		066104471C03F529817CA266 /* Server.m in Sources */ = {isa = PBXBuildFile; fileRef = 85F4CA83695B191DBD7D70EE /* Server.m */; };
 		06A8903982E59FBFB409C9FD /* Buttons.m in Sources */ = {isa = PBXBuildFile; fileRef = 3C0A50DFD5400F119FC6C290 /* Buttons.m */; };
 		1FA2508FDE5B25E47EF49120 /* Gesture.m in Sources */ = {isa = PBXBuildFile; fileRef = 919332CCC244AD39E3463174 /* Gesture.m */; };
@@ -18,6 +19,8 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		1C7B4A2FAD3E5F60718293A4 /* Auth.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = Auth.m; sourceTree = "<group>"; };
+		2D8C5B30BE4F6071829304B5 /* Auth.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = Auth.h; sourceTree = "<group>"; };
 		05CE04F1242B16BC9B161CA8 /* Snapshot.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = Snapshot.m; sourceTree = "<group>"; };
 		3C0A50DFD5400F119FC6C290 /* Buttons.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = Buttons.m; sourceTree = "<group>"; };
 		5955DA35B5ACC2250F57EB28 /* Json.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = Json.h; sourceTree = "<group>"; };
@@ -48,6 +51,8 @@
 		619E4DDB1199B11014F016C3 /* Runner */ = {
 			isa = PBXGroup;
 			children = (
+				2D8C5B30BE4F6071829304B5 /* Auth.h */,
+				1C7B4A2FAD3E5F60718293A4 /* Auth.m */,
 				80ADF4DCA1501347BB116298 /* Buttons.h */,
 				3C0A50DFD5400F119FC6C290 /* Buttons.m */,
 				5EBE48BCD2B7BF43F5ADFD52 /* Gesture.h */,
@@ -133,6 +138,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				0B6A3F1E9C2D4E5F60718293 /* Auth.m in Sources */,
 				06A8903982E59FBFB409C9FD /* Buttons.m in Sources */,
 				1FA2508FDE5B25E47EF49120 /* Gesture.m in Sources */,
 				9F0D0702EAAFC5F31B32CC12 /* Json.m in Sources */,

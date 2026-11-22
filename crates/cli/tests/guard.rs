@@ -9,6 +9,7 @@ use fakes::PNG;
 use phonedriver::client::{Client, Failure};
 use phonedriver_core::device::{DeviceEvent, FrameRef};
 use phonedriver_core::error::Category;
+use phonedriver_core::testing::Call;
 use rmcp::model::{
     CallToolRequestParams, CallToolResult, ClientCapabilities, ClientConfig, ElicitRequestParams,
     ElicitResult, ElicitationAction, Implementation, ProtocolVersion,
@@ -346,6 +347,15 @@ impl Mcp2 {
             .unwrap()
     }
 
+    async fn call(&self, tool: &'static str, args: Value) -> CallToolResult {
+        self.client
+            .call_tool(
+                CallToolRequestParams::new(tool).with_arguments(args.as_object().unwrap().clone()),
+            )
+            .await
+            .unwrap()
+    }
+
     async fn tap(&self, args: Value) -> CallToolResult {
         self.client
             .call_tool(
@@ -534,6 +544,46 @@ async fn a_then_tap_that_needs_approval_is_asked_and_the_chain_goes_on(v: Protoc
     assert_eq!(m.rig.gestures(), 2);
 }
 
+fn zero_swipe() -> Value {
+    json!({"direction": "up", "from": "Place order", "distance": 0, "fast": true})
+}
+
+async fn a_held_swipe_press_or_clear_is_asked_and_runs_inside_the_same_call(v: ProtocolVersion) {
+    let m = mcp(accept("allow"), v).await;
+    let r = m.call("swipe", zero_swipe()).await;
+    assert!(text(&r).contains("approved by the human"), "{}", text(&r));
+    assert_eq!(m.rig.gestures(), 1);
+    let r = m.call("press", json!({"key": "enter"})).await;
+    assert!(text(&r).contains("approved by the human"), "{}", text(&r));
+    let r = m
+        .call("type", json!({"text": "", "into": "Place order"}))
+        .await;
+    assert!(text(&r).contains("approved by the human"), "{}", text(&r));
+    assert_eq!(m.asked.lock().unwrap().len(), 3);
+}
+
+async fn a_declined_swipe_sends_no_touch(v: ProtocolVersion) {
+    let m = mcp(Some((ElicitationAction::Decline, None)), v).await;
+    let r = m.call("swipe", zero_swipe()).await;
+    assert!(text(&r).contains("The human declined"), "{}", text(&r));
+    let r = m
+        .call("scroll", json!({"direction": "down", "in": "Place order"}))
+        .await;
+    assert!(text(&r).contains("The human declined"), "{}", text(&r));
+    assert_eq!(m.rig.gestures(), 0);
+}
+
+async fn a_client_that_cannot_ask_gets_the_question_for_a_swipe_too(v: ProtocolVersion) {
+    let m = mcp(None, v).await;
+    let r = m.call("swipe", zero_swipe()).await;
+    assert!(text(&r).contains("autonomous: true"), "{}", text(&r));
+    assert_eq!(m.rig.gestures(), 0);
+    let mut autonomous = zero_swipe();
+    autonomous["autonomous"] = json!(true);
+    m.call("swipe", autonomous).await;
+    assert_eq!(m.rig.gestures(), 1);
+}
+
 macro_rules! on_both_protocols {
     ($($name:ident),*) => {
         mod legacy {
@@ -564,7 +614,10 @@ on_both_protocols!(
     a_held_step_in_a_batch_is_asked_and_the_batch_resumes_there,
     declining_a_held_batch_step_stops_the_batch_there,
     an_approval_in_a_batch_covers_only_the_step_it_was_asked_for,
-    a_then_tap_that_needs_approval_is_asked_and_the_chain_goes_on
+    a_then_tap_that_needs_approval_is_asked_and_the_chain_goes_on,
+    a_held_swipe_press_or_clear_is_asked_and_runs_inside_the_same_call,
+    a_declined_swipe_sends_no_touch,
+    a_client_that_cannot_ask_gets_the_question_for_a_swipe_too
 );
 
 #[allow(dead_code)]
@@ -603,4 +656,211 @@ async fn point_taps_in_a_row_read_the_screen_once_until_the_screen_is_reshaped()
     rig.act(point(700.0), None).await.unwrap();
     assert_eq!(rig.fake.tree_reads(), 3);
     refused(rig.act(point(420.0), None).await);
+}
+
+fn transfer(enabled: bool, focused: bool) -> phonedriver_core::raw::RawTree {
+    let pay = if enabled { "vVe" } else { "vV" };
+    let field = if focused { "vVeEF" } else { "vVeE" };
+    let json = format!(
+        r#"{{"windows":[{{"id":1,"type":"application","package":"com.example.bank","bounds":[0,0,360,800]}}],"nodes":[
+        {{"p":-1,"w":1,"cls":"android.widget.FrameLayout","b":[0,0,360,800],"f":"vVe"}},
+        {{"p":0,"w":1,"cls":"android.widget.TextView","text":"Total €250.00","b":[0,100,360,150],"f":"vVe"}},
+        {{"p":0,"w":1,"cls":"android.widget.EditText","text":"","id":"iban","b":[0,300,360,350],"f":"{field}","a":["tap","set_text"]}},
+        {{"p":0,"w":1,"cls":"android.widget.Button","text":"Pay €250.00","b":[0,400,360,450],"f":"{pay}","a":["tap"]}}]}}"#
+    );
+    phonedriver_core::raw::RawTree::from_android_json(
+        &json,
+        phonedriver_core::geometry::Scale { density: 1.0 },
+    )
+    .unwrap()
+}
+
+fn sent(rig: &Rig) -> (usize, usize, usize) {
+    let calls = rig.fake.calls();
+    let count = |f: fn(&Call) -> bool| calls.iter().filter(|c| f(c)).count();
+    (
+        count(|c| matches!(c, Call::Gesture(_))),
+        count(|c| matches!(c, Call::Text(_))),
+        count(|c| matches!(c, Call::Key(_))),
+    )
+}
+
+#[tokio::test]
+async fn typing_into_a_guarded_button_is_held_before_its_focus_tap() {
+    let rig = rig().await;
+    let typed = json!({"kind": "type", "text": "x", "into": {"text": "Place order"}});
+    let data = refused(rig.act(typed, None).await);
+    assert_eq!(data["label"], PLACE_ORDER);
+    assert_eq!(sent(&rig), (0, 0, 0));
+}
+
+#[tokio::test]
+async fn clearing_a_guarded_button_is_held_before_its_focus_tap() {
+    let rig = rig().await;
+    let data = refused(
+        rig.act(
+            json!({"kind": "clear", "target": {"text": "Place order"}}),
+            None,
+        )
+        .await,
+    );
+    assert_eq!(data["label"], PLACE_ORDER);
+    assert_eq!(sent(&rig), (0, 0, 0));
+}
+
+#[tokio::test]
+async fn submitting_a_form_whose_pay_button_waits_for_the_text_is_held_before_anything_is_typed() {
+    let rig = rig_showing(transfer(false, false)).await;
+    rig.fake.on_text(|_| Some(vec![transfer(true, true)]));
+    let typed = json!({"kind": "type", "text": "NL91ABNA", "into": {"id": "iban"}, "submit": true});
+    let data = refused(rig.act(typed.clone(), None).await);
+    assert_eq!(data["label"], "Pay €250.00");
+    assert_eq!(sent(&rig), (0, 0, 0));
+    rig.act(typed, Some("once")).await.unwrap();
+    assert_eq!(sent(&rig).2, 1, "enter after the human's word");
+}
+
+#[tokio::test]
+async fn a_first_call_with_no_screen_read_yet_is_still_held() {
+    let rig = rig_showing(transfer(true, true)).await;
+    let data = refused(
+        rig.act(json!({"kind": "type", "text": "x", "submit": true}), None)
+            .await,
+    );
+    assert_eq!(data["label"], "Pay €250.00");
+    assert_eq!(sent(&rig), (0, 0, 0));
+}
+
+#[tokio::test]
+async fn press_enter_after_typing_into_the_form_is_held() {
+    let rig = rig_showing(transfer(false, false)).await;
+    rig.fake.on_text(|_| Some(vec![transfer(true, true)]));
+    rig.act(
+        json!({"kind": "type", "text": "NL91ABNA", "into": {"id": "iban"}}),
+        None,
+    )
+    .await
+    .unwrap();
+    let data = refused(
+        rig.act(json!({"kind": "press", "key": "enter"}), None)
+            .await,
+    );
+    assert_eq!(data["label"], "Pay €250.00");
+    assert_eq!(sent(&rig).2, 0, "no enter reached the device");
+    rig.act(json!({"kind": "press", "key": "back"}), None)
+        .await
+        .unwrap();
+}
+
+#[tokio::test]
+async fn swipes_drags_pinches_and_gestures_that_click_a_guarded_button_are_held() {
+    let rig = rig().await;
+    let place = json!({"text": "Place order"});
+    let held = [
+        json!({"kind": "swipe", "direction": "up", "from": place, "distance": 0.0, "fast": true}),
+        json!({"kind": "drag", "from": place, "to": place}),
+        json!({"kind": "pinch", "direction": "out", "at": place, "distance": 0.1}),
+        json!({"kind": "gesture", "fingers": [[{"x": 180.0, "y": 425.0, "t_ms": 0}, {"x": 181.0, "y": 425.0, "t_ms": 60}]]}),
+    ];
+    for action in held {
+        let data = refused(rig.act(action.clone(), None).await);
+        assert_eq!(data["label"], PLACE_ORDER, "{action}");
+    }
+    assert_eq!(rig.gestures(), 0);
+    rig.act(
+        json!({"kind": "swipe", "direction": "up", "from": place}),
+        None,
+    )
+    .await
+    .unwrap();
+    assert_eq!(rig.gestures(), 1, "a swipe that leaves the button scrolls");
+    let r = rig
+        .act(
+            json!({"kind": "swipe", "direction": "up", "from": place, "distance": 0.0}),
+            Some("autonomous"),
+        )
+        .await
+        .unwrap();
+    assert!(!r["summary"].as_str().unwrap().contains("approved"), "{r}");
+    assert_eq!(rig.gestures(), 2);
+}
+
+#[tokio::test]
+async fn dragging_onto_an_opted_in_delete_button_is_held() {
+    let rig = rig().await;
+    let drag = json!({"kind": "drag", "from": {"text": "Back"}, "to": {"text": "Delete photo"}});
+    rig.act(drag.clone(), None).await.unwrap();
+    let data = refused(rig.act_asking(drag, None, &["delete"]).await);
+    assert_eq!(data["category"], "delete");
+    assert_eq!(rig.gestures(), 1);
+}
+
+fn slider() -> phonedriver_core::raw::RawTree {
+    let json = r#"{"windows":[{"id":1,"type":"application","package":"com.example.ride","bounds":[0,0,360,800]}],"nodes":[
+        {"p":-1,"w":1,"cls":"android.widget.FrameLayout","b":[0,0,360,800],"f":"vVe"},
+        {"p":0,"w":1,"cls":"android.widget.TextView","text":"Total $18.40","b":[0,100,360,150],"f":"vVe"},
+        {"p":0,"w":1,"cls":"android.widget.SeekBar","text":"Slide to pay","b":[20,600,340,660],"f":"vVe","a":["scroll_fwd"]}]}"#;
+    phonedriver_core::raw::RawTree::from_android_json(
+        json,
+        phonedriver_core::geometry::Scale { density: 1.0 },
+    )
+    .unwrap()
+}
+
+#[tokio::test]
+async fn a_slide_to_pay_track_is_held_whatever_verb_moves_it() {
+    let rig = rig_showing(slider()).await;
+    let held = [
+        json!({"kind": "swipe", "direction": "right", "from": {"text": "Slide to pay"}}),
+        json!({"kind": "drag", "from": {"point": {"x": 30.0, "y": 630.0}}, "to": {"point": {"x": 330.0, "y": 630.0}}}),
+        json!({"kind": "scroll", "direction": "right", "in": {"text": "Slide to pay"}}),
+    ];
+    for action in held {
+        let data = refused(rig.act(action.clone(), None).await);
+        assert_eq!(data["label"], "Slide to pay", "{action}");
+        assert_eq!(data["category"], "payment");
+    }
+    assert_eq!(rig.gestures(), 0);
+}
+
+#[tokio::test]
+async fn an_approval_covers_only_the_button_and_details_the_human_was_shown() {
+    let rig = rig().await;
+    let shown = refused(rig.act(tap("Place order"), None).await);
+    let approved = |label: &str| {
+        json!({"action": tap("Place order"), "settle": false, "approval": "once",
+               "approved": {"label": label, "details": shown["details"]}})
+    };
+    let call = async |p: Value| {
+        let mut c = Client::connect_to(&rig.socket, "guard-test").await.unwrap();
+        c.call("act", p).await
+    };
+    refused(call(approved("Place order · $3.41")).await);
+    assert_eq!(rig.gestures(), 0, "a changed amount is asked again");
+    call(approved(PLACE_ORDER)).await.unwrap();
+    assert_eq!(rig.gestures(), 1);
+}
+
+#[tokio::test]
+async fn an_ordinary_swipe_or_scroll_reads_the_screen_no_more_than_with_the_guard_off() {
+    let rig = rig().await;
+    let mut c = Client::connect_to(&rig.socket, "guard-test").await.unwrap();
+    c.call("snapshot", json!({})).await.unwrap();
+    let reads = |action: Value, approval: Option<&'static str>| {
+        let rig = &rig;
+        async move {
+            let before = rig.fake.tree_reads();
+            rig.act(action, approval).await.unwrap();
+            rig.fake.tree_reads() - before
+        }
+    };
+    for action in [
+        json!({"kind": "swipe", "direction": "up"}),
+        json!({"kind": "swipe", "direction": "up", "from": {"text": "Back"}}),
+        json!({"kind": "scroll", "direction": "down"}),
+    ] {
+        let off = reads(action.clone(), Some("autonomous")).await;
+        let on = reads(action.clone(), None).await;
+        assert_eq!(on, off, "{action}");
+    }
 }

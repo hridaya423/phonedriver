@@ -4,7 +4,7 @@ nav: Real Android phone
 meta: Turn on USB or Wi-Fi debugging, plug in an Android phone, and let an agent drive it—even on a hidden second display while you keep using the phone.
 description: Connect a real Android phone over USB or Wi-Fi debugging, optionally give the agent a hidden second screen, and see what has been tested on hardware.
 seo: How to let an AI agent control a real Android phone over MCP
-updated: 2026-11-20
+updated: 2026-11-21
 ---
 
 Plug in an Android phone or tablet with USB debugging switched on, and phonedriver drives it straight over `adb`. No APK to install, no accessibility service to hunt down in Settings, no root required.
@@ -72,16 +72,17 @@ On physical Android devices, destructive commands (wiping app data or uninstalli
 - A screen of another app (the home screen too) reads as `app <package> (outside the app scope)` with no elements, and `snapshot`, `find`, `wait` and OCR show none of its text. Traces and saved steps hold only what the agent was shown.
 - `tap`, `type`, `swipe`, `scroll`, `clipboard set` and the other actions are refused while another app's window is on screen, a heads-up notification included. `press back`, `press home` and `launch` of an app in the scope still work.
 - `screenshot` is refused while a window of another app is on screen, because a picture cannot be cut by window.
-- `shell`, `record`, `clipboard get`, `press recents` and `press notifications` are refused. `apps` lists only your apps, and `launch`, `logs` and app changes refuse the rest. `open` needs `--app` with one of your packages.
-- The system's permission and install dialogs, the VPN consent dialog and the keyboard stay usable.
+- A screen that shows no window of your apps, an empty one included, counts as another app's.
+- `shell`, `record`, `clipboard get`, `press recents` and `press notifications` are refused. `apps` lists only your apps, and `launch`, `logs` and app changes refuse the rest. `open` needs `--app` with one of your packages, and an `intent:` link that names another app's activity is refused.
+- The system's permission and install dialogs, the VPN consent dialog and the keyboard stay usable. So do the status and navigation bars, but only the system's: another app's window in the shape of a bar is outside the scope.
 
-Not covered: the package name of the app in front is shown, notification icons and the keyboard's suggestions appear in a screenshot, an app of yours can open another app before phonedriver sees it (what follows is hidden), a share sheet from an unusual maker may be let through as a dialog, and an iPhone takes no screenshot under a scope. The daemon reads the list when it starts: run `phonedriver daemon stop` after changing it. [The reference](https://github.com/hridaya423/phonedriver/blob/main/docs/reference.md#app-scope) has the full list.
+Not covered: the package name of the app in front is shown, notification icons and the keyboard's suggestions appear in a screenshot, an app of yours can open another app before phonedriver sees it (what follows is hidden), a share sheet from an unusual maker may be let through as a dialog, and an iPhone takes no screenshot and opens no link under a scope. The daemon reads the list when it starts: run `phonedriver daemon stop` after changing it. [The reference](https://github.com/hridaya423/phonedriver/blob/main/docs/reference.md#app-scope) has the full list.
 
 ## Questions
 
 ### Does phonedriver install an app on my Android phone?
 
-No. No APK and no accessibility service—just a small jar pushed to `/data/local/tmp` and started via `app_process` as the shell user, like `scrcpy`.
+No. No APK and no accessibility service—just a small jar pushed over adb and started via `app_process` as the shell user, like `scrcpy`. It leaves two files in `/data/local/tmp`: the jar, and `phonedriver-owner`, which names the daemon that started the agent (its process id and a hash of the computer's name) so a second daemon doesn't take over. Releases before 0.1.7 wrote the computer's name itself. `adb shell rm /data/local/tmp/phonedriver-*` removes both.
 
 ### Do I need root?
 

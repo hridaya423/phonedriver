@@ -38,6 +38,7 @@ pub enum Call {
     AppOp(AppOp, AppId),
     Wake,
     Shell(ShellRequest),
+    Page(Option<AppId>),
 }
 
 pub struct FakeDevice {
@@ -52,6 +53,7 @@ pub struct FakeDevice {
     launch_reads: std::sync::atomic::AtomicUsize,
     screen: Mutex<ScreenState>,
     screen_reads: std::sync::atomic::AtomicUsize,
+    network_reads: std::sync::atomic::AtomicUsize,
     tree_reads: std::sync::atomic::AtomicUsize,
     apps: Mutex<Vec<App>>,
     display: Mutex<Option<Size>>,
@@ -70,6 +72,7 @@ pub struct FakeDevice {
     settings: Mutex<Option<FakeSettings>>,
     logs: Mutex<Option<LogReply>>,
     log_lines: Mutex<Option<Vec<String>>>,
+    log_wait_takes: Mutex<Duration>,
     networks: Mutex<Vec<NetworkView>>,
     recorder: Mutex<Option<Option<std::path::PathBuf>>>,
     text_shows: Mutex<Option<(Duration, Duration)>>,
@@ -105,6 +108,7 @@ impl FakeDevice {
             launch_reads: Default::default(),
             screen_reads: Default::default(),
             tree_reads: Default::default(),
+            network_reads: Default::default(),
             screen: Mutex::new(ScreenState {
                 on: true,
                 locked: false,
@@ -128,6 +132,7 @@ impl FakeDevice {
             settings: Mutex::new(None),
             logs: Mutex::new(None),
             log_lines: Mutex::new(None),
+            log_wait_takes: Mutex::new(Duration::ZERO),
             networks: Mutex::new(Vec::new()),
             recorder: Mutex::new(None),
             text_shows: Mutex::new(None),
@@ -294,10 +299,21 @@ impl FakeDevice {
         *lock(&self.log_lines) = Some(lines.iter().map(|l| l.to_string()).collect());
     }
 
+    /// How long a `log_wait` takes before it answers.
+    pub fn log_wait_takes(&self, took: Duration) {
+        *lock(&self.log_wait_takes) = took;
+    }
+
     /// What `network()` answers: each call takes the next view, and the last one repeats. Without any the device
     /// cannot read its networks.
     pub fn answer_networks(&self, views: Vec<NetworkView>) {
         *lock(&self.networks) = views;
+    }
+
+    /// How many times `network()` was read.
+    pub fn network_reads(&self) -> usize {
+        self.network_reads
+            .load(std::sync::atomic::Ordering::Relaxed)
     }
 
     /// What `shell()` answers from now on.
@@ -549,6 +565,8 @@ impl Device for FakeDevice {
             });
         };
         self.record(Call::LogWait(req.app.clone(), req.patterns.clone()))?;
+        let took = *lock(&self.log_wait_takes);
+        tokio::time::sleep(took).await;
         let at = lines.iter().position(|l| req.matches(l));
         Ok(LogWaited {
             line: at.map(|i| lines[i].clone()),
@@ -557,6 +575,8 @@ impl Device for FakeDevice {
     }
 
     async fn network(&self) -> Result<NetworkView> {
+        self.network_reads
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         let mut views = lock(&self.networks);
         match views.len() {
             0 => Err(Error::Unsupported {
@@ -632,7 +652,8 @@ impl Device for FakeDevice {
         self.record(Call::AppOp(op, app.clone()))
     }
 
-    async fn page(&self) -> Result<WebPage> {
+    async fn page(&self, app: Option<&AppId>) -> Result<WebPage> {
+        self.record(Call::Page(app.cloned()))?;
         lock(&self.page).clone().ok_or(Error::Refused {
             detail: "com.example has no web page that can be read".into(),
         })

@@ -2,7 +2,7 @@
 title: How to control a real iPhone or iPad with phonedriver
 nav: Real iPhone
 description: Plug in an iPhone or iPad, run phonedriver ios setup once (from a Mac or from Windows), and optionally unplug the cable over Wi-Fi. Tested on iPhone 13 Pro Max, 14 Plus, 16e, and iPad Pro.
-updated: 2026-11-20
+updated: 2026-11-21
 seo: How to let an AI agent control a real iPhone or iPad over MCP
 ---
 
@@ -28,11 +28,11 @@ If the iPhone hasn't been registered to that team yet, `ios setup` will prompt y
 phonedriver drives an iPhone or iPad on iOS 17 or later from Windows, with no Mac. Xcode is what builds the runner on a Mac, so on Windows you install a runner built for each release instead:
 
 1. Install **Apple Devices** from the Microsoft Store (or iTunes). Plug the phone in, unlock it and tap Trust.
-2. Download `PhonedriverRunner.ipa` from the release of the phonedriver you run ([the latest]({{REPO}}/releases/latest/download/PhonedriverRunner.ipa); `phonedriver doctor` gives the link for yours). GitHub's macOS machines build it unsigned with each release.
+2. Download `PhonedriverRunner.ipa` from the release of the phonedriver you run ([the latest]({{REPO}}/releases/latest/download/PhonedriverRunner.ipa); `phonedriver doctor` gives the link for yours). GitHub's macOS machines build it unsigned with each release. From 0.1.7 its checksum is beside it (`PhonedriverRunner.ipa.sha256`), and `gh attestation verify PhonedriverRunner.ipa --repo hridaya423/phonedriver` shows it came from the release workflow.
 3. Install it with [Sideloadly](https://sideloadly.io), signed with your Apple ID. A free Apple ID's signature lasts 7 days, and Sideloadly can sign it again. phonedriver never sees your Apple ID. On the phone, trust it under Settings > General > VPN & Device Management.
 4. Turn on Settings > Privacy & Security > Developer Mode and restart the phone.
 5. Run `phonedriver ios setup --download-ddi`. It downloads Xcode 27.2's developer disk image once from [doronz88/DeveloperDiskImage](https://github.com/doronz88/DeveloperDiskImage) at a pinned commit, checks each file's SHA-256, and mounts it. With the three files from a Mac's Xcode, use `--ddi <folder>` instead. Then it finds the runner and starts it.
-6. Optional: with the phone still plugged in and unlocked, `phonedriver ios wifi on`, then unplug it. It stays in `phonedriver devices` while both are on the same network and the phone is awake.
+6. Optional: with the phone still plugged in and unlocked, `phonedriver ios wifi on`, then unplug it. It stays in `phonedriver devices` while both are on the same network and the phone is awake. Everything goes through the pairing's encrypted tunnel, and phonedriver checks that the phone on the network is the one it paired with. A pairing made before 0.1.7 cannot be checked, so phonedriver asks you to plug the phone in and run `phonedriver ios wifi on` once more.
 
 Tested on an iPhone 16e (iOS 26.5) from Windows 11. On the cable: setup, `snapshot`, `screenshot`, `tap`, `type` and `press back`. Over Wi-Fi: `doctor`, `snapshot`, `screenshot`, `apps`, `launch`, `tap` and `press back`. A tap takes 1.3 to 1.5 s there, against 0.45 to 0.53 s from a Mac, because the screen's settle is read from polled screenshots. A locked phone drops off Wi-Fi now and then, and the next command connects again in 10 to 19 s. Linux takes the same path with usbmuxd, but it has not been tried on a phone.
 
@@ -45,6 +45,8 @@ phonedriver ios wifi on
 ```
 
 Unplug the cable. As long as the iPhone and Mac share a Wi-Fi network, `phonedriver devices` keeps listing it and every command works (`phonedriver doctor` reports `over Wi-Fi` or `over USB`; `phonedriver ios wifi off` turns it back off). Note that a sleeping iPhone drops off Wi-Fi until woken, and taps over Wi-Fi were verified on iOS 27.0.1 (older iOS < 26.4 discovery was verified without full tap runs).
+
+One caveat from a Mac over Wi-Fi: traffic between phonedriver and its runner on the phone is not encrypted. It includes the screen and what the agent types, `--secret` text too, so anyone who can read your network can read it. Nobody else can drive the runner—phonedriver proves a token the runner was started with, and the runner refuses everyone else. For secrets, use the cable.
 
 ## Lock screen & sleep
 

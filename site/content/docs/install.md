@@ -2,13 +2,13 @@
 title: How to install phonedriver
 nav: Install
 description: Set up phonedriver in one command with npx, Homebrew, a plugin, or a single prompt pasted into your agent—then check your machine with phonedriver doctor.
-updated: 2026-11-20
+updated: 2026-11-21
 seo: Install phonedriver: npx, Homebrew, plugin or one prompt
 ---
 
 phonedriver ships as one self-contained binary: CLI, daemon, MCP server, and the Android helper jar packed inside. Nothing extra to download on the phone.
 
-> The current release is phonedriver 0.1.6, on npm, Homebrew and GitHub Releases. You only need to build from source if you want to change it.
+> The current release is phonedriver 0.1.7, on npm, Homebrew and GitHub Releases. You only need to build from source if you want to change it.
 
 ## The one-command setup
 
@@ -96,7 +96,7 @@ The compiled binary lands at `target/release/phonedriver`.
 
 ```console
 $ phonedriver version
-phonedriver 0.1.6
+phonedriver 0.1.7
 ```
 
 `phonedriver doctor` checks `adb`, connected devices, the helper, `UiAutomation`, the video stream, Xcode, booted simulators, and daemon socket permissions. It starts the agent only on emulators and Simulators that no other session holds; a physical phone or tablet is listed as `not probed` with the command to probe it (`phonedriver doctor --device <id>`), and `--all-devices` probes them all. Anything that isn't `ok` prints the exact fix right underneath:
@@ -123,7 +123,7 @@ Wire up your client—[Claude Code](/docs/claude-code/), [Codex](/docs/codex/), 
 | `PHONEDRIVER_DEVICE` | none | Default device ID when `--device` is omitted (also read by `phonedriver mcp`). |
 | `PHONEDRIVER_DISPLAY` | `main` | Set to `hidden` (or `--display hidden`) on Android 13+ to run the agent on a hidden second display while you keep using the phone ([Android phone guide](/docs/android-phone/#a-hidden-screen-for-the-agent)). |
 | `PHONEDRIVER_SESSION` | `default` | Session name (same as `--session`). |
-| `PHONEDRIVER_ALLOW_DEVICES`, `PHONEDRIVER_DENY_DEVICES` | none | Comma lists of device ids (`android:emulator-5554`, `ios:<udid>`) or an Android phone's hardware serial. A device not allowed, or denied, is not listed, not probed by `doctor`, and never gets the agent; `--force` does not change that. `~/.phonedriver/devices` (`allow <id>` and `deny <id>` lines) does the same for every agent on the machine ([reference]({{REPO}}/blob/main/docs/reference.md#devices-an-agent-must-not-touch)). |
+| `PHONEDRIVER_ALLOW_DEVICES`, `PHONEDRIVER_DENY_DEVICES` | none | Comma lists of device ids (`android:emulator-5554`, `ios:<udid>`) or an Android phone's hardware serial. A device not allowed, or denied, is not listed, not probed by `doctor`, not booted, and never gets the agent; `--force` does not change that. `~/.phonedriver/devices` (`allow <id>` and `deny <id>` lines) does the same for every agent on the machine ([reference]({{REPO}}/blob/main/docs/reference.md#devices-an-agent-must-not-touch)). |
 | `PHONEDRIVER_TEAM` | your Mac's Apple Development cert team | Apple developer team ID for signing the iOS runner on physical devices. Only needed if you have multiple signing teams. |
 | `PHONEDRIVER_GUARD` | on | Set to `off` to disable the [approval guard](/docs/approval-guard/). |
 | `PHONEDRIVER_ASK` | none | Comma-separated extra tap categories to hold for approval: `send`, `delete`, `install` ([approval guard](/docs/approval-guard/)). |

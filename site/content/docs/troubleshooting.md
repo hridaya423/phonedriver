@@ -4,7 +4,7 @@ nav: Troubleshooting
 meta: Start with phonedriver doctor, check daemon logs and traces, decode exit codes 0–5, and fix the most common Android and iOS snags.
 description: Start with phonedriver doctor, inspect daemon logs and traces, decode exit codes, and fix common snags like UiAutomation conflicts and empty WebViews.
 seo: phonedriver troubleshooting: doctor, exit codes, common errors
-updated: 2026-11-20
+updated: 2026-11-21
 ---
 
 ## Start with doctor
@@ -30,8 +30,8 @@ phonedriver doctor
 | `1` | Command failed |
 | `2` | Bad CLI arguments or invalid env config |
 | `3` | Human action needed on the device (unlock, trust, allow USB debugging) |
-| `4` | No matching device connected |
-| `5` | Tap held by the [approval guard](/docs/approval-guard/); pass `--autonomous` only if explicitly authorized |
+| `4` | No matching device, or it was disconnected |
+| `5` | Action held by the [approval guard](/docs/approval-guard/) (it spends money or can't be undone); pass `--autonomous` only if the user granted full autonomy |
 
 ## Common snags
 

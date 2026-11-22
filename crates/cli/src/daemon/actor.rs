@@ -43,7 +43,7 @@ use super::shell;
 use super::verify::{Expect, Verdict, Verify};
 use super::{guard, secret_field};
 use crate::wire::{
-    ActParams, Action, ActionResult, AppParams, Approval, BatchParams, BatchResult,
+    ActParams, Action, ActionResult, AppParams, Approval, Approved, BatchParams, BatchResult,
     ClipboardParams, Crashed, FindParams, JournalParams, Kind, LogsParams, Observation, PageParams,
     PinchDirection, RecordAction, RecordParams, ScreenshotParams, ScreenshotResult, SettingParams,
     ShellParams, ShellResult, SnapshotParams, Step, StepFailure, StepResult, Target, TypeMode,
@@ -254,7 +254,7 @@ impl Taping {
         if let Some(p) = landed {
             line["at"] = json!(p);
         }
-        let written = std::fs::OpenOptions::new()
+        let written = crate::private::options()
             .create(true)
             .append(true)
             .open(self.steps_path())
@@ -944,13 +944,21 @@ impl Actor {
         if self.physical() && !p.force {
             let device = self.device()?;
             let key = self.ledger_key(&*device).await?;
-            let mine: Vec<String> = self
+            let named: Vec<String> = self
                 .ledger
                 .entries(&key)
                 .map_err(|detail| Error::Transport { detail })?
                 .into_iter()
                 .map(|e| e.id)
+                .filter(|id| p.command.contains(id.as_str()))
                 .collect();
+            let mut mine = Vec::new();
+            for id in named {
+                let app = AppId(id);
+                if matches!(self.installed_by_us(&*device, &app).await, Ok(true)) {
+                    mine.push(app.0);
+                }
+            }
             if let Some(reason) = shell::refuse_on_physical(&p.command, &mine) {
                 return Err(Error::Unsupported {
                     op: Op::Shell,
@@ -1021,9 +1029,15 @@ impl Actor {
         let device = self.device()?;
         match p.action {
             RecordAction::Start => {
+                let named = p.path.is_some();
                 let path = p.path.unwrap_or_else(|| self.tmp_file("mp4"));
                 if let Some(dir) = path.parent() {
-                    std::fs::create_dir_all(dir).map_err(|e| Error::Transport {
+                    if named {
+                        std::fs::create_dir_all(dir)
+                    } else {
+                        crate::private::dir(dir)
+                    }
+                    .map_err(|e| Error::Transport {
                         detail: format!("cannot create {}: {e}", dir.display()),
                     })?;
                 }
@@ -1140,7 +1154,7 @@ impl Actor {
     /// The web page in front as text, whole (decision D71): no blank lines, and cut at a line end near `PAGE_CHARS`
     /// unless `all`. With `grep`, only the lines with one of its words, each with the `GREP_LINES_AFTER` lines after it.
     async fn page(&mut self, p: PageParams) -> Result<Value, Error> {
-        let page = self.device()?.page().await?;
+        let page = self.device()?.page(None).await?;
         let keep = p
             .grep
             .as_deref()
@@ -1237,10 +1251,12 @@ impl Actor {
                     app: None,
                 },
                 approval: None,
+                approved: None,
                 ask: Vec::new(),
                 settle: p.settle,
                 timeout_ms: p.timeout_ms,
                 expect_change_ms: p.expect_change_ms,
+                secret_field_only: false,
             };
             let mut result = self.act(s, act).await?;
             result.summary = format!("opened the settings screen {screen}");
@@ -1471,8 +1487,8 @@ impl Actor {
         }
         let path = self.tmp_file("png");
         path.parent()
-            .map_or(Ok(()), std::fs::create_dir_all)
-            .and_then(|()| std::fs::write(&path, &image.bytes))
+            .map_or(Ok(()), crate::private::dir)
+            .and_then(|()| crate::private::write(&path, &image.bytes))
             .map_err(|e| Error::Transport {
                 detail: format!("cannot write {}: {e}", path.display()),
             })?;
@@ -2098,28 +2114,66 @@ impl Actor {
     }
 
     /// A tap on a button that spends money or cannot be undone needs the human's word (decision D27). A point is
-    /// matched to the element under it on a fresh read.
+    /// matched to the element under it on a fresh read; an element that takes no touch of its own counts as the row
+    /// it sits in.
     async fn guard_tap(
         &mut self,
         s: &mut Session,
-        approval: Option<Approval>,
-        ask: &[Category],
+        c: &Consent,
         target: &Target,
         found: Option<&Element>,
         at: Point,
     ) -> Result<Option<&'static str>, Error> {
-        if approval == Some(Approval::Autonomous) {
+        if c.approval == Some(Approval::Autonomous) {
             return Ok(None);
         }
         let button = match (found, target) {
-            (Some(e), _) => Some(e.clone()),
+            (Some(e), _) => match s
+                .last
+                .as_ref()
+                .and_then(|now| Some((now, now.index_of(e.r#ref)?)))
+            {
+                Some((now, i)) => guard::receiver(now, &now.elements[i], &c.ask).cloned(),
+                None => guard::guarded(e, &c.ask).map(|_| e.clone()),
+            },
             (None, Target::Point { .. }) => {
                 let now = self.screen_for_guard(s).await?;
-                guard::hit(&now, at).cloned()
+                guard::clicked(&now, at, &c.ask).cloned()
             }
             _ => None,
         };
-        self.guard_button(s, approval, ask, button).await
+        self.guard_button(s, c, button).await
+    }
+
+    /// Every other touch a verb sends (decision D104): a finger that goes down and lifts on a guarded element, or a
+    /// stroke along a "Slide to pay" track, commits it as a tap would. It is checked against a screen already in
+    /// hand (`on`, or the session's last screen when it is sure), so an ordinary swipe costs no read; only a gesture
+    /// shaped like a tap, or a drop, reads the screen when none is.
+    async fn guard_touch(
+        &mut self,
+        s: &mut Session,
+        c: &Consent,
+        g: &Gesture,
+        drop: bool,
+        on: Option<&Rendered>,
+        start: Option<&Element>,
+    ) -> Result<Option<&'static str>, Error> {
+        if c.approval == Some(Approval::Autonomous) {
+            return Ok(None);
+        }
+        let known = on.or(s.last.as_ref().filter(|_| !s.unsure));
+        let button = match known {
+            Some(now) => guard::touched(now, g, drop, &c.ask).cloned(),
+            None if start.is_some() && !drop => {
+                start.filter(|e| guard::strokes(e, g, &c.ask)).cloned()
+            }
+            None if drop || guard::tap_like(g) => {
+                let now = self.screen_for_guard(s).await?;
+                guard::touched(&now, g, drop, &c.ask).cloned()
+            }
+            None => None,
+        };
+        self.guard_button(s, c, button).await
     }
 
     async fn screen_for_guard(&mut self, s: &mut Session) -> Result<Rendered, Error> {
@@ -2134,43 +2188,81 @@ impl Actor {
         Ok(view)
     }
 
-    /// `type --submit` presses enter, which sends the form: guarded when the field's own form holds such a button.
+    /// Enter sends the form: guarded when the field's own form holds such a button, enabled or not yet (a Pay
+    /// button that the form turns on once the field is filled). The session's last screen is used when it is sure.
     async fn guard_submit(
         &mut self,
         s: &mut Session,
-        approval: Option<Approval>,
-        ask: &[Category],
+        c: &Consent,
         field: Option<&Element>,
     ) -> Result<Option<&'static str>, Error> {
-        let button = field
-            .zip(s.last.as_ref())
-            .and_then(|(f, now)| guard::submit_button(now, f, ask))
-            .cloned();
-        self.guard_button(s, approval, ask, button).await
+        if c.approval == Some(Approval::Autonomous) {
+            return Ok(None);
+        }
+        let now = match s.last.clone().filter(|_| !s.unsure) {
+            Some(last) => last,
+            None => self.fresh(s).await?,
+        };
+        let button = guard::submit_button(&now, field, &c.ask).cloned();
+        self.guard_button(s, c, button).await
+    }
+
+    /// `press enter` sends what has focus: a focused guarded button, or the focused field's form.
+    async fn guard_enter(
+        &mut self,
+        s: &mut Session,
+        c: &Consent,
+    ) -> Result<Option<&'static str>, Error> {
+        if c.approval == Some(Approval::Autonomous) {
+            return Ok(None);
+        }
+        let now = match s.last.clone().filter(|_| !s.unsure) {
+            Some(last) => last,
+            None => self.fresh(s).await?,
+        };
+        let button = guard::entered(&now, &c.ask).cloned();
+        self.guard_button(s, c, button).await
     }
 
     async fn guard_button(
         &mut self,
         s: &mut Session,
-        approval: Option<Approval>,
-        ask: &[Category],
+        c: &Consent,
         button: Option<Element>,
     ) -> Result<Option<&'static str>, Error> {
-        let Some((button, category)) = button.and_then(|b| guard::guarded(&b, ask).map(|c| (b, c)))
+        let Some((button, category)) =
+            button.and_then(|b| guard::category(&b, &c.ask).map(|k| (b, k)))
         else {
             return Ok(None);
         };
-        match guard::stance(s, approval, category) {
+        let label = button
+            .label
+            .clone()
+            .or(button.value.clone())
+            .unwrap_or_default();
+        let ask = |now: &Rendered, details: Vec<String>| Error::NeedsApproval {
+            label: label.clone(),
+            category,
+            app: guard::app_name(now),
+            details,
+        };
+        if let Some(shown) = c
+            .approved
+            .as_ref()
+            .filter(|_| matches!(c.approval, Some(Approval::Once | Approval::Session)))
+        {
+            let now = self.fresh(s).await?;
+            let details = guard::context(&now, &button);
+            if shown.label != label || shown.details != details {
+                return Err(ask(&now, details));
+            }
+        }
+        match guard::stance(s, c.approval, category) {
             guard::Stance::Run(note) => Ok(note),
             guard::Stance::Ask => {
                 let now = self.fresh(s).await?;
                 let details = guard::context(&now, &button);
-                Err(Error::NeedsApproval {
-                    label: button.label.or(button.value).unwrap_or_default(),
-                    category,
-                    app: guard::app_name(&now),
-                    details,
-                })
+                Err(ask(&now, details))
             }
         }
     }
@@ -2252,6 +2344,11 @@ impl Actor {
             cfg.expect_change = Some(COLD_CHANGE_WAIT);
         }
         let device = self.device()?;
+        let consent = Consent {
+            approval: p.approval,
+            ask: p.ask.clone(),
+            approved: p.approved.clone(),
+        };
         match p.action {
             Action::Tap {
                 target,
@@ -2324,7 +2421,7 @@ impl Actor {
                     });
                 }
                 let approved = self
-                    .guard_tap(s, p.approval, &p.ask, &target, found.as_ref(), at)
+                    .guard_tap(s, &consent, &target, found.as_ref(), at)
                     .await?;
                 let started = self.begin_action();
                 let t = Instant::now();
@@ -2410,24 +2507,28 @@ impl Actor {
                     "this device cannot inject touches",
                 )?;
                 let screen = self.screen_rect();
-                let (start, line) = match &from {
+                let (start, line, from_element) = match &from {
                     Some(t) => {
                         let r = self.resolve_target(s, t).await?;
-                        (Some(r.at), r.line)
+                        (Some(r.at), r.line, r.element)
                     }
-                    None => (None, None),
+                    None => (None, None, None),
                 };
                 let distance = distance.unwrap_or(0.5);
                 let g = match start {
                     Some(at) => gesture::swipe_from(at, screen, direction, distance, fast),
                     None => gesture::swipe(screen, direction, distance, fast),
                 };
+                let approved = self
+                    .guard_touch(s, &consent, &g, false, None, from_element.as_ref())
+                    .await?;
                 let started = self.begin_action();
                 self.watching(device.gesture(g)).await?;
                 let from_text = line
                     .map(|l| format!(" from {}", short(&l)))
                     .unwrap_or_default();
-                let summary = format!("swiped {}{from_text}", direction.name());
+                let summary =
+                    approved_summary(format!("swiped {}{from_text}", direction.name()), approved);
                 self.finish(s, p.settle, cfg, started, summary, None, None)
                     .await
             }
@@ -2439,16 +2540,20 @@ impl Actor {
                 )?;
                 let a = self.resolve_target(s, &from).await?;
                 let b = self.resolve_target(s, &to).await?;
-                let started = self.begin_action();
-                self.watching(device.gesture(gesture::press_drag(a.at, b.at)))
+                let g = gesture::press_drag(a.at, b.at);
+                let approved = self
+                    .guard_touch(s, &consent, &g, true, None, a.element.as_ref())
                     .await?;
+                let started = self.begin_action();
+                self.watching(device.gesture(g)).await?;
                 let label = |r: &Resolved| {
                     r.line.as_deref().map_or_else(
                         || format!("{},{}", r.at.x.round(), r.at.y.round()),
                         |l| short(l).to_string(),
                     )
                 };
-                let summary = format!("dragged {} to {}", label(&a), label(&b));
+                let summary =
+                    approved_summary(format!("dragged {} to {}", label(&a), label(&b)), approved);
                 self.finish(s, p.settle, cfg, started, summary, None, None)
                     .await
             }
@@ -2463,22 +2568,27 @@ impl Actor {
                     "this device cannot inject two-finger touches",
                 )?;
                 let screen = self.screen_rect();
-                let (center, line) = match &at {
+                let (center, line, pinched) = match &at {
                     Some(t) => {
                         let r = self.resolve_target(s, t).await?;
-                        (r.at, r.line)
+                        (r.at, r.line, r.element)
                     }
-                    None => (screen.center(), None),
+                    None => (screen.center(), None, None),
                 };
                 let out = direction == PinchDirection::Out;
-                let started = self.begin_action();
-                device
-                    .gesture(gesture::pinch(center, screen, out, distance.unwrap_or(0.5)))
+                let g = gesture::pinch(center, screen, out, distance.unwrap_or(0.5));
+                let approved = self
+                    .guard_touch(s, &consent, &g, false, None, pinched.as_ref())
                     .await?;
+                let started = self.begin_action();
+                device.gesture(g).await?;
                 let on = line
                     .map(|l| format!(" on {}", short(&l)))
                     .unwrap_or_default();
-                let summary = format!("pinched {}{on}", if out { "out" } else { "in" });
+                let summary = approved_summary(
+                    format!("pinched {}{on}", if out { "out" } else { "in" }),
+                    approved,
+                );
                 self.finish(s, p.settle, cfg, started, summary, None, None)
                     .await
             }
@@ -2501,9 +2611,11 @@ impl Actor {
                         })
                         .collect(),
                 };
+                let approved = self.guard_touch(s, &consent, &g, false, None, None).await?;
                 let started = self.begin_action();
                 self.watching(device.gesture(g)).await?;
-                let summary = format!("gestured with {} fingers", fingers.len());
+                let summary =
+                    approved_summary(format!("gestured with {} fingers", fingers.len()), approved);
                 self.finish(s, p.settle, cfg, started, summary, None, None)
                     .await
             }
@@ -2599,6 +2711,7 @@ impl Actor {
                         front.map_or("nothing".to_string(), |f| f.0)
                     );
                 }
+                cfg.timeout += self.now().saturating_sub(started);
                 self.finish(s, p.settle, cfg, started, summary, None, None)
                     .await
             }
@@ -2631,6 +2744,7 @@ impl Actor {
                 }
                 self.lap("page", waited);
                 self.cold_until = Some(self.now() + COLD_APP_WINDOW);
+                cfg.timeout += self.now().saturating_sub(started);
                 let summary = format!("opened {url}");
                 self.finish(s, p.settle, cfg, started, summary, None, None)
                     .await
@@ -2646,7 +2760,7 @@ impl Actor {
                     Op::Gesture,
                     "this device cannot inject touches",
                 )?;
-                self.scroll(s, p.settle, cfg, direction, within, until, max)
+                self.scroll(s, &consent, p.settle, cfg, direction, within, until, max)
                     .await
             }
             Action::Press { key } if key == "hide-keyboard" => {
@@ -2682,12 +2796,18 @@ impl Actor {
                 Ok(result)
             }
             Action::Press { key } => {
+                let approved = if key == "enter" {
+                    self.guard_enter(s, &consent).await?
+                } else {
+                    None
+                };
                 let started = self.begin_action();
                 let via = self.watching(press(&*device, &key)).await?;
                 let summary = match via {
                     Some(how) => format!("pressed {key} via {how}"),
                     None => format!("pressed {key}"),
                 };
+                let summary = approved_summary(summary, approved);
                 self.finish(s, p.settle, cfg, started, summary, via, None)
                     .await
             }
@@ -2699,6 +2819,9 @@ impl Actor {
                 )?;
                 let r = self.resolve_target(s, &target).await?;
                 let secure = r.element.as_ref().is_some_and(is_secure);
+                let approved = self
+                    .guard_tap(s, &consent, &target, r.element.as_ref(), r.at)
+                    .await?;
                 let started = self.begin_action();
                 device.gesture(gesture::tap(r.at, 1, None)).await?;
                 device
@@ -2722,7 +2845,7 @@ impl Actor {
                     p.settle,
                     cfg,
                     started,
-                    format!("cleared{label}"),
+                    approved_summary(format!("cleared{label}"), approved),
                     Some("set"),
                     Some(verify),
                 )
@@ -2851,12 +2974,33 @@ impl Actor {
                         kind,
                     });
                 }
-                let approved = if submit {
-                    self.guard_submit(s, p.approval, &p.ask, field.as_ref())
-                        .await?
+                if p.secret_field_only
+                    && !field
+                        .as_ref()
+                        .is_some_and(|f| is_secure(f) || secret_field::kind(f).is_some())
+                {
+                    let which = field.as_ref().map_or_else(
+                        || "no field has focus".to_string(),
+                        |f| format!("@{} is neither", f.r#ref),
+                    );
+                    return Err(Error::Refused {
+                        detail: format!(
+                            "a replayed secret is typed only into a password or one-time code field, and {which}; set PHONEDRIVER_REPLAY_SECRET_ANY_FIELD=1 where the replay runs to type it into any field"
+                        ),
+                    });
+                }
+                let focus_tap = match (&into, tap_at) {
+                    (Some(t), Some(at)) => {
+                        self.guard_tap(s, &consent, t, field.as_ref(), at).await?
+                    }
+                    _ => None,
+                };
+                let sent = if submit {
+                    self.guard_submit(s, &consent, field.as_ref()).await?
                 } else {
                     None
                 };
+                let approved = focus_tap.or(sent);
                 let secure = secret || field.as_ref().is_some_and(is_secure);
                 let replace = into.is_some() && !append;
                 let mut held = field
@@ -2915,8 +3059,10 @@ impl Actor {
                 let input = match (mode, secure) {
                     (TypeMode::Paste, true) => TextInput::PasteSecret(text.clone()),
                     (TypeMode::Paste, false) => TextInput::Paste(text.clone()),
-                    (TypeMode::Set, _) if replace => TextInput::SetValue(text.clone()),
-                    (TypeMode::Set, _) => TextInput::SetValue(format!("{before}{text}")),
+                    (TypeMode::Set, true) if replace => TextInput::SetSecret(text.clone()),
+                    (TypeMode::Set, true) => TextInput::SetSecret(format!("{before}{text}")),
+                    (TypeMode::Set, false) if replace => TextInput::SetValue(text.clone()),
+                    (TypeMode::Set, false) => TextInput::SetValue(format!("{before}{text}")),
                     (TypeMode::Keys, _) => TextInput::Keystrokes(text.clone()),
                 };
                 if !(replace && text.is_empty()) {
@@ -3172,6 +3318,7 @@ impl Actor {
     async fn scroll(
         &mut self,
         s: &mut Session,
+        consent: &Consent,
         settle: bool,
         cfg: Config,
         direction: Direction,
@@ -3192,12 +3339,16 @@ impl Actor {
             .map_or_else(|| self.screen_rect(), |e| e.bounds);
         let area = above_keyboard(area, now.header.keyboard);
         let holder = holder.map(|e| e.r#ref);
+        let first = gesture::scroll(area, direction);
+        let approved = self
+            .guard_touch(s, consent, &first, false, Some(&now), None)
+            .await?;
         let Some(until) = until else {
             let started = self.begin_action();
             let t = Instant::now();
-            device.gesture(gesture::scroll(area, direction)).await?;
+            device.gesture(first).await?;
             self.lap("gesture", t);
-            let summary = format!("scrolled {}", direction.name());
+            let summary = approved_summary(format!("scrolled {}", direction.name()), approved);
             return self
                 .finish(s, settle, cfg, started, summary, None, None)
                 .await;
@@ -3317,6 +3468,8 @@ impl Actor {
             } else {
                 gesture::scroll(area, dir)
             };
+            self.guard_touch(s, consent, &g, false, Some(&now), None)
+                .await?;
             device.gesture(g).await?;
             gestures += 1;
             last = Some(self.settle(cfg, started).await);
@@ -3511,6 +3664,11 @@ impl Actor {
         {
             summary = summary.replace(&format!(" into @{old}"), &format!(" into @{new}"));
         }
+        if let Some(v) = verify.as_ref().filter(|v| v.secure)
+            && let Some(shown) = v.view(&rendered).value
+        {
+            self.secrets.shown_as(v.typed(), &shown);
+        }
         let verified = verdict.as_ref().and_then(Verdict::verified);
         let unverified = match verdict {
             Some(Verdict::Failed(u)) => Some(u),
@@ -3600,10 +3758,12 @@ impl Actor {
                         ActParams {
                             action,
                             approval: p.approval.filter(|a| *a == Approval::Autonomous || i == 0),
+                            approved: p.approved.clone().filter(|_| i == 0),
                             ask: p.ask.clone(),
                             settle: true,
                             timeout_ms: p.timeout_ms,
                             expect_change_ms: p.expect_change_ms,
+                            secret_field_only: false,
                         },
                     )
                     .await
@@ -3622,6 +3782,10 @@ impl Actor {
             };
             match result {
                 Ok(r) => {
+                    let wrong = r
+                        .unverified
+                        .clone()
+                        .filter(|u| u.wrong && i + 1 < p.steps.len());
                     done.push(StepResult {
                         summary: r.summary.clone(),
                         verified: r.verified,
@@ -3629,6 +3793,21 @@ impl Actor {
                     });
                     typed_into.extend(r.typed_into);
                     last = Some(r);
+                    if let Some(u) = wrong {
+                        failed = Some(StepFailure {
+                            step: i + 2,
+                            error: Error::Refused {
+                                detail: format!(
+                                    "not run, because the text step {} typed did not land: {}; {}",
+                                    i + 1,
+                                    u.shows,
+                                    u.hint
+                                ),
+                            }
+                            .to_rpc(),
+                        });
+                        break;
+                    }
                 }
                 Err(e @ Error::DeviceGone { .. }) => return Err(e),
                 Err(e) => {
@@ -3783,7 +3962,8 @@ impl Actor {
         let up = want == VpnState::Up;
         loop {
             let view = device.network().await?;
-            if view.vpn_up() == up {
+            let listed = !view.missing.iter().any(|m| m == "networks");
+            if listed && view.vpn_up() == up {
                 let owner = view
                     .networks
                     .iter()
@@ -3804,7 +3984,11 @@ impl Actor {
                     condition: format!(
                         "the VPN to be {}; last seen: {}",
                         if up { "up" } else { "down" },
-                        view.brief()
+                        if listed {
+                            view.brief()
+                        } else {
+                            "a connectivity dump that did not list the networks".into()
+                        }
                     ),
                 });
             }
@@ -3852,7 +4036,12 @@ impl Actor {
         })??;
         match got.line {
             Some(line) => {
-                let line: String = line.chars().take(LOG_LINE_CHARS).collect();
+                let line: String = self
+                    .secrets
+                    .masked(&line)
+                    .chars()
+                    .take(LOG_LINE_CHARS)
+                    .collect();
                 self.waited(s, format!("log line: {line}")).await
             }
             None => Err(Error::Timeout {
@@ -4531,6 +4720,14 @@ async fn press(device: &dyn Device, key: &str) -> Result<Option<&'static str>, E
             "portrait".into(),
         ],
     })
+}
+
+/// What the human has said about held actions, for one action: their approval, the opt-in categories to ask about,
+/// and what they were shown when they approved.
+struct Consent {
+    approval: Option<Approval>,
+    ask: Vec<Category>,
+    approved: Option<Approved>,
 }
 
 fn stale(r: Ref, s: &Session) -> Error {

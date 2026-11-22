@@ -71,12 +71,21 @@ final class Apps {
         // A browser opens each VIEW intent in a new tab (an emulator reached 19 Chrome tabs) unless the intent names
         // the app that sent it; then it reuses that app's tab and leaves the user's tabs alone.
         intent.putExtra(android.provider.Browser.EXTRA_APPLICATION_ID, "dev.phonedriver");
-        if (pkg != null && !pkg.isEmpty()) {
+        boolean named = pkg != null && !pkg.isEmpty();
+        if (named) {
+            // An explicit component is started whatever package is set, so naming an app would not keep the link in it.
+            if (intent.getSelector() != null
+                    || (intent.getComponent() != null && !pkg.equals(intent.getComponent().getPackageName()))) {
+                throw new IllegalArgumentException(url + " names an activity outside " + pkg);
+            }
             intent.setPackage(pkg);
         }
         ResolveInfo ri = packages().resolveActivity(intent, 0);
         if (ri == null) {
             throw new IllegalArgumentException("no app handles " + url);
+        }
+        if (named && !pkg.equals(ri.activityInfo.packageName)) {
+            throw new IllegalArgumentException(url + " opens in " + ri.activityInfo.packageName + ", not " + pkg);
         }
         start(intent);
         return ri.activityInfo.packageName;

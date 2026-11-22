@@ -444,6 +444,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1c133bc6a41be0d194c306b5506d15e6feeea7b1d6604bd3f8310dfb2ca96486"
 
 [[package]]
+name = "cmov"
+version = "0.5.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0c9ea0ac24bc397ab3c98583a3c9ba74fa56b09a4449bbe172b9b1ddb016027a"
+
+[[package]]
 name = "colorchoice"
 version = "1.0.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -545,6 +551,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ce6e4c961d6cd6c9a86db418387425e8bdeaf05b3c8bc1411e6dca4c252f1453"
 dependencies = [
  "hybrid-array",
+]
+
+[[package]]
+name = "ctutils"
+version = "0.4.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "261af4dc7a06ea8a527a8717d8cbba3417530d6ea14e1edb3de6b67806be474f"
+dependencies = [
+ "cmov",
 ]
 
 [[package]]
@@ -665,6 +680,7 @@ dependencies = [
  "block-buffer 0.12.1",
  "const-oid 0.10.2",
  "crypto-common 0.2.2",
+ "ctutils",
 ]
 
 [[package]]
@@ -983,7 +999,7 @@ version = "0.12.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7b5f8eb2ad728638ea2c7d47a21db23b7b58a72ed6a38256b8a1849f15fbbdf7"
 dependencies = [
- "hmac",
+ "hmac 0.12.1",
 ]
 
 [[package]]
@@ -993,6 +1009,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6c49c37c09c17a53d937dfbb742eb3a961d65a994e6bcdcf37e7399d0cc8ab5e"
 dependencies = [
  "digest 0.10.7",
+]
+
+[[package]]
+name = "hmac"
+version = "0.13.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6303bc9732ae41b04cb554b844a762b4115a61bfaa81e3e83050991eeb56863f"
+dependencies = [
+ "digest 0.11.3",
 ]
 
 [[package]]
@@ -1120,7 +1145,7 @@ checksum = "b9e0384b61958566e926dc50660321d12159025e767c18e043daf26b70104c39"
 [[package]]
 name = "idevice"
 version = "0.1.68"
-source = "git+https://github.com/hridaya423/idevice?rev=3bd5d454ec9b14f1cf8ca45a2a72353c97684c6b#3bd5d454ec9b14f1cf8ca45a2a72353c97684c6b"
+source = "git+https://github.com/hridaya423/idevice?rev=f580a6f69e45e10e98fe6315e477697b75312332#f580a6f69e45e10e98fe6315e477697b75312332"
 dependencies = [
  "aes",
  "async-stream",
@@ -1133,7 +1158,7 @@ dependencies = [
  "flate2",
  "futures",
  "hkdf",
- "hmac",
+ "hmac 0.12.1",
  "idevice-srp",
  "indexmap",
  "jktcp",
@@ -1768,13 +1793,14 @@ checksum = "9b4f627cb1b25917193a259e49bdad08f671f8d9708acfd5fe0a8c1455d87220"
 
 [[package]]
 name = "phonedriver"
-version = "0.1.6"
+version = "0.1.7"
 dependencies = [
  "assert_cmd",
  "async-trait",
  "base64 0.23.1",
  "clap",
  "interprocess",
+ "libc",
  "objc2",
  "objc2-core-foundation",
  "objc2-core-image",
@@ -1800,7 +1826,7 @@ dependencies = [
 
 [[package]]
 name = "phonedriver-android"
-version = "0.1.6"
+version = "0.1.7"
 dependencies = [
  "async-trait",
  "flate2",
@@ -1816,7 +1842,7 @@ dependencies = [
 
 [[package]]
 name = "phonedriver-bench"
-version = "0.1.6"
+version = "0.1.7"
 dependencies = [
  "phonedriver",
  "phonedriver-android",
@@ -1830,7 +1856,7 @@ dependencies = [
 
 [[package]]
 name = "phonedriver-core"
-version = "0.1.6"
+version = "0.1.7"
 dependencies = [
  "async-trait",
  "bitflags",
@@ -1844,11 +1870,13 @@ dependencies = [
 
 [[package]]
 name = "phonedriver-ios"
-version = "0.1.6"
+version = "0.1.7"
 dependencies = [
  "async-trait",
  "base64 0.22.1",
  "flate2",
+ "getrandom 0.4.3",
+ "hmac 0.13.0",
  "idevice",
  "mdns-sd",
  "phonedriver-core",
@@ -1865,7 +1893,7 @@ dependencies = [
 
 [[package]]
 name = "phonedriver-video"
-version = "0.1.6"
+version = "0.1.7"
 dependencies = [
  "openh264",
  "phonedriver-core",
