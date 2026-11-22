@@ -3226,6 +3226,30 @@ fn installed_with_pixels() -> (Arc<FakeSource>, Arc<FakeDevice>) {
     (source, fake)
 }
 
+/// Every launch listed every installed app (`pm` and each app's label on Android) to find one it had found before.
+#[tokio::test(start_paused = true)]
+async fn a_second_launch_of_the_same_app_lists_the_apps_no_more() {
+    let (source, fake) = installed();
+    let (d, _home) = daemon(source);
+    let launch = |app: &str| act_with(json!({"kind": "launch", "app": app}));
+    ok(&d, "default", "act", launch("Calculator")).await;
+    let first = fake.app_lists();
+    assert!(
+        first <= 2,
+        "the connect's list and the first launch's: {first}"
+    );
+    ok(&d, "default", "act", launch("Calculator")).await;
+    ok(&d, "default", "act", launch("com.android.calculator2")).await;
+    assert_eq!(fake.app_lists(), first);
+    fake.install(&[("com.example.notes", "Notes")]);
+    ok(&d, "default", "act", launch("Notes")).await;
+    assert_eq!(
+        fake.app_lists(),
+        first + 1,
+        "a name the kept list lacks is read again"
+    );
+}
+
 #[tokio::test(start_paused = true)]
 async fn apps_lists_the_launchable_apps_with_their_names() {
     let (source, _fake) = installed();

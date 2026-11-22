@@ -55,6 +55,7 @@ pub struct FakeDevice {
     screen_reads: std::sync::atomic::AtomicUsize,
     network_reads: std::sync::atomic::AtomicUsize,
     tree_reads: std::sync::atomic::AtomicUsize,
+    app_lists: std::sync::atomic::AtomicUsize,
     apps: Mutex<Vec<App>>,
     display: Mutex<Option<Size>>,
     events: broadcast::Sender<DeviceEvent>,
@@ -109,6 +110,7 @@ impl FakeDevice {
             launch_reads: Default::default(),
             screen_reads: Default::default(),
             tree_reads: Default::default(),
+            app_lists: Default::default(),
             network_reads: Default::default(),
             screen: Mutex::new(ScreenState {
                 on: true,
@@ -341,6 +343,10 @@ impl FakeDevice {
         self.screen_reads.load(std::sync::atomic::Ordering::SeqCst)
     }
 
+    pub fn app_lists(&self) -> usize {
+        self.app_lists.load(std::sync::atomic::Ordering::SeqCst)
+    }
+
     pub fn tree_reads(&self) -> usize {
         self.tree_reads.load(std::sync::atomic::Ordering::SeqCst)
     }
@@ -486,6 +492,8 @@ impl Device for FakeDevice {
     }
 
     async fn apps(&self) -> Result<Vec<App>> {
+        self.app_lists
+            .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
         Ok(lock(&self.apps).clone())
     }
 

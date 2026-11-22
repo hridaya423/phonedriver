@@ -222,6 +222,7 @@ pub fn spawn(
         phases: Vec::new(),
         shown: Mutex::new(None),
         guard_view: None,
+        apps: Arc::default(),
         reshaped: None,
         names: Arc::default(),
         recording: None,
@@ -367,6 +368,9 @@ struct Actor {
     awake: Option<Duration>,
     /// The screen the guard judges a touch on: the newest fresh read, and when it was made.
     guard_view: Option<(Duration, Rendered)>,
+    /// The apps this connection's device listed, kept for names it holds exactly (`app_named`). The list read at
+    /// connect for the header's app names fills it.
+    apps: Arc<std::sync::Mutex<Option<Vec<App>>>>,
     /// When a window changed or a quarter of the screen repainted last: a button's ripple (about 100 by 100 pt) is a
     /// repaint that leaves the tree as it was.
     reshaped: Option<Duration>,
@@ -483,6 +487,7 @@ impl Actor {
         self.cold_until = None;
         self.awake = None;
         self.guard_view = None;
+        self.forget_apps();
     }
 
     /// The settle parameters for a call that only observes. Right after an action that was sent without settling, the
@@ -592,6 +597,7 @@ impl Actor {
         self.live = None;
         self.awake = None;
         self.guard_view = None;
+        self.forget_apps();
         let mut device = self.source.connect_on(&self.id, display).await?;
         if let Some(scope) = &self.scope {
             device = Arc::new(ScopedDevice::new(device, scope.clone()));
@@ -602,13 +608,17 @@ impl Actor {
         let events = device.events();
         let screen = device.info().screen;
         let names = self.names.clone();
+        let kept = self.apps.clone();
         let for_names = device.clone();
         tokio::spawn(async move {
             if let Ok(apps) = for_names.apps().await {
                 let mut map = names.lock().unwrap_or_else(|e| e.into_inner());
-                for a in apps {
-                    map.insert(a.id.0, a.name);
+                for a in &apps {
+                    map.insert(a.id.0.clone(), a.name.clone());
                 }
+                kept.lock()
+                    .unwrap_or_else(|e| e.into_inner())
+                    .get_or_insert(apps);
             }
         });
         self.recent = Some((self.now(), Input::WindowChanged));
@@ -678,6 +688,30 @@ impl Actor {
             .ok_or_else(|| Error::DeviceGone {
                 id: self.id.clone(),
             })
+    }
+
+    /// The app `query` names. Every launch listed every installed app (`pm` and each app's label on Android) to find
+    /// one it had found before, so the list is kept for the connection; a query the kept list does not hold by exact
+    /// id or name is listed again, so an app installed since is found and never mistaken for a kept one.
+    async fn app_named(&mut self, device: &dyn Device, query: &str) -> Result<App, Error> {
+        let known = self
+            .apps
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .as_deref()
+            .and_then(|kept| find_app(kept, query).ok().cloned())
+            .filter(|found| found.id.0 == query || found.name.eq_ignore_ascii_case(query));
+        if let Some(found) = known {
+            return Ok(found);
+        }
+        let listed = device.apps().await?;
+        let found = self.find_app(&listed, query)?.clone();
+        *self.apps.lock().unwrap_or_else(|e| e.into_inner()) = Some(listed);
+        Ok(found)
+    }
+
+    fn forget_apps(&self) {
+        *self.apps.lock().unwrap_or_else(|e| e.into_inner()) = None;
     }
 
     fn find_app<'a>(&self, installed: &'a [App], query: &str) -> Result<&'a App, Error> {
@@ -851,6 +885,7 @@ impl Actor {
                 reason: "install needs the path of an app file",
             })?;
             let added = device.install(std::path::Path::new(&path)).await?;
+            self.forget_apps();
             let summary = match added.as_slice() {
                 [] => "installed (it replaced an app already there)".to_string(),
                 [id] => {
@@ -898,8 +933,10 @@ impl Actor {
             op: Op::App,
             reason: "this action needs the app's name or id",
         })?;
-        let installed = device.apps().await?;
-        let found = self.find_app(&installed, &query)?.clone();
+        let found = self.app_named(&*device, &query).await?;
+        if op == Some(AppOp::Uninstall) {
+            self.forget_apps();
+        }
         let Some(op) = op else {
             if p.action == "notify" {
                 let payload = p.payload.ok_or(Error::Unsupported {
@@ -2709,9 +2746,8 @@ impl Actor {
                     "this device cannot launch apps",
                 )?;
                 let t = Instant::now();
-                let installed = device.apps().await?;
+                let found = self.app_named(&*device, &app).await?;
                 self.lap("apps", t);
-                let found = self.find_app(&installed, &app)?;
                 if !grant.is_empty() {
                     if self.physical() && !self.installed_by_us(&*device, &found.id).await? {
                         return Err(Error::Unsupported {
@@ -2741,7 +2777,10 @@ impl Actor {
                 }
                 let t = Instant::now();
                 let started_launch = t;
-                device.launch(&found.id).await?;
+                if let Err(e) = device.launch(&found.id).await {
+                    self.forget_apps();
+                    return Err(e);
+                }
                 self.lap("launch", t);
                 let t = Instant::now();
                 self.until_app_content(leaving.as_ref()).await?;
