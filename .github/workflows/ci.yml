@@ -36,3 +36,4 @@ jobs:
         run: cargo clippy --locked -p phonedriver --no-default-features --all-targets -- -D warnings
       - run: cargo test --locked --workspace --no-fail-fast
       - run: node --test packaging/test/plugin.test.js
+      - run: node --test packaging/npm/test/launcher.test.js

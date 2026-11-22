@@ -47,6 +47,20 @@ function tarProgram(platform, env) {
   return path.win32.join(env.SystemRoot || "C:\\Windows", "System32", "tar.exe");
 }
 
+// Node's fetch reports every network error as "fetch failed"; what went wrong is in its cause.
+function failure(err) {
+  const cause = err.cause;
+  if (!cause) return err.message;
+  return `${err.message} (${[cause.code, cause.message].filter(Boolean).join(": ")})`;
+}
+
+// Node's fetch ignores HTTPS_PROXY unless NODE_USE_ENV_PROXY=1 (Node 22.21, 24 and later).
+function proxyNote(env) {
+  const proxy = env.HTTPS_PROXY || env.https_proxy || env.HTTP_PROXY || env.http_proxy;
+  if (!proxy || env.NODE_USE_ENV_PROXY === "1") return "";
+  return " A proxy is set, and Node's fetch uses it only with NODE_USE_ENV_PROXY=1 (Node 22.21, 24 and later).";
+}
+
 async function fetchBytes(url) {
   if (url.startsWith("file:")) return fs.readFileSync(new URL(url));
   const res = await fetch(url, { redirect: "follow" });
@@ -84,7 +98,7 @@ async function ensureBinary({ env = process.env, platform = process.platform, ar
     [archive, sumText] = await Promise.all([fetchBytes(`${base}/${name}`), fetchBytes(`${base}/${name}.sha256`)]);
   } catch (err) {
     throw new Error(
-      `download failed: ${err.message}. Check your connection, or install another way: ` +
+      `download failed: ${failure(err)}.${proxyNote(env)} Check your connection, or install another way: ` +
         "https://github.com/hridaya423/phonedriver/blob/main/docs/reference.md#install",
     );
   }

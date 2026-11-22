@@ -106,6 +106,29 @@ test("a missing release explains the failure and points at the other installers"
   assert.match(r.stderr, /#install/);
 });
 
+test("a refused connection names its cause, and a set proxy says how Node uses it", async () => {
+  const net = require("node:net");
+  const port = await new Promise((resolve) => {
+    const server = net.createServer().listen(0, "127.0.0.1", () => {
+      const { port } = server.address();
+      server.close(() => resolve(port));
+    });
+  });
+  const r = spawnSync(process.execPath, [BIN, "--version"], {
+    encoding: "utf8",
+    env: {
+      ...process.env,
+      PHONEDRIVER_RELEASE_BASE_URL: `http://127.0.0.1:${port}`,
+      PHONEDRIVER_NPM_CACHE: tmp(),
+      HTTPS_PROXY: "http://proxy.example:3128",
+      NODE_USE_ENV_PROXY: "",
+    },
+  });
+  assert.strictEqual(r.status, 1);
+  assert.match(r.stderr, /ECONNREFUSED/);
+  assert.match(r.stderr, /NODE_USE_ENV_PROXY=1/);
+});
+
 test("on Windows the archive is unpacked by the system tar, not the first tar on PATH", () => {
   assert.strictEqual(tarProgram("win32", { SystemRoot: "D:\\Windows" }), "D:\\Windows\\System32\\tar.exe");
   assert.strictEqual(tarProgram("win32", {}), "C:\\Windows\\System32\\tar.exe");
