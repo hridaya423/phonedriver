@@ -157,6 +157,7 @@ pub struct Daemon {
     scope: Option<Arc<AppScope>>,
     agents: Mutex<std::collections::HashSet<String>>,
     connections: AtomicUsize,
+    greeted: AtomicUsize,
     last_activity: Mutex<Instant>,
     stop: Notify,
 }
@@ -207,6 +208,7 @@ impl Daemon {
             secrets: Arc::default(),
             agents: Mutex::default(),
             connections: AtomicUsize::new(0),
+            greeted: AtomicUsize::new(0),
             last_activity: Mutex::new(Instant::now()),
             stop: Notify::new(),
         })
@@ -257,11 +259,19 @@ impl Daemon {
             "hello" => {
                 let version = params["version"].as_str().unwrap_or_default();
                 if version != VERSION {
+                    let others = self.greeted.load(Ordering::SeqCst);
+                    let hint = if others == 0 {
+                        "The CLI restarts the daemon on a version mismatch.".to_string()
+                    } else {
+                        format!(
+                            "Another client of phonedriver {VERSION} is using this daemon (an MCP server in an editor, or another terminal). Run the same version in both, or run `phonedriver daemon stop` to end that daemon and the sessions it holds."
+                        )
+                    };
                     return Err(RpcError::new(
                         rpc::VERSION_MISMATCH,
                         format!("daemon is version {VERSION}, client is {version}"),
                         json!({"code_name": "version_mismatch", "daemon_version": VERSION,
-                               "hint": "The CLI restarts the daemon on a version mismatch."}),
+                               "others": others, "hint": hint}),
                     ));
                 }
                 let wanted = params["app_scope"].as_str().unwrap_or_default();
@@ -685,6 +695,7 @@ impl Daemon {
         let mut mcp = false;
         let mut wants_progress = false;
         let mut sessions: Vec<String> = Vec::new();
+        let mut greeted = false;
         while let Ok(Some(line)) = lines.next_line().await {
             let (id, result) = match rpc::parse(&line) {
                 Ok(req) => {
@@ -717,6 +728,10 @@ impl Daemon {
                             }
                         }
                     };
+                    if req.method == "hello" && result.is_ok() && !greeted {
+                        greeted = true;
+                        self.greeted.fetch_add(1, Ordering::SeqCst);
+                    }
                     (req.id, result)
                 }
                 Err(e) => (Value::Null, Err(e)),
@@ -725,6 +740,9 @@ impl Daemon {
             if write.write_all(out.as_bytes()).await.is_err() {
                 break;
             }
+        }
+        if greeted {
+            self.greeted.fetch_sub(1, Ordering::SeqCst);
         }
         if mcp {
             for session in sessions {

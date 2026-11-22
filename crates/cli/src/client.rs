@@ -103,7 +103,7 @@ impl Client {
         };
         match client.call_raw("hello", hello(kind, &session)).await {
             Ok(_) => Ok(client),
-            Err(e) if e.code == VERSION_MISMATCH => {
+            Err(e) if e.code == VERSION_MISMATCH && e.data["others"].as_u64().unwrap_or(0) == 0 => {
                 let _ = client.call_raw("shutdown", json!({})).await;
                 drop(client);
                 wait_until_gone(&path).await;

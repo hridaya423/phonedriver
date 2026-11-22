@@ -445,6 +445,31 @@ async fn the_mcp_client_registers_the_session_its_calls_carry() {
     serving.await.unwrap().unwrap();
 }
 
+/// An MCP server of one version and a CLI of another took turns stopping each other's daemon: each `hello` that did
+/// not match replaced the daemon the other was using. A daemon another client is using says so instead.
+#[tokio::test]
+async fn a_client_of_another_version_is_told_when_the_daemon_serves_someone_else() {
+    let (source, _) = FakeSource::with(vec![tree(&["One"])]);
+    let (d, home) = daemon(source);
+    let alone = err(&d, "y", "hello", json!({"version": "0.0.1"})).await;
+    assert_eq!(alone.code, phonedriver::daemon::rpc::VERSION_MISMATCH);
+    assert_eq!(alone.data["others"], 0, "{alone:?}");
+    let path = local_socket(home.path(), "d.sock");
+    let serving = tokio::spawn(d.clone().serve(path.clone()));
+    wait_for_socket(&path).await;
+    let client = phonedriver::client::Client::connect_to_as(&path, "mcp-4242", "mcp")
+        .await
+        .unwrap();
+    let busy = err(&d, "y", "hello", json!({"version": "0.0.1"})).await;
+    assert_eq!(busy.data["others"], 1, "{busy:?}");
+    let hint = busy.data["hint"].as_str().unwrap();
+    assert!(hint.contains("phonedriver daemon stop"), "{hint}");
+    assert!(!hint.contains("restarts"), "{hint}");
+    drop(client);
+    d.shutdown();
+    serving.await.unwrap().unwrap();
+}
+
 /// Seen 2026-11-20 on an iPhone on Wi-Fi: after the phone dropped off, a call's reconnect never returned, and
 /// `devices` waited behind it for every client.
 #[tokio::test]
