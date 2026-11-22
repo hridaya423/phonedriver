@@ -67,7 +67,7 @@ $ target/release/phonedriver version
 phonedriver 0.1.7
 ```
 
-Until the package is published, register the built binary with your client by its full path: `claude mcp add phonedriver -- "$PWD/target/release/phonedriver" mcp`.
+To use a binary you built instead of the npm package, register it with your client by its full path: `claude mcp add phonedriver -- "$PWD/target/release/phonedriver" mcp`.
 
 Run `phonedriver doctor`. It checks adb, each Android device, the agent, UiAutomation, the video stream, Xcode, the simulators, and the permissions of the daemon socket. Each line says `ok`, `warn` or `fail`, and a fix follows every line that is not `ok`. Android allows one UiAutomation client, so while phonedriver's agent runs, `adb shell uiautomator dump` and other UiAutomation tools are killed (exit 137); the `uiautomation` line says so, and `phonedriver daemon stop` frees it. Without `--device` it checks the host and lists every device, and it probes (starts the agent or the runner on) only emulators and Simulators that no live session holds; a physical phone or tablet, and any device another live session holds, is listed with one `not probed` line that says why and gives `phonedriver doctor --device <id>`. `--all-devices` probes physical devices too, still skipping devices another live session holds. `--device <id>` probes that device and nothing else, even if a session holds it. Devices the [device list](#devices-an-agent-must-not-touch) hides are not shown. `phonedriver init` runs the default form.
 

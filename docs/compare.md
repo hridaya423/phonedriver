@@ -11,10 +11,10 @@ phonedriver is an open-source MCP server and CLI that lets AI agents like Claude
 | Screen as text | Pruned, numbered tree (`@e10 switch "Dark theme" off`) | Raw XML from `uiautomator dump` | OCR text and `uiautomator dump` | One line per element with position and size |
 | After a tap | The lines that changed, once the screen settles | Nothing; the caller dumps and diffs | Nothing measured; "tap, then what changed" is not supported | No wait after actions in `server.ts`; the agent lists elements again |
 | Read a 1,000-row UI tree (p50) | 12.7 ms | 2,163.7 ms (170x slower) | 2,362.5 ms (186x slower) | not measured |
-| Screenshot (p50) | 9.1 ms | 291.2 ms (32x slower) | 348.3 ms (38x slower) | not measured |
+| Screenshot (p50) | 9.1 ms in 0.1.1, which returned the last frame without waiting for the encoder (D74); not measured since | 291.2 ms | 348.3 ms | not measured |
 | Type 100 characters (p50) | 158.3 ms | 3,638.4 ms (23x slower) | 3,928.7 ms (25x slower) | not measured |
 | Tap and see what changed (p50) | 514.0 ms | 2,477.2 ms (4.8x slower; tap, dump and diff in the caller) | not supported | not measured |
-| Tokens, three agent tasks (sum of medians) | 218,357, all passed | one task failed | 330,375, all passed | 0 of 3 passed; an environment failure, not comparable |
+| Nine phone jobs, 2026-11-10 (passed; tokens, sum of job medians) | 27 of 27; 657,542 | the two jobs it can do: 4 of 4; 203,751 | 14 of 18; 1,127,495 | 17 of 18; 4,567,200 |
 | Approval before a tap that spends money | Yes (the approval guard, D27) | No | Not checked | Not checked |
 | Shell on the device | Yes (`shell`, D21) | Yes (`adb shell`) | Not checked | Not documented in the sources read |
 | Unicode typing | Yes (mixed-script text typed in 160.6 ms) | No (`input text` raises on non-ASCII) | No | Not checked |
@@ -28,7 +28,9 @@ phonedriver is faster than adb and phone-harness on every operation measured. Ag
 
 ## Tokens
 
-Three tasks (set an alarm, read a birth date on Wikipedia, submit a web form), `claude -p` with `claude-sonnet-5-5`, a tablet emulator, each task passed or failed from device state. phonedriver used 218,357 tokens (sum of per-task medians) against 330,375 for phone-harness, 34% fewer. Both passed every run. On `wiki-birthdate` phonedriver used more (57,753 against 53,403). Raw adb finished one task in two calls with a shell intent and failed the web form, which has no accessibility nodes. mobile-mcp failed every run because its on-device server did not start in this setup, so its totals say nothing about its design. Runs are single samples per cell. Details: [`bench/tokens.md`](bench/tokens.md), data in [`bench/tokens.json`](bench/tokens.json).
+Nine jobs that only a phone can do, on one Android emulator on 2026-11-10, `claude -p` with `claude-sonnet-5-5`, each run passed or failed from the phone's own data: phonedriver passed 27 of 27 runs (three passes) with 657,542 tokens, the sum of the nine job medians; mobile-mcp 17 of 18 (two passes) with 4,567,200, 6.9x as many; phone-harness 14 of 18 with 1,127,495. adb was run only on the two jobs that allow a shell route and passed both twice. Details: [`bench/jobs.md`](bench/jobs.md), data in [`bench/jobs.json`](bench/jobs.json).
+
+An earlier, smaller run: three tasks (set an alarm, read a birth date on Wikipedia, submit a web form), `claude -p` with `claude-sonnet-5-5`, a tablet emulator, each task passed or failed from device state. phonedriver used 218,357 tokens (sum of per-task medians) against 330,375 for phone-harness, 34% fewer. Both passed every run. On `wiki-birthdate` phonedriver used more (57,753 against 53,403). Raw adb finished one task in two calls with a shell intent and failed the web form, which has no accessibility nodes. mobile-mcp failed every run because its on-device server did not start in this setup, so its totals say nothing about its design. Runs are single samples per cell. Details: [`bench/tokens.md`](bench/tokens.md), data in [`bench/tokens.json`](bench/tokens.json).
 
 ## When to use which
 
@@ -43,6 +45,6 @@ One Android phone is tested on hardware, a HONOR X8 on Android 13; the emulator 
 
 ## Sources
 
-- phonedriver, adb, phone-harness: [`bench/speed.md`](bench/speed.md), [`bench/tokens.md`](bench/tokens.md).
+- phonedriver, adb, phone-harness, mobile-mcp: [`bench/speed.md`](bench/speed.md), [`bench/jobs.md`](bench/jobs.md), [`bench/tokens.md`](bench/tokens.md).
 - mobile-mcp and phone-harness features: read from their source and documentation in November 2026 (phone-harness at commit `4bebff1`).
 - Guard: `decisions.md` D27. Shell: D21.

@@ -77,9 +77,10 @@ Speed against plain adb, median of 50 runs on an Android 17 emulator, phonedrive
 |---|---|---|---|
 | Read a 1,000-row screen | 12.7 ms | 2,163.7 ms | 170x |
 | Read the Settings screen | 51.0 ms | 2,215.7 ms | 43x |
-| Screenshot | 9.1 ms | 291.2 ms | 32x |
 | Type 100 characters | 158.3 ms | 3,638.4 ms | 23x |
 | Tap, then see what changed | 514.0 ms | 2,477.2 ms | 4.8x |
+
+The screenshot is left out: 0.1.1 returned the last decoded frame without waiting for the encoder, and the time with the wait has not been benchmarked.
 
 Method, raw samples and every run: [phonedriver.dev/benchmarks](https://phonedriver.dev/benchmarks/). Comparisons: [vs mobile-mcp](https://phonedriver.dev/compare/mobile-mcp/), [vs phone-harness](https://phonedriver.dev/compare/phone-harness/), [vs adb](https://phonedriver.dev/compare/adb/).
 
@@ -96,7 +97,7 @@ Clients: Claude Code, Codex, Cursor, VS Code and any MCP client that starts a st
 
 ## Tools
 
-Fourteen tools, the same as MCP tools and as CLI commands: `devices`, `apps`, `snapshot`, `screenshot`, `tap`, `type`, `swipe`, `scroll`, `press`, `launch`, `wait`, `batch`, `clipboard`, `shell`.
+Eighteen MCP tools, each also a CLI command: `devices`, `apps`, `snapshot`, `screenshot`, `tap`, `type`, `swipe`, `scroll`, `press`, `launch`, `wait`, `batch`, `clipboard`, `shell`, `setting`, `network`, `logs`, `replay`.
 
 ## Safety
 
@@ -110,7 +111,7 @@ This package is a launcher. On first run it downloads the `phonedriver` binary f
 
 The binary is cached under `~/Library/Caches/phonedriver/npm` (macOS), `$XDG_CACHE_HOME` or `~/.cache/phonedriver/npm` (Linux), or `%LOCALAPPDATA%\phonedriver\npm` (Windows).
 
-Platforms: macOS arm64 and x64, Linux x64 and arm64 (glibc), Windows x64. Needs Node 18 or later and `tar` (with xz support on macOS and Linux; Windows 10 and later ships it). Homebrew: `brew install hridaya423/tap/phonedriver`.
+Platforms: macOS arm64 and x64, Linux x64 and arm64 (glibc), Windows x64. Needs Node 18 or later and `tar` (Windows 10 and later ships it). Homebrew: `brew install hridaya423/tap/phonedriver`.
 
 ## Links
 

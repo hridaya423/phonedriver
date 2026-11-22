@@ -144,7 +144,7 @@ On Android, phonedriver starts a small Java helper on the phone over adb. The he
 
 ## Fewer tokens
 
-Tokens are what an agent's usage limit is spent on. I ran nine jobs that only a phone can do, twice each, with Claude Sonnet 5.5 and three MCP servers. The jobs included setting Chrome's search engine, cropping a photo, pinning and archiving Messages threads, finding the app that keeps the phone awake, and testing a sign-up flow for planted bugs. A script checked the phone's own data afterwards, not the model's report.
+Tokens are what an agent's usage limit is spent on. I ran nine jobs that only a phone can do with Claude Sonnet 5.5 and three MCP servers: three times each with phonedriver, twice with the other two. The jobs included setting Chrome's search engine, cropping a photo, pinning and archiving Messages threads, finding the app that keeps the phone awake, and testing a sign-up flow for planted bugs. A script checked the phone's own data afterwards, not the model's report.
 
 <p align="center"><picture><source media="(prefers-color-scheme: dark)" srcset=".github/assets/jobs-dark.svg"><img alt="On nine real phone jobs on one Android emulator, 10 November 2026, with Claude Sonnet 5.5: phonedriver passed 27 of 27 runs with 658 thousand tokens in 5.1 minutes; mobile-mcp passed 17 of 18 with 4.6 million tokens in 8.7 minutes; phone-harness passed 14 of 18 with 1.1 million tokens in 22.7 minutes." src=".github/assets/jobs-light.svg" width="100%"></picture></p>
 
