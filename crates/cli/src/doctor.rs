@@ -560,41 +560,7 @@ async fn agent_checks(id: &str) -> Vec<Check> {
     let reply = client.call("health", params).await;
     let _ = client.call("release", json!({"device": id})).await;
     match reply {
-        Ok(r) => {
-            let took = started.elapsed().as_secs_f64();
-            let mut checks = vec![
-                Check::ok(
-                    format!("agent {id}"),
-                    format!(
-                        "answers hello: {} on {}, {took:.1} s with deploy",
-                        r["model"].as_str().unwrap_or("unknown model"),
-                        r["os"].as_str().unwrap_or("unknown OS")
-                    ),
-                ),
-                Check::ok(
-                    format!("uiautomation {id}"),
-                    "connected, the screen tree reads",
-                ),
-            ];
-            if let Some(display) = r["hidden_display"].as_u64() {
-                checks.push(Check::ok(
-                    format!("display {id}"),
-                    format!(
-                        "hidden mode: working on virtual display {display}, not the phone's screen"
-                    ),
-                ));
-            }
-            checks.push(match r["frames_ms"].as_u64() {
-                Some(ms) => Check::ok(format!("video {id}"), format!("a frame arrived after {ms} ms")),
-                None => Check::bad(
-                    Status::Warn,
-                    format!("video {id}"),
-                    "no frame within 1 s",
-                    "The screen may be off: wake the device and run doctor again. Without frames, settling falls back to its timeout.",
-                ),
-            });
-            checks
-        }
+        Ok(r) => answered(id, &r, started.elapsed().as_secs_f64()),
         Err(Failure::Rpc(e)) if e.code == -32014 => vec![
             Check::ok(format!("agent {id}"), "deployed and started"),
             Check::bad(
@@ -617,6 +583,41 @@ async fn agent_checks(id: &str) -> Vec<Check> {
             ),
         )],
     }
+}
+
+#[cfg(feature = "android")]
+/// The checks of an agent that answered the health call `r` after `took` seconds.
+fn answered(id: &str, r: &serde_json::Value, took: f64) -> Vec<Check> {
+    let mut checks = vec![
+        Check::ok(
+            format!("agent {id}"),
+            format!(
+                "answers hello: {} on {}, {took:.1} s with deploy",
+                r["model"].as_str().unwrap_or("unknown model"),
+                r["os"].as_str().unwrap_or("unknown OS")
+            ),
+        ),
+        Check::ok(
+            format!("uiautomation {id}"),
+            "connected, the screen tree reads; while phonedriver holds it, `uiautomator dump` and other UiAutomation clients are killed (`phonedriver daemon stop` frees it)",
+        ),
+    ];
+    if let Some(display) = r["hidden_display"].as_u64() {
+        checks.push(Check::ok(
+            format!("display {id}"),
+            format!("hidden mode: working on virtual display {display}, not the phone's screen"),
+        ));
+    }
+    checks.push(match r["frames_ms"].as_u64() {
+        Some(ms) => Check::ok(format!("video {id}"), format!("a frame arrived after {ms} ms")),
+        None => Check::bad(
+            Status::Warn,
+            format!("video {id}"),
+            "no frame within 1 s",
+            "The screen may be off: wake the device and run doctor again. Without frames, settling falls back to its timeout.",
+        ),
+    });
+    checks
 }
 
 fn fix_for(e: &Failure, otherwise: &str) -> String {
@@ -1107,6 +1108,27 @@ pub fn ios_setup(home: &Path, download_ddi: bool, ddi: Option<&Path>) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Issue #43: QA scripts that call `adb shell uiautomator dump` broke (exit 137) while the agent ran, and nothing
+    /// said why or how to get it back.
+    #[cfg(feature = "android")]
+    #[test]
+    fn a_healthy_agent_says_it_holds_uiautomation_and_how_to_free_it() {
+        let checks = answered(
+            "android:emulator-5554",
+            &json!({"model": "Pixel", "os": "Android 16", "frames_ms": 40}),
+            1.2,
+        );
+        let ui = checks
+            .iter()
+            .find(|c| c.name == "uiautomation android:emulator-5554")
+            .unwrap();
+        assert!(ui.detail.contains("`uiautomator dump`"), "{ui:?}");
+        assert!(
+            ui.detail.contains("`phonedriver daemon stop` frees it"),
+            "{ui:?}"
+        );
+    }
 
     #[test]
     fn a_runner_whose_profile_has_run_out_says_the_next_command_signs_it_again() {
