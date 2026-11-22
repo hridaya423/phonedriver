@@ -62,6 +62,7 @@ pub enum Event {
 
 #[derive(Default)]
 pub struct Depacketizer {
+    ssrc: Option<u32>,
     next_seq: Option<u16>,
     timestamp: Option<u32>,
     data: Vec<u8>,
@@ -81,6 +82,14 @@ impl Depacketizer {
             return Vec::new();
         };
         let mut out = Vec::new();
+        if self.ssrc.is_some_and(|ssrc| ssrc != p.ssrc) {
+            *self = Depacketizer {
+                waiting_for_keyframe: true,
+                ..Depacketizer::default()
+            };
+            out.push(Event::KeyframeNeeded);
+        }
+        self.ssrc = Some(p.ssrc);
         if let Some(expected) = self.next_seq
             && p.seq != expected
         {
@@ -283,6 +292,26 @@ mod tests {
             .step_by(2)
             .map(|i| u8::from_str_radix(&s[i..i + 2], 16).unwrap())
             .collect()
+    }
+
+    #[test]
+    fn a_new_source_starts_a_new_sequence_instead_of_reading_as_late_packets() {
+        let mut d = Depacketizer::new();
+        let p = |ssrc: u8, seq: u16, nal: u8| {
+            let mut p = vec![0x80, 0xfb];
+            p.extend_from_slice(&seq.to_be_bytes());
+            p.extend_from_slice(&[0, 0, 0, seq as u8, 0, 0, 0, ssrc, nal, 0xaa]);
+            p
+        };
+        assert_eq!(d.push(&p(1, 1000, 0x41)).len(), 1);
+        let restarted = d.push(&p(2, 5, 0x65));
+        assert!(
+            restarted
+                .iter()
+                .any(|e| matches!(e, Event::Unit(u) if u.keyframe)),
+            "{restarted:?}"
+        );
+        assert_eq!(d.push(&p(2, 6, 0x41)).len(), 1);
     }
 
     #[test]
