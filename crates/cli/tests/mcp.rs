@@ -1561,7 +1561,7 @@ async fn a_shell_tool_call_and_a_replayed_shell_step_hand_the_device_the_same_co
     let info = phonedriver_core::device::Device::info(&*fake).clone();
     let rig = rig_with(Arc::new(fakes::Pixels(fake.clone(), info))).await;
     let command = "simctl io screenshot /Users/me/a.png";
-    let steps = rig.home.path().join("steps.jsonl");
+    let steps = rig.home.path().join("shell.steps");
     std::fs::write(
         &steps,
         format!(

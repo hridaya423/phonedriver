@@ -1331,6 +1331,40 @@ fn for_mcp(hint: &str) -> String {
 /// Where MCP `replay` may save (decision D105): a `.steps` file inside `folder` (a relative path, or an absolute
 /// one inside it), reached through no `..` and no link out of it, that is new or already a steps file. An agent
 /// chooses the path, and without this a save could replace any file the server can write, such as a `.env`.
+/// A replay reads a `.steps` file inside the server's folder, as a save writes one: the model names the file, and a
+/// path elsewhere would let it read any file of the person's and have the replay's errors say what is in it.
+fn replayable(
+    folder: &std::path::Path,
+    file: &std::path::Path,
+) -> Result<std::path::PathBuf, String> {
+    let shown = file.display();
+    if file.extension().is_none_or(|e| e != "steps") {
+        return Err(format!(
+            "{shown} does not end in .steps: a saved run is a .steps file"
+        ));
+    }
+    let path = folder.join(file);
+    let outside = || {
+        format!(
+            "{shown} is not inside {}: replay a .steps file there",
+            folder.display()
+        )
+    };
+    if file
+        .components()
+        .any(|c| c == std::path::Component::ParentDir)
+        || !path.starts_with(folder)
+    {
+        return Err(outside());
+    }
+    if let (Ok(p), Ok(f)) = (path.canonicalize(), folder.canonicalize())
+        && !p.starts_with(f)
+    {
+        return Err(outside());
+    }
+    Ok(path)
+}
+
 fn savable(folder: &std::path::Path, file: &std::path::Path) -> Result<(), String> {
     use std::path::Component;
     let shown = file.display();
@@ -1530,6 +1564,10 @@ impl Mcp {
             }
             Verb::Save { file }
         } else {
+            let file = match replayable(&folder, std::path::Path::new(&a.file)) {
+                Ok(file) => file,
+                Err(why) => return bad(&why),
+            };
             Verb::Replay {
                 file,
                 from: a.from.map_or(1, |n| n as usize),
@@ -1976,6 +2014,24 @@ pub fn run(device: Option<String>) -> ExitCode {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_replay_reads_only_a_steps_file_inside_its_folder() {
+        let dir = tempfile::tempdir().unwrap();
+        let folder = dir.path().join("work");
+        std::fs::create_dir(&folder).unwrap();
+        std::fs::write(folder.join("ok.steps"), "{}").unwrap();
+        std::fs::write(dir.path().join("out.steps"), "{}").unwrap();
+        let p = std::path::Path::new;
+        assert!(replayable(&folder, p("ok.steps")).is_ok());
+        assert!(replayable(&folder, p("missing.steps")).is_ok());
+        for outside in ["../out.steps", "/etc/passwd", "notes.txt"] {
+            let e = replayable(&folder, p(outside)).unwrap_err();
+            assert!(e.contains(outside), "{e}");
+        }
+        let abs = dir.path().join("out.steps");
+        assert!(replayable(&folder, &abs).is_err());
+    }
 
     #[test]
     fn only_a_named_choice_is_an_approval() {
