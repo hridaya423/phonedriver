@@ -3213,6 +3213,19 @@ fn installed() -> (Arc<FakeSource>, Arc<FakeDevice>) {
     (source, fake)
 }
 
+#[cfg(target_os = "macos")]
+fn installed_with_pixels() -> (Arc<FakeSource>, Arc<FakeDevice>) {
+    let (source, fake) = FakeSource::of(
+        FakeDevice::new(vec![
+            list_tree(&["Row 0"]),
+            list_tree(&["Calculator", "7", "8"]),
+        ])
+        .with_screenshot(fake_png()),
+    );
+    fake.install(&[("com.android.calculator2", "Calculator")]);
+    (source, fake)
+}
+
 #[tokio::test(start_paused = true)]
 async fn apps_lists_the_launchable_apps_with_their_names() {
     let (source, _fake) = installed();
@@ -3661,6 +3674,28 @@ fn fake_png() -> phonedriver_core::device::Image {
         format: phonedriver_core::device::ImageFormat::Png,
         bytes: phonedriver_video::image::encode_png(&frame, 1.0).unwrap(),
     }
+}
+
+/// Reading a screen's pixels (`pixels`, or a tree with no element list) turned on OCR for every fresh read of the
+/// session, and a launch into an app with a full tree kept it on: each later tap paid a screenshot and OCR.
+#[cfg(target_os = "macos")]
+#[tokio::test]
+async fn a_launch_leaves_the_last_apps_ocr_behind() {
+    let (source, fake) = installed_with_pixels();
+    let (d, _home) = daemon(source);
+    ok(&d, "default", "snapshot", json!({"pixels": true})).await;
+    assert!(fake.order().contains(&"screenshot"));
+    ok(
+        &d,
+        "default",
+        "act",
+        act_with(json!({"kind": "launch", "app": "Calculator"})),
+    )
+    .await;
+    let before = fake.order().len();
+    ok(&d, "default", "act", tap_ref("e1")).await;
+    let after: Vec<&str> = fake.order()[before..].to_vec();
+    assert!(!after.contains(&"screenshot"), "{after:?}");
 }
 
 #[tokio::test(start_paused = true)]

@@ -60,6 +60,9 @@ impl Session {
     /// shrinks a form's list, and the fields below it leave the tree while the agent still holds their refs.
     pub fn set_last(&mut self, next: Option<Rendered>) {
         self.unsure = false;
+        if next.is_none() {
+            self.ocr = false;
+        }
         match (&self.last, &next) {
             (Some(prev), Some(now)) if prev.header.app == now.header.app => {
                 let dropped = prev
