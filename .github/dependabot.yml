@@ -4,3 +4,15 @@ updates:
     directory: /
     schedule:
       interval: monthly
+  - package-ecosystem: cargo
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      cargo:
+        patterns: ["*"]
+        update-types: [minor, patch]
+  - package-ecosystem: npm
+    directory: /packaging/npm
+    schedule:
+      interval: monthly
