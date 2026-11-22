@@ -29,11 +29,45 @@ struct Tracked {
     running: bool,
 }
 
+/// A read that failed is asked again after this: a phone that was still booting was listed with no version, and twice
+/// over USB and Wi-Fi, for as long as it stayed connected.
+const RETRY_FAILED: std::time::Duration = std::time::Duration::from_secs(2);
+
+/// What each connection's read gave, and when.
+#[derive(Default)]
+struct Reads(Mutex<HashMap<OsKey, (Option<String>, std::time::Instant)>>);
+
+impl Reads {
+    /// The kept answer, or `None` when the read is to be made: never made, or failed `RETRY_FAILED` ago.
+    fn kept(&self, k: &OsKey) -> Option<Option<String>> {
+        match self.0.lock().unwrap_or_else(|e| e.into_inner()).get(k) {
+            Some((Some(v), _)) => Some(Some(v.clone())),
+            Some((None, at)) if at.elapsed() < RETRY_FAILED => Some(None),
+            _ => None,
+        }
+    }
+
+    fn keep(&self, k: OsKey, v: Option<String>) {
+        self.0
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .insert(k, (v, std::time::Instant::now()));
+    }
+
+    fn get(&self, k: &OsKey) -> Option<String> {
+        self.0
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .get(k)
+            .and_then(|(v, _)| v.clone())
+    }
+}
+
 pub struct AdbSource {
     adb: Adb,
     tracked: Arc<Mutex<Tracked>>,
-    os: Mutex<HashMap<OsKey, Option<String>>>,
-    hardware: Mutex<HashMap<OsKey, Option<String>>>,
+    os: Reads,
+    hardware: Reads,
     serials: Mutex<HashMap<OsKey, String>>,
 }
 
@@ -46,8 +80,8 @@ impl AdbSource {
         AdbSource {
             adb,
             tracked: Arc::default(),
-            os: Mutex::default(),
-            hardware: Mutex::default(),
+            os: Reads::default(),
+            hardware: Reads::default(),
             serials: Mutex::default(),
         }
     }
@@ -99,25 +133,14 @@ impl AdbSource {
             for d in devices {
                 let hardware = match serial_in_name(&d.serial) {
                     Some(s) => Some(s.to_string()),
-                    None => {
-                        let known = self
-                            .hardware
-                            .lock()
-                            .unwrap_or_else(|e| e.into_inner())
-                            .get(&key(&d))
-                            .cloned();
-                        match known {
-                            Some(h) => h,
-                            None => {
-                                let h = self.adb.hardware_serial(&d.serial).await.ok();
-                                self.hardware
-                                    .lock()
-                                    .unwrap_or_else(|e| e.into_inner())
-                                    .insert(key(&d), h.clone());
-                                h
-                            }
+                    None => match self.hardware.kept(&key(&d)) {
+                        Some(h) => h,
+                        None => {
+                            let h = self.adb.hardware_serial(&d.serial).await.ok();
+                            self.hardware.keep(key(&d), h.clone());
+                            h
                         }
-                    }
+                    },
                 };
                 identified.push((d, hardware));
             }
@@ -126,14 +149,11 @@ impl AdbSource {
             devices
         };
         if with_os {
-            let unknown: Vec<OsKey> = {
-                let known = self.os.lock().unwrap_or_else(|e| e.into_inner());
-                devices
-                    .iter()
-                    .map(key)
-                    .filter(|k| !known.contains_key(k))
-                    .collect()
-            };
+            let unknown: Vec<OsKey> = devices
+                .iter()
+                .map(key)
+                .filter(|k| self.os.kept(k).is_none())
+                .collect();
             let mut lookups = tokio::task::JoinSet::new();
             for k in unknown {
                 let adb = self.adb.clone();
@@ -143,17 +163,13 @@ impl AdbSource {
                 });
             }
             while let Some(Ok((k, os))) = lookups.join_next().await {
-                self.os
-                    .lock()
-                    .unwrap_or_else(|e| e.into_inner())
-                    .insert(k, os);
+                self.os.keep(k, os);
             }
         }
-        let known = self.os.lock().unwrap_or_else(|e| e.into_inner());
         Ok(devices
             .into_iter()
             .map(|d| Listed {
-                os: known.get(&key(&d)).cloned().flatten(),
+                os: self.os.get(&key(&d)),
                 id: format!("android:{}", d.serial),
                 model: d.model.unwrap_or_else(|| "unknown".into()),
                 tier: "agent".into(),

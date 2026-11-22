@@ -154,3 +154,41 @@ async fn listing_through_a_deny_list_never_asks_a_device_it_names_by_id() {
     let seen = requests.lock().unwrap().clone();
     assert!(!seen.iter().any(|r| r.contains("R5CTDENIED")), "{seen:?}");
 }
+
+/// A read that failed (a phone still booting, a dropped shell) was kept as "no serial" for as long as the phone stayed
+/// connected, so the same phone over USB and Wi-Fi was listed twice from then on. A failure is asked again next time.
+#[tokio::test]
+async fn a_failed_serial_read_while_listing_is_asked_again_on_the_next_list() {
+    const TWO: &str = "emulator-5554          device product:sdk model:sdk_gphone64 device:emu64xa transport_id:5\n192.168.1.20:5555      device product:p model:Phone device:d transport_id:9\n";
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap().to_string();
+    let requests = Arc::new(Mutex::new(Vec::new()));
+    let log = requests.clone();
+    tokio::spawn(async move {
+        loop {
+            let (s, _) = listener.accept().await.unwrap();
+            tokio::spawn(serve_devices(s, log.clone(), TWO));
+        }
+    });
+    let source = AdbSource::new(Adb::from_socket_spec(Some(&addr)));
+    let asked = || {
+        requests
+            .lock()
+            .unwrap()
+            .iter()
+            .filter(|r| *r == "shell,v2,raw:getprop ro.serialno")
+            .count()
+    };
+    source.list().await.unwrap();
+    let first = asked();
+    assert!(first >= 1, "{first}");
+    source.list().await.unwrap();
+    assert_eq!(asked(), first, "a list right after asks nothing again");
+    tokio::time::sleep(std::time::Duration::from_millis(2100)).await;
+    source.list().await.unwrap();
+    assert!(
+        asked() > first,
+        "the failed read was kept: {first} then {}",
+        asked()
+    );
+}
