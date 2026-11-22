@@ -136,6 +136,9 @@ const COLD_APP_WINDOW: Duration = Duration::from_secs(30);
 const COLD_CHANGE_WAIT: Duration = Duration::from_millis(2000);
 /// How long a tap whose frames changed but whose elements did not waits for a page that starts late.
 const LATE_PAGE_WAIT: Duration = Duration::from_millis(600);
+/// All the reads a reply makes after its settle, together: each wait below has its own limit, and a spinner that
+/// became a web view that never filled ran three of them end to end for 16 s.
+const REPORT_WAIT: Duration = WEB_VIEW_WAIT;
 
 pub enum Call {
     Snapshot(SnapshotParams),
@@ -3592,6 +3595,7 @@ impl Actor {
         &self,
         mut tree: RawTree,
         read_at: Option<Duration>,
+        until: Instant,
     ) -> Result<RawTree, Error> {
         let started = Instant::now();
         let mut wait = read_at.map_or(TREE_STEP, |at| {
@@ -3613,7 +3617,7 @@ impl Actor {
             } else {
                 TREE_STABLE_WAIT
             };
-            if (same && !tree.loading()) || started.elapsed() >= limit {
+            if (same && !tree.loading()) || started.elapsed() >= limit || Instant::now() >= until {
                 return Ok(tree);
             }
         }
@@ -3631,6 +3635,8 @@ impl Actor {
         verify: Option<Verify>,
     ) -> Result<ActionResult, Error> {
         let t = Instant::now();
+        let until = t + REPORT_WAIT;
+        let open = || Instant::now() < until;
         let (mut tree, agreed, read_at) = match probe {
             Some(p) => (p.tree, p.stable, Some(p.at)),
             None => (self.device()?.tree().await?, false, None),
@@ -3643,7 +3649,7 @@ impl Actor {
                 || tree.loading())
         {
             let t = Instant::now();
-            tree = self.stabilize(tree, read_at).await?;
+            tree = self.stabilize(tree, read_at, until).await?;
             self.lap("stabilize", t);
         }
         let render = Instant::now();
@@ -3651,7 +3657,7 @@ impl Actor {
         let mut rendered = self.build(s, &tree, None);
         if only_lost_lines(s, &rendered) {
             let started = Instant::now();
-            while started.elapsed() < CONTENT_WAIT {
+            while started.elapsed() < CONTENT_WAIT && open() {
                 tokio::time::sleep(TREE_STEP).await;
                 let tree = self.device()?.tree().await?;
                 rendered = self.build(s, &tree, None);
@@ -3661,7 +3667,7 @@ impl Actor {
             }
         }
         let empty_since = Instant::now();
-        while rendered.elements.is_empty() && empty_since.elapsed() < CONTENT_WAIT {
+        while rendered.elements.is_empty() && empty_since.elapsed() < CONTENT_WAIT && open() {
             tokio::time::sleep(TREE_STEP).await;
             let tree = self.device()?.tree().await?;
             rendered = self.build(s, &tree, None);
@@ -3678,7 +3684,7 @@ impl Actor {
             } else {
                 BARE_WAIT
             };
-            if bare_since.elapsed() >= limit {
+            if bare_since.elapsed() >= limit || !open() {
                 break;
             }
             tokio::time::sleep(TREE_STEP).await;
@@ -3687,7 +3693,7 @@ impl Actor {
             filled = Some(tree);
         }
         if let Some(tree) = filled.filter(|_| !bare(&rendered)) {
-            let tree = self.stabilize(tree, None).await?;
+            let tree = self.stabilize(tree, None, until).await?;
             rendered = self.build(s, &tree, None);
         }
         self.read_checkboxes(&mut rendered, s.last.as_ref()).await?;
@@ -3705,6 +3711,7 @@ impl Actor {
         while in_page
             && matches!(verdict, Some(Verdict::Failed(_)))
             && waited.elapsed() < WEB_TEXT_WAIT
+            && open()
         {
             tokio::time::sleep(TREE_STEP).await;
             let tree = self.device()?.tree().await?;
@@ -3722,6 +3729,7 @@ impl Actor {
             let mut late = None;
             while search_unanswered(s.last.as_ref(), &rendered, field)
                 && waited.elapsed() < SEARCH_WAIT
+                && open()
             {
                 tokio::time::sleep(TREE_STEP).await;
                 let tree = self.device()?.tree().await?;
@@ -3731,7 +3739,7 @@ impl Actor {
             if let Some(tree) =
                 late.filter(|_| !search_unanswered(s.last.as_ref(), &rendered, field))
             {
-                let tree = self.stabilize(tree, None).await?;
+                let tree = self.stabilize(tree, None, until).await?;
                 rendered = self.build(s, &tree, None);
             }
         }

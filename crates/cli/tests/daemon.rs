@@ -1117,6 +1117,39 @@ async fn text_for_a_field_that_was_just_tapped_is_sent_once_the_field_has_focus(
     assert!(reads >= 3, "text was sent after {reads} reads");
 }
 
+fn blank_web_view_tree() -> RawTree {
+    let json = r#"{"windows":[{"id":1,"type":"application","package":"com.example","bounds":[0,0,360,800]}],"nodes":[
+        {"p":-1,"w":1,"cls":"android.widget.FrameLayout","b":[0,0,360,800],"f":"vVe"},
+        {"p":0,"w":1,"cls":"android.webkit.WebView","b":[0,0,360,800],"f":"vVe"}]}"#;
+    RawTree::from_android_json(json, Scale { density: 1.0 }).unwrap()
+}
+
+fn spinner_tree() -> RawTree {
+    let json = r#"{"windows":[{"id":1,"type":"application","package":"com.example","bounds":[0,0,360,800]}],"nodes":[
+        {"p":-1,"w":1,"cls":"android.widget.FrameLayout","b":[0,0,360,800],"f":"vVe"},
+        {"p":0,"w":1,"cls":"android.widget.ProgressBar","b":[150,370,210,430],"f":"vVe"}]}"#;
+    RawTree::from_android_json(json, Scale { density: 1.0 }).unwrap()
+}
+
+/// A tap that opened a spinner, then a web view that never filled: each read after the settle (stabilize, the wait
+/// for a bare screen to fill, stabilize again on what filled it) had its own limit, and together they took 18 s.
+#[tokio::test(start_paused = true)]
+async fn the_reads_after_a_settle_stop_at_one_deadline_on_a_page_that_never_loads() {
+    let (source, fake) = FakeSource::with(vec![tree(&["Open"])]);
+    let (d, _home) = daemon(source);
+    ok(&d, "default", "snapshot", json!({})).await;
+    fake.on_gesture(|_| {
+        let mut reads: Vec<RawTree> = std::iter::repeat_n(spinner_tree(), 60).collect();
+        reads.push(blank_web_view_tree());
+        Some(reads)
+    });
+    let started = tokio::time::Instant::now();
+    let r = ok(&d, "default", "act", tap_ref("e1")).await;
+    let took = started.elapsed();
+    assert_eq!(r["ok"], true, "{r}");
+    assert!(took <= Duration::from_secs(11), "the reply took {took:?}");
+}
+
 fn web_field_tree(value: &str) -> RawTree {
     let json = format!(
         r#"{{"windows":[{{"id":1,"type":"application","package":"com.android.chrome","bounds":[0,0,360,800]}}],"nodes":[
