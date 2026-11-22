@@ -2981,8 +2981,15 @@ fn show_action(result: &Value, json: bool) -> Result<String, Failure> {
         && matches!(r.summary.as_str(), "pressed landscape" | "pressed portrait")
     {
         out.push_str("\nhint: the screen did not turn: it was already that way, or the app in front supports one orientation only (an iPhone's home screen, most launchers)");
-    } else if r.settled && !r.changed {
+    } else if r.settled
+        && !r.changed
+        && (r.summary.starts_with("tapped") || r.summary.starts_with("long-pressed"))
+    {
         out.push_str("\nhint: nothing changed; the tap may have missed, or changed only what the element list does not show (a web checkbox): `phonedriver screenshot` shows the picture");
+    } else if r.settled && !r.changed && r.summary != "screen settled" {
+        out.push_str(
+            "\nhint: nothing changed on screen: `phonedriver screenshot` shows the picture",
+        );
     }
     if let Some(u) = &r.unverified {
         out.push_str("\nhint: ");
@@ -3130,6 +3137,42 @@ mod tests {
     }
 
     use super::*;
+
+    fn unchanged(summary: &str) -> Value {
+        json!({"ok": true, "summary": summary, "settled": true, "settle_ms": 300, "changed": false,
+               "observation": {"header": {"device": {"id": "fake:1", "model": "Fake", "os": "FakeOS 1",
+               "screen": {"w": 360.0, "h": 800.0}, "orientation": "portrait"}, "app": null, "keyboard": null,
+               "alerts": [], "secure_hidden": false, "settle": null},
+               "text": "", "kind": "diff", "changed": false, "settled": true, "settle_ms": 300, "loading": false}})
+    }
+
+    #[test]
+    fn only_a_tap_that_changed_nothing_is_told_it_may_have_missed() {
+        let said = |summary: &str| show_action(&unchanged(summary), false).unwrap();
+        assert!(said("tapped @e3 button \"Save\"").contains("the tap may have missed"));
+        assert!(
+            said("long-pressed 600 ms @e3 button \"Save\"").contains("the tap may have missed")
+        );
+        for other in [
+            "screen settled",
+            "swiped up",
+            "pressed back",
+            "scrolled down 1 time",
+        ] {
+            let out = said(other);
+            assert!(!out.contains("tap may have missed"), "{other}: {out}");
+        }
+        assert!(
+            said("swiped up").contains("nothing changed"),
+            "{}",
+            said("swiped up")
+        );
+        assert!(
+            !said("screen settled").contains("hint:"),
+            "{}",
+            said("screen settled")
+        );
+    }
 
     /// Issue #41: a saved contact flow ended with `wait "{{first}} {{last}}"`, which passed with the wrong number.
     /// `save` names each typed value no later step reads back.
