@@ -228,12 +228,15 @@ impl Verify {
             .all(|c| c.is_ascii_digit() || "+-(). ".contains(c));
         let digits = |s: &str| s.chars().filter(char::is_ascii_digit).collect::<String>();
         let code_made_of_typed_digits = self.plus_left_over(value);
+        // A number typed with its national 0 (`0622222222`) loses that 0 to a country code; a code in front of the
+        // 0 (`+10622222222`) is a `+1` the field already held.
+        let national = !typed.contains('+') && typed.trim_start().starts_with('0');
         let (typed, shown) = (digits(typed), digits(value));
         phone_like
             && !code_made_of_typed_digits
             && typed.len() >= 4
             && shown.ends_with(&typed)
-            && shown.len() <= typed.len() + 3
+            && shown.len() <= typed.len() + if national { 0 } else { 3 }
     }
 
     /// The field shows a `+` that was not typed, in front of exactly the digits typed, so the first of them read as
@@ -440,6 +443,27 @@ mod tests {
         assert!(bad.hint.contains("`+`"), "{}", bad.hint);
         let plus = verify(Expect::Exactly("+4631121".into()));
         assert!(plus.judge(&shows("+46 31 121"), false).is_none());
+    }
+
+    /// Contacts pre-fills `+1` in a new phone field: `0622222222` typed there showed `+10622222222` and was reported
+    /// as verified (2026-11, a live run). A country code replaces a number's leading 0; it does not precede it.
+    #[test]
+    fn a_country_code_in_front_of_a_number_typed_with_a_leading_0_is_not_verified() {
+        let shows = |value: &str| FieldView {
+            found: true,
+            focused: true,
+            value: Some(value.into()),
+            focus_elsewhere: None,
+            target: Some(Ref(5)),
+        };
+        let national = verify(Expect::Exactly("0622222222".into()));
+        assert!(
+            national.judge(&shows("+10622222222"), false).is_some(),
+            "a +1 left in front of 0622222222 was taken for formatting"
+        );
+        assert!(national.judge(&shows("06 2222 2222"), false).is_none());
+        let formatted = verify(Expect::Exactly("3710658".into()));
+        assert!(formatted.judge(&shows("+1 371-065-8"), false).is_none());
     }
 
     #[test]

@@ -487,9 +487,15 @@ fn a_socket_that_nothing_serves_names_the_variable_in_the_error() {
 }
 
 async fn fake_daemon(trees: Vec<phonedriver_core::raw::RawTree>) -> (tempfile::TempDir, PathBuf) {
+    fake_daemon_on(fakes::pixel_device(trees)).await
+}
+
+async fn fake_daemon_on(
+    device: Arc<dyn phonedriver_core::device::Device>,
+) -> (tempfile::TempDir, PathBuf) {
     let home = tempfile::tempdir().unwrap();
     let daemon = phonedriver::daemon::Daemon::new(
-        Arc::new(fakes::OneDevice(fakes::pixel_device(trees))),
+        Arc::new(fakes::OneDevice(device)),
         phonedriver::daemon::Config {
             home: home.path().to_path_buf(),
         },
@@ -1047,7 +1053,22 @@ async fn var_fills_double_brace_names_and_run_is_new_in_every_replay() {
     let typed = home.path().join("typed.steps");
     let step = json!({"method": "act", "params": {"action": {"kind": "type", "text": "u-{{run}}", "into": {"text": "Field"}}}});
     std::fs::write(&typed, format!("{step}\n")).unwrap();
-    let (home, socket) = fake_daemon(typing_trees("u")).await;
+    // The field shows what was typed, `{{run}}` filled in: a replay stops at a type the field did not take.
+    let fake = Arc::new(phonedriver_core::testing::FakeDevice::new(vec![
+        fakes::field_tree("", false),
+    ]));
+    fake.on_text(|t| {
+        use phonedriver_core::device::TextInput;
+        match t {
+            TextInput::Paste(v) | TextInput::SetValue(v) | TextInput::Keystrokes(v) => {
+                Some(vec![fakes::field_tree(v, false)])
+            }
+            _ => None,
+        }
+    });
+    let mut info = phonedriver_core::device::Device::info(fake.as_ref()).clone();
+    info.capabilities |= phonedriver_core::device::Capabilities::SCREENSHOT;
+    let (home, socket) = fake_daemon_on(Arc::new(fakes::Pixels(fake, info))).await;
     let out = cli(&home, &socket, &["replay", typed.to_str().unwrap()]).await;
     let first = out.lines().next().unwrap();
     assert!(

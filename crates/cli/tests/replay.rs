@@ -1,12 +1,14 @@
 #[path = "support/fakes.rs"]
 mod fakes;
 
+use std::path::PathBuf;
 use std::sync::Arc;
 
+use assert_cmd::Command;
 use async_trait::async_trait;
 use fakes::tree;
 use phonedriver::daemon::{Config, Daemon, DeviceSource, Listed};
-use phonedriver_core::device::{Capabilities, Device};
+use phonedriver_core::device::{Capabilities, Device, TextInput};
 use phonedriver_core::error::Error;
 use phonedriver_core::geometry::Scale;
 use phonedriver_core::raw::RawTree;
@@ -314,4 +316,206 @@ async fn an_element_is_saved_by_an_id_of_its_own_with_its_text_beside_it() {
         .await
         .expect_err("no element has this id");
     assert!(none.message.contains("gone"), "{none:?}");
+}
+
+/// A daemon on its own socket for the `phonedriver` binary to talk to, as `cli.rs` serves one.
+async fn served(fake: Arc<FakeDevice>) -> (tempfile::TempDir, PathBuf) {
+    let home = tempfile::tempdir().unwrap();
+    let daemon = Daemon::new(
+        Arc::new(One(fake)),
+        Config {
+            home: home.path().to_path_buf(),
+        },
+    );
+    let socket = if cfg!(windows) {
+        PathBuf::from(format!(
+            r"\\.\pipe\phonedriver-test-{}-replay",
+            home.path().file_name().unwrap().to_string_lossy()
+        ))
+    } else {
+        home.path().join("run").join("d.sock")
+    };
+    let listener = phonedriver::daemon::socket::listen(&socket).await.unwrap();
+    tokio::spawn(daemon.serve_on(listener));
+    (home, socket)
+}
+
+/// Runs the CLI against that daemon: whether it succeeded, and what it printed (stdout and stderr).
+async fn run(home: &tempfile::TempDir, socket: &PathBuf, args: &[&str]) -> (bool, String) {
+    let mut c = Command::cargo_bin("phonedriver").unwrap();
+    c.env("PHONEDRIVER_HOME", home.path())
+        .env("PHONEDRIVER_SOCKET", socket)
+        .env_remove("PHONEDRIVER_SESSION")
+        .env_remove("PHONEDRIVER_DEVICE")
+        .env_remove("PHONEDRIVER_SECRET")
+        .args(args);
+    let out = tokio::task::spawn_blocking(move || c.output().unwrap())
+        .await
+        .unwrap();
+    let shown = format!(
+        "{}{}",
+        String::from_utf8_lossy(&out.stdout),
+        String::from_utf8_lossy(&out.stderr)
+    );
+    (out.status.success(), shown)
+}
+
+/// Contacts pre-fills `+1` in a new phone field; a replay typed `0655555552`, the field held `+10655555552`, and the
+/// replay said "replayed 6 steps". The live `type` reply says NOT verified for a field that holds other text than
+/// typed; a replayed step must stop there too, saying what the field shows.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_replayed_type_whose_field_holds_other_text_than_typed_stops_the_replay() {
+    let fake = Arc::new(FakeDevice::new(vec![field("")]).lacking(Capabilities::FRAMES));
+    fake.on_text(|t| match t {
+        TextInput::Paste(v) | TextInput::SetValue(v) | TextInput::Keystrokes(v) if v == "hello" => {
+            Some(vec![field("Mr hello")])
+        }
+        _ => None,
+    });
+    let (home, socket) = served(fake).await;
+    let steps = home.path().join("form.steps");
+    let typed = json!({"method": "act", "params": {"action": {"kind": "type", "text": "hello", "into": {"text": "Field", "role": "text_field"}}}, "summary": "typed \"hello\" into @e1 \"Field\""});
+    let back = json!({"method": "act", "params": {"action": {"kind": "press", "key": "back"}}, "summary": "pressed back"});
+    std::fs::write(&steps, format!("{typed}\n{back}\n")).unwrap();
+
+    let (succeeded, shown) = run(&home, &socket, &["replay", steps.to_str().unwrap()]).await;
+    assert!(
+        !succeeded,
+        "the field holds \"Mr hello\", not \"hello\", yet the replay went on: {shown}"
+    );
+    assert!(shown.contains("step 1 of 2"), "{shown}");
+    assert!(shown.contains("Mr hello"), "{shown}");
+    assert!(shown.contains("from step 2"), "{shown}");
+}
+
+/// A form whose phone field the keyboard pushes out of the list, as `daemon.rs` builds it.
+fn form(keyboard: bool, phone_at: Option<f64>) -> RawTree {
+    let ime = if keyboard {
+        r#",{"id":2,"type":"input_method","package":"com.google.android.inputmethod.latin","bounds":[0,500,360,800]}"#
+    } else {
+        ""
+    };
+    let phone = phone_at.map_or(String::new(), |y| {
+        format!(
+            r#",{{"p":1,"w":1,"cls":"android.widget.EditText","desc":"Phone (Mobile)","b":[0,{y},360,{}],"f":"vVeE","a":["tap","set_text"]}}"#,
+            y + 60.0
+        )
+    });
+    let keys = if keyboard {
+        r#",{"p":-1,"w":2,"cls":"android.inputmethodservice.SoftInputWindow","b":[0,500,360,800],"f":"vVe"}"#
+    } else {
+        ""
+    };
+    let json = format!(
+        r#"{{"windows":[{{"id":1,"type":"application","package":"com.example","bounds":[0,0,360,800]}}{ime}],
+      "nodes":[
+        {{"p":-1,"w":1,"cls":"android.widget.FrameLayout","b":[0,0,360,800],"f":"vVe"}},
+        {{"p":0,"w":1,"cls":"androidx.recyclerview.widget.RecyclerView","b":[0,80,360,800],"f":"vVeS","a":["scroll_down","scroll_up"]}},
+        {{"p":1,"w":1,"cls":"android.widget.EditText","desc":"First name","b":[0,100,360,160],"f":"vVeE{}","a":["tap","set_text"]}}{phone}{keys}]}}"#,
+        if keyboard { "F" } else { "" }
+    );
+    RawTree::from_android_json(&json, Scale { density: 1.0 }).unwrap()
+}
+
+/// A drag of more than 20 points, as a scroll is, not a tap.
+fn drags(g: &phonedriver_core::device::Gesture) -> bool {
+    let path = &g.fingers[0];
+    match (path.first(), path.last()) {
+        (Some(a), Some(b)) => (a.at.y - b.at.y).abs() > 20.0,
+        _ => false,
+    }
+}
+
+/// Contacts (2026-11): the agent typed into @e24 (Company) after a type reply listed it as gone from the screen;
+/// the daemon scrolled it back and typed, and the steps file kept `"into": {"ref": "e24"}`, which names nothing in
+/// a later run, and `save` said nothing about it.
+#[tokio::test(start_paused = true)]
+#[ignore = "open bug: lasting() keeps a ref the last screen does not hold (journal.rs); remove this line with the fix"]
+async fn a_typed_field_the_last_screen_had_dropped_is_not_saved_by_its_session_ref() {
+    let (d, fake, _home) = setup(vec![form(false, Some(600.0))]);
+    let snap = ok(&d, "snapshot", json!({})).await;
+    let phone = snap["text"]
+        .as_str()
+        .unwrap()
+        .lines()
+        .find(|l| l.contains("\"Phone (Mobile)\""))
+        .and_then(|l| l.trim_start().split(' ').next())
+        .unwrap()
+        .trim_start_matches('@')
+        .to_string();
+    fake.set_tree(form(true, None));
+    ok(&d, "snapshot", json!({})).await;
+    fake.on_gesture(|g| drags(g).then(|| vec![form(true, Some(300.0))]));
+    let typed = ok(
+        &d,
+        "act",
+        json!({"action": {"kind": "type", "text": "555 0199", "into": {"ref": phone}}}),
+    )
+    .await;
+    assert!(
+        typed["summary"].as_str().unwrap().contains("scrolled"),
+        "the daemon brought the dropped field back: {typed}"
+    );
+
+    let saved = ok(&d, "journal", json!({})).await;
+    let step = &saved["steps"][0];
+    let into = &step["params"]["action"]["into"];
+    assert!(
+        into.get("ref").is_none() || step["by_position"] == true,
+        "the step keeps the session-only ref @{phone} and does not mark it: {saved}"
+    );
+}
+
+fn list(labels: &[&str]) -> RawTree {
+    let mut nodes = vec![
+        r#"{"p":-1,"w":1,"cls":"android.widget.FrameLayout","b":[0,0,360,800],"f":"vVe"}"#
+            .to_string(),
+        r#"{"p":0,"w":1,"cls":"androidx.recyclerview.widget.RecyclerView","b":[0,80,360,800],"f":"vVeS","a":["scroll_down","scroll_up"]}"#
+            .to_string(),
+    ];
+    for (i, l) in labels.iter().enumerate() {
+        let top = 100 + 100 * i as i32;
+        nodes.push(format!(
+            r#"{{"p":1,"w":1,"cls":"android.widget.Button","text":"{l}","b":[0,{top},360,{}],"f":"vVe","a":["tap"]}}"#,
+            top + 60
+        ));
+    }
+    let json = format!(
+        r#"{{"windows":[{{"id":1,"type":"application","package":"com.example","bounds":[0,0,360,800]}}],"nodes":[{}]}}"#,
+        nodes.join(",")
+    );
+    RawTree::from_android_json(&json, Scale { density: 1.0 }).unwrap()
+}
+
+/// A list that one drag moves to its end, where "Email" shows but "Add email" never does.
+fn scrolling_list() -> Arc<FakeDevice> {
+    let fake =
+        Arc::new(FakeDevice::new(vec![list(&["Phone", "Name"])]).lacking(Capabilities::FRAMES));
+    fake.on_gesture(|g| drags(g).then(|| vec![list(&["Website", "Email"])]));
+    fake
+}
+
+/// Contacts (2026-11): `scroll down --until "Add email"` scrolled 4 times and failed (not found); the next step,
+/// `tap "Email"`, worked only because of that scroll. The failed scroll was not saved, so the replay stopped at the
+/// tap.
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "open bug: a failed call that moved the screen is not journaled (actor.rs, journal pushed after acted?); remove this line with the fix"]
+async fn a_failed_scroll_that_moved_the_list_is_kept_for_the_step_after_it() {
+    let (home, socket) = served(scrolling_list()).await;
+    let (scrolled, shown) = run(&home, &socket, &["scroll", "down", "--until", "Add email"]).await;
+    assert!(!scrolled, "the list has no \"Add email\": {shown}");
+    let (tapped, shown) = run(&home, &socket, &["tap", "Email"]).await;
+    assert!(tapped, "the scroll brought \"Email\" on screen: {shown}");
+    let steps = home.path().join("email.steps");
+    let file = steps.to_str().unwrap();
+    let (saved, shown) = run(&home, &socket, &["save", file]).await;
+    assert!(saved, "{shown}");
+
+    let (home, socket) = served(scrolling_list()).await;
+    let (replayed, shown) = run(&home, &socket, &["replay", file]).await;
+    let kept = std::fs::read_to_string(&steps).unwrap();
+    assert!(
+        replayed,
+        "the tap on \"Email\" needs the scroll before it, which the file does not hold:\n{kept}\n{shown}"
+    );
 }
