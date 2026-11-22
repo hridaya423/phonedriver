@@ -216,27 +216,8 @@ impl Verify {
 }
 
 impl Verify {
-    /// A phone field rewrites `3710658` as `+1 371-065-8` while it is typed into: the digits typed are the last digits
-    /// shown, behind at most a three-digit country code.
     fn phone_formatted(&self, value: &str) -> bool {
-        let typed = match &self.expect {
-            Expect::Exactly(t) => t.as_str(),
-            Expect::Appended { text, .. } => text.as_str(),
-        };
-        let phone_like = typed
-            .chars()
-            .all(|c| c.is_ascii_digit() || "+-(). ".contains(c));
-        let digits = |s: &str| s.chars().filter(char::is_ascii_digit).collect::<String>();
-        let code_made_of_typed_digits = self.plus_left_over(value);
-        // A number typed with its national 0 (`0622222222`) loses that 0 to a country code; a code in front of the
-        // 0 (`+10622222222`) is a `+1` the field already held.
-        let national = !typed.contains('+') && typed.trim_start().starts_with('0');
-        let (typed, shown) = (digits(typed), digits(value));
-        phone_like
-            && !code_made_of_typed_digits
-            && typed.len() >= 4
-            && shown.ends_with(&typed)
-            && shown.len() <= typed.len() + if national { 0 } else { 3 }
+        !self.plus_left_over(value) && same_phone_number(self.typed(), value)
     }
 
     /// The field shows a `+` that was not typed, in front of exactly the digits typed, so the first of them read as
@@ -250,6 +231,23 @@ impl Verify {
         let digits = |s: &str| s.chars().filter(char::is_ascii_digit).collect::<String>();
         value.contains('+') && !typed.contains('+') && digits(value) == digits(typed)
     }
+}
+
+/// `shown` is the number `typed` as an app formats it: a phone field rewrites `3710658` as `+1 371-065-8`, so the
+/// digits typed are the last digits shown, behind at most a three-digit country code. A number typed with its
+/// national 0 (`0622222222`) loses that 0 to a country code, so a code in front of the 0 (`+10622222222`) is a `+1`
+/// the field already held and another number.
+pub fn same_phone_number(typed: &str, shown: &str) -> bool {
+    let phone_like = typed
+        .chars()
+        .all(|c| c.is_ascii_digit() || "+-(). ".contains(c));
+    let digits = |s: &str| s.chars().filter(char::is_ascii_digit).collect::<String>();
+    let national = !typed.contains('+') && typed.trim_start().starts_with('0');
+    let (typed, shown) = (digits(typed), digits(shown));
+    phone_like
+        && typed.len() >= 4
+        && shown.ends_with(&typed)
+        && shown.len() <= typed.len() + if national { 0 } else { 3 }
 }
 
 fn shown(name: &str, value: Option<&str>, secure: bool) -> String {
