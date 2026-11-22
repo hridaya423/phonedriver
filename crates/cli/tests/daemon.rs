@@ -335,6 +335,31 @@ async fn a_rotation_reported_just_before_an_action_is_kept() {
 }
 
 #[tokio::test]
+async fn an_option_the_method_does_not_have_is_refused_by_name() {
+    let (source, fake) = FakeSource::with(vec![tree(&["One"])]);
+    let (d, _home) = daemon(source);
+    let e = err(&d, "default", "screenshot", json!({"native": true})).await;
+    assert_eq!(e.code, -32602, "{e:?}");
+    assert!(e.message.contains("`native`"), "{}", e.message);
+    let e = err(
+        &d,
+        "default",
+        "act",
+        json!({"action": {"kind": "tap", "target": {"ref": "e1"}, "twice": true}}),
+    )
+    .await;
+    assert!(e.message.contains("`twice`"), "{}", e.message);
+    assert_eq!(fake.tree_reads(), 0);
+    ok(
+        &d,
+        "default",
+        "snapshot",
+        json!({"device": "fake:1", "share": true, "display": "main"}),
+    )
+    .await;
+}
+
+#[tokio::test]
 async fn snapshot_returns_the_rendered_text_of_the_fake_tree() {
     let (source, _) = FakeSource::with(vec![tree(&["One", "Two", "Three"])]);
     let (d, _home) = daemon(source);

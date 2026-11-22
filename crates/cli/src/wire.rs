@@ -66,7 +66,7 @@ pub struct PathPoint {
 }
 
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
-#[serde(tag = "kind", rename_all = "snake_case")]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum Action {
     Tap {
         target: Target,

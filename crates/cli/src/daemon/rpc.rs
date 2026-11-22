@@ -76,7 +76,40 @@ pub fn reply(id: &Value, result: Result<Value, RpcError>) -> String {
     body.to_string()
 }
 
+/// Keys every device method takes beside its own: `wire::Common`'s, and the `session` the client adds to each call.
+const COMMON: [&str; 4] = ["device", "share", "display", "session"];
+
+/// A method's params. A key the method does not read is refused by name: an option that does nothing would
+/// otherwise answer `ok`.
 pub fn params<T: serde::de::DeserializeOwned>(v: &Value) -> Result<T, RpcError> {
+    known(v).map_err(|e| match e {
+        Unknown::Parse(e) => RpcError::invalid_params(e.to_string()),
+        Unknown::Keys(why) => RpcError::invalid_params(why),
+    })
+}
+
+/// Params read with `params`, keeping serde's error apart for callers that word it themselves.
+pub fn known<T: serde::de::DeserializeOwned>(v: &Value) -> Result<T, Unknown> {
     let v = if v.is_null() { json!({}) } else { v.clone() };
-    serde_json::from_value(v).map_err(|e| RpcError::invalid_params(e.to_string()))
+    let mut extra = Vec::new();
+    let parsed = serde_ignored::deserialize(v, |path| {
+        let path = path.to_string();
+        if !COMMON.contains(&path.as_str()) {
+            extra.push(format!("`{path}`"));
+        }
+    })
+    .map_err(Unknown::Parse)?;
+    if extra.is_empty() {
+        Ok(parsed)
+    } else {
+        Err(Unknown::Keys(format!(
+            "no such option: {}; `phonedriver --help` and docs/protocol.md list each method's",
+            extra.join(", ")
+        )))
+    }
+}
+
+pub enum Unknown {
+    Parse(serde_json::Error),
+    Keys(String),
 }

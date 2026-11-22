@@ -330,7 +330,12 @@ impl Daemon {
             "release" | "snapshot" | "screenshot" | "act" | "wait" | "batch" | "find" | "apps"
             | "app" | "clipboard" | "health" | "shell" | "setting" | "logs" | "network"
             | "page" | "record" | "journal" | "build" => {
-                let common: Common = rpc::params(params)?;
+                let common: Common = serde_json::from_value(if params.is_null() {
+                    json!({})
+                } else {
+                    params.clone()
+                })
+                .map_err(|e| RpcError::invalid_params(e.to_string()))?;
                 if method == "release" && common.device.is_none() {
                     self.release_everywhere(session).await;
                     return Ok(json!({}));
@@ -383,8 +388,10 @@ impl Daemon {
                         Call::Setting(p)
                     }
                     "act" => {
-                        let act: ActParams = serde_json::from_value(params.clone())
-                            .map_err(|e| act_error(&e, params))?;
+                        let act: ActParams = rpc::known(params).map_err(|e| match e {
+                            rpc::Unknown::Parse(e) => act_error(&e, params),
+                            rpc::Unknown::Keys(why) => RpcError::invalid_params(why),
+                        })?;
                         if let Action::Gesture { fingers } = &act.action
                             && (fingers.is_empty() || fingers.iter().any(|f| f.len() < 2))
                         {
