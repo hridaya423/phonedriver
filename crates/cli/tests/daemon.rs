@@ -1117,6 +1117,33 @@ async fn text_for_a_field_that_was_just_tapped_is_sent_once_the_field_has_focus(
     assert!(reads >= 3, "text was sent after {reads} reads");
 }
 
+/// `Intent.parseUri` takes any action: on a person's phone `intent:tel:…;action=android.intent.action.CALL` dials
+/// at once, with no screen to approve.
+#[tokio::test]
+async fn an_intent_link_that_does_more_than_view_is_refused_on_a_physical_phone() {
+    let (source, fake) = physical();
+    let (d, _home) = daemon(source);
+    let call = "intent:5551234#Intent;scheme=tel;action=android.intent.action.CALL;end";
+    let e = err(
+        &d,
+        "s",
+        "act",
+        json!({"action": {"kind": "open", "url": call}}),
+    )
+    .await;
+    assert!(e.message.contains("CALL"), "{e:?}");
+    assert!(!fake.calls().iter().any(|c| matches!(c, Call::OpenUrl(..))));
+    let view = "intent://example.com/a#Intent;scheme=https;action=android.intent.action.VIEW;end";
+    ok(
+        &d,
+        "s",
+        "act",
+        json!({"action": {"kind": "open", "url": view}, "settle": false}),
+    )
+    .await;
+    assert!(fake.calls().iter().any(|c| matches!(c, Call::OpenUrl(..))));
+}
+
 fn blank_web_view_tree() -> RawTree {
     let json = r#"{"windows":[{"id":1,"type":"application","package":"com.example","bounds":[0,0,360,800]}],"nodes":[
         {"p":-1,"w":1,"cls":"android.widget.FrameLayout","b":[0,0,360,800],"f":"vVe"},

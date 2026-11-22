@@ -222,6 +222,17 @@ pub fn refuse_on_physical(command: &str, mine: &[String]) -> Option<&'static str
     for w in segments(command) {
         let rest: Vec<&str> = w[1..].iter().map(String::as_str).collect();
         match w[0].as_str() {
+            "input" if !rest.is_empty() => {
+                return refuse!(
+                    "`input` sends touches and keys the approval guard does not see; tap, type, swipe and press check what they touch"
+                );
+            }
+            "am" if rest
+                .iter()
+                .any(|a| a.starts_with("android.intent.action.CALL")) =>
+            {
+                return refuse!("a CALL intent dials without a tap");
+            }
             "wipe" | "format" | "fastboot" => return refuse!("it wipes or reformats the device"),
             "mkfs" | "newfs_msdos" => return refuse!("it reformats a partition"),
             "dd" if rest.iter().any(|a| a.starts_with("of=/dev/")) => {
@@ -260,6 +271,9 @@ pub fn refuse_on_physical(command: &str, mine: &[String]) -> Option<&'static str
                 } else {
                     &rest[..]
                 };
+                if rest.first().is_some_and(|sub| sub.starts_with("install")) {
+                    return refuse!("it installs an app on a person's phone");
+                }
                 if !matches!(rest.first(), Some(&("uninstall" | "clear"))) {
                     continue;
                 }
@@ -285,6 +299,15 @@ pub fn refuse_on_physical(command: &str, mine: &[String]) -> Option<&'static str
         }
     }
     None
+}
+
+/// The action an Android `intent:` link names (`#Intent;…;action=…;end`), or `None` for another link or one that
+/// names none.
+pub fn intent_action(url: &str) -> Option<&str> {
+    let fragment = url.strip_prefix("intent:")?.split_once("#Intent;")?.1;
+    fragment
+        .split(';')
+        .find_map(|part| part.strip_prefix("action="))
 }
 
 #[cfg(test)]
@@ -385,6 +408,32 @@ mod tests {
             "ls; dd if=/dev/zero of=/dev/block/sda",
         ] {
             assert!(refuse_on_physical(c, &["com.mine".into()]).is_some(), "{c}");
+        }
+    }
+
+    /// The approval guard sees the taps and keys phonedriver sends, not the ones `input` sends; an install puts an
+    /// app on a person's phone; a CALL intent dials without a tap.
+    #[test]
+    fn touches_installs_and_calls_the_guard_cannot_see_are_refused_on_a_physical_device() {
+        for c in [
+            "input tap 540 1650",
+            "input touchscreen swipe 100 100 100 900",
+            "input text 4111111111111111",
+            "sh -c 'input keyevent 66'",
+            "dumpsys window | grep a && input tap 1 1",
+            "pm install /data/local/tmp/x.apk",
+            "pm install-create -S 1000",
+            "cmd package install-existing com.example.other",
+            "am start -a android.intent.action.CALL -d tel:5551234",
+        ] {
+            assert!(refuse_on_physical(c, &[]).is_some(), "{c}");
+        }
+        for c in [
+            "input",
+            "ime list -s",
+            "am start -a android.intent.action.VIEW -d https://example.com",
+        ] {
+            assert_eq!(refuse_on_physical(c, &[]), None, "{c}");
         }
     }
 
