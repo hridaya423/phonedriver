@@ -4183,7 +4183,8 @@ impl Actor {
                 Ok(_) | Err(Error::Ambiguous { .. })
             );
             if found == present {
-                let text = rendered.text(&Filters::default()).unwrap_or_default();
+                let (kind, text) = answer(s, &rendered);
+                let changed = kind == Kind::Full || !text.is_empty();
                 let what = describe(target);
                 let summary = format!(
                     "{what} {} after {reads} tree read{}",
@@ -4193,8 +4194,8 @@ impl Actor {
                 let observation = Observation {
                     header: rendered.header.clone(),
                     text,
-                    kind: Kind::Full,
-                    changed: true,
+                    kind,
+                    changed,
                     settled: false,
                     settle_ms: 0,
                     still_changing: None,
@@ -4216,7 +4217,7 @@ impl Actor {
                     unverified: None,
                     settled: false,
                     settle_ms: 0,
-                    changed: true,
+                    changed,
                     woke: false,
                     unlocked: false,
                     observation,
@@ -4288,7 +4289,8 @@ impl Actor {
         let tree = self.device()?.tree().await?;
         let mut rendered = self.build(s, &tree, Some(settle_line(st)));
         self.read_checkboxes(&mut rendered, s.last.as_ref()).await?;
-        let text = rendered.text(&Filters::default()).unwrap_or_default();
+        let (kind, text) = answer(s, &rendered);
+        let changed = kind == Kind::Full || !text.is_empty();
         let ms = match st {
             State::Done { elapsed, .. } => elapsed.as_millis() as u32,
             State::Waiting => 0,
@@ -4296,8 +4298,8 @@ impl Actor {
         let observation = Observation {
             header: rendered.header.clone(),
             text,
-            kind: Kind::Full,
-            changed: true,
+            kind,
+            changed,
             settled: true,
             settle_ms: ms,
             still_changing: None,
@@ -4319,7 +4321,7 @@ impl Actor {
             unverified: None,
             settled: true,
             settle_ms: ms,
-            changed: true,
+            changed,
             woke: false,
             unlocked: false,
             observation,
@@ -4338,6 +4340,18 @@ fn only_lost_lines(s: &Session, now: &Rendered) -> bool {
         Some(DiffOrFull::Diff(changes))
             if !changes.is_empty() && changes.iter().all(|c| matches!(c, Change::Removed(_)))
     )
+}
+
+/// What a reply says about `now`: the changes since the screen the session last saw, or the whole screen when it saw
+/// none or this one is another screen.
+fn answer(s: &mut Session, now: &Rendered) -> (Kind, String) {
+    match s.diff_for_reply(now) {
+        Some(DiffOrFull::Diff(changes)) => (Kind::Diff, DiffOrFull::Diff(changes).text(now)),
+        _ => (
+            Kind::Full,
+            now.text(&Filters::default()).unwrap_or_default(),
+        ),
+    }
 }
 
 /// A screen with at most two elements besides the keyboard: it is rarely the whole of a screen an app opens. A web

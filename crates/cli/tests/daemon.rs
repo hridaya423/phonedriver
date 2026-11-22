@@ -1144,6 +1144,46 @@ async fn an_intent_link_that_does_more_than_view_is_refused_on_a_physical_phone(
     assert!(fake.calls().iter().any(|c| matches!(c, Call::OpenUrl(..))));
 }
 
+/// A wait answered with the whole screen, though the agent had just seen it: a `wait` after a `tap` cost the full
+/// screen again. It now answers as an action does, with what changed since the agent last saw the screen.
+#[tokio::test(start_paused = true)]
+async fn a_wait_answers_with_what_changed_since_the_screen_the_agent_saw() {
+    let (source, fake) = FakeSource::with(vec![tree(&["One"])]);
+    let (d, _home) = daemon(source);
+    ok(&d, "s", "snapshot", json!({})).await;
+    let r = ok(
+        &d,
+        "s",
+        "wait",
+        json!({"condition": {"appears": {"text": "One"}}}),
+    )
+    .await;
+    assert_eq!(r["observation"]["kind"], "diff", "{r}");
+    assert_eq!(r["observation"]["text"], "", "{r}");
+    assert_eq!(r["changed"], false, "{r}");
+    fake.set_tree(tree(&["One", "Two"]));
+    let r = ok(
+        &d,
+        "s",
+        "wait",
+        json!({"condition": {"appears": {"text": "Two"}}}),
+    )
+    .await;
+    assert_eq!(r["observation"]["kind"], "diff", "{r}");
+    let text = r["observation"]["text"].as_str().unwrap();
+    assert!(text.contains("+ @e2 button \"Two\""), "{text}");
+    assert!(!text.contains("\"One\""), "{text}");
+    let r = ok(&d, "s", "wait", json!({"condition": {"settled": true}})).await;
+    assert_eq!(r["observation"]["kind"], "diff", "{r}");
+    assert_eq!(r["observation"]["text"], "", "{r}");
+    ok(&d, "s", "release", json!({})).await;
+    let r = ok(&d, "fresh", "wait", json!({"condition": {"settled": true}})).await;
+    assert_eq!(
+        r["observation"]["kind"], "full",
+        "a session that saw nothing gets the screen: {r}"
+    );
+}
+
 fn blank_web_view_tree() -> RawTree {
     let json = r#"{"windows":[{"id":1,"type":"application","package":"com.example","bounds":[0,0,360,800]}],"nodes":[
         {"p":-1,"w":1,"cls":"android.widget.FrameLayout","b":[0,0,360,800],"f":"vVe"},
