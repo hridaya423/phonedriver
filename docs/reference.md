@@ -236,7 +236,7 @@ The list covers what goes through the daemon. `pair`, `untether` and `ios setup`
 When something does not work:
 
 - `phonedriver doctor` checks the toolchain, devices and the socket, and says how to fix each problem.
-- `$PHONEDRIVER_HOME/daemon.log` (default `~/.phonedriver/daemon.log`) holds the daemon's own messages and startup errors.
+- `$PHONEDRIVER_HOME/daemon.log` (default `~/.phonedriver/daemon.log`) holds the daemon's own messages and startup errors; past 4 MiB it is moved to `daemon.log.1` when the next daemon starts.
 - `$PHONEDRIVER_HOME/traces/<id>.jsonl` has one line per request: method, parameters, the reply's summary, `ms` and settle time. Typed text is recorded only as a length, and so is the text of a text target. The reply's summary and an error's message are recorded as returned, so they can name elements from the screen (`tapped @e6 "Busy"`, `no element matches "Pay €49.99"`, an approval refusal's `On screen:` lines): read trace lines before you share them. Start the daemon with `PHONEDRIVER_TRACE_FULL=1` to keep observation text and text targets, and `PHONEDRIVER_TRACE_SCREENS=1` to keep screenshots. A running daemon keeps its options: `phonedriver daemon stop` first.
 - iOS: `$PHONEDRIVER_HOME/runner/<udid>.log` is the runner's output, and `runner/<hash>/build.log` is its first build.
 - `phonedriver daemon stop` stops the daemon and the iOS runners it started. The next command starts a new one.
