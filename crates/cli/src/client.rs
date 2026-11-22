@@ -301,6 +301,7 @@ async fn start_daemon() -> Result<(), Failure> {
     let exe = std::env::current_exe()
         .map_err(|e| Failure::Local(format!("cannot find the phonedriver binary: {e}")))?;
     let log = create_home(&socket::home()).and_then(|()| {
+        rotate(&log_path(), LOG_LIMIT);
         crate::private::options()
             .create(true)
             .append(true)
@@ -311,6 +312,17 @@ async fn start_daemon() -> Result<(), Failure> {
     let mut lines = BufReader::new(ready).lines();
     let _ = timeout(READY_WAIT, lines.next_line()).await;
     Ok(())
+}
+
+/// Past this a daemon's log is moved to `daemon.log.1` before the next daemon writes: every daemon appended to one file
+/// for as long as phonedriver was installed.
+const LOG_LIMIT: u64 = 4 * 1024 * 1024;
+
+/// Moves `log` to `<log>.1`, over an older one, when it is longer than `limit`.
+fn rotate(log: &Path, limit: u64) {
+    if std::fs::metadata(log).is_ok_and(|m| m.len() > limit) {
+        let _ = std::fs::rename(log, log.with_extension("log.1"));
+    }
 }
 
 /// Creates phonedriver's home owner-only when it is missing. One that is there keeps its mode: `PHONEDRIVER_HOME` may
@@ -375,6 +387,25 @@ fn spawn_daemon(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_daemon_log_past_its_limit_is_moved_aside_before_a_new_daemon_writes() {
+        let dir = tempfile::tempdir().unwrap();
+        let log = dir.path().join("daemon.log");
+        std::fs::write(&log, vec![b'x'; 100]).unwrap();
+        rotate(&log, 200);
+        assert!(log.exists() && !dir.path().join("daemon.log.1").exists());
+        std::fs::write(&log, vec![b'y'; 300]).unwrap();
+        rotate(&log, 200);
+        assert!(!log.exists());
+        assert_eq!(
+            std::fs::read(dir.path().join("daemon.log.1"))
+                .unwrap()
+                .len(),
+            300
+        );
+        rotate(&dir.path().join("missing.log"), 200);
+    }
 
     #[tokio::test]
     async fn a_reply_left_by_a_cancelled_call_is_not_taken_for_the_next_calls() {
