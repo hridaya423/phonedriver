@@ -176,46 +176,69 @@ impl Client {
         let id = self.next;
         self.next += 1;
         let request = json!({"jsonrpc": "2.0", "id": id, "method": method, "params": params});
-        let lost =
-            |e: std::io::Error| RpcError::new(-32603, format!("lost the daemon: {e}"), Value::Null);
         self.write
             .write_all(format!("{request}\n").as_bytes())
             .await
-            .map_err(lost)?;
-        let reply = loop {
-            let mut line = String::new();
-            let n = self.read.read_line(&mut line).await.map_err(lost)?;
-            if n == 0 {
-                return Err(RpcError::new(
-                    -32603,
-                    "the daemon closed the connection",
-                    Value::Null,
-                ));
-            }
-            let reply: Value = serde_json::from_str(&line).map_err(|e| {
-                RpcError::new(
-                    -32603,
-                    format!("the daemon sent bad JSON: {e}"),
-                    Value::Null,
-                )
-            })?;
-            match (
-                reply["method"].as_str(),
-                reply["params"]["message"].as_str(),
-            ) {
-                (Some("progress"), Some(message)) => eprintln!("{message}"),
-                _ => break reply,
-            }
-        };
-        match reply.get("error") {
-            Some(e) => Err(RpcError::new(
-                e["code"].as_i64().unwrap_or(-32603) as i32,
-                e["message"].as_str().unwrap_or("error").to_string(),
-                e["data"].clone(),
-            )),
-            None => Ok(reply["result"].clone()),
-        }
+            .map_err(|e| lost(format!("lost the daemon: {e}")))?;
+        read_reply(&mut self.read, id, |message| eprintln!("{message}")).await
     }
+}
+
+/// Reads lines until the reply to request `id`, handing each progress line to `progress`. A reply with an earlier id
+/// belongs to a call whose caller stopped waiting (an MCP client cancelled the tool call after the request went out),
+/// and is skipped, so it is never taken for this call's.
+async fn read_reply<R: tokio::io::AsyncBufRead + Unpin>(
+    read: &mut R,
+    id: u64,
+    mut progress: impl FnMut(&str),
+) -> Result<Value, RpcError> {
+    let reply = loop {
+        let mut line = String::new();
+        let n = read
+            .read_line(&mut line)
+            .await
+            .map_err(|e| lost(format!("lost the daemon: {e}")))?;
+        if n == 0 {
+            return Err(lost("the daemon closed the connection".to_string()));
+        }
+        let reply: Value = serde_json::from_str(&line).map_err(|e| {
+            RpcError::new(
+                -32603,
+                format!("the daemon sent bad JSON: {e}"),
+                Value::Null,
+            )
+        })?;
+        if reply["method"] == "progress" {
+            if let Some(message) = reply["params"]["message"].as_str() {
+                progress(message);
+            }
+            continue;
+        }
+        if reply["id"].as_u64().is_some_and(|got| got < id) {
+            continue;
+        }
+        break reply;
+    };
+    match reply.get("error") {
+        Some(e) => Err(RpcError::new(
+            e["code"].as_i64().unwrap_or(-32603) as i32,
+            e["message"].as_str().unwrap_or("error").to_string(),
+            e["data"].clone(),
+        )),
+        None => Ok(reply["result"].clone()),
+    }
+}
+
+/// The daemon went away mid-call. Its log says why; the next command starts a new one.
+fn lost(message: String) -> RpcError {
+    RpcError::new(
+        -32603,
+        message,
+        json!({"hint": format!(
+            "{} says why the daemon stopped; the next command starts a new one",
+            log_path().display()
+        )}),
+    )
 }
 
 /// Stops the daemon listening at `path` without starting one, and returns its pid; `None` when nothing listens. The
@@ -352,6 +375,30 @@ fn spawn_daemon(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn a_reply_left_by_a_cancelled_call_is_not_taken_for_the_next_calls() {
+        let wire = concat!(
+            r#"{"jsonrpc":"2.0","id":3,"result":{"for":"the cancelled call"}}"#,
+            "\n",
+            r#"{"jsonrpc":"2.0","method":"progress","params":{"message":"settling"}}"#,
+            "\n",
+            r#"{"jsonrpc":"2.0","id":4,"result":{"for":"this call"}}"#,
+            "\n",
+        );
+        let mut read = wire.as_bytes();
+        let reply = read_reply(&mut read, 4, |_| {}).await.unwrap();
+        assert_eq!(reply, json!({"for": "this call"}));
+    }
+
+    #[tokio::test]
+    async fn a_daemon_that_goes_away_mid_call_says_where_its_log_is() {
+        let mut read: &[u8] = b"";
+        let e = read_reply(&mut read, 1, |_| {}).await.unwrap_err();
+        assert!(e.message.contains("closed the connection"), "{}", e.message);
+        let hint = e.data["hint"].as_str().unwrap();
+        assert!(hint.contains("daemon.log"), "{hint}");
+    }
 
     #[test]
     fn only_a_cli_on_a_terminal_asks_for_progress() {

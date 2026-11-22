@@ -3674,3 +3674,9 @@ Not run on a device: the submit split costs one more settle per saved `type --su
 - Test first (Mac mini): with `on_screen` switched off, `a_replayed_step_stops_before_touching_a_dialog_that_was_not_in_front_when_it_was_saved` and `a_replayed_step_saved_in_another_app_stops_before_touching_this_one` both panicked with `replayed 1 step in 0.5 s` (the tap went out). With it: `replay` 16 passed. `the_journal_holds_each_action_that_worked_…` now expects `"on": {"app": "com.example", "over": false}` in its step.
 - `cargo fmt --all --check` clean; `cargo clippy --locked --workspace --all-targets -- -D warnings` clean; `cargo test -p phonedriver-core -p phonedriver --lib --test ios_fixture --test replay --test daemon --test cli --test mcp`: 161, 33, 210, 55, 16, core 241 (snapshots unchanged), 5 passed. Also `guard` 54.
 - Not run on a device: the window-width rule rests on the recorded fixtures, not a live dialog.
+
+## 2026-11-22: audit fixes (branch fix/audit, MacBook, `cargo` with `CARGO_BUILD_JOBS=6`; blaze stops on "layout of Coroutine … Unknown" in `FakeDevice::text`)
+
+Baseline before any change: `cargo test --locked --workspace --no-fail-fast`, every suite `ok` (lib 163, daemon 210, mcp 55, core 242).
+
+- **A call's reply is matched by id** (`client.rs` `read_reply`). The MCP server keeps one daemon connection; a tool call the client cancelled after its request went out left its reply on the socket, and the next call took it as its own. Replies with an earlier id are skipped. A daemon that drops the connection now says, in `hint`, which `daemon.log` holds why. Test first: `a_reply_left_by_a_cancelled_call_is_not_taken_for_the_next_calls` and `a_daemon_that_goes_away_mid_call_says_where_its_log_is` did not compile against the old inline loop (which broke on the first non-progress line, the id-3 reply); after, `cargo test -p phonedriver --lib client::` `6 passed`.
