@@ -320,6 +320,20 @@ async fn the_header_follows_a_device_that_reports_its_own_rotation() {
     );
 }
 
+#[tokio::test(start_paused = true)]
+async fn a_rotation_reported_just_before_an_action_is_kept() {
+    let (source, fake) = FakeSource::with(vec![tree(&["One"])]);
+    let (d, _home) = daemon(source);
+    ok(&d, "default", "snapshot", json!({})).await;
+    fake.emit_during_next_tree(phonedriver_core::device::DeviceEvent::DisplayChanged {
+        screen: phonedriver_core::geometry::Size { w: 800.0, h: 360.0 },
+        rotation: 1,
+    });
+    ok(&d, "default", "act", tap_ref("e1")).await;
+    let r = ok(&d, "default", "act", tap_point(700.0, 100.0)).await;
+    assert!(r["summary"].as_str().unwrap().contains("700,100"), "{r}");
+}
+
 #[tokio::test]
 async fn snapshot_returns_the_rendered_text_of_the_fake_tree() {
     let (source, _) = FakeSource::with(vec![tree(&["One", "Two", "Three"])]);

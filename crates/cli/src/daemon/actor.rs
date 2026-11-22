@@ -1649,15 +1649,28 @@ impl Actor {
         Rendered::build(nodes, &refs, header)
     }
 
+    /// Starts an action's clock. What the device reported before it is not the action's doing, but a rotation or a
+    /// lost connection still holds afterwards, so those are kept.
     fn begin_action(&mut self) -> Duration {
         self.during.clear();
+        let mut gone = false;
         if let Some(l) = &mut self.live {
             l.frames.borrow_and_update();
             while let Ok(event) = l.events.try_recv() {
-                if matches!(event, DeviceEvent::Locked(_)) {
-                    self.awake = None;
+                match event {
+                    DeviceEvent::Locked(_) => self.awake = None,
+                    DeviceEvent::DisplayChanged { screen, .. } => {
+                        l.screen = screen;
+                        self.awake = None;
+                    }
+                    DeviceEvent::Gone | DeviceEvent::DensityChanged => gone = true,
+                    DeviceEvent::WindowChanged { .. } => {}
                 }
             }
+        }
+        if gone {
+            self.live = None;
+            self.awake = None;
         }
         self.now()
     }

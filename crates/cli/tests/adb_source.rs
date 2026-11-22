@@ -1,6 +1,5 @@
 #![cfg(feature = "android")]
 
-
 use std::sync::{Arc, Mutex};
 
 use phonedriver::daemon::DeviceSource;

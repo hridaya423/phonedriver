@@ -59,6 +59,7 @@ pub struct FakeDevice {
     apps: Mutex<Vec<App>>,
     display: Mutex<Option<Size>>,
     events: broadcast::Sender<DeviceEvent>,
+    during_tree: Mutex<Vec<DeviceEvent>>,
     frames: watch::Sender<FrameRef>,
     shell: Mutex<ShellReply>,
     page: Mutex<Option<WebPage>>,
@@ -121,6 +122,7 @@ impl FakeDevice {
             apps: Mutex::new(Vec::new()),
             display: Mutex::new(None),
             events: broadcast::channel(64).0,
+            during_tree: Mutex::new(Vec::new()),
             frames: watch::channel(FrameRef::default()).0,
             shell: Mutex::new(ShellReply::default()),
             page: Mutex::new(None),
@@ -359,6 +361,11 @@ impl FakeDevice {
         let _ = self.events.send(event);
     }
 
+    /// Sends `event` while the next tree is read, inside the call that reads it.
+    pub fn emit_during_next_tree(&self, event: DeviceEvent) {
+        lock(&self.during_tree).push(event);
+    }
+
     pub fn push_frame(&self, frame: FrameRef) {
         self.frames.send_replace(frame);
     }
@@ -391,6 +398,9 @@ impl Device for FakeDevice {
         lock(&self.order).push("tree");
         self.tree_reads
             .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        for event in lock(&self.during_tree).drain(..) {
+            let _ = self.events.send(event);
+        }
 
         let mut trees = lock(&self.trees);
         match trees.len() {
