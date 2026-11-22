@@ -154,6 +154,7 @@ JSON-RPC `error` with `code` from the table, `message`, and `data: {code_name, h
 | -32020 | secret_field (a `type` with plain text into a password field, or a text field whose label, hint or id names a one-time code, without `secret`; `data.ref`, `data.kind` `password` or `code`; decision D31) |
 | -32024 | point_off_screen (an `x,y` target outside the screen; `data.x`, `data.y`, and the screen's `data.w` and `data.h` in points; nothing is sent to the device) |
 | -32025 | refused (the device answered and did not do what was asked: a setting it would not write, an unknown or read-only setting key, a `pm grant` that changed nothing; the message is the reason; nothing changed) |
+| -32026 | crashed (the daemon failed partway through the call, a bug: the call may have acted, and the device connects again on the next call; `daemon.log` has the failure) |
 | -32023 | not_focused (a `type` without `into` when the screen shows no focused text field and no keyboard; nothing is typed; `data.fields` lists up to five text fields on screen) |
 | -32019 | needs_approval (a tap or `type --submit` that spends money, deletes an account, or is in a category named in `ask`, without an `approval`; `data.label`, `data.app`, `data.category` (`payment`, `account`, `send`, `delete`, `install`), `data.details`; decisions D27 and D31) |
 | -32016 | not_reached (`data.end` is `ended`, `stuck` or `limit`; `data.scrolls`, `data.last`) |

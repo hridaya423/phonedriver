@@ -562,7 +562,7 @@ impl Daemon {
             })
             .await
             .map_err(|_| gone())?;
-        let (result, phases) = rx.await.map_err(|_| gone())?;
+        let (result, phases) = rx.await.map_err(|_| Error::Crashed { id: id.to_string() })?;
         let _ = PHASES.try_with(|p| p.borrow_mut().extend(phases));
         result
     }

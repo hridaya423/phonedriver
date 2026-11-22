@@ -293,7 +293,11 @@ async fn a_device_whose_actor_panicked_answers_again_on_the_next_call() {
         },
     );
     let e = err(&d, command("echo hi")).await;
-    assert_eq!(e.code, -32003, "{}", e.message);
+    assert_eq!(e.data["code_name"], "crashed", "{e:?}");
+    assert!(e.message.contains("fake:1"), "{}", e.message);
+    let hint = e.data["hint"].as_str().unwrap();
+    assert!(hint.contains("daemon.log"), "{hint}");
+    assert!(!hint.contains("Reconnect"), "{hint}");
     ok(&d, "shell", command("echo hi")).await;
     assert_eq!(ran(&fake), ["echo hi"]);
 }

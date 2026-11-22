@@ -347,6 +347,9 @@ pub enum Error {
     AmbiguousDevice { connected: Vec<DeviceSummary> },
     #[error("device {id} disconnected")]
     DeviceGone { id: DeviceId },
+    /// The daemon failed partway through a call on this device; the next call connects it again.
+    #[error("phonedriver failed partway through the call on {id}")]
+    Crashed { id: DeviceId },
     #[error("device {id} is leased by session {held_by}")]
     DeviceBusy {
         id: DeviceId,
@@ -564,6 +567,7 @@ impl Error {
             Error::NotFocused { .. } => -32023,
             Error::PointOffScreen { .. } => -32024,
             Error::Refused { .. } => -32025,
+            Error::Crashed { .. } => -32026,
         }
     }
 
@@ -593,6 +597,7 @@ impl Error {
             Error::DeviceGone { .. } => {
                 "Reconnect the device, then run `phonedriver devices`.".into()
             }
+            Error::Crashed { .. } => "Run `phonedriver snapshot` before you repeat the call: it stopped partway and may have acted. The device connects again on the next call; daemon.log has the failure.".into(),
             Error::DeviceBusy {
                 held_by,
                 idle_s,
@@ -853,6 +858,9 @@ mod tests {
             Error::DeviceGone {
                 id: "android:emulator-5554".into(),
             },
+            Error::Crashed {
+                id: "android:emulator-5554".into(),
+            },
             Error::DeviceBusy {
                 id: "android:emulator-5554".into(),
                 held_by: "agent-2".into(),
@@ -1023,6 +1031,7 @@ mod tests {
             Error::NotFocused { .. } => (-32023, "not_focused"),
             Error::PointOffScreen { .. } => (-32024, "point_off_screen"),
             Error::Refused { .. } => (-32025, "refused"),
+            Error::Crashed { .. } => (-32026, "crashed"),
         }
     }
 
