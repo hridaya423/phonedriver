@@ -1922,7 +1922,7 @@ impl Mcp {
 
 #[tool_handler(
     name = "phonedriver",
-    instructions = "Operate an Android or iOS device. System settings: `setting` first; `shell` where it is unsupported. App UI: `launch` takes an app name (no `devices` or `apps` first), then `snapshot` once and act on its @refs; each action returns what changed. A path of taps you can predict goes in one `tap` with `then`. Send calls one at a time on the shared screen. If an error needs the user to act on the device, say so and go on when they are done. Passwords, payments, sending and deleting need the user's word for this task. A refusal naming the app scope is by design: `press back` or `home`, `launch` an app in scope, never work around it."
+    instructions = "Operate an Android or iOS device. System settings: `setting` first; `shell` where it is unsupported. App UI: `launch` takes an app name (no `devices` or `apps` first) and returns the screen; act on its @refs, and each action returns what changed (`snapshot` only to see the whole screen again). A path of taps you can predict goes in one `tap` with `then`. Send calls one at a time on the shared screen. If an error needs the user to act on the device, say so and go on when they are done. Passwords, payments, sending and deleting need the user's word for this task. A refusal naming the app scope is by design: `press back` or `home`, `launch` an app in scope, never work around it."
 )]
 impl ServerHandler for Mcp {
     async fn call_tool(

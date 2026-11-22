@@ -573,6 +573,16 @@ async fn the_server_says_launch_takes_a_name_so_devices_and_apps_are_not_a_first
     );
 }
 
+/// `launch` returns the screen it opens, so "then `snapshot` once" cost every task a call that showed it again.
+#[tokio::test]
+async fn the_server_does_not_ask_for_a_snapshot_after_launch() {
+    let rig = rig(vec![tree(&["One"])]).await;
+    let info = rig.client.peer_info().unwrap();
+    let text = info.instructions.clone().unwrap_or_default();
+    assert!(!text.contains("then `snapshot`"), "{text}");
+    assert!(text.contains("returns the screen"), "{text}");
+}
+
 #[tokio::test]
 async fn what_the_lean_list_leaves_out_is_still_named_where_an_agent_looks() {
     let rig = rig(vec![tree(&["One"])]).await;
