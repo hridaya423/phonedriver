@@ -864,3 +864,39 @@ async fn an_ordinary_swipe_or_scroll_reads_the_screen_no_more_than_with_the_guar
         assert_eq!(on, off, "{action}");
     }
 }
+
+fn one_button(label: &str) -> phonedriver_core::raw::RawTree {
+    let json = format!(
+        r#"{{"windows":[{{"id":1,"type":"application","package":"com.example.shop","bounds":[0,0,360,800]}}],"nodes":[
+        {{"p":-1,"w":1,"cls":"android.widget.FrameLayout","b":[0,0,360,800],"f":"vVe"}},
+        {{"p":0,"w":1,"cls":"android.widget.Button","text":"{label}","id":"cta","b":[0,400,360,450],"f":"vVe","a":["tap"]}}]}}"#
+    );
+    phonedriver_core::raw::RawTree::from_android_json(
+        &json,
+        phonedriver_core::geometry::Scale { density: 1.0 },
+    )
+    .unwrap()
+}
+
+/// A ref keeps its element when the element's label changes in place, so the guard must judge the label the screen
+/// shows now. It judged the label the agent was last shown: "Add to list" became "Pay $20.00" and the tap went out.
+#[tokio::test]
+async fn a_ref_whose_button_now_says_pay_is_judged_by_what_it_says_now() {
+    let rig = rig_showing(one_button("Add to list")).await;
+    let mut c = Client::connect_to(&rig.socket, "guard-test").await.unwrap();
+    let shown = c.call("snapshot", json!({})).await.unwrap();
+    assert!(
+        shown["text"]
+            .as_str()
+            .unwrap()
+            .contains("@e1 button \"Add to list\""),
+        "{shown}"
+    );
+    rig.fake.set_tree(one_button("Pay $20.00"));
+    let data = refused(
+        rig.act(json!({"kind": "tap", "target": {"ref": "e1"}}), None)
+            .await,
+    );
+    assert_eq!(data["label"], "Pay $20.00");
+    assert_eq!(rig.gestures(), 0);
+}

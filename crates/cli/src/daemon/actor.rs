@@ -365,7 +365,7 @@ struct Actor {
     cold_until: Option<Duration>,
     /// When `prepare` last found the screen on and unlocked; cleared by any window or display event.
     awake: Option<Duration>,
-    /// The screen the last point tap's guard check read, and when.
+    /// The screen the guard judges a touch on: the newest fresh read, and when it was made.
     guard_view: Option<(Duration, Rendered)>,
     /// When a window changed or a quarter of the screen repainted last: a button's ripple (about 100 by 100 pt) is a
     /// repaint that leaves the tree as it was.
@@ -1847,6 +1847,7 @@ impl Actor {
             self.merge_pixels(s, &mut rendered).await?;
         }
         self.read_checkboxes(&mut rendered, s.last.as_ref()).await?;
+        self.guard_view = Some((self.now(), rendered.clone()));
         Ok(rendered)
     }
 
@@ -2166,14 +2167,13 @@ impl Actor {
             return Ok(None);
         }
         let button = match (found, target) {
-            (Some(e), _) => match s
-                .last
-                .as_ref()
-                .and_then(|now| Some((now, now.index_of(e.r#ref)?)))
-            {
-                Some((now, i)) => guard::receiver(now, &now.elements[i], &c.ask).cloned(),
-                None => guard::guarded(e, &c.ask).map(|_| e.clone()),
-            },
+            (Some(e), _) => {
+                let now = self.screen_for_guard(s).await?;
+                match now.index_of(e.r#ref) {
+                    Some(i) => guard::receiver(&now, &now.elements[i], &c.ask).cloned(),
+                    None => guard::guarded(e, &c.ask).map(|_| e.clone()),
+                }
+            }
             (None, Target::Point { .. }) => {
                 let now = self.screen_for_guard(s).await?;
                 guard::clicked(&now, at, &c.ask).cloned()
@@ -2221,9 +2221,7 @@ impl Actor {
         {
             return Ok(view.clone());
         }
-        let view = self.fresh(s).await?;
-        self.guard_view = Some((self.now(), view.clone()));
-        Ok(view)
+        self.fresh(s).await
     }
 
     /// Enter sends the form: guarded when the field's own form holds such a button, enabled or not yet (a Pay

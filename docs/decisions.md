@@ -306,6 +306,8 @@ Secrets. The trace keeps the command text (an agent's command is what it did), b
 
 **Update 2026-11-08 (first recording).** Claude Code 2.1.319 renders the form as: `MCP server "phonedriver" requests your input`, the message (the app and the button, then the first line of screen text and `(+3 more lines)`), `Your answer: Allow` as a collapsed choice (Right expands it to `Allow` and `Allow for this session`, seen at 28 rows; at 17 rows only the focused option shows), and `Accept` / `Decline` buttons. Decline returns `The human declined; nothing was tapped` and the agent said so. Opus 5.5 asks in chat before tapping "Place order" unless the user's prompt approves the order, in 3 of 3 trials each way; the guard prompt appears either way once it taps.
 
+**Update 2026-11-22 (audit).** (1) A ref tap is judged on the screen the tap was resolved on (the newest fresh read), not on the screen the agent was last shown: a ref keeps its element when the label changes in place, so `Add to list` that became `Pay $20.00` was judged as `Add to list` and the tap went out.
+
 **Reopen if.** Real use shows labels missed often enough to extend the list, or false prompts often enough to narrow it (the table of labels is `crates/cli/src/daemon/guard.rs` tests), or Claude Code starts showing an image or rich preview in elicitation.
 
 
