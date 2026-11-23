@@ -714,8 +714,8 @@ impl Actor {
                 )?;
                 if self.physical()
                     && consent.approval != Some(Approval::Autonomous)
-                    && let Some(action) = shell::intent_action(&url)
-                        .filter(|a| a.starts_with("android.intent.action.CALL"))
+                    && let Some(action) =
+                        shell::intent_action(&url).filter(|a| shell::places_a_call(a))
                 {
                     return Err(Error::Refused {
                         detail: format!(

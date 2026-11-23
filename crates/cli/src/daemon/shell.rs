@@ -130,9 +130,8 @@ fn file_name(word: &str) -> &str {
 
 fn segments(command: &str) -> Vec<Vec<String>> {
     let spaced = command
-        .replace("&&", "\n")
-        .replace("||", "\n")
-        .replace([';', '|'], "\n");
+        .replace("$(", "\n")
+        .replace(['&', '|', ';', '`'], "\n");
     spaced
         .lines()
         .map(words)
@@ -140,7 +139,7 @@ fn segments(command: &str) -> Vec<Vec<String>> {
         .map(|mut w| {
             const WRAPPERS: &[&str] = &[
                 "su", "sudo", "0", "2000", "root", "-c", "env", "nohup", "exec", "time", "busybox",
-                "toybox", "sh", "bash",
+                "toybox", "sh", "bash", "xargs", "eval", "command", "nice",
             ];
             let skip = w
                 .iter()
@@ -297,19 +296,14 @@ pub fn refuse_on_physical(command: &str, mine: &[String]) -> Option<&'static str
             }
             "find"
                 if find_deletes(&rest)
-                    && rest
-                        .iter()
-                        .take_while(|a| !a.starts_with('-'))
+                    && find_paths(&rest)
                         .any(|a| SDCARD_ROOTS.contains(&a.trim_end_matches('/'))) =>
             {
                 return refuse!(
                     "it deletes or rewrites the user's files from the storage root or /data"
                 );
             }
-            "am" if rest
-                .iter()
-                .any(|a| a.starts_with("android.intent.action.CALL")) =>
-            {
+            "am" if rest.iter().any(|a| places_a_call(a)) => {
                 return refuse!("a CALL intent dials without a tap");
             }
             "wipe" | "format" | "fastboot" => return refuse!("it wipes or reformats the device"),
@@ -375,6 +369,34 @@ pub fn refuse_on_physical(command: &str, mine: &[String]) -> Option<&'static str
         }
     }
     None
+}
+
+/// The paths a `find` starts from: the words before its first expression, past the options `-H`, `-L`, `-P`,
+/// `-D <debug>` and `-O<level>` that come first.
+fn find_paths<'a>(args: &'a [&'a str]) -> impl Iterator<Item = &'a str> {
+    let mut i = 0;
+    while let Some(a) = args.get(i) {
+        match *a {
+            "-H" | "-L" | "-P" => i += 1,
+            "-D" => i += 2,
+            o if o.starts_with("-O") => i += 1,
+            _ => break,
+        }
+    }
+    args[i.min(args.len())..]
+        .iter()
+        .copied()
+        .take_while(|a| !a.starts_with('-') && !matches!(*a, "!" | "("))
+}
+
+/// Whether an intent action dials a number (`CALL_BUTTON` only opens the dialer).
+pub fn places_a_call(action: &str) -> bool {
+    matches!(
+        action,
+        "android.intent.action.CALL"
+            | "android.intent.action.CALL_PRIVILEGED"
+            | "android.intent.action.CALL_EMERGENCY"
+    )
 }
 
 /// Whether a `find` deletes what it finds: `-delete`, or `-exec` and its kin running `rm`.
@@ -510,7 +532,13 @@ mod tests {
             "input keyevent KEYCODE_ENTER",
             "input keyevent --longpress KEYCODE_BACK",
             "dumpsys window | grep a && input tap 1 1",
+            "sleep 0 & input tap 540 1650",
+            "echo $(input keyevent 66)",
+            "echo `input tap 1 1`",
+            "echo 1 1 | xargs input tap",
+            "eval input tap 1 1",
             "am start -a android.intent.action.CALL -d tel:5551234",
+            "am start -a android.intent.action.CALL_PRIVILEGED -d tel:5551234",
         ] {
             assert!(refuse_on_physical(c, &[]).is_some(), "{c}");
         }
@@ -519,6 +547,8 @@ mod tests {
             "find /storage/emulated/0/ -name '*' -delete",
             "find /data -exec rm -rf {} +",
             "find /sdcard -type f -execdir /system/bin/rm {} ;",
+            "find -L /sdcard -delete",
+            "find -H -D tree -O2 /storage/emulated/0 -name '*' -delete",
         ] {
             assert!(refuse_on_physical(c, &[]).is_some(), "{c}");
             assert!(!only_reads(c), "{c}");
@@ -540,6 +570,8 @@ mod tests {
             "cmd package install-existing com.example.other",
             "am start -a android.intent.action.VIEW -d https://example.com",
             "am start -a android.settings.WIFI_SETTINGS",
+            "am start -a android.intent.action.CALL_BUTTON",
+            "logcat -d 2>&1 | grep input",
             "find /sdcard -name '*.jpg' -exec ls -l {} +",
             "find /sdcard/Download -name '*.tmp' -delete",
         ] {
