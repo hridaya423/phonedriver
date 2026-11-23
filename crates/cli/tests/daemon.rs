@@ -2134,6 +2134,8 @@ const CARD_CODE_FIELDS: &[FieldNames] = &[
     (Some("Código de seguridad"), None, None),
     (Some("Sicherheitscode"), None, None),
     (Some("セキュリティコード"), None, None),
+    (Some("ｾｷｭﾘﾃｨｺｰﾄﾞ"), None, None),
+    (Some("セキュリティ\u{200B}コード"), None, None),
 ];
 
 #[tokio::test(start_paused = true)]

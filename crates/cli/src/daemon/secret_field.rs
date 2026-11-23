@@ -115,7 +115,9 @@ fn names_a_card_code(text: &str, whole_label: bool) -> bool {
         }
     }
     let spaced = format!(" {joined} ");
-    let packed: String = text.to_lowercase().split_whitespace().collect();
+    let packed: String = phonedriver_core::text::fold(text)
+        .split_whitespace()
+        .collect();
     CARD_CODE_PHRASES.iter().any(|p| {
         if p.chars().any(is_cjk) {
             packed.contains(p)
@@ -128,7 +130,9 @@ fn names_a_card_code(text: &str, whole_label: bool) -> bool {
 fn names_a_code(text: &str, whole_label: bool) -> bool {
     let words = tokens(text);
     let spaced = format!(" {} ", words.join(" "));
-    let packed: String = text.to_lowercase().split_whitespace().collect();
+    let packed: String = phonedriver_core::text::fold(text)
+        .split_whitespace()
+        .collect();
     if whole_label && BARE_CODE.contains(&words.join(" ").as_str()) {
         return true;
     }
