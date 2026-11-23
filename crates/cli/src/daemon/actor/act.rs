@@ -713,16 +713,12 @@ impl Actor {
                     "this device cannot open links",
                 )?;
                 if self.physical()
-                    && let Some(action) = shell::intent_action(&url).filter(|a| {
-                        !matches!(
-                            *a,
-                            "android.intent.action.VIEW" | "android.intent.action.MAIN"
-                        )
-                    })
+                    && let Some(action) = shell::intent_action(&url)
+                        .filter(|a| a.starts_with("android.intent.action.CALL"))
                 {
                     return Err(Error::Refused {
                         detail: format!(
-                            "on a physical device an intent: link opens only with the VIEW action, and this one has {action}, which acts without a screen to approve; open the same address as an https: or tel: link"
+                            "on a physical device an intent: link does not place a call, and this one has {action}, which dials without a tap; open a tel: link, which shows the number in the dialer"
                         ),
                     });
                 }

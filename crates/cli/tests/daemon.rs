@@ -1159,7 +1159,7 @@ async fn text_for_a_field_that_was_just_tapped_is_sent_once_the_field_has_focus(
 /// `Intent.parseUri` takes any action: on a person's phone `intent:tel:…;action=android.intent.action.CALL` dials
 /// at once, with no screen to approve.
 #[tokio::test]
-async fn an_intent_link_that_does_more_than_view_is_refused_on_a_physical_phone() {
+async fn an_intent_link_that_places_a_call_is_refused_on_a_physical_phone() {
     let (source, fake) = physical();
     let (d, _home) = daemon(source);
     let call = "intent:5551234#Intent;scheme=tel;action=android.intent.action.CALL;end";
@@ -1172,15 +1172,24 @@ async fn an_intent_link_that_does_more_than_view_is_refused_on_a_physical_phone(
     .await;
     assert!(e.message.contains("CALL"), "{e:?}");
     assert!(!fake.calls().iter().any(|c| matches!(c, Call::OpenUrl(..))));
-    let view = "intent://example.com/a#Intent;scheme=https;action=android.intent.action.VIEW;end";
-    ok(
-        &d,
-        "s",
-        "act",
-        json!({"action": {"kind": "open", "url": view}, "settle": false}),
-    )
-    .await;
-    assert!(fake.calls().iter().any(|c| matches!(c, Call::OpenUrl(..))));
+    for url in [
+        "intent://example.com/a#Intent;scheme=https;action=android.intent.action.VIEW;end",
+        "intent:#Intent;action=android.settings.WIFI_SETTINGS;end",
+    ] {
+        ok(
+            &d,
+            "s",
+            "act",
+            json!({"action": {"kind": "open", "url": url}, "settle": false}),
+        )
+        .await;
+    }
+    let opened = fake
+        .calls()
+        .iter()
+        .filter(|c| matches!(c, Call::OpenUrl(..)))
+        .count();
+    assert_eq!(opened, 2);
 }
 
 /// A wait answered with the whole screen, though the agent had just seen it: a `wait` after a `tap` cost the full

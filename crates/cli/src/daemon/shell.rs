@@ -171,7 +171,9 @@ pub fn only_reads(command: &str) -> bool {
                 | "uname" | "df" | "date" | "grep" | "head" | "tail" | "wc" | "stat" | "du"
                 | "uptime" | "printenv" | "readlink" | "pidof" | "sort" | "cut" | "true"
                 | "sleep" => true,
-                "find" => !w.iter().any(|t| FIND_ACTS.contains(&t.as_str())),
+                "find" => !w
+                    .iter()
+                    .any(|t| t == "-delete" || FIND_RUNS.contains(&t.as_str())),
                 "defaults" => second == Some("read"),
                 "settings" => matches!(second, Some("get" | "list")),
                 "pm" => matches!(
@@ -211,8 +213,70 @@ const SDCARD_ROOTS: &[&str] = &[
     "/data/user/0",
 ];
 
-/// The `find` expressions that change files or run another program.
-const FIND_ACTS: &[&str] = &["-delete", "-exec", "-execdir", "-ok", "-okdir"];
+/// The `find` expressions that run another program on what it found.
+const FIND_RUNS: &[&str] = &["-exec", "-execdir", "-ok", "-okdir"];
+
+/// The input sources `input` takes before its command (`input touchscreen tap …`).
+const INPUT_SOURCES: &[&str] = &[
+    "keyboard",
+    "mouse",
+    "joystick",
+    "touchnavigation",
+    "touchpad",
+    "trackball",
+    "stylus",
+    "dpad",
+    "gesture",
+    "touchscreen",
+    "gamepad",
+    "rotaryencoder",
+];
+
+/// The keys `press` and `button` send (and DPAD_CENTER and NUMPAD_ENTER, which confirm a focused button as Enter
+/// does), as Android names them and by number.
+const GUARDED_KEYS: &[(&str, &str)] = &[
+    ("HOME", "3"),
+    ("BACK", "4"),
+    ("DPAD_UP", "19"),
+    ("DPAD_DOWN", "20"),
+    ("DPAD_LEFT", "21"),
+    ("DPAD_RIGHT", "22"),
+    ("DPAD_CENTER", "23"),
+    ("VOLUME_UP", "24"),
+    ("VOLUME_DOWN", "25"),
+    ("TAB", "61"),
+    ("ENTER", "66"),
+    ("DEL", "67"),
+    ("ESCAPE", "111"),
+    ("NUMPAD_ENTER", "160"),
+    ("APP_SWITCH", "187"),
+    ("SLEEP", "223"),
+];
+
+/// Whether an `input` command does what tap, type, swipe, press or button would do with the approval guard
+/// watching. A key those cannot send (media keys, the camera) has no guarded route, so it runs.
+fn input_has_a_guarded_route(args: &[&str]) -> bool {
+    let mut args = args.iter();
+    let mut command = None;
+    while let Some(a) = args.next() {
+        if matches!(*a, "-d" | "--display") {
+            args.next();
+        } else if !a.starts_with('-') && !INPUT_SOURCES.contains(a) {
+            command = Some(*a);
+            break;
+        }
+    }
+    match command {
+        None => false,
+        Some("keyevent" | "keycombination") => args.filter(|a| !a.starts_with('-')).any(|k| {
+            let name = k.strip_prefix("KEYCODE_").unwrap_or(k);
+            GUARDED_KEYS
+                .iter()
+                .any(|(n, code)| name == *n || name == *code)
+        }),
+        Some(_) => true,
+    }
+}
 
 /// Why a physical device should not run this command, or `None`. `mine` are the packages phonedriver installed there
 /// and nobody has installed again since.
@@ -226,13 +290,13 @@ pub fn refuse_on_physical(command: &str, mine: &[String]) -> Option<&'static str
     for w in segments(command) {
         let rest: Vec<&str> = w[1..].iter().map(String::as_str).collect();
         match w[0].as_str() {
-            "input" if !rest.is_empty() => {
+            "input" if input_has_a_guarded_route(&rest) => {
                 return refuse!(
-                    "`input` sends touches and keys the approval guard does not see; tap, type, swipe and press check what they touch"
+                    "`input` sends touches and keys the approval guard does not see; tap, type, swipe, press and button do the same and check what they touch"
                 );
             }
             "find"
-                if rest.iter().any(|a| FIND_ACTS.contains(a))
+                if find_deletes(&rest)
                     && rest
                         .iter()
                         .take_while(|a| !a.starts_with('-'))
@@ -286,9 +350,6 @@ pub fn refuse_on_physical(command: &str, mine: &[String]) -> Option<&'static str
                 } else {
                     &rest[..]
                 };
-                if rest.first().is_some_and(|sub| sub.starts_with("install")) {
-                    return refuse!("it installs an app on a person's phone");
-                }
                 if !matches!(rest.first(), Some(&("uninstall" | "clear"))) {
                     continue;
                 }
@@ -314,6 +375,17 @@ pub fn refuse_on_physical(command: &str, mine: &[String]) -> Option<&'static str
         }
     }
     None
+}
+
+/// Whether a `find` deletes what it finds: `-delete`, or `-exec` and its kin running `rm`.
+fn find_deletes(args: &[&str]) -> bool {
+    args.iter().enumerate().any(|(i, a)| {
+        *a == "-delete"
+            || (FIND_RUNS.contains(a)
+                && args
+                    .get(i + 1)
+                    .is_some_and(|p| p.rsplit('/').next() == Some("rm")))
+    })
 }
 
 /// The action an Android `intent:` link names (`#Intent;…;action=…;end`), or `None` for another link or one that
@@ -426,19 +498,18 @@ mod tests {
         }
     }
 
-    /// The approval guard sees the taps and keys phonedriver sends, not the ones `input` sends; an install puts an
-    /// app on a person's phone; a CALL intent dials without a tap.
+    /// The approval guard sees the taps, text and keys phonedriver sends, not the ones `input` sends; a CALL intent
+    /// dials without a tap; `find -delete` or `-exec rm` from the storage root empties it.
     #[test]
-    fn touches_installs_and_calls_the_guard_cannot_see_are_refused_on_a_physical_device() {
+    fn touches_calls_and_mass_deletes_the_guard_cannot_see_are_refused_on_a_physical_device() {
         for c in [
             "input tap 540 1650",
             "input touchscreen swipe 100 100 100 900",
             "input text 4111111111111111",
             "sh -c 'input keyevent 66'",
+            "input keyevent KEYCODE_ENTER",
+            "input keyevent --longpress KEYCODE_BACK",
             "dumpsys window | grep a && input tap 1 1",
-            "pm install /data/local/tmp/x.apk",
-            "pm install-create -S 1000",
-            "cmd package install-existing com.example.other",
             "am start -a android.intent.action.CALL -d tel:5551234",
         ] {
             assert!(refuse_on_physical(c, &[]).is_some(), "{c}");
@@ -447,18 +518,30 @@ mod tests {
             "find /sdcard -delete",
             "find /storage/emulated/0/ -name '*' -delete",
             "find /data -exec rm -rf {} +",
+            "find /sdcard -type f -execdir /system/bin/rm {} ;",
         ] {
             assert!(refuse_on_physical(c, &[]).is_some(), "{c}");
             assert!(!only_reads(c), "{c}");
         }
-        assert_eq!(
-            refuse_on_physical("find /sdcard/Download -name '*.tmp' -delete", &[]),
-            None
-        );
+    }
+
+    /// What has no guarded equivalent and can be undone runs: a key `press` cannot send, an install, an intent that
+    /// only opens a screen, and `find -exec` with a program that reads.
+    #[test]
+    fn what_the_guard_has_no_equivalent_for_and_can_be_undone_runs_on_a_physical_device() {
         for c in [
             "input",
+            "input keyevent KEYCODE_MEDIA_PLAY_PAUSE",
+            "input keyevent 27",
+            "input keyevent KEYCODE_WAKEUP",
             "ime list -s",
+            "pm install /data/local/tmp/x.apk",
+            "pm install-create -S 1000",
+            "cmd package install-existing com.example.other",
             "am start -a android.intent.action.VIEW -d https://example.com",
+            "am start -a android.settings.WIFI_SETTINGS",
+            "find /sdcard -name '*.jpg' -exec ls -l {} +",
+            "find /sdcard/Download -name '*.tmp' -delete",
         ] {
             assert_eq!(refuse_on_physical(c, &[]), None, "{c}");
         }
