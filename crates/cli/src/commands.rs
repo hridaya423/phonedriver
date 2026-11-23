@@ -917,6 +917,12 @@ fn guard_off(env: Option<&str>) -> bool {
     env.is_some_and(|v| v.eq_ignore_ascii_case("off"))
 }
 
+/// `force` on a shell or setting call: the flag, or `PHONEDRIVER_GUARD=off`, with which the person turned off every
+/// check that stands between the agent and a physical device.
+fn forced(force: bool, env: Option<&str>) -> bool {
+    force || guard_off(env)
+}
+
 fn guard_env() -> Option<String> {
     std::env::var("PHONEDRIVER_GUARD").ok()
 }
@@ -1199,6 +1205,7 @@ pub(crate) async fn execute_with(
             secret: is_secret,
         } => {
             let command = secret.or(command).unwrap_or_default();
+            let force = forced(force, guard_env().as_deref());
             let mut p = json!({"command": command, "settle": !g.no_settle, "force": force, "secret": is_secret});
             if let Some(v) = grep {
                 p["grep"] = json!(v);
@@ -1345,6 +1352,7 @@ pub(crate) async fn execute_with(
             args,
             force,
         } => {
+            let force = forced(force, guard_env().as_deref());
             let mut p = match (action.as_str(), args.as_slice()) {
                 ("find", words) => json!({"find": words.join(" ")}),
                 ("get", [key]) => json!({"key": key}),
@@ -3360,6 +3368,15 @@ mod tests {
             guard_override(&tap(false), Some(Approval::Once), None),
             Some(Approval::Once)
         );
+    }
+
+    #[test]
+    fn the_guard_off_forces_every_shell_and_setting_call() {
+        assert!(!forced(false, None));
+        assert!(!forced(false, Some("on")));
+        assert!(forced(true, None));
+        assert!(forced(false, Some("off")));
+        assert!(forced(false, Some("OFF")));
     }
 
     #[test]

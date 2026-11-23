@@ -713,6 +713,7 @@ impl Actor {
                     "this device cannot open links",
                 )?;
                 if self.physical()
+                    && consent.approval != Some(Approval::Autonomous)
                     && let Some(action) = shell::intent_action(&url)
                         .filter(|a| a.starts_with("android.intent.action.CALL"))
                 {

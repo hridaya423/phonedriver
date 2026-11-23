@@ -1192,6 +1192,23 @@ async fn an_intent_link_that_places_a_call_is_refused_on_a_physical_phone() {
     assert_eq!(opened, 2);
 }
 
+/// With the guard off (`PHONEDRIVER_GUARD=off` sends every action as autonomous) a call link opens: the person
+/// turned the checks off.
+#[tokio::test(start_paused = true)]
+async fn an_autonomous_open_places_a_call_on_a_physical_phone() {
+    let (source, fake) = physical();
+    let (d, _home) = daemon(source);
+    let call = "intent:5551234#Intent;scheme=tel;action=android.intent.action.CALL;end";
+    ok(
+        &d,
+        "s",
+        "act",
+        json!({"action": {"kind": "open", "url": call}, "approval": "autonomous", "settle": false}),
+    )
+    .await;
+    assert!(fake.calls().iter().any(|c| matches!(c, Call::OpenUrl(..))));
+}
+
 /// A wait answered with the whole screen, though the agent had just seen it: a `wait` after a `tap` cost the full
 /// screen again. It now answers as an action does, with what changed since the agent last saw the screen.
 #[tokio::test(start_paused = true)]
