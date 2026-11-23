@@ -1371,43 +1371,24 @@ fn for_mcp(hint: &str) -> String {
     out
 }
 
-/// Where MCP `replay` may save (decision D105): a `.steps` file inside `folder` (a relative path, or an absolute
-/// one inside it), reached through no `..` and no link out of it, that is new or already a steps file. An agent
-/// chooses the path, and without this a save could replace any file the server can write, such as a `.env`.
-/// A replay reads a `.steps` file inside the server's folder, as a save writes one: the model names the file, and a
-/// path elsewhere would let it read any file of the person's and have the replay's errors say what is in it.
+/// A replay reads a `.steps` file, relative to `folder` or wherever the person keeps it: the model names the file,
+/// and any other file of the person's would have the replay's errors say what is in it.
 fn replayable(
     folder: &std::path::Path,
     file: &std::path::Path,
 ) -> Result<std::path::PathBuf, String> {
-    let shown = file.display();
     if file.extension().is_none_or(|e| e != "steps") {
         return Err(format!(
-            "{shown} does not end in .steps: a saved run is a .steps file"
+            "{} does not end in .steps: a saved run is a .steps file",
+            file.display()
         ));
     }
-    let path = folder.join(file);
-    let outside = || {
-        format!(
-            "{shown} is not inside {}: replay a .steps file there",
-            folder.display()
-        )
-    };
-    if file
-        .components()
-        .any(|c| c == std::path::Component::ParentDir)
-        || !path.starts_with(folder)
-    {
-        return Err(outside());
-    }
-    if let (Ok(p), Ok(f)) = (path.canonicalize(), folder.canonicalize())
-        && !p.starts_with(f)
-    {
-        return Err(outside());
-    }
-    Ok(path)
+    Ok(folder.join(file))
 }
 
+/// Where MCP `replay` may save (decision D105): a `.steps` file inside `folder` (a relative path, or an absolute
+/// one inside it), reached through no `..` and no link out of it, that is new or already a steps file. An agent
+/// chooses the path, and without this a save could replace any file the server can write, such as a `.env`.
 fn savable(folder: &std::path::Path, file: &std::path::Path) -> Result<(), String> {
     use std::path::Component;
     let shown = file.display();
@@ -2062,21 +2043,24 @@ mod tests {
     use super::*;
 
     #[test]
-    fn a_replay_reads_only_a_steps_file_inside_its_folder() {
+    fn a_replay_reads_a_steps_file_wherever_the_person_keeps_it() {
         let dir = tempfile::tempdir().unwrap();
         let folder = dir.path().join("work");
-        std::fs::create_dir(&folder).unwrap();
-        std::fs::write(folder.join("ok.steps"), "{}").unwrap();
-        std::fs::write(dir.path().join("out.steps"), "{}").unwrap();
         let p = std::path::Path::new;
-        assert!(replayable(&folder, p("ok.steps")).is_ok());
-        assert!(replayable(&folder, p("missing.steps")).is_ok());
-        for outside in ["../out.steps", "/etc/passwd", "notes.txt"] {
-            let e = replayable(&folder, p(outside)).unwrap_err();
-            assert!(e.contains(outside), "{e}");
+        assert_eq!(
+            replayable(&folder, p("ok.steps")).unwrap(),
+            folder.join("ok.steps")
+        );
+        assert_eq!(
+            replayable(&folder, p("../flows/login.steps")).unwrap(),
+            folder.join("../flows/login.steps")
+        );
+        let abs = dir.path().join("flows/login.steps");
+        assert_eq!(replayable(&folder, &abs).unwrap(), abs);
+        for other in ["/etc/passwd", "notes.txt", "../.env"] {
+            let e = replayable(&folder, p(other)).unwrap_err();
+            assert!(e.contains(other), "{e}");
         }
-        let abs = dir.path().join("out.steps");
-        assert!(replayable(&folder, &abs).is_err());
     }
 
     #[test]

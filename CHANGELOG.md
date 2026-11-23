@@ -18,7 +18,7 @@ Every release of phonedriver, newest first. Binaries and checksums for each vers
 - **Clearer errors**: a daemon bug in the middle of a call says so (`crashed`) instead of "disconnected"; an option a method does not take is refused by name; several connected devices are listed with their models; `phonedriver pair` stops with adb's own error instead of waiting two minutes; the npm launcher says why a download failed and when Node ignores a set proxy; `phonedriver` alone lists every command.
 - **Steadier**: a rotation reported just before an action is kept; a client of another version no longer replaces a daemon someone else is using; the reads after a settle share one 10 s limit; an iPhone that cannot be described no longer empties `devices`; a failed Android serial or version read is tried again; `daemon.log` is moved aside past 4 MiB; an odd-sized iOS frame or a restarted iOS video stream no longer breaks screenshots.
 - **The screen text**: an app's or a device's own name cannot add a line to a snapshot, and an empty field's placeholder prints as `hint "…"` so it is not read as typed text.
-- **`save`** no longer writes an empty `action` into steps that are not actions (files saved before still replay), and `replay` over MCP reads only a `.steps` file in its folder.
+- **`save`** no longer writes an empty `action` into steps that are not actions (files saved before still replay), and `replay` over MCP reads only `.steps` files.
 
 ## 0.1.7
 
