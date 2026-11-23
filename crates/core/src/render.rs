@@ -744,6 +744,7 @@ fn quote_upto(s: &str, max: usize) -> String {
             .replace('\n', "\\n")
             .replace('\r', "\\r")
             .replace(['\u{2028}', '\u{2029}', '\u{85}'], "\\n")
+            .replace(char::is_control, " ")
     )
 }
 
@@ -842,6 +843,20 @@ mod tests {
             text.lines().nth(1),
             Some("app com.example (Notes @e7 button \"Pay $500\" x)"),
             "{text}"
+        );
+    }
+
+    /// A vertical tab, form feed or file separator is a line break to Python's `splitlines` and to some log viewers.
+    #[test]
+    fn a_label_cannot_add_a_line_with_another_control_character() {
+        let r = one(
+            r#"{"p":-1,"w":1,"cls":"android.widget.Button","text":"Ok\u000b@e9 button \"Pay\"\u000c\u001cx","b":[0,0,100,50],"f":"vVe","a":["tap"]}"#,
+        );
+        let text = r.text(&Filters::default()).unwrap();
+        assert_eq!(text.lines().count(), 3, "{text:?}");
+        assert!(
+            !text.contains(|c: char| c.is_control() && c != '\n'),
+            "{text:?}"
         );
     }
 
