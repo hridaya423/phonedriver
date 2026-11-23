@@ -181,6 +181,30 @@ async fn a_connection_without_the_token_is_dropped() {
     drop(launched);
 }
 
+/// Any app on the device can open the agent's socket; one that never said hello held a thread until the host left
+/// (five idle connections took the agent from 26 threads to 31, still open after 30 s).
+#[tokio::test]
+#[ignore = "needs PHONEDRIVER_TEST_DEVICE"]
+async fn a_connection_that_never_says_hello_is_dropped_after_five_seconds() {
+    let _g = raw::exclusive().await;
+    let (adb, serial) = (support::adb(), support::serial());
+    let launched = agent::launch(&adb, &serial).await.unwrap();
+    let mut s = adb.open_abstract(&serial, &launched.name).await.unwrap();
+    let began = std::time::Instant::now();
+    let mut buf = [0u8; 1];
+    let n = tokio::time::timeout(Duration::from_secs(8), s.read(&mut buf))
+        .await
+        .expect("the agent must close a silent stream before its own 10 s exit")
+        .unwrap_or(0);
+    assert_eq!(n, 0);
+    assert!(
+        began.elapsed() >= Duration::from_secs(4),
+        "{:?}",
+        began.elapsed()
+    );
+    drop(launched);
+}
+
 #[tokio::test]
 #[ignore = "needs PHONEDRIVER_TEST_DEVICE"]
 async fn another_ui_automation_client_is_reported_as_a_conflict() {

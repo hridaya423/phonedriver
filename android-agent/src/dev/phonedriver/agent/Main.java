@@ -15,6 +15,8 @@ import org.json.JSONObject;
 public final class Main {
     private static final long NOBODY_CONNECTED_EXIT_MS = 10_000;
     private static final int HELLO_MAX_BYTES = 1 << 20;
+    /** Any app on the device can open the socket; one that never says hello held a thread until the host left. */
+    private static final int HELLO_TIMEOUT_MS = 5_000;
 
     static String version;
     private static byte[] token;
@@ -123,6 +125,7 @@ public final class Main {
             DataInputStream in = new DataInputStream(socket.getInputStream());
             DataOutputStream out = new DataOutputStream(
                     new java.io.BufferedOutputStream(socket.getOutputStream(), 1 << 16));
+            socket.setSoTimeout(HELLO_TIMEOUT_MS);
             kind = in.read();
             if (kind != 'C' && kind != 'V') {
                 System.err.println("unknown stream kind " + kind);
@@ -133,6 +136,7 @@ public final class Main {
                 System.err.println("bad token, dropping");
                 return;
             }
+            socket.setSoTimeout(0);
             connected();
             boolean hidden = "hidden".equals(first.optString("display"));
             String name = first.optString("lane");
