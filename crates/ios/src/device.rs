@@ -840,9 +840,6 @@ impl Device for IosDevice {
     }
 
     async fn text(&self, t: TextInput) -> Result<()> {
-        if let Some(e) = in_clear(&self.host, &t) {
-            return Err(e);
-        }
         let req = match &t {
             TextInput::Paste(text) | TextInput::PasteSecret(text) => {
                 json!({"op": "type", "text": text, "speed": PASTE_SPEED})
@@ -1118,29 +1115,9 @@ fn names_a_mac_file(url: &str) -> bool {
         .is_some_and(|scheme| scheme.eq_ignore_ascii_case("file:"))
 }
 
-/// A secret over Wi-Fi from a Mac would cross the network in the clear: that link is plain TCP to the runner's port,
-/// which nothing encrypts (decision D106). The cable and the remote pairing's tunnel are encrypted.
-fn in_clear(host: &Host, t: &TextInput) -> Option<Error> {
-    let secret = matches!(t, TextInput::PasteSecret(_) | TextInput::SetSecret(_));
-    (secret && matches!(host, Host::Network)).then(|| Error::Refused {
-        detail: "a secret is not typed into an iPhone over Wi-Fi from a Mac, because that link is not encrypted; connect the cable and type it again".into(),
-    })
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn a_secret_is_not_sent_over_the_runner_port_nothing_encrypts() {
-        let secret = TextInput::PasteSecret("hunter2pass".into());
-        let e = in_clear(&Host::Network, &secret).expect("refused over Wi-Fi");
-        let said = format!("{e:?}");
-        assert!(said.contains("cable"), "{said}");
-        assert!(!said.contains("hunter2pass"), "{said}");
-        assert!(in_clear(&Host::Network, &TextInput::Paste("hello".into())).is_none());
-        assert!(in_clear(&Host::Simulator, &secret).is_none());
-    }
 
     #[test]
     fn a_file_link_names_a_mac_file_in_any_case_and_a_web_link_does_not() {
