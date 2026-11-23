@@ -195,8 +195,10 @@ fn offset_after(packets: usize) -> usize {
     at
 }
 
+/// Decoding the fixture in a debug build took 3.6 s on an M-series MacBook and passed 5 s on GitHub's macOS runner
+/// (CI run 45258133541, twice), so the wait allows 30 s; it returns as soon as `done` holds.
 async fn until(what: &str, mut done: impl FnMut() -> bool) {
-    for _ in 0..500 {
+    for _ in 0..3000 {
         if done() {
             return;
         }
