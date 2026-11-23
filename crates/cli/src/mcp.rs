@@ -1469,7 +1469,7 @@ impl Mcp {
     }
 
     #[tool(
-        description = "Run a device shell command: exit code, output, screen change. For intents, keys and state, and for settings where `setting` is unsupported: `am start -a android.intent.action.VIEW -d <url>`, `input keyevent 3`, `cmd uimode night yes`. Simulator: `simctl ui appearance dark`. A physical iPhone has no shell.",
+        description = "Run a device shell command: exit code, output, screen change. For intents, keys and state, and for settings where `setting` is unsupported: `am start -a android.intent.action.VIEW -d <url>`, `input keyevent KEYCODE_MEDIA_PLAY_PAUSE`, `cmd uimode night yes`. Simulator: `simctl ui appearance dark`. A physical iPhone has no shell.",
         annotations(
             title = "Run a shell command",
             read_only_hint = false,
