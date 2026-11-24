@@ -2660,6 +2660,7 @@ impl Replay {
         let (mut kept, mut same) = (0u64, 0u64);
         for (i, step) in self.steps.iter().enumerate().skip(self.from - 1) {
             let mut hint = None;
+            crate::client::doing(format!("step {} of {total}", i + 1));
             let outcome = match (step["manual"].as_str(), step["method"].as_str()) {
                 (Some(what), _) => Err(refused(what)),
                 (None, Some("act")) => match with_secret(&step["params"]["action"]) {

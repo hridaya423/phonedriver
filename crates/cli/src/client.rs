@@ -15,12 +15,34 @@ use crate::wire::VERSION;
 
 const READY_WAIT: Duration = Duration::from_secs(3);
 
-/// The `hello` params. Only the CLI asks for progress lines, and only when its stderr is a terminal: an agent that
-/// reads the CLI's output through pipes gets none, and an MCP server keeps its streams to the protocol.
+tokio::task_local! {
+    /// What the call running in this task is doing now. The MCP server sets it around a tool call and reads it for
+    /// the progress notifications it sends (decision D124); nothing else sets it.
+    pub static DOING: tokio::sync::watch::Sender<String>;
+}
+
+/// Says what a long call has reached, for whoever set `DOING`. `what` must hold no text a caller gave.
+pub fn doing(what: String) {
+    let _ = DOING.try_with(|d| d.send_replace(what));
+}
+
+/// A progress line from the daemon goes to whoever set `DOING`, and to stderr when no one did.
+fn said(message: &str) {
+    if DOING
+        .try_with(|d| d.send_replace(message.to_string()))
+        .is_err()
+    {
+        eprintln!("{message}")
+    }
+}
+
+/// The `hello` params. The CLI asks for progress lines only when its stderr is a terminal: an agent that reads the
+/// CLI's output through pipes gets none. An MCP server asks for them and passes them on as progress notifications
+/// to a client that gave a progress token, so its streams stay with the protocol.
 /// The session goes in too: the daemon registers the session named in `hello` as an agent's, and the calls that
 /// follow carry this client's session, so the two must match.
 fn hello(kind: &str, session: &str) -> Value {
-    let progress = kind == "cli" && std::io::stderr().is_terminal();
+    let progress = kind == "mcp" || kind == "cli" && std::io::stderr().is_terminal();
     json!({"version": VERSION, "client": kind, "progress": progress, "session": session, "app_scope": app_scope()})
 }
 
@@ -187,7 +209,7 @@ impl Client {
             .write_all(format!("{request}\n").as_bytes())
             .await
             .map_err(|e| lost(format!("lost the daemon: {e}")))?;
-        read_reply(&mut self.read, id, |message| eprintln!("{message}")).await
+        read_reply(&mut self.read, id, said).await
     }
 }
 
@@ -438,9 +460,26 @@ mod tests {
         assert!(hint.contains("daemon.log"), "{hint}");
     }
 
+    #[tokio::test]
+    async fn a_progress_line_from_the_daemon_reaches_the_call_that_set_doing() {
+        let (set, done) = tokio::sync::watch::channel(String::new());
+        DOING
+            .scope(set, async {
+                said("starting the Android agent");
+                doing("step 2 of 3".into());
+            })
+            .await;
+        assert_eq!(*done.borrow(), "step 2 of 3");
+        let (set, done) = tokio::sync::watch::channel(String::new());
+        DOING
+            .scope(set, async { said("starting the Android agent") })
+            .await;
+        assert_eq!(*done.borrow(), "starting the Android agent");
+    }
+
     #[test]
-    fn only_a_cli_on_a_terminal_asks_for_progress() {
-        assert_eq!(hello("mcp", "s")["progress"], json!(false));
+    fn an_mcp_server_and_a_cli_on_a_terminal_ask_for_progress() {
+        assert_eq!(hello("mcp", "s")["progress"], json!(true));
         assert_eq!(hello("bench", "s")["progress"], json!(false));
         assert_eq!(
             hello("cli", "s")["progress"],

@@ -15,7 +15,7 @@ Transport: local socket (architecture section 5). One JSON object per line, UTF-
 
 Version mismatch: the daemon replies with error code `-32010 version_mismatch` and `data.daemon_version`. The CLI then calls `shutdown` and starts its own daemon.
 
-Progress: a client that sends `"progress": true` in `hello` may receive notifications (no `id`) while a request is running, `{"jsonrpc":"2.0","method":"progress","params":{"message":"starting the iOS runner on iPhone 17 (the first run builds it; logs are in /Users/you/.phonedriver/runner)"}}`, one for each setup step that runs longer than a second (building the iOS runner, pushing the Android agent). A client that does not ask never receives one. The CLI asks only when its stderr is a terminal, and prints each message on stderr; `phonedriver mcp` never asks.
+Progress: a client that sends `"progress": true` in `hello` may receive notifications (no `id`) while a request is running, `{"jsonrpc":"2.0","method":"progress","params":{"message":"starting the iOS runner on iPhone 17 (the first run builds it; logs are in /Users/you/.phonedriver/runner)"}}`, one for each setup step that runs longer than a second (building the iOS runner, pushing the Android agent). A client that does not ask never receives one. The CLI asks only when its stderr is a terminal, and prints each message on stderr. `phonedriver mcp` asks, and hands each message to the tool call that is waiting: a call whose request carried `_meta.progressToken` passes it on in its MCP `notifications/progress` (decision D124), and any other call drops it.
 
 ### Methods
 
