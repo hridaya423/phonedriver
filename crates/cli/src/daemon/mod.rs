@@ -8,6 +8,7 @@ pub mod actor;
 pub mod android;
 pub mod check;
 pub mod checkbox;
+pub mod collect;
 pub mod guard;
 pub mod ios;
 pub mod journal;

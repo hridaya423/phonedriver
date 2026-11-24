@@ -343,6 +343,25 @@ hint: `phonedriver logs dev.phonedriver.testbed` prints its last log lines
 
 iOS devices and the Simulator answer that logs cannot be read. Decision D58.
 
+### Reading a whole list
+
+`scroll down --collect` scrolls a list a page at a time and prints every row it passed, each once and in the list's order:
+
+```
+$ phonedriver scroll down --collect
+ok collected 22 rows in 3 scrolls down: the list ended · new screen
+  button "Google" "Services & preferences"
+  button "Network & internet" "Mobile, Wi‑Fi, hotspot"
+  …
+  button "Tips & support" "Help articles, phone & chat"
+screen now:
+…
+```
+
+A row is its snapshot line without the `@ref`, followed by the lines of what it holds (`button "Dark theme" "Will turn on when Bedtime starts", switch "Dark theme" off`). `--collect 60` stops at 60 rows (100 when no number is given); it also stops where the list ends or after `--max` scrolls (30), and the first line says which. `scroll up --collect` gathers upwards and still prints top to bottom. Over MCP it is `scroll` with `collect: 60`, alone or as a `batch` step. The reply ends with the screen the list was left on, whose refs are the ones to act on; to act on a row that scrolled away, `scroll up --until` its text.
+
+Use it instead of several scrolls in a `batch`: a batch answers with one diff, so rows that passed in the middle are not in it. The rows of consecutive pages are lined up by their text, so a row cut off at the edge of one page is taken whole from the next. Two rows with the same text that sit where one page ends and the next begins count once unless the app gives its rows positions. Decision D116.
+
 ### Networks, VPNs and waiting on a log line
 
 On Android, `phonedriver network` prints what the device is connected to, read-only and with no approval:

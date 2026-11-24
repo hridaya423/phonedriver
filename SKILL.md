@@ -48,7 +48,7 @@ A permission sheet, an "isn't responding" box or another system dialog shows in 
 
 ## Finding things
 
-- `scroll down` reveals more of a list; `scroll down --until "Row 640"` reaches a known row. `swipe` is for other gestures: pulling a sheet, reordering with `to`, zooming with `pinch`.
+- `scroll down` reveals more of a list; `scroll down --until "Row 640"` reaches a known row; `scroll down --collect 60` (MCP `collect: 60`) scrolls on and returns every row it passed, each once and in order, with why it stopped. Use it to read a whole list in one call: scrolls in a `batch` return only the last screen. `swipe` is for other gestures: pulling a sheet, reordering with `to`, zooming with `pinch`.
 - A line ending in `under-keyboard`, and the lines under it, are behind the keyboard; `tap` hides the keyboard first.
 - `screenshot` (with `marks` to box each tappable element with its ref) covers what the snapshot lacks: a map, a drawing, a photo, a game. Look at the image before tapping a point on it. A reply for a screen with no element list at all brings its picture with it (MCP).
 - To see what an action changed on a screen you read by picture, without a second picture: `screenshot shot.png`, act, `compare shot.png` (MCP: `screenshot`, act, `screenshot` with `compare: true`). The reply is `same`, or the texts that changed with their points.

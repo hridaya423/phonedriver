@@ -457,7 +457,7 @@ phonedriver clear <target>
 phonedriver swipe <up|down|left|right> [--from <target>] [--distance 0..1] [--fast]
 phonedriver drag <from> <to>                 press, hold 400 ms, move over 400 ms, hold 100 ms, lift
 phonedriver pinch <in|out> [--at <target>] [--distance 0..1]
-phonedriver scroll <up|down|left|right> [--within <target>] [--until "text"|@ref] [--max N]
+phonedriver scroll <up|down|left|right> [--within <target>] [--until "text"|@ref] [--max N] [--collect [N]]
 phonedriver gesture <json>                   multi-finger paths with timing
 phonedriver press <home|back|recents|notifications|lock|volume-up|volume-down|enter|hide-keyboard|...>
 phonedriver press <fingerprint|wrong-fingerprint>     answer a fingerprint prompt on an Android emulator or Face ID on an iOS Simulator (D63, D69)

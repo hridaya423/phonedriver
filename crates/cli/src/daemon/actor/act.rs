@@ -749,12 +749,23 @@ impl Actor {
                 within,
                 until,
                 max,
+                collect,
             } => {
                 self.need(
                     Capabilities::GESTURE,
                     Op::Gesture,
                     "this device cannot inject touches",
                 )?;
+                if let Some(limit) = collect {
+                    if until.is_some() {
+                        return Err(Error::Refused {
+                            detail: "a scroll takes `until` or `collect`, not both; nothing was scrolled".into(),
+                        });
+                    }
+                    return self
+                        .collect(s, &consent, cfg, direction, within, limit, max)
+                        .await;
+                }
                 self.scroll(s, &consent, p.settle, cfg, direction, within, until, max)
                     .await
             }
@@ -1305,6 +1316,103 @@ impl Actor {
             self.settle(cfg, started).await;
             now = self.fresh(s).await?;
         }
+    }
+
+    /// Scrolls the list a page at a time and gathers its rows, until `limit` rows, the list's end or `max` scrolls
+    /// (decision D116). The end is a list that no longer scrolls that way, or two drags in a row that add no row.
+    /// The list is the largest element that scrolls that way: a page whose header collapses scrolls up only, around
+    /// the list that scrolls down.
+    #[allow(clippy::too_many_arguments)]
+    pub(super) async fn collect(
+        &mut self,
+        s: &mut Session,
+        consent: &Consent,
+        cfg: Config,
+        direction: Direction,
+        within: Option<Target>,
+        limit: u32,
+        max: Option<u32>,
+    ) -> Result<ActionResult, Error> {
+        let device = self.device()?;
+        let mut now = self.fresh(s).await?;
+        let nothing = || Error::Refused {
+            detail: format!(
+                "nothing on this screen scrolls {}, so there are no rows to collect; nothing was scrolled",
+                direction.name()
+            ),
+        };
+        let way = match direction {
+            Direction::Up => Actions::SCROLL_UP,
+            Direction::Down => Actions::SCROLL_DOWN,
+            Direction::Left => Actions::SCROLL_LEFT,
+            Direction::Right => Actions::SCROLL_RIGHT,
+        };
+        let chosen = match &within {
+            Some(t) => s.resolve(t, &now)?.element.map(|e| e.r#ref),
+            None => now
+                .elements
+                .iter()
+                .filter(|e| e.actions.contains(way))
+                .max_by(|a, b| a.bounds.area().total_cmp(&b.bounds.area()))
+                .or_else(|| scroll_container(&now, direction))
+                .map(|e| e.r#ref),
+        }
+        .ok_or_else(nothing)?;
+        let forward = matches!(direction, Direction::Down | Direction::Right);
+        let limit = limit.max(1) as usize;
+        let max = max.unwrap_or(DEFAULT_SCROLLS);
+        let mut all = Vec::new();
+        let (mut scrolls, mut idle, mut last) = (0u32, 0u32, None);
+        let why = loop {
+            let holder = now
+                .index_of(chosen)
+                .or_else(|| scroll_container(&now, direction).and_then(|e| now.index_of(e.r#ref)))
+                .ok_or_else(nothing)?;
+            let added = collect::merge(&mut all, collect::rows(&now, holder), forward);
+            idle = if scrolls > 0 && added == 0 {
+                idle + 1
+            } else {
+                0
+            };
+            if all.len() >= limit {
+                break format!("stopped at the limit of {limit}");
+            }
+            if !now.elements[holder].actions.contains(way) || idle >= 2 {
+                break "the list ended".to_string();
+            }
+            if scrolls >= max {
+                break format!("stopped after {}", plural(max.into(), "scroll"));
+            }
+            let area = above_keyboard(now.elements[holder].bounds, now.header.keyboard);
+            let g = gesture::scroll(area, direction);
+            self.guard_touch(s, consent, &g, false, Some(&now), None)
+                .await?;
+            let started = self.begin_action();
+            device.gesture(g).await?;
+            scrolls += 1;
+            last = Some(self.settle(cfg, started).await);
+            now = self.fresh(s).await?;
+        };
+        if forward {
+            all.truncate(limit);
+        } else {
+            all.drain(..all.len().saturating_sub(limit));
+        }
+        let summary = format!(
+            "collected {} in {} {}: {why}",
+            plural(all.len() as u64, "row"),
+            plural(scrolls.into(), "scroll"),
+            direction.name()
+        );
+        let st = last.unwrap_or(State::Done {
+            settled: false,
+            changed: false,
+            still_changing: None,
+            elapsed: Duration::ZERO,
+        });
+        let mut done = self.report(s, st, None, summary, None, None).await?;
+        done.rows = all.into_iter().map(|r| r.text).collect();
+        Ok(done)
     }
 
     /// One drag that stops under the finger, or with `until` drags until the text shows (architecture 10.1). The

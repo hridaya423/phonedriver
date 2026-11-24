@@ -1803,3 +1803,21 @@ The GitHub Action passes `--any-build`: it installs the build under test before 
 **Keys stay prose.** `press` takes nineteen names and the description says what the unusual ones do (`landscape`, `fingerprint` on an emulator only). An enum would add about 200 characters to every turn and say less; a wrong key is already answered with the valid ones.
 
 **Budget.** The tool list is 6,700 characters at most now (6,600 before): lanes in `devices` and the `check` clause in `batch` are about 160.
+
+## D116. `scroll` with `collect` returns a list's rows across scrolls (2026-11-24, #52)
+
+**Choice.** `Action::Scroll` takes `collect: n`. The daemon reads the list's rows, drags one scroll (the same 60 percent drag a plain `scroll` makes, never a fling), reads again, and repeats until it has `n` rows, the list ends, or `max` scrolls (30). The reply is an `ActionResult` with `rows`, the summary `collected 22 rows in 3 scrolls down: the list ended` (or `stopped at the limit of 60`, `stopped after 30 scrolls`), and the usual observation of the screen it ended on. `collect` with `until` is `Refused`, and so is a screen with nothing that scrolls that way. CLI `scroll down --collect [N]` (100 without a number); MCP `scroll` with `collect`; a batch step lists its rows under its numbered line.
+
+**The list** is `in` when given, else the largest element that scrolls in the asked direction, else the largest that scrolls on that axis. **A row** is a direct child of the list (read through a lone wrapper that cannot be tapped): its snapshot line without the ref, then the lines of what it holds, joined with `, `.
+
+**Lining pages up.** Consecutive pages share rows. The new page's rows are matched against the end of what is held, by text, and by position too where both rows carry one; the longest overlap is dropped and the rest appended. Up to two leading rows of a page may be skipped as cut-off copies. The last row held may itself have been cut off by the page's edge: when only the rows before it line up, the page's own row replaces it. Scrolling up or left is the same with both lists reversed.
+
+**The end** is a list that no longer has the scroll action for that direction, or two drags in a row that add no row (for lists that always report both directions).
+
+**Why.** Issue #52, measured there on `main`: two single scrolls of All apps showed 17 new rows, a batch of the same two showed 11, because a batch answers with one diff (D17). Reading a long list took a turn per page.
+
+**Evidence.** Mac mini to the win-pc emulator (`Pixel_API_37`), Settings, 2026-11-24. The first run returned 34 rows for a 22-row list: `button "Storage"` at the foot of page one was `button "Storage" "51% used - 7.78 GB free"` on page two, so the overlap never matched, and a row cut at the top came back as a bare `button`. With the cut-row rule: 22 rows, once each, in 3 scrolls and 3.8 s, and the same 22 with `scroll up --collect 40` from the bottom. On the Display page the first run returned two rows, the page's header and the whole list as one line: the page is a group that scrolls up only around the list that scrolls down, and the group is larger. With the direction rule: `collected 17 rows in 1 scroll down: the list ended` in 1.2 s, where the snapshot says `list 17 rows`.
+
+**Rejected.** Named fields per row (`row`, `fields`), which both reviewers in #52 wanted: a row's line already separates label, value and state, and a schema for fields would cost every turn. Returning refs for rows: a ref for a row that scrolled off is stale by the time the reply is read; the final screen carries the live ones. A fling to go faster: rows pass unread.
+
+**Limits.** Two rows with the same text and no positions, where one page ends and the next begins, count once. A row whose text changes while the list scrolls (a clock, a progress line) is listed twice. A list that loads more as it is scrolled is collected as far as it had loaded when the drags stopped adding rows. Checked on Android; on iOS on the fake only.

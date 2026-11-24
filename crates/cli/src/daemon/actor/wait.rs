@@ -60,6 +60,7 @@ impl Actor {
                         .filter(|u| u.wrong && i + 1 < p.steps.len());
                     done.push(StepResult {
                         summary: r.summary.clone(),
+                        rows: r.rows.clone(),
                         verified: r.verified,
                         unverified: r.unverified.clone(),
                     });
@@ -112,6 +113,7 @@ impl Actor {
                 };
                 s.set_last(Some(rendered));
                 ActionResult {
+                    rows: Vec::new(),
                     at: None,
                     typed_into: None,
                     unchanged_repeats: None,
@@ -223,6 +225,7 @@ impl Actor {
         step["summary"] = json!(summary);
         s.journal.push(step);
         Ok(ActionResult {
+            rows: Vec::new(),
             at: None,
             typed_into: None,
             unchanged_repeats: None,
@@ -274,6 +277,7 @@ impl Actor {
     ) -> Result<ActionResult, Error> {
         let rendered = self.fresh(s).await?;
         Ok(ActionResult {
+            rows: Vec::new(),
             at: None,
             typed_into: None,
             unchanged_repeats: None,
@@ -463,6 +467,7 @@ impl Actor {
                 };
                 s.set_last(Some(rendered));
                 return Ok(ActionResult {
+                    rows: Vec::new(),
                     at: None,
                     typed_into: None,
                     unchanged_repeats: None,
@@ -567,6 +572,7 @@ impl Actor {
         };
         s.set_last(Some(rendered));
         Ok(ActionResult {
+            rows: Vec::new(),
             at: None,
             typed_into: None,
             unchanged_repeats: None,

@@ -2772,6 +2772,168 @@ fn list_tree(labels: &[&str]) -> RawTree {
     RawTree::from_android_json(&json, Scale { density: 1.0 }).unwrap()
 }
 
+fn list_page(labels: &[&str], more: bool) -> RawTree {
+    let actions = if more { r#"["scroll_down"]"# } else { "[]" };
+    let mut nodes = vec![
+        r#"{"p":-1,"w":1,"cls":"android.widget.FrameLayout","b":[0,0,360,800],"f":"vVe"}"#
+            .to_string(),
+        format!(
+            r#"{{"p":0,"w":1,"cls":"androidx.recyclerview.widget.RecyclerView","b":[0,100,360,700],"f":"vVeS","a":{actions}}}"#
+        ),
+    ];
+    for (i, l) in labels.iter().enumerate() {
+        let top = 100 + 50 * i as i32;
+        nodes.push(format!(
+            r#"{{"p":1,"w":1,"cls":"android.widget.TextView","text":"{l}","b":[0,{top},360,{}],"f":"vVe"}}"#,
+            top + 50
+        ));
+    }
+    let json = format!(
+        r#"{{"windows":[{{"id":1,"type":"application","package":"com.example","bounds":[0,0,360,800]}}],"nodes":[{}]}}"#,
+        nodes.join(",")
+    );
+    RawTree::from_android_json(&json, Scale { density: 1.0 }).unwrap()
+}
+
+fn rows(r: &Value) -> Vec<&str> {
+    r["rows"]
+        .as_array()
+        .map(|rows| rows.iter().filter_map(Value::as_str).collect())
+        .unwrap_or_default()
+}
+
+/// Issue #52: two scrolls in a batch showed 11 of the 17 rows two single scrolls showed, since a batch answers with
+/// one diff. A scroll that collects answers with every row it passed.
+#[tokio::test(start_paused = true)]
+async fn a_scroll_that_collects_returns_each_row_once_in_order_and_stops_where_the_list_ends() {
+    let (source, fake) = FakeSource::with(vec![
+        list_page(&["Row 0", "Row 1", "Row 2"], true),
+        list_page(&["Row 2", "Row 3", "Row 4"], true),
+        list_page(&["Row 4", "Row 5"], false),
+    ]);
+    let (d, _home) = daemon(source);
+    let r = ok(&d, "default", "act", scroll(json!({"collect": 60}))).await;
+    assert_eq!(
+        rows(&r),
+        [
+            "cell \"Row 0\"",
+            "cell \"Row 1\"",
+            "cell \"Row 2\"",
+            "cell \"Row 3\"",
+            "cell \"Row 4\"",
+            "cell \"Row 5\""
+        ]
+    );
+    assert_eq!(
+        r["summary"],
+        "collected 6 rows in 2 scrolls down: the list ended"
+    );
+    assert_eq!(fake.calls().len(), 2, "{:?}", fake.calls());
+    let seen = r["observation"]["text"].as_str().unwrap();
+    assert!(seen.contains("\"Row 5\""), "the screen it ended on: {seen}");
+}
+
+/// Seen on Settings' Display page (API 37 emulator): the page is a group that scrolls up only (its header
+/// collapses) around the list that scrolls down. The group is the larger one, and its two children came back as the
+/// rows.
+#[tokio::test(start_paused = true)]
+async fn a_collecting_scroll_reads_the_list_that_scrolls_its_way_inside_a_page_that_scrolls_the_other()
+ {
+    let json = r#"{"windows":[{"id":1,"type":"application","package":"com.example","bounds":[0,0,360,800]}],"nodes":[
+        {"p":-1,"w":1,"cls":"android.widget.FrameLayout","b":[0,0,360,800],"f":"vVe"},
+        {"p":0,"w":1,"cls":"android.widget.ScrollView","b":[0,0,360,800],"f":"vVeS","a":["scroll_up"]},
+        {"p":1,"w":1,"cls":"android.widget.TextView","text":"Display","b":[0,0,360,100],"f":"vVe"},
+        {"p":1,"w":1,"cls":"androidx.recyclerview.widget.RecyclerView","b":[0,100,360,700],"f":"vVeS","a":[]},
+        {"p":3,"w":1,"cls":"android.widget.TextView","text":"Brightness","b":[0,100,360,150],"f":"vVe"},
+        {"p":3,"w":1,"cls":"android.widget.TextView","text":"Dark theme","b":[0,150,360,200],"f":"vVe"}
+    ]}"#;
+    let page = |list_scrolls: bool| {
+        let json = if list_scrolls {
+            json.replace(r#""f":"vVeS","a":[]"#, r#""f":"vVeS","a":["scroll_down"]"#)
+        } else {
+            json.to_string()
+        };
+        RawTree::from_android_json(&json, Scale { density: 1.0 }).unwrap()
+    };
+    let (source, _fake) = FakeSource::with(vec![page(true), page(false)]);
+    let (d, _home) = daemon(source);
+    let r = ok(&d, "default", "act", scroll(json!({"collect": 60}))).await;
+    assert_eq!(
+        rows(&r),
+        ["cell \"Brightness\"", "cell \"Dark theme\""],
+        "{r}"
+    );
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_collecting_scroll_stops_at_its_limit_and_at_a_list_that_stops_moving() {
+    let (source, fake) = FakeSource::with(vec![
+        list_page(&["Row 0", "Row 1", "Row 2"], true),
+        list_page(&["Row 2", "Row 3", "Row 4"], true),
+    ]);
+    let (d, _home) = daemon(source);
+    let r = ok(&d, "default", "act", scroll(json!({"collect": 4}))).await;
+    assert_eq!(rows(&r).len(), 4, "{r}");
+    assert_eq!(
+        r["summary"],
+        "collected 4 rows in 1 scroll down: stopped at the limit of 4"
+    );
+    assert_eq!(fake.calls().len(), 1);
+
+    let (source, fake) = FakeSource::with(vec![
+        list_page(&["Row 0", "Row 1"], true),
+        list_page(&["Row 1", "Row 2"], true),
+    ]);
+    let (d, _home) = daemon(source);
+    let r = ok(&d, "default", "act", scroll(json!({"collect": 60}))).await;
+    assert_eq!(rows(&r).len(), 3, "{r}");
+    assert!(
+        r["summary"].as_str().unwrap().ends_with("the list ended"),
+        "{r}"
+    );
+    assert_eq!(fake.calls().len(), 3, "two drags that add nothing end it");
+
+    let (source, fake) = FakeSource::with(vec![list_page(&["Row 0", "Row 1"], true)]);
+    let (d, _home) = daemon(source);
+    let r = ok(
+        &d,
+        "default",
+        "act",
+        scroll(json!({"collect": 60, "max": 1})),
+    )
+    .await;
+    assert!(
+        r["summary"]
+            .as_str()
+            .unwrap()
+            .ends_with("stopped after 1 scroll"),
+        "{r}"
+    );
+    assert_eq!(fake.calls().len(), 1);
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_collecting_scroll_is_refused_with_until_and_on_a_screen_that_does_not_scroll() {
+    let (source, fake) = FakeSource::with(vec![list_page(&["Row 0"], true)]);
+    let (d, _home) = daemon(source);
+    let e = err(
+        &d,
+        "default",
+        "act",
+        scroll(json!({"collect": 5, "until": {"text": "Row 9"}})),
+    )
+    .await;
+    assert_eq!(e.code, -32025, "{e:?}");
+    assert!(fake.calls().is_empty());
+
+    let (source, fake) = FakeSource::with(vec![tree(&["One", "Two"])]);
+    let (d, _home) = daemon(source);
+    let e = err(&d, "default", "act", scroll(json!({"collect": 5}))).await;
+    assert_eq!(e.code, -32025, "{e:?}");
+    assert!(e.message.contains("no rows to collect"), "{e:?}");
+    assert!(fake.calls().is_empty());
+}
+
 fn scroll(extra: Value) -> Value {
     let mut action = json!({"kind": "scroll", "direction": "down"});
     for (k, v) in extra.as_object().unwrap() {

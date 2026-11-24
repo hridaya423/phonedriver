@@ -536,8 +536,8 @@ async fn the_tool_list_every_turn_re_reads_fits_a_budget_and_hides_what_agents_n
         })
         .sum();
     assert!(
-        total < 6_700,
-        "what a model reads of tools/list is {total} characters (6,371 in 0.1.7; lanes in `devices` and the `check` step added about 160); every turn re-reads it, so raise this only for a tool or argument worth its cost"
+        total < 6_800,
+        "what a model reads of tools/list is {total} characters (6,371 in 0.1.7; lanes in `devices` and the `check` step added about 160, `collect` on `scroll` 56); every turn re-reads it, so raise this only for a tool or argument worth its cost"
     );
     for t in &tools {
         let text = serde_json::to_string(&*t.input_schema).unwrap();
@@ -853,6 +853,65 @@ async fn a_value_a_check_reads_stays_out_of_the_trace() {
             f.display()
         );
     }
+}
+
+fn list_page(labels: &[&str], more: bool) -> RawTree {
+    let actions = if more { r#"["scroll_down"]"# } else { "[]" };
+    let mut nodes = vec![
+        r#"{"p":-1,"w":1,"cls":"android.widget.FrameLayout","b":[0,0,360,800],"f":"vVe"}"#
+            .to_string(),
+        format!(
+            r#"{{"p":0,"w":1,"cls":"androidx.recyclerview.widget.RecyclerView","b":[0,100,360,700],"f":"vVeS","a":{actions}}}"#
+        ),
+    ];
+    for (i, l) in labels.iter().enumerate() {
+        let top = 100 + 50 * i as i32;
+        nodes.push(format!(
+            r#"{{"p":1,"w":1,"cls":"android.widget.TextView","text":"{l}","b":[0,{top},360,{}],"f":"vVe"}}"#,
+            top + 50
+        ));
+    }
+    let json = format!(
+        r#"{{"windows":[{{"id":1,"type":"application","package":"com.example","bounds":[0,0,360,800]}}],"nodes":[{}]}}"#,
+        nodes.join(",")
+    );
+    RawTree::from_android_json(&json, phonedriver_core::geometry::Scale { density: 1.0 }).unwrap()
+}
+
+#[tokio::test]
+async fn a_collecting_scroll_lists_its_rows_under_the_summary_alone_and_as_a_batch_step() {
+    let pages = || {
+        vec![
+            list_page(&["Ada", "Bea"], true),
+            list_page(&["Bea", "Cy"], false),
+        ]
+    };
+    let rig_a = rig(pages()).await;
+    let r = rig_a
+        .call("scroll", json!({"direction": "down", "collect": 50}))
+        .await;
+    assert_ne!(r.is_error, Some(true), "{r:?}");
+    let text = texts(&r).join("\n");
+    assert!(
+        text.starts_with(
+            "ok collected 3 rows in 1 scroll down: the list ended · new screen\n  cell \"Ada\"\n  cell \"Bea\"\n  cell \"Cy\"\nscreen now:\n"
+        ),
+        "{text}"
+    );
+
+    let rig_b = rig(pages()).await;
+    let r = rig_b
+        .call(
+            "batch",
+            json!({"steps": [{"tool": "scroll", "direction": "down", "collect": 50}]}),
+        )
+        .await;
+    assert_ne!(r.is_error, Some(true), "{r:?}");
+    let text = texts(&r).join("\n");
+    assert!(
+        text.contains("1. collected 3 rows in 1 scroll down: the list ended\n   cell \"Ada\"\n   cell \"Bea\"\n   cell \"Cy\""),
+        "{text}"
+    );
 }
 
 #[tokio::test]

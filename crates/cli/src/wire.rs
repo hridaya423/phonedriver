@@ -128,6 +128,9 @@ pub enum Action {
         within: Option<Target>,
         until: Option<Target>,
         max: Option<u32>,
+        /// Scroll on and return the list's rows, up to this many (decision D116).
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        collect: Option<u32>,
     },
 }
 
@@ -175,8 +178,14 @@ impl std::fmt::Debug for Action {
             Action::Drag { from, to } => write!(f, "Drag({from:?} to {to:?})"),
             Action::Pinch { direction, .. } => write!(f, "Pinch({direction:?})"),
             Action::Scroll {
-                direction, until, ..
-            } => write!(f, "Scroll({direction:?}, until {until:?})"),
+                direction,
+                until,
+                collect,
+                ..
+            } => write!(
+                f,
+                "Scroll({direction:?}, until {until:?}, collect {collect:?})"
+            ),
         }
     }
 }
@@ -285,6 +294,9 @@ pub struct ActionResult {
     /// A swipe-only lock screen was up and the action swiped it away first.
     #[serde(skip_serializing_if = "std::ops::Not::not", default)]
     pub unlocked: bool,
+    /// The rows a `scroll` with `collect` gathered, in the list's order.
+    #[serde(skip_serializing_if = "Vec::is_empty", default)]
+    pub rows: Vec<String>,
     pub observation: Observation,
 }
 
@@ -653,6 +665,8 @@ pub struct BatchParams {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct StepResult {
     pub summary: String,
+    #[serde(skip_serializing_if = "Vec::is_empty", default)]
+    pub rows: Vec<String>,
     #[serde(skip_serializing_if = "Option::is_none", default)]
     pub verified: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none", default)]

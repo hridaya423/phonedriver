@@ -4,6 +4,7 @@ Every release of phonedriver, newest first. Binaries and checksums for each vers
 
 ## Unreleased
 
+- **`scroll --collect` reads a whole list in one call** (#52): it scrolls a page at a time and returns every row it passed, each once and in order, with why it stopped (the list ended, the limit, the scroll limit). MCP: `scroll` with `collect`. Scrolls in a `batch` return one diff, so rows in the middle were lost.
 - **`check` reads a value in the middle of a flow** (#52): `check "Total"` answers `"Total" = "€24.99"` and touches nothing; as a `batch` step it costs no model turn, and with `equals` it stops the batch before the next tap when the screen says anything else. A switch reads `on` or `off`, a settings row reads its summary, and a password field is never read. `save` keeps checks and `replay` runs them.
 - **A tap that finds nothing answers with the screen** (#37): a `tap`, `type`, `scroll` or `check` whose target or `@ref` is gone carries what changed since the screen the agent last saw, so the next call acts from the error instead of calling `snapshot` first.
 - **Small MCP fixes**: `logs` takes `since`, `replay` takes `screens` (a folder inside the server's own), `snapshot` lists `audit`, `devices` says what a lane is, and `scroll` and `swipe` list the four directions as fixed values.

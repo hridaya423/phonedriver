@@ -249,6 +249,7 @@ impl Actor {
         s.set_last(Some(rendered));
         self.lap("render", render);
         Ok(ActionResult {
+            rows: Vec::new(),
             at: None,
             typed_into,
             unchanged_repeats: None,
