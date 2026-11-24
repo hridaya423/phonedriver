@@ -346,6 +346,8 @@ struct ScrollArgs {
     until: Option<String>,
     /// Give up after this many scrolls. Default 30.
     max: Option<u32>,
+    /// Scroll on and list every row passed, up to this many.
+    collect: Option<u32>,
     #[serde(default, deserialize_with = "flag")]
     autonomous: Option<bool>,
 }
@@ -498,6 +500,7 @@ impl ScrollArgs {
             within: self.r#in,
             until: self.until,
             max: self.max,
+            collect: self.collect,
             autonomous: false,
         }
     }

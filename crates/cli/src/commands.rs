@@ -392,6 +392,9 @@ pub(crate) enum Verb {
         /// Give up after this many scrolls (the default is 30).
         #[arg(long)]
         max: Option<u32>,
+        /// Keep scrolling and print every row of the list, up to this many (100 when no number is given).
+        #[arg(long, num_args = 0..=1, default_missing_value = "100", conflicts_with = "until")]
+        collect: Option<u32>,
         /// Run it even when it commits a payment or another held action, without asking the human. Only when the user has granted full autonomy.
         #[arg(long)]
         autonomous: bool,
@@ -1641,9 +1644,13 @@ pub(crate) fn step_json(verb: &Verb, secret: Option<&str>) -> Result<Value, Fail
             within,
             until,
             max,
+            collect,
             ..
         } => {
             let mut a = json!({"kind": "scroll", "direction": direction});
+            if let Some(limit) = collect {
+                a["collect"] = json!(limit);
+            }
             if let Some(w) = within {
                 a["in"] = parse_target(w);
             }
@@ -1865,6 +1872,7 @@ fn show_batch(result: &Value, json: bool, sent: usize) -> Result<String, Failure
             _ => String::new(),
         };
         lines.push(format!("{}. {}{verified}", i + 1, s.summary));
+        lines.extend(s.rows.iter().map(|row| format!("   {row}")));
         if let Some(u) = &s.unverified {
             lines.push(format!("   hint: {}", u.hint));
         }
@@ -2329,7 +2337,11 @@ impl Replay {
                 } else {
                     " into"
                 };
-                format!("{kind}{what}{typed}{into}{on}")
+                let collect = action["collect"]
+                    .as_u64()
+                    .map(|n| format!(" --collect {n}"))
+                    .unwrap_or_default();
+                format!("{kind}{what}{typed}{into}{on}{collect}")
             }
             "check" => match params["equals"].as_str() {
                 Some(e) => format!("check{} = \"{e}\"", target(&params["target"])),
@@ -3058,8 +3070,19 @@ fn show_action(result: &Value, json: bool) -> Result<String, Failure> {
         head.push_str(" · swiped the lock screen away first");
     }
     let mut out = head;
+    for row in &r.rows {
+        out.push_str("\n  ");
+        out.push_str(row);
+    }
     if !r.observation.text.is_empty() {
         out.push('\n');
+        if !r.rows.is_empty() {
+            out.push_str(if r.observation.kind == Kind::Full {
+                "screen now:\n"
+            } else {
+                "screen now, against what you last saw:\n"
+            });
+        }
         out.push_str(&r.observation.text);
     }
     if let Some(crash) = &r.crashed {
@@ -3611,6 +3634,16 @@ mod tests {
         assert_eq!(
             d(json!({"log": {"pattern": "ready", "app": null}})),
             "wait log:ready"
+        );
+        assert_eq!(
+            Replay::describe(
+                &json!({"method": "act", "params": {"action": {"kind": "scroll", "direction": "down", "collect": 60}}})
+            ),
+            "scroll down --collect 60"
+        );
+        assert_eq!(
+            parse_step_line("scroll down --collect").unwrap(),
+            json!({"kind": "scroll", "direction": "down", "collect": 100})
         );
     }
 

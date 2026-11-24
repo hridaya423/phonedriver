@@ -41,7 +41,7 @@ use super::secrets::Secrets;
 use super::session::{Resolved, Session};
 use super::shell;
 use super::verify::{Expect, Verdict, Verify};
-use super::{guard, secret_field};
+use super::{collect, guard, secret_field};
 use crate::wire::{
     ActParams, Action, ActionResult, AppParams, Approval, Approved, BatchParams, BatchResult,
     BuildParams, CheckParams, ClipboardParams, Crashed, FindParams, JournalParams, Kind,
@@ -1091,6 +1091,8 @@ fn sorted_distance(
 }
 
 /// Without `max`, 30 scrolls, or enough one-screen drags to cross the rows a numbered target is away.
+const DEFAULT_SCROLLS: u32 = 30;
+
 fn default_scroll_limit(until: &Target, now: &Rendered, direction: Direction) -> u32 {
     let drags = numbered_distance(until, now, direction)
         .map_or(0, |(_, rows, span)| (rows / span.max(1) * 2 + 10).min(300));
@@ -1138,6 +1140,7 @@ fn scroll_container(now: &Rendered, direction: Direction) -> Option<&Element> {
 /// The reply to an input sent with `settle: false`: delivered, nothing observed.
 fn delivered(s: &Session, summary: String, via: Option<&'static str>) -> ActionResult {
     ActionResult {
+        rows: Vec::new(),
         at: None,
         typed_into: None,
         unchanged_repeats: None,

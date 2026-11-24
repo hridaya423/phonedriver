@@ -150,6 +150,7 @@ impl Kept {
             within: within.clone(),
             until: None,
             max: None,
+            collect: None,
         };
         (0..times)
             .map(|_| {

@@ -68,7 +68,7 @@ type Action =
   | {kind: "swipe", direction: Dir, from?: Target, distance?: number, fast?: boolean}
   | {kind: "drag", from: Target, to: Target}                       // press and hold, move, hold, lift
   | {kind: "pinch", direction: "in"|"out", at?: Target, distance?: number}  // two fingers; `out` zooms in
-  | {kind: "scroll", direction: Dir, in?: Target, until?: Target, max?: number}
+  | {kind: "scroll", direction: Dir, in?: Target, until?: Target, max?: number, collect?: number}   // collect: scroll on and return the list's rows, up to that many, in `rows` (D116); not with `until`
   | {kind: "gesture", fingers: Array<Array<{x: number, y: number, t_ms: number}>>}
   | {kind: "press", key: Key}
   | {kind: "open", url: string, app?: string}         // a link or deep link, in `app` when given
@@ -89,7 +89,7 @@ type WaitCondition = {appears: Target} | {gone: Target} | {settled: true}
 type Step = Action | {kind: "wait", condition: WaitCondition, timeout_ms?: number} | {kind: "check", target: Target, equals?: string, as?: string}   // a check step reads as the `check` method does and stops the batch when `equals` does not hold (D113); a wait's own timeout stands in for the batch's (D111); the CLI refuses `secret` text in a batch, the MCP server passes it (D85); the daemon masks it either way (D70)
 type BatchResult = {
   ok: boolean,
-  steps: Array<{summary: string, verified?: boolean, unverified?: {shows, hint}}>,   // the steps that ran and succeeded
+  steps: Array<{summary: string, rows?: string[], verified?: boolean, unverified?: {shows, hint}}>,   // the steps that ran and succeeded; `rows` as in ActionResult
   failed?: {step: number, error: {code, message, data}}, // 1-based; `error` is as in section "Errors"
   settled: boolean, settle_ms: number, changed: boolean,
   observation: Observation   // diff from what the session last observed before step 1 to after the last step that ran
@@ -123,6 +123,7 @@ type ActionResult = {
   crashed?: {app, what},          // the app that was in front crashed during the action; `what` is the exception and the frame that threw it
   woke?: true,                    // the screen was off and the action woke it first
   unlocked?: true,                // a swipe-only lock screen was swiped away first
+  rows?: string[],                // a scroll with `collect`: the list's rows in its order, each a snapshot line without its ref, then the lines of what it holds; a wait for a notification: its line. Never in the trace or the saved steps
   observation: Observation       // kind "diff" with empty text when nothing changed
 }
 ```
