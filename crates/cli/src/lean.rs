@@ -17,7 +17,7 @@ const HIDDEN: &[(&str, &[&str])] = &[
     ("press", &["autonomous"]),
     ("shell", &["grep", "head", "settle", "force", "secret"]),
     ("batch", &["timeout_ms"]),
-    ("setting", &["force"]),
+    ("setting", &["force", "restore"]),
     ("logs", &["head", "since"]),
     ("replay", &["screens"]),
     ("screenshot", &["within"]),

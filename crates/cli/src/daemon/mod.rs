@@ -13,6 +13,7 @@ pub mod guard;
 pub mod ios;
 pub mod journal;
 pub mod ledger;
+pub mod originals;
 pub mod policy;
 pub mod progress;
 pub mod rpc;
@@ -339,8 +340,7 @@ impl Daemon {
                 })
                 .map_err(|e| RpcError::invalid_params(e.to_string()))?;
                 if method == "release" && common.device.is_none() {
-                    self.release_everywhere(session).await;
-                    return Ok(json!({}));
+                    return Ok(self.release_everywhere(session).await);
                 }
                 let call = match method {
                     "release" => Call::Release,
@@ -382,6 +382,7 @@ impl Daemon {
                             p.key.is_some(),
                             p.values.as_ref().is_some_and(|v| !v.is_empty()),
                             p.open.is_some(),
+                            p.restore.is_some(),
                         ];
                         if asked.iter().filter(|a| **a).count() != 1 {
                             return Err(RpcError::invalid_params(
@@ -781,11 +782,25 @@ impl Daemon {
     }
 
     /// Ends the leases a session holds on every device.
-    async fn release_everywhere(&self, session: &str) {
-        self.send_to_all(session, || Call::Release).await;
+    /// Releases every device the session holds. The reply lists the settings still changed on them, as a release
+    /// of one device does.
+    async fn release_everywhere(&self, session: &str) -> Value {
+        let changed: Vec<Value> = self
+            .send_to_all(session, || Call::Release)
+            .await
+            .iter()
+            .filter_map(|r| r["settings_changed"].as_array())
+            .flatten()
+            .cloned()
+            .collect();
+        if changed.is_empty() {
+            json!({})
+        } else {
+            json!({"settings_changed": changed})
+        }
     }
 
-    async fn send_to_all(&self, session: &str, call: impl Fn() -> Call) {
+    async fn send_to_all(&self, session: &str, call: impl Fn() -> Call) -> Vec<Value> {
         let ids: Vec<String> = self
             .actors
             .lock()
@@ -793,11 +808,16 @@ impl Daemon {
             .keys()
             .cloned()
             .collect();
+        let mut replies = Vec::new();
         for id in ids {
-            let _ = self
+            if let Ok(reply) = self
                 .send(&id, session, false, DisplayMode::Main, call())
-                .await;
+                .await
+            {
+                replies.push(reply);
+            }
         }
+        replies
     }
 }
 

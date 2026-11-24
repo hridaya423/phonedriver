@@ -477,7 +477,8 @@ pub struct PageParams {
 }
 
 /// A system setting by key (`docs/protocol.md`, `setting`): `find` searches (`a|b` for several searches), `key`
-/// reads, `key` with `value` writes, `values` writes several, `open` shows the settings screen with that key.
+/// reads, `key` with `value` writes, `values` writes several, `open` shows the settings screen with that key,
+/// `restore` puts back what the writes replaced.
 #[derive(Debug, Deserialize)]
 pub struct SettingParams {
     pub find: Option<String>,
@@ -485,6 +486,8 @@ pub struct SettingParams {
     pub value: Option<String>,
     pub values: Option<std::collections::BTreeMap<String, String>>,
     pub open: Option<String>,
+    /// Write back what these keys were before phonedriver first wrote them on this device; none means every key.
+    pub restore: Option<Vec<String>>,
     #[serde(default)]
     pub force: bool,
     #[serde(default = "yes")]
