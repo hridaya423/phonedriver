@@ -1733,14 +1733,42 @@ fn split_words(line: &str) -> Result<Vec<String>, String> {
 
 /// One step of `phonedriver batch`, written as the command line it would be on its own.
 fn parse_step_line(line: &str) -> Result<Value, String> {
+    use clap::{CommandFactory, FromArgMatches};
     let words = split_words(line)?;
-    let cli = Cli::try_parse_from(std::iter::once("phonedriver".to_string()).chain(words))
-        .map_err(|e| e.to_string().lines().next().unwrap_or_default().to_string())?;
+    let first_line = |e: clap::Error| e.to_string().lines().next().unwrap_or_default().to_string();
+    let matches = Cli::command()
+        .try_get_matches_from(std::iter::once("phonedriver".to_string()).chain(words))
+        .map_err(first_line)?;
+    let typed = |a: &clap::Arg| {
+        matches.value_source(a.get_id().as_str()) == Some(clap::parser::ValueSource::CommandLine)
+    };
+    let cli = Cli::from_arg_matches(&matches).map_err(first_line)?;
     let verb = cli.command.ok_or("the step is empty")?;
+    let waits = matches!(&verb, Verb::Wait { .. });
+    // Issue #50: a step took the batch's options, ran without them and answered ok, so `press home --device` with
+    // another device's id pressed home on the batch's device.
+    if let Some(flag) = Cli::command()
+        .get_arguments()
+        .filter(|a| a.is_global_set() && typed(a))
+        .find_map(|a| a.get_long().filter(|l| !(waits && *l == "timeout")))
+    {
+        return Err(format!(
+            "`--{flag}` goes on the batch, not on a step{}",
+            if flag == "timeout" {
+                "; only a `wait` step takes its own"
+            } else {
+                ""
+            }
+        ));
+    }
     if matches!(&verb, Verb::Type { secret: true, .. }) {
         return Err("secret text cannot go in a batch; run `type --secret` on its own".into());
     }
-    step_json(&verb, None).map_err(|f| f.message())
+    let mut step = step_json(&verb, None).map_err(|f| f.message())?;
+    if let Some(ms) = cli.timeout.filter(|_| waits) {
+        step["timeout_ms"] = json!(ms);
+    }
+    Ok(step)
 }
 
 /// Sends the steps as one `batch` call and prints the numbered steps and the one diff, or fails naming the step.
@@ -3459,6 +3487,18 @@ mod tests {
                 .contains("secret")
         );
         assert!(parse_step_line("devices").unwrap_err().contains("batch"));
+        assert_eq!(
+            parse_step_line("wait gone:Loading --timeout 800").unwrap()["timeout_ms"],
+            800
+        );
+        for (line, flag) in [
+            ("press home --device android:emulator-9999", "`--device`"),
+            ("tap One --timeout 800", "`--timeout`"),
+            ("tap One --no-settle", "`--no-settle`"),
+        ] {
+            let why = parse_step_line(line).unwrap_err();
+            assert!(why.contains(flag) && why.contains("on the batch"), "{why}");
+        }
         assert!(parse_step_line("").is_err());
         assert!(parse_step_line("tap").is_err());
     }

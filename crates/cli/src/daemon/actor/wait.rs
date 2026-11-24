@@ -36,12 +36,15 @@ impl Actor {
                     )
                     .await
                 }
-                Step::Wait(condition) => {
+                Step::Wait {
+                    condition,
+                    timeout_ms,
+                } => {
                     self.wait(
                         s,
                         WaitParams {
                             condition,
-                            timeout_ms: p.timeout_ms,
+                            timeout_ms: timeout_ms.or(p.timeout_ms),
                             expect_change_ms: p.expect_change_ms,
                         },
                     )

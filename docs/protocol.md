@@ -85,7 +85,7 @@ type WaitCondition = {appears: Target} | {gone: Target} | {settled: true}
 // `timeout` names the last state seen (`last seen: cellular, wifi (default)`) or how many log lines arrived. `unsupported`
 // (-32011) where the device has no network state (everything but Android) or no log to follow (a physical iPhone or iPad).
 
-type Step = Action | {kind: "wait", condition: WaitCondition}   // the CLI refuses `secret` text in a batch, the MCP server passes it (D85); the daemon masks it either way (D70)
+type Step = Action | {kind: "wait", condition: WaitCondition, timeout_ms?: number}   // a wait's own timeout stands in for the batch's (D111); the CLI refuses `secret` text in a batch, the MCP server passes it (D85); the daemon masks it either way (D70)
 type BatchResult = {
   ok: boolean,
   steps: Array<{summary: string, verified?: boolean, unverified?: {shows, hint}}>,   // the steps that ran and succeeded
