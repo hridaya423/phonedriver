@@ -2772,6 +2772,175 @@ fn list_tree(labels: &[&str]) -> RawTree {
     RawTree::from_android_json(&json, Scale { density: 1.0 }).unwrap()
 }
 
+fn notice(
+    package: &str,
+    title: &str,
+    text: &str,
+    posted_ms: u64,
+) -> phonedriver_core::notice::Notice {
+    phonedriver_core::notice::Notice {
+        key: format!("0|{package}|1|{title}|1"),
+        package: package.into(),
+        title: Some(title.into()),
+        text: Some(text.into()),
+        posted_ms,
+        ongoing: false,
+    }
+}
+
+fn notices(
+    now_ms: u64,
+    notices: Vec<phonedriver_core::notice::Notice>,
+) -> phonedriver_core::notice::Notices {
+    phonedriver_core::notice::Notices { now_ms, notices }
+}
+
+/// Issue #52: reading a notification took `press notifications` (2.2 s, the whole shade) and `press back`.
+#[tokio::test(start_paused = true)]
+async fn notifications_are_listed_newest_first_by_app_name_and_say_how_many_more() {
+    let (source, fake) = FakeSource::with(vec![tree(&["One"])]);
+    fake.install(&[("com.chat", "Chat")]);
+    fake.answer_notifications(vec![notices(
+        10_000_000,
+        vec![
+            notice("com.chat", "Ada", "See you at 6", 10_000_000 - 125_000),
+            notice(
+                "com.android.shell",
+                "Your code",
+                "Your code is 482913",
+                10_000_000 - 7_200_000,
+            ),
+        ],
+    )]);
+    let (d, _home) = daemon(source);
+    let r = ok(&d, "default", "notifications", json!({})).await;
+    assert_eq!(
+        r["lines"],
+        json!([
+            "Chat · \"Ada\" \"See you at 6\" · 2m ago",
+            "com.android.shell · \"Your code\" \"Your code is 482913\" · 2h ago"
+        ])
+    );
+    assert_eq!(r["more"], 0);
+    let r = ok(&d, "default", "notifications", json!({"limit": 1})).await;
+    assert_eq!(r["lines"].as_array().unwrap().len(), 1);
+    assert_eq!(r["more"], 1);
+    let r = ok(&d, "default", "notifications", json!({"app": "chat"})).await;
+    assert_eq!(r["lines"].as_array().unwrap().len(), 1, "{r}");
+    let r = ok(
+        &d,
+        "default",
+        "notifications",
+        json!({"app": "com.android.shell"}),
+    )
+    .await;
+    assert!(r["lines"][0].as_str().unwrap().contains("482913"), "{r}");
+    assert!(fake.calls().is_empty(), "a list touches nothing");
+
+    let (source, _fake) = FakeSource::with(vec![tree(&["One"])]);
+    let (d, _home) = daemon(source);
+    let e = err(&d, "default", "notifications", json!({})).await;
+    assert_eq!(e.code, -32011, "{e:?}");
+}
+
+/// The answer to "send me a code" is the notification that arrives after the tap, not the code from an hour ago
+/// that is still up.
+#[tokio::test(start_paused = true)]
+async fn a_wait_for_a_notification_takes_one_posted_since_the_last_action_and_never_an_older_one() {
+    let old = || notice("com.chat", "Your code", "Your code is 111111", 5_000_000);
+    let (source, fake) = FakeSource::with(vec![tree(&["Send code"])]);
+    fake.install(&[("com.chat", "Chat")]);
+    fake.answer_notifications(vec![
+        notices(10_000_000, vec![old()]),
+        notices(10_001_000, vec![old()]),
+        notices(
+            10_002_000,
+            vec![
+                notice("com.chat", "Your code", "Your code is 482913", 10_001_500),
+                old(),
+            ],
+        ),
+    ]);
+    let (d, _home) = daemon(source);
+    ok(&d, "default", "snapshot", json!({})).await;
+    ok(
+        &d,
+        "default",
+        "act",
+        json!({"action": {"kind": "tap", "target": {"text": "Send code"}}}),
+    )
+    .await;
+    let r = ok(
+        &d,
+        "default",
+        "wait",
+        json!({"condition": {"notification": {"pattern": "CODE"}}}),
+    )
+    .await;
+    assert_eq!(r["summary"], "a notification from Chat is up");
+    assert_eq!(
+        rows(&r),
+        ["Chat · \"Your code\" \"Your code is 482913\" · now"]
+    );
+    let saved = ok(&d, "default", "journal", json!({})).await;
+    assert!(!saved.to_string().contains("482913"), "{saved}");
+    assert!(saved.to_string().contains("\"notification\""), "{saved}");
+
+    fake.answer_notifications(vec![notices(20_000_000, vec![old()])]);
+    let e = err(
+        &d,
+        "default",
+        "wait",
+        json!({"condition": {"notification": {"pattern": "code"}}, "timeout_ms": 2500}),
+    )
+    .await;
+    assert_eq!(e.code, -32013, "{e:?}");
+    assert!(e.message.contains("1 is up"), "{}", e.message);
+    assert!(!e.message.contains("111111"), "{}", e.message);
+
+    let e = err(
+        &d,
+        "default",
+        "wait",
+        json!({"condition": {"notification": {"pattern": ""}}}),
+    )
+    .await;
+    assert_eq!(e.code, -32025, "{e:?}");
+}
+
+/// A notification that arrived between the tap and the wait is the answer too.
+#[tokio::test(start_paused = true)]
+async fn a_notification_posted_after_the_action_and_before_the_wait_began_counts() {
+    let (source, fake) = FakeSource::with(vec![tree(&["Send code"])]);
+    fake.answer_notifications(vec![notices(
+        10_000_000,
+        vec![notice(
+            "com.chat",
+            "Your code",
+            "Your code is 482913",
+            9_999_000,
+        )],
+    )]);
+    let (d, _home) = daemon(source);
+    ok(&d, "default", "snapshot", json!({})).await;
+    let wait = json!({"condition": {"notification": {"pattern": "code"}}, "timeout_ms": 1500});
+    let e = err(&d, "default", "wait", wait.clone()).await;
+    assert_eq!(
+        e.code, -32013,
+        "posted before any action of this session: {e:?}"
+    );
+    ok(
+        &d,
+        "default",
+        "act",
+        json!({"action": {"kind": "tap", "target": {"text": "Send code"}}}),
+    )
+    .await;
+    tokio::time::sleep(Duration::from_secs(3)).await;
+    let r = ok(&d, "default", "wait", wait).await;
+    assert_eq!(rows(&r).len(), 1, "{r}");
+}
+
 fn list_page(labels: &[&str], more: bool) -> RawTree {
     let actions = if more { r#"["scroll_down"]"# } else { "[]" };
     let mut nodes = vec![

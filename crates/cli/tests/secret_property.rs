@@ -119,6 +119,9 @@ enum Step {
     TapNothing,
     TapWhatTheNoteSays,
     Page,
+    Notifications {
+        waited: bool,
+    },
     Find,
     Check {
         field: Field,
@@ -168,6 +171,7 @@ fn steps() -> impl Strategy<Value = Vec<Step>> {
         1 => Just(Step::RecordStart),
         1 => Just(Step::RecordStop),
         1 => Just(Step::Page),
+        1 => any::<bool>().prop_map(|waited| Step::Notifications { waited }),
     ];
     prop::collection::vec(step, 1..7)
 }
@@ -323,6 +327,31 @@ async fn session(steps: &[Step], full: bool, deaf: bool, fails: bool, home: &Pat
                     text: secrets.join("\n"),
                 });
                 ("page", call("page", json!({})).await)
+            }
+            Step::Notifications { waited } => {
+                fake.answer_notifications(vec![phonedriver_core::notice::Notices {
+                    now_ms: 10_000_000,
+                    notices: vec![phonedriver_core::notice::Notice {
+                        key: "0|com.example|1|echo|1".into(),
+                        package: "com.example".into(),
+                        title: Some("You entered".into()),
+                        text: Some(secrets.join(" ")),
+                        posted_ms: 10_000_000,
+                        ongoing: false,
+                    }],
+                }]);
+                if *waited {
+                    (
+                        "wait notification",
+                        call(
+                            "wait",
+                            json!({"condition": {"notification": {"pattern": "entered"}}}),
+                        )
+                        .await,
+                    )
+                } else {
+                    ("notifications", call("notifications", json!({})).await)
+                }
             }
             Step::Shell { flagged, echoes } => {
                 let command = format!("login --token Sh{i}xK9pQ2vL7");
@@ -586,6 +615,8 @@ fn every_kind_of_step_works_on_the_fake_phone() {
         },
         Step::RecordStop,
         Step::Page,
+        Step::Notifications { waited: false },
+        Step::Notifications { waited: true },
         Step::Journal,
     ];
     let seen = run(session(&steps, true, false, false, home.path()));

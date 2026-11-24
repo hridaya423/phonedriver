@@ -221,6 +221,37 @@ async fn a_screen_of_an_app_outside_the_scope_shows_no_text_and_names_the_app() 
 }
 
 #[tokio::test(start_paused = true)]
+async fn notifications_of_apps_outside_the_scope_are_not_listed_and_not_waited_for() {
+    use phonedriver_core::notice::{Notice, Notices};
+    let notice = |package: &str, text: &str| Notice {
+        key: format!("0|{package}|1|t|1"),
+        package: package.into(),
+        title: Some("New message".into()),
+        text: Some(text.into()),
+        posted_ms: 9_999_000,
+        ongoing: false,
+    };
+    let (d, fake, _home) = setup(vec![chat()]);
+    fake.answer_notifications(vec![Notices {
+        now_ms: 10_000_000,
+        notices: vec![
+            notice("com.chat", SECRET),
+            notice("com.mine", "Build passed"),
+        ],
+    }]);
+    let r = ok(&d, "notifications", json!({})).await;
+    assert_eq!(r["lines"].as_array().unwrap().len(), 1, "{r}");
+    assert!(r.to_string().contains("Build passed") && !r.to_string().contains(SECRET));
+    let e = err(
+        &d,
+        "wait",
+        json!({"condition": {"notification": {"pattern": "message", "app": "com.chat"}}, "timeout_ms": 300}),
+    )
+    .await;
+    assert!(!format!("{e:?}").contains(SECRET), "{e:?}");
+}
+
+#[tokio::test(start_paused = true)]
 async fn a_screen_of_an_app_in_the_scope_reads_as_it_did() {
     let (d, _fake, _home) = setup(vec![mine(&["Save"])]);
     let r = ok(&d, "snapshot", json!({})).await;

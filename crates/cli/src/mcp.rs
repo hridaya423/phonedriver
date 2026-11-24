@@ -239,6 +239,7 @@ struct SnapshotArgs {
     find: Option<String>,
     /// The web page in front as text, whole, no scrolling (Chrome; web views of debug builds). `find` keeps matching lines.
     page: Option<bool>,
+    notifications: Option<bool>,
 }
 
 /// `autonomous` is not in the lean tool schema, so a model that reads the refusal text guesses its type: one sent
@@ -378,6 +379,8 @@ struct WaitArgs {
     condition: Option<String>,
     vpn: Option<String>,
     log: Option<String>,
+    /// Its text; posted since your last action.
+    notification: Option<String>,
     app: Option<String>,
     /// Default 5000.
     timeout_ms: Option<u64>,
@@ -395,23 +398,27 @@ struct CheckArgs {
 
 impl WaitArgs {
     fn verb(self) -> Result<Verb, String> {
-        match (self.condition, self.vpn, self.log) {
-            (Some(condition), None, None) => Ok(Verb::Wait {
+        match (self.condition, self.vpn, self.log, self.notification) {
+            (Some(condition), None, None, None) => Ok(Verb::Wait {
                 condition,
                 app: None,
             }),
-            (None, Some(state), None) if matches!(state.as_str(), "up" | "down") => {
+            (None, Some(state), None, None) if matches!(state.as_str(), "up" | "down") => {
                 Ok(Verb::Wait {
                     condition: format!("vpn:{state}"),
                     app: None,
                 })
             }
-            (None, Some(_), None) => Err("`vpn` is `up` or `down`".into()),
-            (None, None, Some(pattern)) => Ok(Verb::Wait {
+            (None, Some(_), None, None) => Err("`vpn` is `up` or `down`".into()),
+            (None, None, Some(pattern), None) => Ok(Verb::Wait {
                 condition: format!("log:{pattern}"),
                 app: self.app,
             }),
-            _ => Err("give one of `condition`, `vpn` or `log`".into()),
+            (None, None, None, Some(pattern)) => Ok(Verb::Wait {
+                condition: format!("notification:{pattern}"),
+                app: self.app,
+            }),
+            _ => Err("give one of `condition`, `vpn`, `log` or `notification`".into()),
         }
     }
 }
@@ -1388,6 +1395,11 @@ fn for_mcp(hint: &str) -> String {
         ("`--device <id>`", "`device`"),
         ("`phonedriver boot <name>`", "`devices` with `boot: <name>`"),
         ("`--timeout`", "`timeout_ms`"),
+        ("`--limit`", "`max_lines`"),
+        (
+            "run `phonedriver notifications`",
+            "call `snapshot` with `notifications`",
+        ),
         ("`--into`", "`into`"),
         ("`--max`", "`max`"),
         (
@@ -1759,6 +1771,13 @@ impl Mcp {
         )
     )]
     async fn snapshot(&self, Parameters(a): Parameters<SnapshotArgs>) -> CallToolResult {
+        if a.notifications == Some(true) {
+            let verb = Verb::Notifications {
+                app: a.find,
+                limit: a.max_lines,
+            };
+            return self.run(a.device, verb, None).await;
+        }
         if a.page == Some(true) {
             let verb = Verb::Page {
                 grep: a.find,

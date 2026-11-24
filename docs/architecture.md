@@ -467,8 +467,9 @@ phonedriver open <url>                       deep link or web URL in its handler
 phonedriver apps [install <path> | stop|clear|uninstall <app>]   list launchable apps, or manage one
 phonedriver apps grant|revoke <app> <permission>...              change an app's permissions without launching it
 phonedriver apps notify <app> '<json>' | --file <path>          send the app a push notification (iOS Simulator; D100)
-phonedriver wait <"text"|@ref|gone:"text"|settled|vpn:up|vpn:down|log:"text"> [--app <app>] [--timeout ms]
+phonedriver wait <"text"|@ref|gone:"text"|settled|vpn:up|vpn:down|log:"text"|notification:"text"> [--app <app>] [--timeout ms]
 phonedriver network                          the device's networks, DNS, VPN owner and always-on VPN (Android)
+phonedriver notifications [--app <app>] [--limit N]   the notifications that are up, newest first (Android; D117)
 phonedriver check <"text"|@ref> [--equals <text>] [--as <name>]   read the value the screen shows for it; touches nothing (D113)
 phonedriver batch "<step>" "<step>" ...      steps in order, one diff at the end, stops at the first failure
 phonedriver clipboard [get|set <text>]

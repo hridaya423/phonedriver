@@ -45,9 +45,10 @@ use super::{collect, guard, secret_field};
 use crate::wire::{
     ActParams, Action, ActionResult, AppParams, Approval, Approved, BatchParams, BatchResult,
     BuildParams, CheckParams, ClipboardParams, Crashed, FindParams, JournalParams, Kind,
-    LogsParams, Observation, OnScreen, PageParams, PinchDirection, RecordAction, RecordParams,
-    ScreenshotParams, ScreenshotResult, SettingParams, ShellParams, ShellResult, SnapshotParams,
-    Step, StepFailure, StepResult, Target, TypeMode, VpnState, WaitCondition, WaitParams,
+    LogsParams, NotificationsParams, Observation, OnScreen, PageParams, PinchDirection,
+    RecordAction, RecordParams, ScreenshotParams, ScreenshotResult, SettingParams, ShellParams,
+    ShellResult, SnapshotParams, Step, StepFailure, StepResult, Target, TypeMode, VpnState,
+    WaitCondition, WaitParams,
 };
 
 pub const LEASE_TTL: Duration = Duration::from_secs(600);
@@ -61,6 +62,11 @@ const SETTING_LINES: usize = 12;
 const AUDIT_LINES: usize = 20;
 const LOGS_SINCE_S: u64 = 60;
 const VPN_POLL: Duration = Duration::from_secs(1);
+const NOTICE_POLL: Duration = Duration::from_secs(1);
+const NOTICES_LISTED: u32 = 20;
+/// How far before a wait began a notification may have been posted and still be the answer to the session's last
+/// action.
+const NOTICE_LOOK_BACK: Duration = Duration::from_secs(120);
 const LOG_LINE_CHARS: usize = 400;
 /// Added to an action's own time when its crash log is read, for the action's preparation before the clock started.
 const CRASH_MARGIN: Duration = Duration::from_secs(2);
@@ -150,6 +156,7 @@ pub enum Call {
     Act(ActParams),
     Wait(WaitParams),
     Check(CheckParams),
+    Notifications(NotificationsParams),
     Batch(BatchParams),
     Find(FindParams),
     Apps,
@@ -890,6 +897,7 @@ impl Actor {
             Call::Build(p) => json!({"build": self.device()?.app_build(&AppId(p.app)).await?}),
             Call::Logs(p) => self.logs(s, p).await?,
             Call::Network => to_value(self.device()?.network().await?),
+            Call::Notifications(p) => self.notifications(p).await?,
             Call::Page(p) => self.page(p).await?,
             Call::Record(p) => self.record(p).await?,
             Call::Health => self.health().await?,

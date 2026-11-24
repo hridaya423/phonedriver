@@ -14,6 +14,7 @@ use crate::device::{
 use crate::error::{Error, Op};
 use crate::geometry::{Rect, Size};
 use crate::network::{LogWait, LogWaited, NetworkView};
+use crate::notice::Notices;
 use crate::raw::RawTree;
 use crate::settings::{SettingOp, SettingReply, SettingsIndex};
 
@@ -78,6 +79,7 @@ pub struct FakeDevice {
     log_lines: Mutex<Option<Vec<String>>>,
     log_wait_takes: Mutex<Duration>,
     networks: Mutex<Vec<NetworkView>>,
+    notices: Mutex<Vec<Notices>>,
     recorder: Mutex<Option<Option<std::path::PathBuf>>>,
     text_shows: Mutex<Option<(Duration, Duration)>>,
     follows: bool,
@@ -141,6 +143,7 @@ impl FakeDevice {
             log_lines: Mutex::new(None),
             log_wait_takes: Mutex::new(Duration::ZERO),
             networks: Mutex::new(Vec::new()),
+            notices: Mutex::new(Vec::new()),
             recorder: Mutex::new(None),
             text_shows: Mutex::new(None),
             follows: false,
@@ -321,6 +324,12 @@ impl FakeDevice {
     /// cannot read its networks.
     pub fn answer_networks(&self, views: Vec<NetworkView>) {
         *lock(&self.networks) = views;
+    }
+
+    /// What `notifications()` answers: each call takes the next list, and the last one repeats. Without any the
+    /// device cannot list its notifications.
+    pub fn answer_notifications(&self, lists: Vec<Notices>) {
+        *lock(&self.notices) = lists;
     }
 
     /// How many times `network()` was read.
@@ -603,6 +612,18 @@ impl Device for FakeDevice {
             line: at.map(|i| lines[i].clone()),
             seen: at.map_or(lines.len(), |i| i + 1),
         })
+    }
+
+    async fn notifications(&self) -> Result<Notices> {
+        let mut lists = lock(&self.notices);
+        match lists.len() {
+            0 => Err(Error::Unsupported {
+                op: Op::Notifications,
+                reason: "this fake has no notifications",
+            }),
+            1 => Ok(lists[0].clone()),
+            _ => Ok(lists.remove(0)),
+        }
     }
 
     async fn network(&self) -> Result<NetworkView> {

@@ -10,6 +10,7 @@ pub mod geometry;
 pub mod gesture;
 pub mod inject;
 pub mod network;
+pub mod notice;
 pub mod ocr;
 pub mod prune;
 pub mod raw;

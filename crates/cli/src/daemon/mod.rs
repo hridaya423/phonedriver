@@ -331,7 +331,7 @@ impl Daemon {
             }
             "release" | "snapshot" | "screenshot" | "act" | "wait" | "check" | "batch" | "find"
             | "apps" | "app" | "clipboard" | "health" | "shell" | "setting" | "logs"
-            | "network" | "page" | "record" | "journal" | "build" => {
+            | "network" | "notifications" | "page" | "record" | "journal" | "build" => {
                 let common: Common = serde_json::from_value(if params.is_null() {
                     json!({})
                 } else {
@@ -364,6 +364,7 @@ impl Daemon {
                     }
                     "logs" => Call::Logs(rpc::params(params)?),
                     "network" => Call::Network,
+                    "notifications" => Call::Notifications(rpc::params(params)?),
                     "page" => Call::Page(rpc::params(params)?),
                     "record" => {
                         let p: RecordParams = rpc::params(params)?;

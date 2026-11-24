@@ -8,6 +8,7 @@ use tokio::sync::{broadcast, watch};
 use crate::error::{DeviceId, Error, Op};
 use crate::geometry::{Point, Rect, Size};
 use crate::network::{LogWait, LogWaited, NetworkView};
+use crate::notice::Notices;
 use crate::raw::RawTree;
 use crate::settings::{SettingOp, SettingReply};
 
@@ -412,6 +413,13 @@ pub trait Device: Send + Sync {
         Err(Error::Unsupported {
             op: Op::Network,
             reason: "this device's networks cannot be read; Android devices can",
+        })
+    }
+    /// The notifications the device is showing, newest first, with the time on its own clock.
+    async fn notifications(&self) -> Result<Notices> {
+        Err(Error::Unsupported {
+            op: Op::Notifications,
+            reason: "this device's notifications cannot be listed; an Android device's can",
         })
     }
     /// The web page `app` shows (the app in front when `None`), read from the browser and not from the screen.

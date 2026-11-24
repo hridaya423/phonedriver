@@ -9,6 +9,7 @@ use phonedriver_core::device::{
 use phonedriver_core::error::{Error, Op};
 use phonedriver_core::geometry::{Rect, Size};
 use phonedriver_core::network::{LogWait, LogWaited, NetworkView};
+use phonedriver_core::notice::Notices;
 use phonedriver_core::raw::{NodeFlags, RawTree};
 use phonedriver_core::settings::{SettingOp, SettingReply, SettingsIndex};
 use phonedriver_video::frame_store::FrameStore;
@@ -25,6 +26,7 @@ use crate::devtools;
 use crate::logs;
 use crate::map;
 use crate::network;
+use crate::notifications;
 use crate::settings;
 
 const FIRST_FRAME_WAIT: std::time::Duration = std::time::Duration::from_secs(2);
@@ -554,6 +556,23 @@ impl Device for AndroidDevice {
         }
     }
 
+    async fn notifications(&self) -> Result<Notices> {
+        let request = ShellRequest {
+            command: notifications::COMMAND.to_string(),
+            timeout: NOTIFICATIONS_LIMIT,
+        };
+        let reply = self.shell(&request).await?;
+        if reply.timed_out || !reply.stdout.contains("Notification List:") {
+            return Err(Error::Transport {
+                detail: format!(
+                    "the device did not print its notifications within {} s",
+                    NOTIFICATIONS_LIMIT.as_secs()
+                ),
+            });
+        }
+        Ok(notifications::parse(&reply.stdout))
+    }
+
     async fn network(&self) -> Result<NetworkView> {
         let request = ShellRequest {
             command: network::COMMAND.to_string(),
@@ -848,6 +867,8 @@ fn first_install_time(dump: &str) -> Option<String> {
         .find_map(|l| l.trim().strip_prefix("firstInstallTime="))
         .map(|t| t.trim().to_string())
 }
+
+const NOTIFICATIONS_LIMIT: std::time::Duration = std::time::Duration::from_secs(10);
 
 const LOGS_LIMIT: std::time::Duration = std::time::Duration::from_secs(10);
 /// `dumpsys connectivity` took 6 s to 10 s for a minute after a VPN app was force-stopped (API 37 emulator).

@@ -37,6 +37,9 @@ pub struct Session {
     pub journal: super::journal::Journal,
     /// The last action failed, perhaps after its tap had moved the focus, so `last` may not be the device's screen.
     pub unsure: bool,
+    /// When this session's last action began, on the actor's clock: a wait for a notification counts the ones
+    /// posted since then.
+    pub acted_at: Option<std::time::Duration>,
 }
 
 /// How many dropped text fields a session remembers.
