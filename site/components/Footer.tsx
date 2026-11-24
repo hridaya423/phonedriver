@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { displaySvg, METRICS, ORANGE, WIDTH } from "@/lib/brand";
-import { REPO, SPONSORS } from "@/lib/site";
+import { GLAMA, REPO, SPONSORS } from "@/lib/site";
 import { FootMark } from "./FootMark";
 import { Wordmark } from "./Wordmark";
 
@@ -34,6 +34,7 @@ export function Footer() {
             <a href={SPONSORS}>Sponsor</a>
             <Link href="/changelog/">Changelog</Link>
             <a href={`${REPO}/discussions`}>Discussions</a>
+            <a href={GLAMA}>Glama MCP</a>
             <a href={`${REPO}/blob/main/LICENSE`}>License: AGPL-3.0</a>
             <a href={`${REPO}/blob/main/docs/decisions.md`}>Design decisions</a>
             <a href="/llms.txt">llms.txt</a>
