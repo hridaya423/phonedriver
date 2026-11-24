@@ -22,6 +22,7 @@ use phonedriver_core::error::{Category, span};
 use phonedriver_core::render::plural;
 use phonedriver_core::scope::AppScope;
 
+use crate::paths;
 use crate::variables;
 use crate::wire::{
     ActionResult, Approval, BatchResult, DeviceEntry, Kind, Observation, ScreenshotResult,
@@ -462,7 +463,8 @@ pub(crate) enum Verb {
         secret: bool,
     },
     /// Save what this session has done so far as a steps file that `replay` runs again with no model. The
-    /// session's list of steps starts again empty.
+    /// session's list of steps starts again empty. Saved as `paths/<app id>/<name>.steps` the run is a path of that
+    /// app: it ends by waiting for the screen it arrived on, `launch` names it, and a replay answers with the screen.
     Save {
         /// Where to write the steps, one JSON object a line.
         file: PathBuf,
@@ -829,6 +831,7 @@ pub fn run(cli: Cli) -> ExitCode {
                 approval: None,
                 approved: None,
                 ask,
+                folder: None,
             };
             match rt.block_on(execute(verb, secret, &cli.session, &globals)) {
                 Ok(out) => {
@@ -862,6 +865,8 @@ pub(crate) struct Globals {
     /// What the human approved, so the daemon runs the action only if the screen still shows it (decision D104).
     pub approved: Option<crate::wire::Approved>,
     pub ask: Vec<Category>,
+    /// Where `paths/` is looked for (decision D118): the MCP server's folder, else the working directory.
+    pub folder: Option<PathBuf>,
 }
 
 /// The opt-in categories of tap the human wants to be asked about, from `PHONEDRIVER_ASK` (decision D30). A name that
@@ -1229,7 +1234,16 @@ pub(crate) async fn execute_with(
         | Verb::Home) => {
             let action = step_json(&verb, secret.as_deref())?;
             let r = client.call("act", act(action)).await?;
-            show_action(&r, g.json)
+            let mut shown = show_action(&r, g.json)?;
+            if matches!(verb, Verb::Launch { .. })
+                && !g.json
+                && let Some(app) = r["observation"]["header"]["app"]["id"].as_str()
+                && let Some(line) = paths::listed(g.folder.as_deref().unwrap_or(".".as_ref()), app)
+            {
+                shown.push('\n');
+                shown.push_str(&line);
+            }
+            Ok(shown)
         }
         Verb::Shell {
             command,
@@ -1267,11 +1281,16 @@ pub(crate) async fn execute_with(
             let mut steps = r["steps"].as_array().cloned().unwrap_or_default();
             name_secrets(&mut steps);
             if !steps.is_empty() {
+                let done = steps.len();
+                if let Some((app, _)) = paths::named(&file) {
+                    steps.push(arrival(client, &with, &file, &app, &steps).await?);
+                    if let Some(dir) = file.parent() {
+                        std::fs::create_dir_all(dir).map_err(cannot)?;
+                    }
+                }
                 let text: String = steps.iter().map(|s| format!("{s}\n")).collect();
                 stage(&file, text.as_bytes()).map_err(cannot)?;
-                client
-                    .call("journal", with(json!({"drop": steps.len()})))
-                    .await?;
+                client.call("journal", with(json!({"drop": done}))).await?;
             }
             if g.json {
                 return Ok(
@@ -2250,6 +2269,11 @@ pub(crate) fn show_saved(path: &str, steps: &[Value], over: bool) -> String {
             "\nthe file holds one step a line: delete the line of a step that was a detour",
         );
     }
+    if let Some(text) = steps.last().and_then(paths::arrival) {
+        out.push_str(&format!(
+            "\nit is a path: the last step waits for {text:?}, the screen this run ended on, and `launch` names the path. Edit that line if another text tells the screen better."
+        ));
+    }
     let by_position = count("by_position");
     if by_position > 0 {
         out.push_str(&format!(
@@ -2302,6 +2326,37 @@ pub(crate) fn show_saved(path: &str, steps: &[Value], over: bool) -> String {
         ));
     }
     out
+}
+
+/// The landmark of a run about to be saved as a path of `app` (decision D118): a wait for what the screen it ended
+/// on shows. Refused for an app the run was never in, so a mistyped id does not hide the path from `launch`, and on
+/// a screen with no text to tell it by.
+async fn arrival(
+    client: &mut Client,
+    with: &(dyn Fn(Value) -> Value + Sync),
+    file: &std::path::Path,
+    app: &str,
+    steps: &[Value],
+) -> Result<Value, Failure> {
+    let screen = client
+        .call("snapshot", with(json!({"elements": true})))
+        .await?;
+    let was_in = paths::apps(steps, screen["header"]["app"]["id"].as_str());
+    if !was_in.contains(app) {
+        let apps: Vec<&str> = was_in.into_iter().collect();
+        return Err(Failure::Local(format!(
+            "{} would be a path of {app}, and this run was never in {app}: it was in {}. Name the folder after the app's id.",
+            file.display(),
+            apps.join(", ")
+        )));
+    }
+    paths::landmark(screen["elements"].as_array().map_or(&[][..], Vec::as_slice)).ok_or_else(|| {
+        Failure::Local(format!(
+            "{} was not saved: a path ends by waiting for the screen it arrived on, and this screen shows no text to tell it by. End the run on a screen with a title, or save it outside {}/ as plain steps.",
+            file.display(),
+            paths::DIR
+        ))
+    })
 }
 
 /// A steps file being run again.
@@ -2587,8 +2642,37 @@ impl Replay {
             .filter(|s| s["params"]["action"]["kind"] == "type")
             .count() as u64;
         let ms = started.elapsed().as_millis() as u64;
+        let landed = match self.steps.last().and_then(paths::arrival) {
+            Some(text) => {
+                let screen = client
+                    .call("snapshot", with(json!({"elements": true})))
+                    .await?;
+                let seen = screen["elements"].as_array().map_or(&[][..], Vec::as_slice);
+                if let Err(why) = paths::arrived(&self.steps[total - 1], seen) {
+                    return Err(self
+                        .stopped(
+                            client,
+                            with,
+                            total,
+                            &done[..done.len() - 1],
+                            refused(&why),
+                            None,
+                            &typed,
+                        )
+                        .await);
+                }
+                Some((
+                    text,
+                    screen["text"].as_str().unwrap_or_default().to_string(),
+                ))
+            }
+            None => None,
+        };
         if json {
             let mut out = json!({"ok": true, "steps": ran, "verified": verified, "ms": ms});
+            if let Some((text, _)) = &landed {
+                out["arrived"] = json!(text);
+            }
             if let Some(run) = &self.run {
                 out["run"] = json!(run);
             }
@@ -2607,6 +2691,15 @@ impl Replay {
         } else {
             String::new()
         };
+        if self.screens.is_none()
+            && let Some((text, screen)) = &landed
+        {
+            return Ok(format!(
+                "arrived at {text:?} · {} in {:.1} s{checked}{run}\n{screen}",
+                plural(ran, "step"),
+                ms as f64 / 1000.0
+            ));
+        }
         let mut out = format!(
             "replayed {} in {:.1} s{checked}{run}\n{}",
             plural(ran, "step"),
@@ -2658,7 +2751,14 @@ impl Replay {
                 Failure::Local(_) => return Failure::Local(m),
             },
         };
-        let mut text = format!("step {n} of {total} ({step}) failed: {}", error.message);
+        let landmark = paths::arrival(&self.steps[n - 1]);
+        let mut text = match landmark {
+            Some(mark) => format!(
+                "the path did not arrive at {mark:?}: step {n} of {total} ({step}) failed: {}",
+                error.message
+            ),
+            None => format!("step {n} of {total} ({step}) failed: {}", error.message),
+        };
         for line in done {
             text.push('\n');
             text.push_str(line);
@@ -2668,7 +2768,12 @@ impl Replay {
             text.push_str(&screen);
         }
         let hint = hint.unwrap_or_else(|| {
-            if n < total {
+            if landmark.is_some() {
+                format!(
+                    "Every step before it ran, and nothing was tapped after it. Go on from the screen above; if the app changed, save the path again, or edit the last line of {} to what the screen shows now.",
+                    self.file
+                )
+            } else if n < total {
                 format!(
                     "Do step {n} yourself, then replay the same file from step {} for the {} left.",
                     n + 1,

@@ -770,3 +770,227 @@ async fn a_step_saved_on_a_page_still_sliding_in_keeps_no_screen() {
     let saved = ok(&d, "journal", json!({})).await;
     assert_eq!(saved["steps"][0]["on"], Value::Null, "{saved}");
 }
+
+/// A page with a title, as a settings screen draws one: a heading over its rows.
+fn page(title: &str, rows: &[&str]) -> RawTree {
+    let mut nodes = vec![
+        r#"{"p":-1,"w":1,"cls":"android.widget.FrameLayout","b":[0,0,360,800],"f":"vVe"}"#
+            .to_string(),
+        format!(
+            r#"{{"p":0,"w":1,"cls":"android.widget.TextView","text":"{title}","b":[0,40,360,90],"f":"vVeH"}}"#
+        ),
+    ];
+    for (i, row) in rows.iter().enumerate() {
+        let top = 100 + 100 * i as i32;
+        nodes.push(format!(
+            r#"{{"p":0,"w":1,"cls":"android.widget.Button","text":"{row}","b":[0,{top},360,{}],"f":"vVe","a":["tap"]}}"#,
+            top + 60
+        ));
+    }
+    let json = format!(
+        r#"{{"windows":[{{"id":1,"type":"application","package":"com.example","bounds":[0,0,360,800]}}],"nodes":[{}]}}"#,
+        nodes.join(",")
+    );
+    RawTree::from_android_json(&json, Scale { density: 1.0 }).unwrap()
+}
+
+/// The CLI run in `folder`, where `paths/` is looked for.
+async fn run_in(
+    folder: &std::path::Path,
+    home: &tempfile::TempDir,
+    socket: &PathBuf,
+    args: &[&str],
+) -> (bool, String) {
+    let mut c = Command::cargo_bin("phonedriver").unwrap();
+    c.current_dir(folder)
+        .env("PHONEDRIVER_HOME", home.path())
+        .env("PHONEDRIVER_SOCKET", socket)
+        .env_remove("PHONEDRIVER_SESSION")
+        .env_remove("PHONEDRIVER_DEVICE")
+        .env_remove("PHONEDRIVER_SECRET")
+        .args(args);
+    let out = tokio::task::spawn_blocking(move || c.output().unwrap())
+        .await
+        .unwrap();
+    let shown = format!(
+        "{}{}",
+        String::from_utf8_lossy(&out.stdout),
+        String::from_utf8_lossy(&out.stderr)
+    );
+    (out.status.success(), shown)
+}
+
+fn settings_to(arrives: &'static str) -> Arc<FakeDevice> {
+    let fake = Arc::new(
+        FakeDevice::new(vec![page("Settings", &["Network"])]).lacking(Capabilities::FRAMES),
+    );
+    fake.install(&[("com.example", "Example")]);
+    fake.on_gesture(move |_| Some(vec![page(arrives, &["Home net"])]));
+    fake
+}
+
+const TO_WIFI: &str = concat!(
+    r#"{"method":"act","params":{"action":{"kind":"tap","target":{"text":"Network"}}},"summary":"tapped \"Network\"","changed":true,"on":{"app":"com.example","over":false}}"#,
+    "\n",
+    r#"{"landmark":true,"method":"wait","params":{"condition":{"appears":{"role":"heading","text":"Wi-Fi"}},"timeout_ms":400}}"#,
+    "\n"
+);
+
+/// Issue #41, the part of its last proposal that held up: a library of saved runs per app. A run saved as
+/// `paths/<app id>/<name>.steps` is a path of that app, and it ends by waiting for the screen it arrived on.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_run_saved_under_paths_ends_by_waiting_for_the_screen_it_arrived_on() {
+    let (home, socket) = served(settings_to("Wi-Fi")).await;
+    let folder = tempfile::tempdir().unwrap();
+    let at = folder.path();
+    let (launched, shown) = run_in(at, &home, &socket, &["launch", "com.example"]).await;
+    assert!(launched, "{shown}");
+    let (tapped, shown) = run_in(at, &home, &socket, &["tap", "Network"]).await;
+    assert!(tapped, "{shown}");
+
+    let (saved, shown) = run_in(at, &home, &socket, &["save", "paths/com.wrong/wifi.steps"]).await;
+    assert!(!saved, "a path of an app the run was never in: {shown}");
+    assert!(shown.contains("com.example"), "{shown}");
+    assert!(!at.join("paths").exists(), "{shown}");
+
+    let (saved, shown) = run_in(
+        at,
+        &home,
+        &socket,
+        &["save", "paths/com.example/wifi.steps"],
+    )
+    .await;
+    assert!(saved, "{shown}");
+    assert!(shown.contains("\"Wi-Fi\""), "{shown}");
+    let text = std::fs::read_to_string(at.join("paths/com.example/wifi.steps")).unwrap();
+    let last: Value = serde_json::from_str(text.lines().last().unwrap()).unwrap();
+    assert_eq!(text.lines().count(), 3, "{text}");
+    assert_eq!(last["landmark"], true, "{text}");
+    assert_eq!(last["method"], "wait", "{text}");
+    assert_eq!(
+        last["params"]["condition"]["appears"],
+        json!({"text": "Wi-Fi", "role": "heading"}),
+        "{text}"
+    );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_path_that_arrives_answers_with_the_arrival_screen_and_no_step_list() {
+    let (home, socket) = served(settings_to("Wi-Fi")).await;
+    let folder = tempfile::tempdir().unwrap();
+    std::fs::create_dir_all(folder.path().join("paths/com.example")).unwrap();
+    std::fs::write(folder.path().join("paths/com.example/wifi.steps"), TO_WIFI).unwrap();
+
+    let (arrived, shown) = run_in(
+        folder.path(),
+        &home,
+        &socket,
+        &["replay", "paths/com.example/wifi.steps"],
+    )
+    .await;
+    assert!(arrived, "{shown}");
+    assert!(shown.starts_with("arrived at \"Wi-Fi\""), "{shown}");
+    assert!(shown.contains("\"Home net\""), "{shown}");
+    assert!(!shown.contains("1. "), "{shown}");
+    assert!(!shown.contains("screen now"), "{shown}");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_path_that_arrives_elsewhere_fails_with_the_screen_and_taps_nothing_more() {
+    let fake = settings_to("Bluetooth");
+    let (home, socket) = served(fake.clone()).await;
+    let folder = tempfile::tempdir().unwrap();
+    std::fs::create_dir_all(folder.path().join("paths/com.example")).unwrap();
+    std::fs::write(folder.path().join("paths/com.example/wifi.steps"), TO_WIFI).unwrap();
+
+    let (arrived, shown) = run_in(
+        folder.path(),
+        &home,
+        &socket,
+        &["replay", "paths/com.example/wifi.steps"],
+    )
+    .await;
+    assert!(!arrived, "{shown}");
+    assert!(shown.contains("step 2 of 2"), "{shown}");
+    assert!(shown.contains("did not arrive"), "{shown}");
+    assert!(shown.contains("heading \"Bluetooth\""), "{shown}");
+    assert!(!shown.contains("Do step 2 yourself"), "{shown}");
+    let taps = fake
+        .calls()
+        .iter()
+        .filter(|c| matches!(c, phonedriver_core::testing::Call::Gesture(_)))
+        .count();
+    assert_eq!(taps, 1, "{shown}");
+}
+
+/// What a path costs an agent to find: one line in the `launch` reply of an app that has some, and nothing anywhere
+/// else. A blank is named with the path, so the agent knows what to fill.
+#[tokio::test(flavor = "multi_thread")]
+async fn launch_names_the_paths_of_the_app_it_opened_and_says_nothing_where_there_are_none() {
+    let (home, socket) = served(settings_to("Wi-Fi")).await;
+    let folder = tempfile::tempdir().unwrap();
+    let at = folder.path();
+    let (launched, shown) = run_in(at, &home, &socket, &["launch", "com.example"]).await;
+    assert!(launched && !shown.contains("paths"), "{shown}");
+
+    std::fs::create_dir_all(at.join("paths/com.example")).unwrap();
+    std::fs::create_dir_all(at.join("paths/com.other")).unwrap();
+    std::fs::write(at.join("paths/com.example/wifi.steps"), TO_WIFI).unwrap();
+    std::fs::write(
+        at.join("paths/com.example/find.steps"),
+        TO_WIFI.replace("Network", "{{query:pizza}}"),
+    )
+    .unwrap();
+    std::fs::write(at.join("paths/com.example/notes.txt"), "not a path").unwrap();
+    std::fs::write(at.join("paths/com.other/away.steps"), TO_WIFI).unwrap();
+    let (launched, shown) = run_in(at, &home, &socket, &["launch", "com.example"]).await;
+    assert!(launched, "{shown}");
+    let line = shown
+        .lines()
+        .find(|l| l.starts_with("paths: "))
+        .unwrap_or_else(|| panic!("{shown}"));
+    assert_eq!(
+        line, "paths: find(query), wifi · replay paths/com.example/<name>.steps",
+        "{shown}"
+    );
+}
+
+/// Live, Settings on the API 37 emulator: the page a path ended on is titled "Internet" and the page before it
+/// "Network & internet". A `wait` finds a text inside a longer label, so the wait alone called the page before an
+/// arrival. A landmark is a whole label.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_screen_whose_title_only_holds_the_landmark_is_not_an_arrival() {
+    let fake = settings_to("Wi-Fi preferences");
+    let (home, socket) = served(fake.clone()).await;
+    let folder = tempfile::tempdir().unwrap();
+    std::fs::create_dir_all(folder.path().join("paths/com.example")).unwrap();
+    std::fs::write(folder.path().join("paths/com.example/wifi.steps"), TO_WIFI).unwrap();
+
+    let (arrived, shown) = run_in(
+        folder.path(),
+        &home,
+        &socket,
+        &["replay", "paths/com.example/wifi.steps"],
+    )
+    .await;
+    assert!(!arrived, "{shown}");
+    assert!(shown.contains("did not arrive at \"Wi-Fi\""), "{shown}");
+    assert!(
+        shown.contains("holds it only inside \"Wi-Fi preferences\""),
+        "{shown}"
+    );
+    let (arrived, shown) = run_in(
+        folder.path(),
+        &home,
+        &socket,
+        &[
+            "replay",
+            "paths/com.example/wifi.steps",
+            "--from",
+            "2",
+            "--json",
+        ],
+    )
+    .await;
+    assert!(!arrived, "the JSON reply skipped the check: {shown}");
+}

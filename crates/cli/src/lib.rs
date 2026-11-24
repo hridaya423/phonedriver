@@ -12,6 +12,7 @@ mod ios_wifi;
 mod lean;
 pub mod mcp;
 pub mod ocr;
+mod paths;
 mod private;
 mod variables;
 pub mod wire;

@@ -34,6 +34,8 @@ Three unit tests in `daemon/secrets.rs` cover what the property's fixed secrets 
 
 2026-11-24, later: the `notifications` method and the wait for a notification (D117) were added; the property generates both (`Step::Notifications`) against a notification that repeats every earlier secret, and they are in the every-step session. `scroll` with `collect` (D116) returns screen text in `rows` through the same `Daemon::call` and is not generated. The sync commit is still not moved, for the reason above.
 
+2026-11-24, named paths (D118): a run saved under `paths/` ends with a landmark, a text the command line takes from a `snapshot` with `elements` and writes into the steps file. No covered file changed. The property generates that read (`Step::Landmark`), so a secret in an element's label would fail it as a reply that holds the secret; `paths::landmark` also passes over a label that holds the mask and every text field (unit test `typed_text_masked_text_and_a_long_sentence_are_never_the_landmark`). The sync commit is not moved.
+
 When you finish a change, run:
 
 ```

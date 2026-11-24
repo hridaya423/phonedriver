@@ -536,8 +536,8 @@ async fn the_tool_list_every_turn_re_reads_fits_a_budget_and_hides_what_agents_n
         })
         .sum();
     assert!(
-        total < 6_900,
-        "what a model reads of tools/list is {total} characters (6,371 in 0.1.7; lanes in `devices` and the `check` step added about 160, `collect` on `scroll` 56, notifications on `snapshot` and `wait` about 130); every turn re-reads it, so raise this only for a tool or argument worth its cost"
+        total < 7_003,
+        "what a model reads of tools/list is {total} characters (6,371 in 0.1.7; lanes in `devices` and the `check` step added about 160, `collect` on `scroll` 56, notifications on `snapshot` and `wait` about 130, paths on `replay` 103); every turn re-reads it, so raise this only for a tool or argument worth its cost"
     );
     for t in &tools {
         let text = serde_json::to_string(&*t.input_schema).unwrap();
@@ -1908,4 +1908,37 @@ async fn a_shell_tool_call_and_a_replayed_shell_step_hand_the_device_the_same_co
         })
         .collect();
     assert_eq!(sent, [command, command]);
+}
+
+/// Decision D118: a path needs no tool of its own. `replay` saves one where `launch` looks for it, `launch` names
+/// it, and `replay` goes down it and answers with the screen it arrived on.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_path_is_saved_named_by_launch_and_gone_down_with_the_tools_there_are() {
+    let fake = Arc::new(phonedriver_core::testing::FakeDevice::new(vec![tree(&[
+        "One", "Two",
+    ])]));
+    fake.install(&[("com.example", "Example")]);
+    let rig = rig_with(fake).await;
+    rig.call("snapshot", json!({})).await;
+    rig.call("tap", json!({"target": "Two"})).await;
+    let file = "paths/com.example/two.steps";
+    let r = rig
+        .call("replay", json!({"file": file, "save": true}))
+        .await;
+    assert_eq!(r.is_error, Some(false), "{r:?}");
+    assert!(texts(&r)[0].contains("\"One\""), "{r:?}");
+    assert!(rig.home.path().join(file).exists());
+
+    let r = rig.call("launch", json!({"app": "com.example"})).await;
+    let shown = texts(&r).join("\n");
+    assert!(
+        shown.contains("paths: two · replay paths/com.example/<name>.steps"),
+        "{shown}"
+    );
+
+    let r = rig.call("replay", json!({"file": file})).await;
+    let shown = texts(&r).join("\n");
+    assert_eq!(r.is_error, Some(false), "{shown}");
+    assert!(shown.starts_with("arrived at \"One\""), "{shown}");
+    assert!(shown.contains("\"Two\""), "{shown}");
 }
