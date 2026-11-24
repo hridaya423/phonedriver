@@ -38,6 +38,8 @@ Three unit tests in `daemon/secrets.rs` cover what the property's fixed secrets 
 
 2026-11-24, group 4: `setting` with `restore` (D120) writes a new file, `settings-before/<device>.json`. The property generates a write and a restore (`Step::Setting`) against a setting whose value repeats every earlier secret; its first run failed with `settings-before/fake_1.json holds the secret login --token Sh0xK9pQ2vL7`, and a value that holds a secret is now not kept. `files` (D119) takes no secret, answers a receipt through `Daemon::call`, and writes outside the home, into the folder the person named; it is not generated. `screenshot` with `within` (D121) adds `origin`, two numbers. Break B1 run on the Mac mini failed with `step 0 (type): the reply holds the secret`. The sync commit is still not moved.
 
+2026-11-24, group 5: `tap` took `select` (D122), a date or a time that the reply repeats (`set the picker to 2026-12-18`); it is not secret text, a value that is neither is refused with a message that does not quote it, and the digits it types go through the `type` action, so nothing new carries a secret and the property does not generate it. The `device` method (D123) returns a device id through `Daemon::call`. MCP progress messages (D124) are written by the MCP server, outside the daemon, from the tool's name, the time and the daemon's own progress lines, never from an argument; `mcp::tests::a_progress_message_holds_no_text_a_caller_gave` and `--test mcp progress_names_the_replay_step_and_never_carries_text_given_to_the_call` hold them to that. Break B1 run on the Mac mini failed as it should (`step 0 (type): the reply holds the secret`). The sync commit is still not moved.
+
 When you finish a change, run:
 
 ```

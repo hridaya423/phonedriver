@@ -496,6 +496,21 @@ phonedriver batch 'tap "Checkout"' 'check "Total" --equals "€24.99"' 'tap "Pay
 
 Over MCP it is a `batch` step: `{"tool":"check","target":"Total","equals":"€24.99"}`. A check is saved by `save` and replayed, so a saved run can prove a value and not only that a text is somewhere on the screen. A value that looks like an instruction to an agent is marked `(ai-instruction)`, as a snapshot line is. Decision D113.
 
+### Dates and times
+
+A field that opens a date or time picker is set in one call: the tap opens the picker, `--select` sets it, reads the value back from the picker and confirms.
+
+```
+$ phonedriver tap "Date" --select 2026-12-18
+ok tapped @e8 "Date", set the picker to 2026-12-18, then tapped @e59 "OK" · verified
+$ phonedriver tap "Time" --select 19:45
+ok tapped @e10 "Time", set the picker to 19:45, then tapped @e644 "OK" · verified
+```
+
+MCP: `tap {"target":"Date","select":"2026-12-18"}`. A date is `YYYY-MM-DD` and a time is 24-hour `HH:MM`, whatever the picker shows. It sets a calendar that names its days (Android's own date picker, a web page's date field, Compose Material 3) by stepping a month at a time, and a time picker that has a text input mode (Android's own, a web page's time field, the Material one in Clock) by typing the digits and choosing AM or PM. `OK` or `SET` is tapped only after the picker shows the value asked for.
+
+A picker it cannot set is left open and the error shows the screen: one with wheels, a Compose clock face, a picker in another language than English, and a date more than 36 months from the month shown (tap the year at the top, choose it, then `--select` again). `save` keeps the step with its value, so a replay sets the same date wherever the picker opens. Android only; a month step takes about a second.
+
 ### When a tap finds nothing
 
 A `tap`, `type`, `scroll` or `check` whose target is not on the screen, or whose `@ref` is gone, answers with what the screen shows now, as lines against the screen the agent last saw, so the next call can use a ref from the error itself:

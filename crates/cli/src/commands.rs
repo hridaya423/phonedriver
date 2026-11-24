@@ -287,6 +287,9 @@ pub(crate) enum Verb {
         /// Hold the press for this many milliseconds.
         #[arg(long)]
         long: Option<u32>,
+        /// The tap opens a date or time picker: set it to this date (`2026-12-18`) or time (`19:45`, 24-hour), read it back and confirm.
+        #[arg(long)]
+        select: Option<String>,
         /// Tap a button that spends money or cannot be undone without asking the human. Only when the user has granted full autonomy.
         #[arg(long)]
         autonomous: bool,
@@ -1728,6 +1731,7 @@ pub(crate) fn step_json(verb: &Verb, secret: Option<&str>) -> Result<Value, Fail
             role,
             count,
             long,
+            select,
             ..
         } => {
             let mut t = parse_target(target);
@@ -1740,6 +1744,9 @@ pub(crate) fn step_json(verb: &Verb, secret: Option<&str>) -> Result<Value, Fail
             }
             if let Some(l) = long {
                 a["long"] = json!(l);
+            }
+            if let Some(value) = select {
+                a["select"] = json!(value);
             }
             a
         }
@@ -2510,7 +2517,11 @@ impl Replay {
                     .as_u64()
                     .map(|n| format!(" --collect {n}"))
                     .unwrap_or_default();
-                format!("{kind}{what}{typed}{into}{on}{collect}")
+                let select = action["select"]
+                    .as_str()
+                    .map(|v| format!(" --select {v}"))
+                    .unwrap_or_default();
+                format!("{kind}{what}{typed}{into}{on}{collect}{select}")
             }
             "check" => match params["equals"].as_str() {
                 Some(e) => format!("check{} = \"{e}\"", target(&params["target"])),
@@ -3680,6 +3691,7 @@ mod tests {
             role: None,
             count: None,
             long: None,
+            select: None,
             autonomous,
         }
     }

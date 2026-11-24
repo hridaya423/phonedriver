@@ -412,6 +412,7 @@ mod act;
 mod approval;
 mod observe;
 mod ops;
+pub mod pick;
 mod report;
 mod wait;
 
