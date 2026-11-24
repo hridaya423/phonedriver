@@ -210,6 +210,7 @@ impl Actor {
         s: &mut Session,
         p: ActParams,
     ) -> Result<ActionResult, Error> {
+        s.acted_at = Some(self.now());
         let t = Instant::now();
         let prepared = self.prepare(&p.action).await;
         self.lap("prepare", t);

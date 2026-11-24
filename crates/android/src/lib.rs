@@ -10,5 +10,6 @@ mod devtools;
 mod logs;
 pub mod map;
 mod network;
+mod notifications;
 mod settings;
 pub mod wireless;

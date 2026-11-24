@@ -515,6 +515,16 @@ pub(crate) enum Verb {
     /// Print the device's networks: which are up and by what (Wi-Fi, cellular, VPN), the default one, the app and
     /// user ids a VPN carries, DNS, and always-on VPN state (Android).
     Network,
+    /// List the notifications the device is showing, newest first: app, title, text and age, without opening the
+    /// shade (Android).
+    Notifications {
+        /// Only this app's: a name or an id.
+        #[arg(long)]
+        app: Option<String>,
+        /// How many to list (the default is 20).
+        #[arg(long)]
+        limit: Option<u32>,
+    },
     /// Print the web page in front as text, whole, without scrolling (Android: Chrome, and the web views of debug builds).
     Page {
         /// Keep only lines containing one of these words, separated by `|`, ignoring case.
@@ -566,12 +576,13 @@ pub(crate) enum Verb {
     #[command(hide = true)]
     Home,
     /// Wait for `settled`, for a text or `@ref` to appear, for `gone:<text>` (or `gone:@ref`) to leave the screen,
-    /// for `vpn:up` or `vpn:down`, or for `log:<text>` (`A|B` for either) to appear in a log line written from now on.
+    /// for `vpn:up` or `vpn:down`, for `log:<text>` (`A|B` for either) to appear in a log line written from now on, or
+    /// for `notification:<text>`: a notification posted since this session's last action.
     Wait {
-        /// `settled`, a text or `@ref` to appear, `gone:<text>` (or `gone:@ref`) to leave, `vpn:up`, `vpn:down`, or
-        /// `log:<text>`.
+        /// `settled`, a text or `@ref` to appear, `gone:<text>` (or `gone:@ref`) to leave, `vpn:up`, `vpn:down`,
+        /// `log:<text>` or `notification:<text>`.
         condition: String,
-        /// With `log:`, read only this app's lines: its name or id.
+        /// With `log:` or `notification:`, only this app's: its name or id.
         #[arg(long)]
         app: Option<String>,
     },
@@ -1362,6 +1373,15 @@ pub(crate) async fn execute_with(
             }
             Ok(show_network(&r))
         }
+        Verb::Notifications { app, limit } => {
+            let r = client
+                .call("notifications", with(json!({"app": app, "limit": limit})))
+                .await?;
+            if g.json {
+                return Ok(r.to_string());
+            }
+            Ok(show_notifications(&r))
+        }
         Verb::Page { grep, all } => {
             let r = client
                 .call("page", with(json!({"grep": grep, "all": all})))
@@ -1585,6 +1605,9 @@ fn wait_condition(condition: &str, app: Option<&str>) -> Value {
     }
     if let Some(pattern) = condition.strip_prefix("log:") {
         return json!({"log": {"pattern": pattern, "app": app}});
+    }
+    if let Some(pattern) = condition.strip_prefix("notification:") {
+        return json!({"notification": {"pattern": pattern, "app": app}});
     }
     match condition.strip_prefix("gone:") {
         Some(rest) => json!({"gone": parse_target(rest)}),
@@ -2355,6 +2378,9 @@ impl Replay {
                 if let Some(pattern) = c["log"]["pattern"].as_str() {
                     return format!("wait log:{pattern}");
                 }
+                if let Some(pattern) = c["notification"]["pattern"].as_str() {
+                    return format!("wait notification:{pattern}");
+                }
                 match (target(&c["appears"]), target(&c["gone"])) {
                     (appears, _) if !appears.is_empty() => format!("wait{appears}"),
                     (_, gone) if !gone.is_empty() => format!("wait gone:{}", gone.trim_start()),
@@ -2852,6 +2878,24 @@ pub(crate) fn show_logs(result: &Value, seconds: u64) -> String {
         return format!("no log lines from {app} in the last {seconds} s");
     }
     out.join("\n")
+}
+
+/// `notifications`: a line each, newest first, and how many more there are.
+pub(crate) fn show_notifications(result: &Value) -> String {
+    let mut lines: Vec<String> = result["lines"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(|l| l.as_str().map(String::from))
+        .collect();
+    if lines.is_empty() {
+        return "no notifications".into();
+    }
+    match result["more"].as_u64() {
+        Some(more) if more > 0 => lines.push(format!("and {more} older: raise `--limit`")),
+        _ => {}
+    }
+    lines.join("\n")
 }
 
 /// `network`: one line for each network, then private DNS and always-on VPN, then the fields the platform did not give.
@@ -3634,6 +3678,14 @@ mod tests {
         assert_eq!(
             d(json!({"log": {"pattern": "ready", "app": null}})),
             "wait log:ready"
+        );
+        assert_eq!(
+            d(json!({"notification": {"pattern": "code", "app": null}})),
+            "wait notification:code"
+        );
+        assert_eq!(
+            parse_step_line("wait notification:code --app Bank").unwrap(),
+            json!({"kind": "wait", "condition": {"notification": {"pattern": "code", "app": "Bank"}}})
         );
         assert_eq!(
             Replay::describe(

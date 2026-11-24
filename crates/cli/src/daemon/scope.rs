@@ -14,6 +14,7 @@ use phonedriver_core::device::{
 use phonedriver_core::error::Error;
 use phonedriver_core::geometry::Size;
 use phonedriver_core::network::{LogWait, LogWaited, NetworkView};
+use phonedriver_core::notice::Notices;
 use phonedriver_core::raw::RawTree;
 use phonedriver_core::scope::{AppScope, Outside};
 use phonedriver_core::settings::{SettingOp, SettingReply};
@@ -299,6 +300,12 @@ impl Device for ScopedDevice {
                 timeout: req.timeout,
             })
             .await
+    }
+
+    async fn notifications(&self) -> Result<Notices> {
+        let mut seen = self.inner.notifications().await?;
+        seen.notices.retain(|n| self.scope.allows(&n.package));
+        Ok(seen)
     }
 
     async fn network(&self) -> Result<NetworkView> {

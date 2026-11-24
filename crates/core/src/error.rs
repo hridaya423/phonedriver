@@ -205,6 +205,7 @@ pub enum Op {
     Record,
     Page,
     Network,
+    Notifications,
 }
 
 impl Op {
@@ -230,6 +231,7 @@ impl Op {
             Op::Record => "record",
             Op::Page => "page",
             Op::Network => "network",
+            Op::Notifications => "notifications",
         }
     }
 }
@@ -780,6 +782,9 @@ impl Error {
             }
             Error::NotSettled { .. } => {
                 "Run `phonedriver snapshot --no-settle` to see the screen as it is.".into()
+            }
+            Error::Timeout { condition, .. } if condition.starts_with("a new notification") => {
+                "Increase `--timeout`, or run `phonedriver notifications` to list the ones that are up.".into()
             }
             Error::Timeout { .. } => {
                 "Increase `--timeout`, or run `phonedriver snapshot` to check the screen.".into()

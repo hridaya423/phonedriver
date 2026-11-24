@@ -536,8 +536,8 @@ async fn the_tool_list_every_turn_re_reads_fits_a_budget_and_hides_what_agents_n
         })
         .sum();
     assert!(
-        total < 6_800,
-        "what a model reads of tools/list is {total} characters (6,371 in 0.1.7; lanes in `devices` and the `check` step added about 160, `collect` on `scroll` 56); every turn re-reads it, so raise this only for a tool or argument worth its cost"
+        total < 6_900,
+        "what a model reads of tools/list is {total} characters (6,371 in 0.1.7; lanes in `devices` and the `check` step added about 160, `collect` on `scroll` 56, notifications on `snapshot` and `wait` about 130); every turn re-reads it, so raise this only for a tool or argument worth its cost"
     );
     for t in &tools {
         let text = serde_json::to_string(&*t.input_schema).unwrap();
@@ -850,6 +850,54 @@ async fn a_value_a_check_reads_stays_out_of_the_trace() {
         assert!(
             !text.contains("24.99") && !text.contains("19.99"),
             "{} holds a checked value",
+            f.display()
+        );
+    }
+}
+
+/// What a notification says is its sender's text: it is in the reply and in no file the daemon writes.
+#[tokio::test]
+async fn notifications_are_listed_by_snapshot_and_waited_for_by_wait_and_stay_out_of_the_trace() {
+    use phonedriver_core::notice::{Notice, Notices};
+    let fake = Arc::new(phonedriver_core::testing::FakeDevice::new(vec![tree(&[
+        "Send code",
+    ])]));
+    fake.answer_notifications(vec![Notices {
+        now_ms: 10_000_000,
+        notices: vec![Notice {
+            key: "0|com.bank|1|otp|1".into(),
+            package: "com.bank".into(),
+            title: Some("Your code".into()),
+            text: Some("Your code is 482913".into()),
+            posted_ms: 9_999_500,
+            ongoing: false,
+        }],
+    }]);
+    let rig = rig_with(fake).await;
+    let r = rig.call("snapshot", json!({"notifications": true})).await;
+    assert_eq!(
+        texts(&r),
+        ["com.bank · \"Your code\" \"Your code is 482913\" · now"],
+        "{r:?}"
+    );
+    rig.call("tap", json!({"target": "Send code"})).await;
+    let r = rig.call("wait", json!({"notification": "code"})).await;
+    assert_ne!(r.is_error, Some(true), "{r:?}");
+    let text = texts(&r).join("\n");
+    assert!(
+        text.starts_with(
+            "ok a notification from com.bank is up\n  com.bank · \"Your code\" \"Your code is 482913\""
+        ),
+        "{text}"
+    );
+    for f in files(rig.home.path()) {
+        if f.extension().is_some_and(|e| e == "sock") {
+            continue;
+        }
+        let kept = std::fs::read(&f).unwrap();
+        assert!(
+            !String::from_utf8_lossy(&kept).contains("482913"),
+            "{} holds a notification's text",
             f.display()
         );
     }

@@ -171,8 +171,10 @@ fn hide_condition(condition: &mut Value, full: bool) {
     for key in ["appears", "gone"] {
         hide_text(&mut condition[key], full);
     }
-    if !full && let Some(s) = condition["log"].get("pattern") {
-        condition["log"]["pattern"] = length("pattern_len", s);
+    for kind in ["log", "notification"] {
+        if !full && let Some(s) = condition[kind].get("pattern") {
+            condition[kind]["pattern"] = length("pattern_len", s);
+        }
     }
 }
 

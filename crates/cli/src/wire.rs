@@ -214,6 +214,7 @@ pub enum WaitCondition {
     Gone(Target),
     Vpn(VpnState),
     Log(LogCondition),
+    Notification(NoticeCondition),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -226,6 +227,15 @@ pub enum VpnState {
 /// A log line written after the wait began that holds `pattern` (`A|B` for either), of `app` when given.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct LogCondition {
+    pub pattern: String,
+    #[serde(default)]
+    pub app: Option<String>,
+}
+
+/// A notification posted since the session's last action (or since the wait began) whose title or text holds
+/// `pattern` (`A|B` for either; empty for any), from `app` when given.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct NoticeCondition {
     pub pattern: String,
     #[serde(default)]
     pub app: Option<String>,
@@ -437,6 +447,14 @@ pub struct LogsParams {
     pub head: Option<usize>,
     /// How far back to read, in seconds; default 60.
     pub since_s: Option<u64>,
+}
+
+/// The notifications the device shows (`docs/protocol.md`, `notifications`).
+#[derive(Debug, Deserialize)]
+pub struct NotificationsParams {
+    pub app: Option<String>,
+    /// The newest ones to list; default 20.
+    pub limit: Option<u32>,
 }
 
 /// The web page in front, whole (`docs/protocol.md`, `page`).

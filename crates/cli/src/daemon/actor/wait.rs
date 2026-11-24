@@ -260,9 +260,14 @@ impl Actor {
                 self.wait_log(s, &l.pattern, l.app.as_deref(), p.timeout_ms)
                     .await
             }
+            WaitCondition::Notification(ref n) => {
+                self.wait_notification(s, &n.pattern, n.app.as_deref(), p.timeout_ms)
+                    .await
+            }
         }?;
         step["summary"] = json!(match condition {
             WaitCondition::Log(_) => "a log line matched".to_string(),
+            WaitCondition::Notification(_) => "a notification matched".to_string(),
             _ => result.summary.clone(),
         });
         s.journal.push(step);
@@ -353,6 +358,130 @@ impl Actor {
                 });
             }
             tokio::time::sleep(left.min(VPN_POLL)).await;
+        }
+    }
+
+    /// The name to show for each package: the app's own where it has one to launch by.
+    async fn app_names(
+        &mut self,
+        device: &dyn Device,
+    ) -> std::collections::HashMap<String, String> {
+        let kept = self.apps.lock().unwrap_or_else(|e| e.into_inner()).clone();
+        let apps = match kept {
+            Some(apps) => apps,
+            None => {
+                let listed = device.apps().await.unwrap_or_default();
+                *self.apps.lock().unwrap_or_else(|e| e.into_inner()) = Some(listed.clone());
+                listed
+            }
+        };
+        apps.into_iter().map(|a| (a.id.0, a.name)).collect()
+    }
+
+    /// The package `query` names: an app by name or id, or a package that has nothing to launch (the system's own).
+    async fn notice_package(&mut self, device: &dyn Device, query: &str) -> Result<String, Error> {
+        match self.app_named(device, query).await {
+            Ok(app) => Ok(app.id.0),
+            Err(Error::NoApp { .. }) if query == "android" || query.contains('.') => {
+                Ok(query.to_string())
+            }
+            Err(e) => Err(e),
+        }
+    }
+
+    /// The notifications the device shows, newest first, a line each (decision D117).
+    pub(super) async fn notifications(&mut self, p: NotificationsParams) -> Result<Value, Error> {
+        let device = self.device()?;
+        let seen = device.notifications().await?;
+        let package = match &p.app {
+            Some(query) => Some(self.notice_package(&*device, query).await?),
+            None => None,
+        };
+        let names = self.app_names(&*device).await;
+        let limit = p.limit.unwrap_or(NOTICES_LISTED) as usize;
+        let of: Vec<_> = seen
+            .notices
+            .iter()
+            .filter(|n| package.as_ref().is_none_or(|p| &n.package == p))
+            .collect();
+        let lines: Vec<String> = of
+            .iter()
+            .take(limit)
+            .map(|n| n.line(names.get(&n.package).unwrap_or(&n.package), seen.now_ms))
+            .collect();
+        Ok(json!({"lines": lines, "more": of.len().saturating_sub(limit)}))
+    }
+
+    /// Waits for a notification posted since the session's last action, or since now when it has done none, whose
+    /// title or text holds one of the `|`-separated words of `pattern` (any, when `pattern` is empty and `app` is
+    /// given). One that was up before then is not an answer to what the agent just did.
+    pub(super) async fn wait_notification(
+        &mut self,
+        s: &mut Session,
+        pattern: &str,
+        app: Option<&str>,
+        timeout_ms: Option<u64>,
+    ) -> Result<ActionResult, Error> {
+        let device = self.device()?;
+        let words: Vec<String> = pattern
+            .split('|')
+            .filter(|p| !p.is_empty())
+            .map(String::from)
+            .collect();
+        if words.is_empty() && app.is_none() {
+            return Err(Error::Refused {
+                detail: "wait notification: needs the text to look for, or an app".into(),
+            });
+        }
+        let package = match app {
+            Some(query) => Some(self.notice_package(&*device, query).await?),
+            None => None,
+        };
+        let timeout = timeout_ms.map_or(Config::action().timeout, Duration::from_millis);
+        let back = s
+            .acted_at
+            .map_or(Duration::ZERO, |at| self.now().saturating_sub(at))
+            .min(NOTICE_LOOK_BACK);
+        let started = Instant::now();
+        let mut from = None;
+        loop {
+            let seen = device.notifications().await?;
+            let from = *from.get_or_insert(seen.now_ms.saturating_sub(back.as_millis() as u64));
+            let found = seen.notices.iter().find(|n| {
+                n.posted_ms >= from
+                    && package.as_ref().is_none_or(|p| &n.package == p)
+                    && (words.is_empty() || n.holds(&words))
+            });
+            if let Some(n) = found {
+                let names = self.app_names(&*device).await;
+                let name = names.get(&n.package).unwrap_or(&n.package).clone();
+                let line = n.line(&name, seen.now_ms);
+                let mut done = self
+                    .waited(s, format!("a notification from {name} is up"))
+                    .await?;
+                done.rows = vec![line];
+                return Ok(done);
+            }
+            let left = timeout.saturating_sub(started.elapsed());
+            if left.is_zero() {
+                return Err(Error::Timeout {
+                    waited_ms: started.elapsed().as_millis() as u32,
+                    condition: format!(
+                        "a new notification{}{}; {} up, none new that matched",
+                        if words.is_empty() {
+                            String::new()
+                        } else {
+                            format!(" with {}", phonedriver_core::render::quote(pattern))
+                        },
+                        app.map(|a| format!(" from {a}")).unwrap_or_default(),
+                        match seen.notices.len() {
+                            1 => "1 is".to_string(),
+                            n => format!("{n} are"),
+                        }
+                    ),
+                });
+            }
+            tokio::time::sleep(left.min(NOTICE_POLL)).await;
         }
     }
 

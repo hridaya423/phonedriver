@@ -1,0 +1,615 @@
+1795551184
+Current Notification Manager state:
+  Notification List:
+    NotificationRecord(0x0053968c: pkg=com.android.shell user=UserHandle{0} id=0 tag=0|com.android.shell|g:Aggregate_AlertingSection importance=3 key=0|com.android.shell|0|0|com.android.shell|g:Aggregate_AlertingSection|2000|0|com.android.shell|g:Aggregate_AlertingSection: Notification(channel=shell_cmd shortcut=null contentView=null vibrate=null sound=null defaults=0 flags=LOCAL_ONLY|GROUP_SUMMARY|AUTOGROUP_SUMMARY|SILENT color=0x00000000 groupKey=0|com.android.shell|g:Aggregate_AlertingSection vis=PRIVATE))
+      uid=2000 userId=0
+      opPkg=com.android.shell
+      icon=Icon(typ=RESOURCE pkg=android id=0x01080077)
+      flags=LOCAL_ONLY|GROUP_SUMMARY|AUTOGROUP_SUMMARY|SILENT
+      originalFlags=LOCAL_ONLY|GROUP_SUMMARY|AUTOGROUP_SUMMARY
+      pri=0
+      key=0|com.android.shell|0|0|com.android.shell|g:Aggregate_AlertingSection|2000|0|com.android.shell|g:Aggregate_AlertingSection
+      seen=false
+      groupKey=0|com.android.shell|g:Aggregate_AlertingSection
+      notification=
+            fullscreenIntent=null
+            contentIntent=null
+            deleteIntent=null
+            number=0
+            groupAlertBehavior=2
+            when=1795551084922/1795551084922
+            tickerText=null
+            vis=0
+            contentView=null
+            bigContentView=null
+            headsUpContentView=null
+            color=0x00000000
+            timeout=PT0S
+            extras={
+                android.reduced.images=Boolean (true)
+                android.appInfo=ApplicationInfo (ApplicationInfo{7bdf1d5 com.android.shell})
+                android.showWhen=Boolean (true)
+            }
+      publicNotification=
+            None
+      stats=SingleNotificationStats{posttimeElapsedMs=123437, posttimeToFirstClickMs=-1, posttimeToDismissMs=-1, airtimeCount=0, airtimeMs=0, currentAirtimeStartElapsedMs=-1, airtimeExpandedMs=0, posttimeToFirstVisibleExpansionMs=-1, currentAirtimeExpandedStartElapsedMs=-1, requestedImportance=3, naturalImportance=3, isNoisy=true}
+      mContactAffinity=0.0
+      mPackagePriority=0
+      mPackageVisibility=-1000
+      mSystemImportance=UNSPECIFIED
+      mAsstImportance=UNSPECIFIED
+      mRuleImportance=UNSPECIFIED
+      mImportance=DEFAULT
+      mImportanceExplanation=app
+      mProposedImportance=UNSPECIFIED
+      mIsAppImportanceLocked=false
+      mSensitiveContent=false
+      mCanceledAfterLifetimeExtension=false
+      mIntercept=false
+      mHidden==false
+      mGlobalSortKey=crtcl=0x0002:intrsv=2:grnk=0x0000:gsmry=0:nsk:rnk=0x0003
+      mRankingTimeMs=1795551084922
+      mCreationTimeMs=1795551084922
+      mVisibleSinceMs=0
+      mUpdateTimeMs=1795551084922
+      mInterruptionTimeMs=1795551084922
+      mSuppressedVisualEffects= 0
+      mSound= content://settings/system/notification_sound
+      mVibration= null
+      mAttributes= AudioAttributes: usage=USAGE_NOTIFICATION content=CONTENT_TYPE_SONIFICATION flags=0x800(FLAG_MUTE_HAPTIC)  tags= bundle=null
+      mLight= null
+      mShowBadge=true
+      mColorized=false
+      mAllowBubble=false
+      isBubble=false
+      mIsInterruptive=false
+      effectiveNotificationChannel=NotificationChannel{mId='shell_cmd', mName=Shell command, mDescription=, mImportance=3, mBypassDnd=false, mLockscreenVisibility=-1000, mSound=content://settings/system/notification_sound, mLights=false, mLightColor=0, mVibrationPattern=null, mVibrationEffect=null, mUserLockedFields=0, mUserVisibleTaskShown=false, mVibrationEnabled=false, mShowBadge=true, mDeleted=false, mDeletedTimeMs=-1, mGroup='null', mAudioAttributes=AudioAttributes: usage=USAGE_NOTIFICATION content=CONTENT_TYPE_SONIFICATION flags=0x800(FLAG_MUTE_HAPTIC)  tags= bundle=null, mBlockableSystem=false, mAllowBubbles=-1, mImportanceLockedDefaultApp=true, mOriginalImp=3, mParent=null, mConversationId=null, mDemoted=false, mImportantConvo=false, mLastNotificationUpdateTimeMs=0, isBundle=false, emoji=null}
+      mAdjustments=[]
+      mRuleChannelReason=0
+      mRuleSoundReason=0
+      mRuleLightReason=0
+      shortcut=null found valid? false
+      mUserVisOverride=-1000
+      hasSummarization=false
+      bundleType=0
+    NotificationRecord(0x08e1a47b: pkg=com.android.shell user=UserHandle{0} id=2020 tag=pdtag5 importance=3 key=0|com.android.shell|2020|pdtag5|2000: Notification(channel=shell_cmd shortcut=null contentView=null vibrate=null sound=null defaults=0 flags=0 color=0x00000000 vis=PRIVATE))
+      uid=2000 userId=0
+      opPkg=com.android.shell
+      icon=Icon(typ=RESOURCE pkg=android id=0x01080077)
+      flags=0
+      originalFlags=0
+      pri=0
+      key=0|com.android.shell|2020|pdtag5|2000
+      seen=false
+      groupKey=0|com.android.shell|g:Aggregate_AlertingSection
+      notification=
+            fullscreenIntent=null
+            contentIntent=null
+            deleteIntent=null
+            number=0
+            groupAlertBehavior=0
+            when=1795551184110/1795551184110
+            tickerText=null
+            vis=0
+            contentView=null
+            bigContentView=null
+            headsUpContentView=null
+            color=0x00000000
+            timeout=PT72H
+            extras={
+                android.title=String (Shopping)
+                android.reduced.images=Boolean (true)
+                android.textLines=CharSequence[] (2)
+                  [0] Milk
+                  [1] Eggs
+                android.template=String (android.app.Notification$InboxStyle)
+                android.text=String (2 items)
+                android.appInfo=ApplicationInfo (ApplicationInfo{a52b298 com.android.shell})
+                android.showWhen=Boolean (true)
+            }
+      publicNotification=
+            None
+      stats=SingleNotificationStats{posttimeElapsedMs=222872, posttimeToFirstClickMs=-1, posttimeToDismissMs=-1, airtimeCount=0, airtimeMs=0, currentAirtimeStartElapsedMs=-1, airtimeExpandedMs=0, posttimeToFirstVisibleExpansionMs=-1, currentAirtimeExpandedStartElapsedMs=-1, requestedImportance=3, naturalImportance=3, isNoisy=true}
+      mContactAffinity=0.0
+      mPackagePriority=0
+      mPackageVisibility=-1000
+      mSystemImportance=UNSPECIFIED
+      mAsstImportance=UNSPECIFIED
+      mRuleImportance=UNSPECIFIED
+      mImportance=DEFAULT
+      mImportanceExplanation=app
+      mProposedImportance=UNSPECIFIED
+      mIsAppImportanceLocked=false
+      mSensitiveContent=false
+      mCanceledAfterLifetimeExtension=false
+      mIntercept=false
+      mHidden==false
+      mGlobalSortKey=crtcl=0x0002:intrsv=2:grnk=0x0000:gsmry=1:nsk:rnk=0x0000
+      mRankingTimeMs=1795551184115
+      mCreationTimeMs=1795551184115
+      mVisibleSinceMs=0
+      mUpdateTimeMs=1795551184115
+      mInterruptionTimeMs=1795551184362
+      mSuppressedVisualEffects= 0
+      mSound= content://settings/system/notification_sound
+      mVibration= null
+      mAttributes= AudioAttributes: usage=USAGE_NOTIFICATION content=CONTENT_TYPE_SONIFICATION flags=0x800(FLAG_MUTE_HAPTIC)  tags= bundle=null
+      mLight= null
+      mShowBadge=true
+      mColorized=false
+      mAllowBubble=false
+      isBubble=false
+      mIsInterruptive=true
+      effectiveNotificationChannel=NotificationChannel{mId='shell_cmd', mName=Shell command, mDescription=, mImportance=3, mBypassDnd=false, mLockscreenVisibility=-1000, mSound=content://settings/system/notification_sound, mLights=false, mLightColor=0, mVibrationPattern=null, mVibrationEffect=null, mUserLockedFields=0, mUserVisibleTaskShown=false, mVibrationEnabled=false, mShowBadge=true, mDeleted=false, mDeletedTimeMs=-1, mGroup='null', mAudioAttributes=AudioAttributes: usage=USAGE_NOTIFICATION content=CONTENT_TYPE_SONIFICATION flags=0x800(FLAG_MUTE_HAPTIC)  tags= bundle=null, mBlockableSystem=false, mAllowBubbles=-1, mImportanceLockedDefaultApp=true, mOriginalImp=3, mParent=null, mConversationId=null, mDemoted=false, mImportantConvo=false, mLastNotificationUpdateTimeMs=0, isBundle=false, emoji=null}
+      mAdjustments=[]
+      mRuleChannelReason=0
+      mRuleSoundReason=0
+      mRuleLightReason=0
+      shortcut=null found valid? false
+      mUserVisOverride=-1000
+      hasSummarization=false
+      bundleType=0
+    NotificationRecord(0x01308af1: pkg=com.android.shell user=UserHandle{0} id=2020 tag=pdtag4 importance=3 key=0|com.android.shell|2020|pdtag4|2000: Notification(channel=shell_cmd shortcut=null contentView=null vibrate=null sound=null defaults=0 flags=0 color=0x00000000 vis=PRIVATE))
+      uid=2000 userId=0
+      opPkg=com.android.shell
+      icon=Icon(typ=RESOURCE pkg=android id=0x01080077)
+      flags=0
+      originalFlags=0
+      pri=0
+      key=0|com.android.shell|2020|pdtag4|2000
+      seen=false
+      groupKey=0|com.android.shell|g:Aggregate_AlertingSection
+      notification=
+            fullscreenIntent=null
+            contentIntent=null
+            deleteIntent=null
+            number=0
+            groupAlertBehavior=0
+            when=1795551183911/1795551183911
+            tickerText=null
+            vis=0
+            contentView=null
+            bigContentView=null
+            headsUpContentView=null
+            color=0x00000000
+            timeout=PT72H
+            extras={
+                android.title=String (Two lines)
+                android.reduced.images=Boolean (true)
+                android.template=String (android.app.Notification$BigTextStyle)
+                android.text=String (first line
+second line)
+                android.appInfo=ApplicationInfo (ApplicationInfo{366c6d6 com.android.shell})
+                android.showWhen=Boolean (true)
+                android.bigText=null
+            }
+      publicNotification=
+            None
+      stats=SingleNotificationStats{posttimeElapsedMs=203223, posttimeToFirstClickMs=-1, posttimeToDismissMs=-1, airtimeCount=0, airtimeMs=0, currentAirtimeStartElapsedMs=-1, airtimeExpandedMs=0, posttimeToFirstVisibleExpansionMs=-1, currentAirtimeExpandedStartElapsedMs=-1, requestedImportance=3, naturalImportance=3, isNoisy=true}
+      mContactAffinity=0.0
+      mPackagePriority=0
+      mPackageVisibility=-1000
+      mSystemImportance=UNSPECIFIED
+      mAsstImportance=UNSPECIFIED
+      mRuleImportance=UNSPECIFIED
+      mImportance=DEFAULT
+      mImportanceExplanation=app
+      mProposedImportance=UNSPECIFIED
+      mIsAppImportanceLocked=false
+      mSensitiveContent=false
+      mCanceledAfterLifetimeExtension=false
+      mIntercept=false
+      mHidden==false
+      mGlobalSortKey=crtcl=0x0002:intrsv=2:grnk=0x0000:gsmry=1:nsk:rnk=0x0001
+      mRankingTimeMs=1795551164497
+      mCreationTimeMs=1795551164497
+      mVisibleSinceMs=0
+      mUpdateTimeMs=1795551183912
+      mInterruptionTimeMs=1795551183912
+      mSuppressedVisualEffects= 0
+      mSound= content://settings/system/notification_sound
+      mVibration= null
+      mAttributes= AudioAttributes: usage=USAGE_NOTIFICATION content=CONTENT_TYPE_SONIFICATION flags=0x800(FLAG_MUTE_HAPTIC)  tags= bundle=null
+      mLight= null
+      mShowBadge=true
+      mColorized=false
+      mAllowBubble=false
+      isBubble=false
+      mIsInterruptive=false
+      effectiveNotificationChannel=NotificationChannel{mId='shell_cmd', mName=Shell command, mDescription=, mImportance=3, mBypassDnd=false, mLockscreenVisibility=-1000, mSound=content://settings/system/notification_sound, mLights=false, mLightColor=0, mVibrationPattern=null, mVibrationEffect=null, mUserLockedFields=0, mUserVisibleTaskShown=false, mVibrationEnabled=false, mShowBadge=true, mDeleted=false, mDeletedTimeMs=-1, mGroup='null', mAudioAttributes=AudioAttributes: usage=USAGE_NOTIFICATION content=CONTENT_TYPE_SONIFICATION flags=0x800(FLAG_MUTE_HAPTIC)  tags= bundle=null, mBlockableSystem=false, mAllowBubbles=-1, mImportanceLockedDefaultApp=true, mOriginalImp=3, mParent=null, mConversationId=null, mDemoted=false, mImportantConvo=false, mLastNotificationUpdateTimeMs=0, isBundle=false, emoji=null}
+      mAdjustments=[]
+      mRuleChannelReason=0
+      mRuleSoundReason=0
+      mRuleLightReason=0
+      shortcut=null found valid? false
+      mUserVisOverride=-1000
+      hasSummarization=false
+      bundleType=0
+    NotificationRecord(0x02dc0d57: pkg=com.android.shell user=UserHandle{0} id=2020 tag=pdtag3 importance=3 key=0|com.android.shell|2020|pdtag3|2000: Notification(channel=shell_cmd shortcut=null contentView=null vibrate=null sound=null defaults=0 flags=0 color=0x00000000 vis=PRIVATE))
+      uid=2000 userId=0
+      opPkg=com.android.shell
+      icon=Icon(typ=RESOURCE pkg=android id=0x01080077)
+      flags=0
+      originalFlags=0
+      pri=0
+      key=0|com.android.shell|2020|pdtag3|2000
+      seen=false
+      groupKey=0|com.android.shell|g:Aggregate_AlertingSection
+      notification=
+            fullscreenIntent=null
+            contentIntent=null
+            deleteIntent=null
+            number=0
+            groupAlertBehavior=0
+            when=1795551183632/1795551183632
+            tickerText=null
+            vis=0
+            contentView=null
+            bigContentView=null
+            headsUpContentView=null
+            color=0x00000000
+            timeout=PT72H
+            extras={
+                android.title=String (Team)
+                android.reduced.images=Boolean (true)
+                android.conversationTitle=String (Team)
+                android.template=String (android.app.Notification$MessagingStyle)
+                android.text=String (Bea: ship it (really))
+                android.selfDisplayName=String (You)
+                android.conversationUnreadMessageCount=Integer (0)
+                android.appInfo=ApplicationInfo (ApplicationInfo{c0c6044 com.android.shell})
+                android.showWhen=Boolean (true)
+                android.messagingUser=Person (android.app.Person@9aa2142)
+                android.isGroupConversation=Boolean (false)
+            }
+      publicNotification=
+            None
+      stats=SingleNotificationStats{posttimeElapsedMs=203173, posttimeToFirstClickMs=-1, posttimeToDismissMs=-1, airtimeCount=0, airtimeMs=0, currentAirtimeStartElapsedMs=-1, airtimeExpandedMs=0, posttimeToFirstVisibleExpansionMs=-1, currentAirtimeExpandedStartElapsedMs=-1, requestedImportance=3, naturalImportance=3, isNoisy=true}
+      mContactAffinity=0.0
+      mPackagePriority=0
+      mPackageVisibility=-1000
+      mSystemImportance=UNSPECIFIED
+      mAsstImportance=UNSPECIFIED
+      mRuleImportance=UNSPECIFIED
+      mImportance=DEFAULT
+      mImportanceExplanation=app
+      mProposedImportance=UNSPECIFIED
+      mIsAppImportanceLocked=false
+      mSensitiveContent=false
+      mCanceledAfterLifetimeExtension=false
+      mIntercept=false
+      mHidden==false
+      mGlobalSortKey=crtcl=0x0002:intrsv=2:grnk=0x0000:gsmry=1:nsk:rnk=0x0002
+      mRankingTimeMs=1795551164460
+      mCreationTimeMs=1795551164460
+      mVisibleSinceMs=0
+      mUpdateTimeMs=1795551183634
+      mInterruptionTimeMs=1795551183634
+      mSuppressedVisualEffects= 0
+      mSound= content://settings/system/notification_sound
+      mVibration= null
+      mAttributes= AudioAttributes: usage=USAGE_NOTIFICATION content=CONTENT_TYPE_SONIFICATION flags=0x800(FLAG_MUTE_HAPTIC)  tags= bundle=null
+      mLight= null
+      mShowBadge=true
+      mColorized=false
+      mAllowBubble=false
+      isBubble=false
+      mIsInterruptive=false
+      effectiveNotificationChannel=NotificationChannel{mId='shell_cmd', mName=Shell command, mDescription=, mImportance=3, mBypassDnd=false, mLockscreenVisibility=-1000, mSound=content://settings/system/notification_sound, mLights=false, mLightColor=0, mVibrationPattern=null, mVibrationEffect=null, mUserLockedFields=0, mUserVisibleTaskShown=false, mVibrationEnabled=false, mShowBadge=true, mDeleted=false, mDeletedTimeMs=-1, mGroup='null', mAudioAttributes=AudioAttributes: usage=USAGE_NOTIFICATION content=CONTENT_TYPE_SONIFICATION flags=0x800(FLAG_MUTE_HAPTIC)  tags= bundle=null, mBlockableSystem=false, mAllowBubbles=-1, mImportanceLockedDefaultApp=true, mOriginalImp=3, mParent=null, mConversationId=null, mDemoted=false, mImportantConvo=false, mLastNotificationUpdateTimeMs=0, isBundle=false, emoji=null}
+      mAdjustments=[]
+      mRuleChannelReason=0
+      mRuleSoundReason=0
+      mRuleLightReason=0
+      shortcut=null found valid? false
+      mUserVisOverride=-1000
+      hasSummarization=false
+      bundleType=0
+    NotificationRecord(0x0b4d0dea: pkg=com.android.shell user=UserHandle{0} id=2020 tag=pdtag2 importance=3 key=0|com.android.shell|2020|pdtag2|2000: Notification(channel=shell_cmd shortcut=null contentView=null vibrate=null sound=null defaults=0 flags=0 color=0x00000000 vis=PRIVATE))
+      uid=2000 userId=0
+      opPkg=com.android.shell
+      icon=Icon(typ=RESOURCE pkg=android id=0x01080077)
+      flags=0
+      originalFlags=0
+      pri=0
+      key=0|com.android.shell|2020|pdtag2|2000
+      seen=false
+      groupKey=0|com.android.shell|g:Aggregate_AlertingSection
+      notification=
+            fullscreenIntent=null
+            contentIntent=null
+            deleteIntent=null
+            number=0
+            groupAlertBehavior=0
+            when=1795551084919/1795551084919
+            tickerText=null
+            vis=0
+            contentView=null
+            bigContentView=null
+            headsUpContentView=null
+            color=0x00000000
+            timeout=PT72H
+            extras={
+                android.title=String (Your code)
+                android.reduced.images=Boolean (true)
+                android.text=String (Your code is 482913)
+                android.appInfo=ApplicationInfo (ApplicationInfo{7bdf1d5 com.android.shell})
+                android.showWhen=Boolean (true)
+            }
+      publicNotification=
+            None
+      stats=SingleNotificationStats{posttimeElapsedMs=123432, posttimeToFirstClickMs=-1, posttimeToDismissMs=-1, airtimeCount=0, airtimeMs=0, currentAirtimeStartElapsedMs=-1, airtimeExpandedMs=0, posttimeToFirstVisibleExpansionMs=-1, currentAirtimeExpandedStartElapsedMs=-1, requestedImportance=3, naturalImportance=3, isNoisy=true}
+      mContactAffinity=0.0
+      mPackagePriority=0
+      mPackageVisibility=-1000
+      mSystemImportance=UNSPECIFIED
+      mAsstImportance=UNSPECIFIED
+      mRuleImportance=UNSPECIFIED
+      mImportance=DEFAULT
+      mImportanceExplanation=app
+      mProposedImportance=UNSPECIFIED
+      mIsAppImportanceLocked=false
+      mSensitiveContent=false
+      mCanceledAfterLifetimeExtension=false
+      mIntercept=false
+      mHidden==false
+      mGlobalSortKey=crtcl=0x0002:intrsv=2:grnk=0x0000:gsmry=1:nsk:rnk=0x0004
+      mRankingTimeMs=1795551084920
+      mCreationTimeMs=1795551084920
+      mVisibleSinceMs=0
+      mUpdateTimeMs=1795551084920
+      mInterruptionTimeMs=1795551084922
+      mSuppressedVisualEffects= 0
+      mSound= content://settings/system/notification_sound
+      mVibration= null
+      mAttributes= AudioAttributes: usage=USAGE_NOTIFICATION content=CONTENT_TYPE_SONIFICATION flags=0x800(FLAG_MUTE_HAPTIC)  tags= bundle=null
+      mLight= null
+      mShowBadge=true
+      mColorized=false
+      mAllowBubble=false
+      isBubble=false
+      mIsInterruptive=true
+      effectiveNotificationChannel=NotificationChannel{mId='shell_cmd', mName=Shell command, mDescription=, mImportance=3, mBypassDnd=false, mLockscreenVisibility=-1000, mSound=content://settings/system/notification_sound, mLights=false, mLightColor=0, mVibrationPattern=null, mVibrationEffect=null, mUserLockedFields=0, mUserVisibleTaskShown=false, mVibrationEnabled=false, mShowBadge=true, mDeleted=false, mDeletedTimeMs=-1, mGroup='null', mAudioAttributes=AudioAttributes: usage=USAGE_NOTIFICATION content=CONTENT_TYPE_SONIFICATION flags=0x800(FLAG_MUTE_HAPTIC)  tags= bundle=null, mBlockableSystem=false, mAllowBubbles=-1, mImportanceLockedDefaultApp=true, mOriginalImp=3, mParent=null, mConversationId=null, mDemoted=false, mImportantConvo=false, mLastNotificationUpdateTimeMs=0, isBundle=false, emoji=null}
+      mAdjustments=[]
+      mRuleChannelReason=0
+      mRuleSoundReason=0
+      mRuleLightReason=0
+      shortcut=null found valid? false
+      mUserVisOverride=-1000
+      hasSummarization=false
+      bundleType=0
+    NotificationRecord(0x0f73c085: pkg=com.android.shell user=UserHandle{0} id=2020 tag=pdtag1 importance=3 key=0|com.android.shell|2020|pdtag1|2000: Notification(channel=shell_cmd shortcut=null contentView=null vibrate=null sound=null defaults=0 flags=0 color=0x00000000 vis=PRIVATE))
+      uid=2000 userId=0
+      opPkg=com.android.shell
+      icon=Icon(typ=RESOURCE pkg=android id=0x01080077)
+      flags=0
+      originalFlags=0
+      pri=0
+      key=0|com.android.shell|2020|pdtag1|2000
+      seen=false
+      groupKey=0|com.android.shell|g:Aggregate_AlertingSection
+      notification=
+            fullscreenIntent=null
+            contentIntent=null
+            deleteIntent=null
+            number=0
+            groupAlertBehavior=0
+            when=1795551084905/1795551084905
+            tickerText=null
+            vis=0
+            contentView=null
+            bigContentView=null
+            headsUpContentView=null
+            color=0x00000000
+            timeout=PT72H
+            extras={
+                android.title=String (Ada Lovelace)
+                android.reduced.images=Boolean (true)
+                android.template=String (android.app.Notification$BigTextStyle)
+                android.text=String (See you at 6 by the fountain)
+                android.appInfo=ApplicationInfo (ApplicationInfo{4cfaeda com.android.shell})
+                android.showWhen=Boolean (true)
+                android.bigText=null
+            }
+      publicNotification=
+            None
+      stats=SingleNotificationStats{posttimeElapsedMs=123421, posttimeToFirstClickMs=-1, posttimeToDismissMs=-1, airtimeCount=0, airtimeMs=0, currentAirtimeStartElapsedMs=-1, airtimeExpandedMs=0, posttimeToFirstVisibleExpansionMs=-1, currentAirtimeExpandedStartElapsedMs=-1, requestedImportance=3, naturalImportance=3, isNoisy=true}
+      mContactAffinity=0.0
+      mPackagePriority=0
+      mPackageVisibility=-1000
+      mSystemImportance=UNSPECIFIED
+      mAsstImportance=UNSPECIFIED
+      mRuleImportance=UNSPECIFIED
+      mImportance=DEFAULT
+      mImportanceExplanation=app
+      mProposedImportance=UNSPECIFIED
+      mIsAppImportanceLocked=false
+      mSensitiveContent=false
+      mCanceledAfterLifetimeExtension=false
+      mIntercept=false
+      mHidden==false
+      mGlobalSortKey=crtcl=0x0002:intrsv=2:grnk=0x0000:gsmry=1:nsk:rnk=0x0005
+      mRankingTimeMs=1795551084909
+      mCreationTimeMs=1795551084909
+      mVisibleSinceMs=0
+      mUpdateTimeMs=1795551084909
+      mInterruptionTimeMs=1795551084911
+      mSuppressedVisualEffects= 0
+      mSound= content://settings/system/notification_sound
+      mVibration= null
+      mAttributes= AudioAttributes: usage=USAGE_NOTIFICATION content=CONTENT_TYPE_SONIFICATION flags=0x800(FLAG_MUTE_HAPTIC)  tags= bundle=null
+      mLight= null
+      mShowBadge=true
+      mColorized=false
+      mAllowBubble=false
+      isBubble=false
+      mIsInterruptive=true
+      effectiveNotificationChannel=NotificationChannel{mId='shell_cmd', mName=Shell command, mDescription=, mImportance=3, mBypassDnd=false, mLockscreenVisibility=-1000, mSound=content://settings/system/notification_sound, mLights=false, mLightColor=0, mVibrationPattern=null, mVibrationEffect=null, mUserLockedFields=0, mUserVisibleTaskShown=false, mVibrationEnabled=false, mShowBadge=true, mDeleted=false, mDeletedTimeMs=-1, mGroup='null', mAudioAttributes=AudioAttributes: usage=USAGE_NOTIFICATION content=CONTENT_TYPE_SONIFICATION flags=0x800(FLAG_MUTE_HAPTIC)  tags= bundle=null, mBlockableSystem=false, mAllowBubbles=-1, mImportanceLockedDefaultApp=true, mOriginalImp=3, mParent=null, mConversationId=null, mDemoted=false, mImportantConvo=false, mLastNotificationUpdateTimeMs=0, isBundle=false, emoji=null}
+      mAdjustments=[]
+      mRuleChannelReason=0
+      mRuleSoundReason=0
+      mRuleLightReason=0
+      shortcut=null found valid? false
+      mUserVisOverride=-1000
+      hasSummarization=false
+      bundleType=0
+    NotificationRecord(0x070868db: pkg=android user=UserHandle{0} id=2345 tag=ChFBbmRyb2lkTG9ja1NjcmVlbhIRTm9TY3JlZW5Mb2NrSXNzdWUYAA== importance=3 key=0|android|2345|ChFBbmRyb2lkTG9ja1NjcmVlbhIRTm9TY3JlZW5Mb2NrSXNzdWUYAA==|1000: Notification(channel=safety_center_recommendation shortcut=null contentView=null vibrate=null sound=null defaults=0 flags=CAN_COLORIZE color=0xff1a73e8 vis=PRIVATE))
+      uid=1000 userId=0
+      opPkg=android
+      icon=Icon(typ=RESOURCE pkg=com.google.android.safetycenter.resources id=0x7f020001)
+      flags=CAN_COLORIZE
+      originalFlags=CAN_COLORIZE
+      pri=0
+      key=0|android|2345|ChFBbmRyb2lkTG9ja1NjcmVlbhIRTm9TY3JlZW5Mb2NrSXNzdWUYAA==|1000
+      seen=false
+      groupKey=0|android|2345|ChFBbmRyb2lkTG9ja1NjcmVlbhIRTm9TY3JlZW5Mb2NrSXNzdWUYAA==|1000
+      notification=
+            fullscreenIntent=null
+            contentIntent=PendingIntent{2e98f78: PendingIntentRecord{e5b2269 android startActivity}}
+            deleteIntent=PendingIntent{5f8d651: PendingIntentRecord{77fd4ee android broadcastIntent}}
+            number=0
+            groupAlertBehavior=0
+            when=1795551083621/1795551083621
+            tickerText=null
+            vis=0
+            contentView=null
+            bigContentView=null
+            headsUpContentView=null
+            color=0xff1a73e8
+            timeout=PT72H
+            extras={
+                android.title=String (Set a screen lock)
+                android.reduced.images=Boolean (true)
+                android.template=String (android.app.Notification$BigTextStyle)
+                android.text=String (For added security, set a PIN, pattern, or password for this device.)
+                android.appInfo=ApplicationInfo (ApplicationInfo{fe61eb6 android})
+                android.showWhen=Boolean (true)
+                android.substName=String (Security & privacy)
+                android.bigText=String (For added security, set a PIN, pattern, or password for this device.)
+            }
+      publicNotification=
+            None
+      stats=SingleNotificationStats{posttimeElapsedMs=122448, posttimeToFirstClickMs=-1, posttimeToDismissMs=-1, airtimeCount=0, airtimeMs=0, currentAirtimeStartElapsedMs=-1, airtimeExpandedMs=0, posttimeToFirstVisibleExpansionMs=-1, currentAirtimeExpandedStartElapsedMs=-1, requestedImportance=3, naturalImportance=3, isNoisy=true}
+      mContactAffinity=0.0
+      mPackagePriority=0
+      mPackageVisibility=-1000
+      mSystemImportance=UNSPECIFIED
+      mAsstImportance=UNSPECIFIED
+      mRuleImportance=UNSPECIFIED
+      mImportance=DEFAULT
+      mImportanceExplanation=app
+      mProposedImportance=UNSPECIFIED
+      mIsAppImportanceLocked=false
+      mSensitiveContent=false
+      mCanceledAfterLifetimeExtension=false
+      mIntercept=false
+      mHidden==false
+      mGlobalSortKey=crtcl=0x0002:intrsv=2:grnk=0x0006:gsmry=1:nsk:rnk=0x0006
+      mRankingTimeMs=1795551083937
+      mCreationTimeMs=1795551083937
+      mVisibleSinceMs=0
+      mUpdateTimeMs=1795551083937
+      mInterruptionTimeMs=1795551083938
+      mSuppressedVisualEffects= 0
+      mSound= content://settings/system/notification_sound
+      mVibration= null
+      mAttributes= AudioAttributes: usage=USAGE_NOTIFICATION content=CONTENT_TYPE_SONIFICATION flags=0x800(FLAG_MUTE_HAPTIC)  tags= bundle=null
+      mLight= null
+      mShowBadge=true
+      mColorized=false
+      mAllowBubble=false
+      isBubble=false
+      mIsInterruptive=true
+      effectiveNotificationChannel=NotificationChannel{mId='safety_center_recommendation', mName=Warnings, mDescription=, mImportance=3, mBypassDnd=false, mLockscreenVisibility=-1000, mSound=content://settings/system/notification_sound, mLights=false, mLightColor=0, mVibrationPattern=null, mVibrationEffect=null, mUserLockedFields=0, mUserVisibleTaskShown=false, mVibrationEnabled=false, mShowBadge=true, mDeleted=false, mDeletedTimeMs=-1, mGroup='safety_center_channels', mAudioAttributes=AudioAttributes: usage=USAGE_NOTIFICATION content=CONTENT_TYPE_SONIFICATION flags=0x800(FLAG_MUTE_HAPTIC)  tags= bundle=null, mBlockableSystem=false, mAllowBubbles=-1, mImportanceLockedDefaultApp=true, mOriginalImp=3, mParent=null, mConversationId=null, mDemoted=false, mImportantConvo=false, mLastNotificationUpdateTimeMs=0, isBundle=false, emoji=null}
+      mAdjustments=[]
+      mRuleChannelReason=0
+      mRuleSoundReason=0
+      mRuleLightReason=0
+      shortcut=null found valid? false
+      mUserVisOverride=-1000
+      hasSummarization=false
+      bundleType=0
+    NotificationRecord(0x091ab7b7: pkg=android user=UserHandle{-1} id=55 tag=null importance=2 key=-1|android|55|null|1000: Notification(channel=DEVELOPER shortcut=null contentView=null vibrate=null sound=null tick defaults=0 flags=ONGOING_EVENT|CAN_COLORIZE color=0x00000000 vis=PUBLIC))
+      uid=1000 userId=-1
+      opPkg=android
+      icon=Icon(typ=RESOURCE pkg=android id=0x010809d8)
+      flags=ONGOING_EVENT|CAN_COLORIZE
+      originalFlags=ONGOING_EVENT|CAN_COLORIZE
+      pri=0
+      key=-1|android|55|null|1000
+      seen=false
+      groupKey=-1|android|55|null|1000
+      notification=
+            fullscreenIntent=null
+            contentIntent=null
+            deleteIntent=null
+            number=0
+            groupAlertBehavior=0
+            when=0/1795551074536
+            tickerText=Serial console enabled
+            vis=1
+            contentView=null
+            bigContentView=null
+            headsUpContentView=null
+            color=0x00000000
+            timeout=PT72H
+            extras={
+                android.title=String (Serial console enabled)
+                android.reduced.images=Boolean (true)
+                android.text=String (Performance is impacted. To disable, check bootloader.)
+                android.appInfo=ApplicationInfo (ApplicationInfo{2e42b24 android})
+                android.showWhen=Boolean (true)
+            }
+      publicNotification=
+            None
+      stats=SingleNotificationStats{posttimeElapsedMs=113056, posttimeToFirstClickMs=-1, posttimeToDismissMs=-1, airtimeCount=0, airtimeMs=0, currentAirtimeStartElapsedMs=-1, airtimeExpandedMs=0, posttimeToFirstVisibleExpansionMs=-1, currentAirtimeExpandedStartElapsedMs=-1, requestedImportance=3, naturalImportance=2, isNoisy=true}
+      mContactAffinity=0.0
+      mPackagePriority=0
+      mPackageVisibility=-1000
+      mSystemImportance=UNSPECIFIED
+      mAsstImportance=UNSPECIFIED
+      mRuleImportance=UNSPECIFIED
+      mImportance=LOW
+      mImportanceExplanation=app
+      mProposedImportance=UNSPECIFIED
+      mIsAppImportanceLocked=false
+      mSensitiveContent=false
+      mCanceledAfterLifetimeExtension=false
+      mIntercept=false
+      mHidden==false
+      mGlobalSortKey=crtcl=0x0002:intrsv=2:grnk=0x0007:gsmry=1:nsk:rnk=0x0007
+      mRankingTimeMs=1795551074538
+      mCreationTimeMs=1795551074538
+      mVisibleSinceMs=0
+      mUpdateTimeMs=1795551074538
+      mInterruptionTimeMs=1795551074545
+      mSuppressedVisualEffects= 0
+      mSound= content://settings/system/notification_sound
+      mVibration= null
+      mAttributes= AudioAttributes: usage=USAGE_NOTIFICATION content=CONTENT_TYPE_SONIFICATION flags=0x800(FLAG_MUTE_HAPTIC)  tags= bundle=null
+      mLight= null
+      mShowBadge=false
+      mColorized=false
+      mAllowBubble=false
+      isBubble=false
+      mIsInterruptive=true
+      effectiveNotificationChannel=NotificationChannel{mId='DEVELOPER', mName=Developer messages, mDescription=, mImportance=2, mBypassDnd=false, mLockscreenVisibility=-1000, mSound=content://settings/system/notification_sound, mLights=false, mLightColor=0, mVibrationPattern=null, mVibrationEffect=null, mUserLockedFields=0, mUserVisibleTaskShown=false, mVibrationEnabled=false, mShowBadge=true, mDeleted=false, mDeletedTimeMs=-1, mGroup='null', mAudioAttributes=AudioAttributes: usage=USAGE_NOTIFICATION content=CONTENT_TYPE_SONIFICATION flags=0x800(FLAG_MUTE_HAPTIC)  tags= bundle=null, mBlockableSystem=true, mAllowBubbles=-1, mImportanceLockedDefaultApp=true, mOriginalImp=2, mParent=null, mConversationId=null, mDemoted=false, mImportantConvo=false, mLastNotificationUpdateTimeMs=0, isBundle=false, emoji=null}
+      mAdjustments=[]
+      mRuleChannelReason=0
+      mRuleSoundReason=0
+      mRuleLightReason=0
+      shortcut=null found valid? false
+      mUserVisOverride=-1000
+      hasSummarization=false
+      bundleType=0
+  
+  mMaxPackageEnqueueRate=5.0
+  hideSilentStatusBar=true
+
+  Notification attention state:
+      mSoundNotificationKey=null
+      mVibrateNotificationKey=null
+      mDisableNotificationEffects=false
+      mCallState=CALL_STATE_IDLE
+      mSystemReady=true
+      mNotificationPulseEnabled=true
+  mArchive=Archive (0 notifications)
