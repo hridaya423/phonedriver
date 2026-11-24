@@ -545,6 +545,50 @@ $ phonedriver tap "Internet"
 $ phonedriver replay run.steps --from 4
 ```
 
+#### Named paths of an app
+
+A run saved as `paths/<app id>/<name>.steps`, in the folder you run phonedriver in (over MCP, the server's folder), is a path of that app: a way to a screen that an agent takes in one call. The app id is the one the screen's `app` line shows.
+
+```
+$ phonedriver save paths/com.android.settings/internet.steps
+saved 4 steps to paths/com.android.settings/internet.steps
+1. launch Settings
+2. tap "Network & internet"
+3. tap "Internet"
+4. wait "Internet"
+the file holds one step a line: delete the line of a step that was a detour
+it is a path: the last step waits for "Internet", the screen this run ended on, and `launch` names the path. Edit that line if another text tells the screen better.
+$ phonedriver replay paths/com.android.settings/internet.steps
+arrived at "Internet" · 4 steps in 8.5 s
+app com.android.settings (Settings)
+@e77 group scrollable↑
+  @e78 group "Internet"
+...
+$ phonedriver launch Settings
+ok launched Settings · new screen
+...
+paths: internet · replay paths/com.android.settings/<name>.steps
+```
+
+The last line of the file is the landmark, what must be on the screen on arrival:
+
+```
+{"landmark":true,"method":"wait","params":{"condition":{"appears":{"role":"other","text":"Internet"}},"timeout_ms":5000}}
+```
+
+`save` takes it from the screen the run ended on: the first heading, else the first label that is not a control, and never what a field holds. It is a guess at the screen's title, so read it once. Change `text` to the label that tells the screen apart (a whole label; `A|B` is either), drop `role` to accept any kind of element (`other` is what a snapshot prints as `group`), and raise `timeout_ms` for a page that loads slowly. A path that ends anywhere else fails with the step, the steps that ran and the screen, and taps nothing after:
+
+```
+error: the path did not arrive at "Internet": step 3 of 3 (wait "Internet") failed: the screen holds it only inside "Network & internet"
+1. restarted Settings
+2. tapped @e4 "Network & internet"
+screen now:
+...
+hint: Every step before it ran, and nothing was tapped after it. Go on from the screen above; if the app changed, save the path again, or edit the last line of paths/com.android.settings/internet.steps to what the screen shows now.
+```
+
+A path is a steps file in every other way: blanks (`{{query:pizza}}`, shown by `launch` as `search(query)`), secrets as environment variables, the build check, the screen check before each step, `--from`. To see an app's paths, list the folder; to remove one, delete its file. Delete the landmark line and the file is a plain run again. `save` refuses a folder named after an app the run was never in, and a screen with no text to tell it by. Decision D118.
+
 A `shell` step expects exit 0, and a command that runs past its time limit fails the step. `save` keeps `"expect_exit": 3` in the step of a command that exited 3 when it was saved, so a replay of the same run passes; add `"expect_exit": 1` by hand to a step that checks for a failure, or `"expect_exit": null` to a step that is only run for its effect and whose exit status does not matter. A step is saved without `--force`, so a replay on a physical phone is refused again at a command that needs it.
 
 Text typed with `--secret` is never in the file. `save` writes the step with the name of an environment variable instead, numbered in order, and says which to set:

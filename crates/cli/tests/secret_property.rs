@@ -128,6 +128,8 @@ enum Step {
         wrong: bool,
     },
     Journal,
+    /// The read a path's landmark is chosen from when a run is saved under `paths/` (decision D118).
+    Landmark,
     RecordStart,
     RecordStop,
 }
@@ -157,6 +159,7 @@ fn steps() -> impl Strategy<Value = Vec<Step>> {
     let step = prop_oneof![
         4 => typed,
         2 => any::<(bool, bool)>().prop_map(|(flagged, echoes)| Step::Shell { flagged, echoes }),
+        1 => Just(Step::Landmark),
         1 => Just(Step::TapNothing),
         1 => Just(Step::TapWhatTheNoteSays),
         2 => Just(Step::Snapshot),
@@ -269,6 +272,10 @@ async fn session(steps: &[Step], full: bool, deaf: bool, fails: bool, home: &Pat
                 ("check", said)
             }
             Step::Journal => ("journal", call("journal", json!({})).await),
+            Step::Landmark => (
+                "snapshot with elements",
+                call("snapshot", json!({"elements": true})).await,
+            ),
             Step::Tap(field) => {
                 let name = if *field == Field::Note {
                     "Note"
@@ -617,6 +624,7 @@ fn every_kind_of_step_works_on_the_fake_phone() {
         Step::Page,
         Step::Notifications { waited: false },
         Step::Notifications { waited: true },
+        Step::Landmark,
         Step::Journal,
     ];
     let seen = run(session(&steps, true, false, false, home.path()));

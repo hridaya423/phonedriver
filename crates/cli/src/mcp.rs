@@ -721,6 +721,7 @@ impl Mcp {
             approval: None,
             approved: None,
             ask: self.ask.clone(),
+            folder: self.folder.clone(),
         }
     }
 
@@ -1666,7 +1667,7 @@ impl Mcp {
     }
 
     #[tool(
-        description = "Run a saved steps file again in one call; it stops at the first step that fails and shows the screen. `vars` fills `{{name}}` in it. `save: true` writes the file from this session's actions.",
+        description = "Run a saved steps file again in one call; it stops at the first step that fails and shows the screen. `vars` fills `{{name}}` in it. `save: true` writes the file from this session's actions; as `paths/<app id>/<name>.steps` it is a path `launch` names, ending with a check of where it arrived.",
         annotations(
             title = "Replay saved steps",
             read_only_hint = false,
