@@ -474,7 +474,7 @@ phonedriver check <"text"|@ref> [--equals <text>] [--as <name>]   read the value
 phonedriver batch "<step>" "<step>" ...      steps in order, one diff at the end, stops at the first failure
 phonedriver clipboard [get|set <text>]
 phonedriver shell <command> [--grep words] [--head n] [--force] [--time-limit s] [--secret]
-phonedriver setting find <words> | get <key> | set <key> <value> [--force] | open <screen key>
+phonedriver setting find <words> | get <key> | set <key> <value> [--force] | open <screen key> | restore [<key>...]
 phonedriver logs [app] [--grep words] [--head n] [--since s]     an app's last log lines and its last crash
 phonedriver page [--grep words] [--all]      the web page in front as text, whole (Android: Chrome, debug-build web views)
 phonedriver record start [-o file.mp4] | stop                    a video of the screen and the actions done during it

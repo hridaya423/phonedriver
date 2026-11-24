@@ -158,6 +158,8 @@ struct SettingArgs {
     value: Option<String>,
     values: Option<BTreeMap<String, String>>,
     open: Option<String>,
+    /// Put back what your writes replaced; with `key`, that one.
+    restore: Option<bool>,
     /// Write a setting the user must confirm, on a physical device; only when the user asked for exactly that.
     force: Option<bool>,
 }
@@ -1612,7 +1614,7 @@ impl Mcp {
     }
 
     #[tool(
-        description = "System settings by key, with no screens to tap (Android 17+; elsewhere it answers unsupported: use `shell`). `find` lists keys and accepted values (`dark theme|media volume` for several); `values` {key: value} writes; `key` reads one; `open` shows the `screen` with that key.",
+        description = "System settings by key, no screens to tap (Android 17+; elsewhere unsupported: use `shell`). `find` lists keys and accepted values (`dark theme|media volume` for several); `values` {key: value} writes; `key` reads one; `open` shows the `screen` with that key; `restore: true` puts back your writes.",
         annotations(
             title = "Read or change a setting",
             read_only_hint = false,
@@ -1623,6 +1625,17 @@ impl Mcp {
     )]
     async fn setting(&self, Parameters(a): Parameters<SettingArgs>) -> CallToolResult {
         let values = a.values.filter(|v| !v.is_empty());
+        if a.restore == Some(true) {
+            if a.find.is_some() || a.value.is_some() || values.is_some() || a.open.is_some() {
+                return bad("`restore` goes alone, or with the one `key` to restore");
+            }
+            let verb = Verb::Setting {
+                action: "restore".to_string(),
+                args: a.key.into_iter().collect(),
+                force: a.force.unwrap_or(false),
+            };
+            return self.run(a.device, verb, None).await;
+        }
         let (action, args) = match (a.find, a.key, a.value, values, a.open) {
             (Some(words), None, None, None, None) => ("find", vec![words]),
             (None, Some(key), None, None, None) => ("get", vec![key]),

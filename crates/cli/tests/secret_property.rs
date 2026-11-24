@@ -132,6 +132,9 @@ enum Step {
     Landmark,
     RecordStart,
     RecordStop,
+    Setting {
+        restore: bool,
+    },
 }
 
 fn steps() -> impl Strategy<Value = Vec<Step>> {
@@ -175,6 +178,7 @@ fn steps() -> impl Strategy<Value = Vec<Step>> {
         1 => Just(Step::RecordStop),
         1 => Just(Step::Page),
         1 => any::<bool>().prop_map(|waited| Step::Notifications { waited }),
+        1 => any::<bool>().prop_map(|restore| Step::Setting { restore }),
     ];
     prop::collection::vec(step, 1..7)
 }
@@ -201,6 +205,7 @@ struct Seen {
     typed_refused: usize,
     shells: usize,
     checks: usize,
+    settings: usize,
     secrets: usize,
     leaks: Vec<String>,
 }
@@ -276,6 +281,33 @@ async fn session(steps: &[Step], full: bool, deaf: bool, fails: bool, home: &Pat
                 "snapshot with elements",
                 call("snapshot", json!({"elements": true})).await,
             ),
+            Step::Setting { restore } => {
+                let index = phonedriver_core::settings::SettingsIndex {
+                    screens: vec![phonedriver_core::settings::SettingScreen {
+                        key: "note".into(),
+                        about: "Note".into(),
+                        link: None,
+                    }],
+                    items: vec![phonedriver_core::settings::SettingItem {
+                        key: "note/text".into(),
+                        purpose: "A note".into(),
+                        values: "TEXT".into(),
+                        writable: true,
+                        confirm: false,
+                        screen: 0,
+                    }],
+                };
+                fake.with_settings(index, &[("note/text", &secrets.join(" "))]);
+                let said = if *restore {
+                    call("setting", json!({"restore": []})).await
+                } else {
+                    call("setting", json!({"key": "note/text", "value": "plain"})).await
+                };
+                if said.0 {
+                    seen.settings += 1;
+                }
+                ("setting", said)
+            }
             Step::Tap(field) => {
                 let name = if *field == Field::Note {
                     "Note"
@@ -625,6 +657,8 @@ fn every_kind_of_step_works_on_the_fake_phone() {
         Step::Notifications { waited: false },
         Step::Notifications { waited: true },
         Step::Landmark,
+        Step::Setting { restore: false },
+        Step::Setting { restore: true },
         Step::Journal,
     ];
     let seen = run(session(&steps, true, false, false, home.path()));
@@ -634,9 +668,10 @@ fn every_kind_of_step_works_on_the_fake_phone() {
             seen.typed_refused,
             seen.shells,
             seen.checks,
+            seen.settings,
             seen.secrets
         ),
-        (3, 0, 1, 1, 4)
+        (3, 0, 1, 1, 2, 4)
     );
 }
 

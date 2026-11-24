@@ -489,6 +489,11 @@ impl Actor {
                 },
             }
         };
+        if let Some(keys) = p.restore {
+            return self
+                .restore_settings(s, &index, keys, p.force, p.settle, p.timeout_ms)
+                .await;
+        }
         let single = p.values.is_none();
         let writes: Vec<(String, String)> = match (p.values, p.key, p.value) {
             (Some(values), _, _) => values.into_iter().collect(),
@@ -531,14 +536,69 @@ impl Actor {
             let now = self.fresh(s).await?;
             s.set_last(Some(now));
         }
+        let store = self.ledger_key(device.as_ref()).await?;
+        self.settings_store = Some(store.clone());
+        let stored = |detail| Error::Transport { detail };
+        let mut kept = originals::read(&self.home, &store).map_err(stored)?;
         let started = self.begin_action();
         let mut done: Vec<(String, String)> = Vec::new();
+        let mut was = serde_json::Map::new();
         for (key, value) in writes {
+            let first = !kept.contains_key(&key);
+            if first {
+                match device.setting(SettingOp::Get(key.clone())).await {
+                    Ok(SettingReply::Value { value: before, .. })
+                        if self.secrets.masked(&before) == before
+                            && self.secrets.masked(&value) == value =>
+                    {
+                        kept.insert(
+                            key.clone(),
+                            Original {
+                                was: before,
+                                set: value.clone(),
+                            },
+                        );
+                        originals::write(&self.home, &store, &kept).map_err(stored)?;
+                    }
+                    Ok(_) | Err(Error::Refused { .. }) => {}
+                    Err(e) => return Err(e),
+                }
+            }
             let op = SettingOp::Set {
                 key: key.clone(),
                 value,
             };
-            match device.setting(op).await {
+            let wrote = device.setting(op).await;
+            match (&wrote, kept.get(&key).cloned()) {
+                (Ok(SettingReply::Value { value, .. }), Some(o)) if *value == o.was => {
+                    kept.remove(&key);
+                    originals::write(&self.home, &store, &kept).map_err(stored)?;
+                }
+                (Ok(SettingReply::Value { value, .. }), Some(o)) => {
+                    if first {
+                        was.insert(key.clone(), json!(o.was));
+                    }
+                    if self.secrets.masked(value) != *value {
+                        kept.remove(&key);
+                        originals::write(&self.home, &store, &kept).map_err(stored)?;
+                    } else if *value != o.set {
+                        kept.insert(
+                            key.clone(),
+                            Original {
+                                set: value.clone(),
+                                ..o
+                            },
+                        );
+                        originals::write(&self.home, &store, &kept).map_err(stored)?;
+                    }
+                }
+                (Err(_), Some(_)) if first => {
+                    kept.remove(&key);
+                    originals::write(&self.home, &store, &kept).map_err(stored)?;
+                }
+                _ => {}
+            }
+            match wrote {
                 Ok(SettingReply::Value { value, .. }) => done.push((key, value)),
                 Ok(SettingReply::Index(_)) => {
                     return Err(Error::Transport {
@@ -564,11 +624,149 @@ impl Actor {
             .await?;
         if single {
             let (key, value) = done.remove(0);
-            return Ok(json!({"key": key, "value": value, "action": action}));
+            let mut reply = json!({"key": key, "value": value, "action": action});
+            if let Some(before) = was.remove(&key) {
+                reply["was"] = before;
+            }
+            return Ok(reply);
         }
         let values: serde_json::Map<String, Value> =
             done.into_iter().map(|(k, v)| (k, json!(v))).collect();
-        Ok(json!({"values": values, "action": action}))
+        let mut reply = json!({"values": values, "action": action});
+        if !was.is_empty() {
+            reply["was"] = Value::Object(was);
+        }
+        Ok(reply)
+    }
+
+    /// Writes back what each of `keys` (every changed key when there are none) was before phonedriver first wrote
+    /// it, and says what happened to each (decision D120). A key whose value is no longer the one phonedriver left
+    /// was changed by someone else since: it keeps that value.
+    async fn restore_settings(
+        &mut self,
+        s: &mut Session,
+        index: &phonedriver_core::settings::SettingsIndex,
+        keys: Vec<String>,
+        force: bool,
+        settle: bool,
+        timeout_ms: Option<u64>,
+    ) -> Result<Value, Error> {
+        let device = self.device()?;
+        let store = self.ledger_key(device.as_ref()).await?;
+        self.settings_store = Some(store.clone());
+        let stored = |detail| Error::Transport { detail };
+        let mut kept = originals::read(&self.home, &store).map_err(stored)?;
+        if let Some(key) = keys.iter().find(|k| !kept.contains_key(*k)) {
+            let changed: Vec<&str> = kept.keys().map(String::as_str).collect();
+            return Err(Error::Refused {
+                detail: if changed.is_empty() {
+                    format!("phonedriver did not change {key} on this device, or any other setting")
+                } else {
+                    format!(
+                        "phonedriver did not change {key} on this device; it changed {}",
+                        changed.join(", ")
+                    )
+                },
+            });
+        }
+        let keys: Vec<String> = if keys.is_empty() {
+            kept.keys().cloned().collect()
+        } else {
+            keys
+        };
+        let mut cfg = Config::action();
+        if let Some(t) = timeout_ms {
+            cfg.timeout = Duration::from_millis(t);
+        }
+        if settle && s.last.is_none() && !keys.is_empty() {
+            let now = self.fresh(s).await?;
+            s.set_last(Some(now));
+        }
+        let started = self.begin_action();
+        let mut lines: Vec<Value> = Vec::new();
+        let mut wrote = false;
+        for key in keys {
+            let Some(o) = kept.get(&key).cloned() else {
+                continue;
+            };
+            let now = match device.setting(SettingOp::Get(key.clone())).await {
+                Ok(SettingReply::Value { value, .. }) => value,
+                Ok(SettingReply::Index(_)) => {
+                    return Err(Error::Transport {
+                        detail: "the device answered a settings read with an index".into(),
+                    });
+                }
+                Err(Error::Refused { detail }) => {
+                    lines.push(json!({"key": key, "state": "failed", "value": o.set, "was": o.was, "why": detail}));
+                    continue;
+                }
+                Err(e) => return Err(e),
+            };
+            let confirm = index.item(&key).is_some_and(|i| i.confirm);
+            let line = if now == o.was {
+                kept.remove(&key);
+                json!({"key": key, "state": "already", "value": now, "was": o.was})
+            } else if now != o.set {
+                kept.remove(&key);
+                json!({"key": key, "state": "kept", "value": now, "was": o.was})
+            } else if confirm && self.physical() && !force {
+                json!({"key": key, "state": "needs_force", "value": now, "was": o.was})
+            } else {
+                let op = SettingOp::Set {
+                    key: key.clone(),
+                    value: o.was.clone(),
+                };
+                match device.setting(op).await {
+                    Ok(SettingReply::Value { value, .. }) => {
+                        wrote = true;
+                        kept.remove(&key);
+                        json!({"key": key, "state": "restored", "value": value, "was": o.was, "from": now})
+                    }
+                    Ok(SettingReply::Index(_)) => {
+                        return Err(Error::Transport {
+                            detail: "the device answered a settings write with an index".into(),
+                        });
+                    }
+                    Err(Error::Refused { detail }) => {
+                        json!({"key": key, "state": "failed", "value": now, "was": o.was, "why": detail})
+                    }
+                    Err(e) => return Err(e),
+                }
+            };
+            originals::write(&self.home, &store, &kept).map_err(stored)?;
+            lines.push(line);
+        }
+        let mut reply = json!({"restored": lines});
+        if wrote {
+            reply["action"] = to_value(
+                self.finish(s, settle, cfg, started, "restored".to_string(), None, None)
+                    .await?,
+            );
+        }
+        Ok(reply)
+    }
+
+    /// What `release` answers: the settings phonedriver changed on this device that it has not put back. Nothing is
+    /// restored here, because the change may be what the agent was asked for.
+    pub(super) async fn settings_left(&mut self) -> Value {
+        if self.settings_store.is_none()
+            && let Ok(device) = self.device()
+        {
+            self.settings_store = self.ledger_key(device.as_ref()).await.ok();
+        }
+        let Some(store) = self.settings_store.clone() else {
+            return json!({});
+        };
+        let left: Vec<Value> = originals::read(&self.home, &store)
+            .unwrap_or_default()
+            .into_iter()
+            .map(|(key, o)| json!({"device": self.id, "key": key, "was": o.was, "set": o.set}))
+            .collect();
+        if left.is_empty() {
+            json!({})
+        } else {
+            json!({"settings_changed": left})
+        }
     }
 
     /// Everything but an emulator or a Simulator belongs to a person.

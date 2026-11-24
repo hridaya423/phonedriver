@@ -36,6 +36,7 @@ use super::DeviceSource;
 use super::checkbox;
 use super::journal::{self, Kept};
 use super::ledger::{Entry, Ledger};
+use super::originals::{self, Original};
 use super::scope::ScopedDevice;
 use super::secrets::Secrets;
 use super::session::{Resolved, Session};
@@ -240,6 +241,7 @@ pub fn spawn(
         recording: None,
         secrets,
         ledger,
+        settings_store: None,
         scope,
     };
     tokio::spawn(actor.run(rx));
@@ -393,6 +395,9 @@ struct Actor {
     recording: Option<Taping>,
     secrets: Arc<Secrets>,
     ledger: Arc<Ledger>,
+    /// The name of this device's record of changed settings, once a call has needed it; a release reads the
+    /// record after the connection is gone.
+    settings_store: Option<String>,
     scope: Option<Arc<AppScope>>,
 }
 
@@ -661,13 +666,15 @@ impl Actor {
         call: Call,
     ) -> Result<Value, Error> {
         if matches!(call, Call::Release | Call::Forget) {
+            let left = self.settings_left().await;
             if self.lease.as_ref().is_some_and(|l| l.session == session) {
                 self.drop_lease();
             }
             if matches!(call, Call::Forget) {
                 self.sessions.remove(&session);
+                return Ok(json!({}));
             }
-            return Ok(json!({}));
+            return Ok(left);
         }
         self.acquire(&session, terminal, share)?;
         self.publish();
@@ -879,9 +886,15 @@ impl Actor {
                 if p.force {
                     params["force"] = json!(true);
                 }
+                if let Some(keys) = &p.restore {
+                    params["restore"] = json!(keys);
+                }
                 let writes = p.value.is_some() || p.values.is_some();
                 let done = self.setting(s, p).await?;
-                if writes {
+                let restored = done["restored"]
+                    .as_array()
+                    .is_some_and(|all| all.iter().any(|l| l["state"] == "restored"));
+                if writes || restored {
                     s.journal.push(journal::call("setting", params));
                 }
                 done

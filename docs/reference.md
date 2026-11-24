@@ -325,9 +325,12 @@ phonedriver setting set dark_ui_mode/dark_ui_activated true  # ok dark_ui_mode/d
 phonedriver setting find "dark theme|media volume"           # several searches in one call
 phonedriver setting set <key> <value> <key> <value>          # several writes in one call
 phonedriver setting open dark_ui_mode                        # shows that settings screen
+phonedriver setting restore [<key>...]                       # writes back what your writes replaced
 ```
 
 The API 37 emulator lists 182 settings on 196 screens; 105 can be written. A write answers with the value the device reports afterwards, and a refusal carries the device's reason. On a physical device, a setting the device marks as needing its user's confirmation (NFC, mobile data, the camera and microphone switches) answers `unsupported` without `--force`. Older Android, iOS and the Simulator answer that the device has no settings by key: use `shell` there. Decision D57.
+
+**Putting settings back.** The first write of a key answers `ok <key> = true (was false)`, and the daemon keeps that first value in `settings-before/<device>.json` under its home, owner-only. `setting restore` writes every kept value back and prints a line for each: `ok <key> = false (was true)` for one it restored, `<key> = false already`, or `kept <key> = 2: someone changed it since phonedriver did (before that: 5)` when the value is no longer the one phonedriver left, which stays. `setting restore <key>` restores that key only. Nothing is restored on its own, because the change may be what you asked for: `release` lists what is still changed. The record is a file, so a restore still works after the agent or the daemon that made the change has died. Settings changed with `shell` or by tapping through screens are not recorded. Decision D120.
 
 ### Logs and crashes
 

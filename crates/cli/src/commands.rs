@@ -542,14 +542,15 @@ pub(crate) enum Verb {
     },
     /// A system setting without its screen (Android 17): `setting find dark` lists keys and what each accepts
     /// (`find "dark theme|media volume"` runs several searches), `setting get <key>` reads one,
-    /// `setting set <key> <value> [<key> <value>...]` writes and prints the values afterwards, and
-    /// `setting open <screen key>` shows a settings screen.
+    /// `setting set <key> <value> [<key> <value>...]` writes and prints the values afterwards,
+    /// `setting open <screen key>` shows a settings screen, and `setting restore [<key>...]` writes back what the
+    /// keys (all of them without one) were before phonedriver first changed them on this device.
     Setting {
-        /// What to do: `find`, `get`, `set` or `open`.
-        #[arg(value_parser = ["find", "get", "set", "open"])]
+        /// What to do: `find`, `get`, `set`, `open` or `restore`.
+        #[arg(value_parser = ["find", "get", "set", "open", "restore"])]
         action: String,
-        /// Words to look for, the key, keys each followed by its new value, or the screen's key.
-        #[arg(required = true)]
+        /// Words to look for, the key, keys each followed by its new value, the screen's key, or the keys to restore.
+        #[arg(required_if_eq_any = [("action", "find"), ("action", "get"), ("action", "set"), ("action", "open")])]
         args: Vec<String>,
         /// Write a setting the device marks as one its user must confirm, on a physical device.
         #[arg(long)]
@@ -1435,6 +1436,7 @@ pub(crate) async fn execute_with(
                     json!({"values": values, "force": force})
                 }
                 ("open", [screen]) => json!({"open": screen}),
+                ("restore", keys) => json!({"restore": keys, "force": force}),
                 ("get", _) => return Err(Failure::Local("setting get takes one key".into())),
                 ("set", _) => {
                     return Err(Failure::Local(
@@ -1552,10 +1554,25 @@ pub(crate) async fn execute_with(
         }
         Verb::Release => {
             let r = client.call("release", with(json!({}))).await?;
-            Ok(if g.json {
-                r.to_string()
-            } else {
+            if g.json {
+                return Ok(r.to_string());
+            }
+            let left: Vec<String> = r["settings_changed"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .map(|l| {
+                    let text = |name: &str| l[name].as_str().unwrap_or_default();
+                    format!("{} = {} (was {})", text("key"), text("set"), text("was"))
+                })
+                .collect();
+            Ok(if left.is_empty() {
                 "released".into()
+            } else {
+                format!(
+                    "released\nsettings phonedriver changed and has not put back: {}\n`setting restore` writes them back; leave them when the change was the task",
+                    left.join(", ")
+                )
             })
         }
         #[cfg(feature = "android")]
@@ -3149,10 +3166,37 @@ pub(crate) fn show_setting(result: &Value, asked: &str, json: bool) -> Result<St
         }
         return Ok(out.join("\n"));
     }
-    let mut out = if let Some(values) = result["values"].as_object() {
+    let was = |key: &str| match result["was"].as_str().or(result["was"][key].as_str()) {
+        Some(before) => format!(" (was {before})"),
+        None => String::new(),
+    };
+    let mut out = if let Some(lines) = result["restored"].as_array() {
+        if lines.is_empty() {
+            return Ok("nothing to restore: no setting phonedriver changed on this device is still changed".into());
+        }
+        lines
+            .iter()
+            .map(|l| {
+                let text = |name: &str| l[name].as_str().unwrap_or_default();
+                let (key, value, before) = (text("key"), text("value"), text("was"));
+                match text("state") {
+                    "restored" => format!("ok {key} = {value} (was {})", text("from")),
+                    "already" => format!("{key} = {value} already"),
+                    "kept" => format!(
+                        "kept {key} = {value}: someone changed it since phonedriver did (before that: {before})"
+                    ),
+                    "needs_force" => format!(
+                        "kept {key} = {value}: its user must confirm this setting; `--force` writes {before} when they asked for that"
+                    ),
+                    _ => format!("NOT restored {key} = {value} (before: {before}): {}", text("why")),
+                }
+            })
+            .collect::<Vec<_>>()
+            .join("\n")
+    } else if let Some(values) = result["values"].as_object() {
         values
             .iter()
-            .map(|(k, v)| format!("ok {k} = {}", v.as_str().unwrap_or_default()))
+            .map(|(k, v)| format!("ok {k} = {}{}", v.as_str().unwrap_or_default(), was(k)))
             .collect::<Vec<_>>()
             .join("\n")
     } else if let Some(key) = result["key"].as_str() {
@@ -3163,7 +3207,7 @@ pub(crate) fn show_setting(result: &Value, asked: &str, json: bool) -> Result<St
                 None => format!("{key} = {value}"),
             });
         }
-        format!("ok {key} = {value}")
+        format!("ok {key} = {value}{}", was(key))
     } else {
         return show_action(result, false);
     };
@@ -3172,7 +3216,10 @@ pub(crate) fn show_setting(result: &Value, asked: &str, json: bool) -> Result<St
     };
     if action["changed"] == true {
         let seen = show_action(action, false)?;
-        let seen = seen.strip_prefix("ok set").unwrap_or(&seen);
+        let seen = seen
+            .strip_prefix("ok set")
+            .or(seen.strip_prefix("ok restored"))
+            .unwrap_or(&seen);
         out.push_str("\nscreen: ");
         out.push_str(seen.trim_start_matches(" · "));
     }

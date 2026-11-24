@@ -536,8 +536,8 @@ async fn the_tool_list_every_turn_re_reads_fits_a_budget_and_hides_what_agents_n
         })
         .sum();
     assert!(
-        total < 7_024,
-        "what a model reads of tools/list is {total} characters (6,371 in 0.1.7; lanes in `devices` and the `check` step added about 160, `collect` on `scroll` 56, notifications on `snapshot` and `wait` about 130, paths on `replay` 103, `within` on `screenshot` 21); every turn re-reads it, so raise this only for a tool or argument worth its cost"
+        total < 7_044,
+        "what a model reads of tools/list is {total} characters (6,371 in 0.1.7; lanes in `devices` and the `check` step added about 160, `collect` on `scroll` 56, notifications on `snapshot` and `wait` about 130, paths on `replay` 103, `within` on `screenshot` 21, `restore` on `setting` 20); every turn re-reads it, so raise this only for a tool or argument worth its cost"
     );
     for t in &tools {
         let text = serde_json::to_string(&*t.input_schema).unwrap();
@@ -1822,7 +1822,28 @@ async fn setting_finds_reads_and_writes_a_setting_by_key() {
     let r = rig
         .call("setting", json!({"key": KEY, "value": "true"}))
         .await;
-    assert_eq!(texts(&r), [format!("ok {KEY} = true")]);
+    assert_eq!(texts(&r), [format!("ok {KEY} = true (was false)")]);
+    let r = rig.call("devices", json!({"release": true})).await;
+    assert_eq!(
+        texts(&r),
+        [format!(
+            "released\nsettings phonedriver changed and has not put back: {KEY} = true (was false)\n`setting restore` writes them back; leave them when the change was the task"
+        )]
+    );
+    let r = rig.call("setting", json!({"restore": true})).await;
+    assert_eq!(texts(&r), [format!("ok {KEY} = false (was true)")]);
+    let r = rig
+        .call("setting", json!({"restore": true, "key": KEY}))
+        .await;
+    assert_eq!(r.is_error, Some(true), "nothing of that key is left: {r:?}");
+    let r = rig.call("setting", json!({"restore": true})).await;
+    assert!(texts(&r)[0].starts_with("nothing to restore"), "{r:?}");
+    let r = rig
+        .call("setting", json!({"restore": true, "find": "dark"}))
+        .await;
+    assert_eq!(r.is_error, Some(true), "{r:?}");
+    let r = rig.call("setting", json!({"values": {KEY: "true"}})).await;
+    assert_eq!(texts(&r), [format!("ok {KEY} = true (was false)")]);
     let r = rig.call("setting", json!({"values": {KEY: "false"}})).await;
     assert_eq!(texts(&r), [format!("ok {KEY} = false")]);
     let r = rig.call("setting", json!({"value": "true"})).await;
