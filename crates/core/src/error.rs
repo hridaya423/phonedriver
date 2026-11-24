@@ -496,6 +496,10 @@ pub enum Error {
     /// The device answered and did not do what was asked; `detail` is the whole message.
     #[error("{detail}")]
     Refused { detail: String },
+    /// A `tap` with `select` opened something it could not set, or the picker read back another value. The picker
+    /// was not confirmed (decision D122).
+    #[error("{detail}")]
+    NotPicked { detail: String },
 }
 
 fn no_device(
@@ -605,6 +609,7 @@ impl Error {
             Error::Refused { .. } => -32025,
             Error::Crashed { .. } => -32026,
             Error::NotAsExpected { .. } => -32027,
+            Error::NotPicked { .. } => -32028,
         }
     }
 
@@ -639,6 +644,7 @@ impl Error {
                 "Reconnect the device, then run `phonedriver devices`.".into()
             }
             Error::NotAsExpected { .. } => "The check did not hold, so no step after it ran.".into(),
+            Error::NotPicked { .. } => "Set it by hand on the screen below, or cancel it: the picker is still open and nothing was confirmed.".into(),
             Error::Crashed { .. } => "Run `phonedriver snapshot` before you repeat the call: it stopped partway and may have acted. The device connects again on the next call; daemon.log has the failure.".into(),
             Error::DeviceBusy {
                 held_by,
@@ -1094,6 +1100,9 @@ mod tests {
                 detail: "battery_saver_screen/battery_saver was not set: Preference not enabled"
                     .into(),
             },
+            Error::NotPicked {
+                detail: "no calendar with dated days is on screen".into(),
+            },
         ];
         v.extend(
             all_user_actions()
@@ -1131,6 +1140,7 @@ mod tests {
             Error::Refused { .. } => (-32025, "refused"),
             Error::Crashed { .. } => (-32026, "crashed"),
             Error::NotAsExpected { .. } => (-32027, "not_as_expected"),
+            Error::NotPicked { .. } => (-32028, "not_picked"),
         }
     }
 

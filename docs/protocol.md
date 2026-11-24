@@ -64,6 +64,7 @@ type Target = {ref: string} | {point: {x: number, y: number}} | {id: string, tex
 // or more than one has it, `text` and `role` find the element as a text target does. Saved steps use it.
 type Action =
   | {kind: "tap", target: Target, count?: number, long?: number}   // long: hold ms, at most 10000; count taps are 80 ms apart, at most 10
+                                                                  // select?: "2026-12-18" | "19:45": the tap opens a date or time picker, which is set, read back and confirmed (D122); not with count or long
   | {kind: "type", text: string, into?: Target, mode?: "paste"|"set"|"keys", secret?: boolean, submit?: boolean, append?: boolean}
     // the CLI reads secret text from stdin or PHONEDRIVER_SECRET and sends it here over the user-only socket;
     // from then on the daemon replaces that text with ••• in every reply, error and trace line (decision D70)
@@ -162,6 +163,7 @@ JSON-RPC `error` with `code` from the table, `message`, and `data: {code_name, h
 | -32024 | point_off_screen (an `x,y` target outside the screen; `data.x`, `data.y`, and the screen's `data.w` and `data.h` in points; nothing is sent to the device) |
 | -32025 | refused (the device answered and did not do what was asked: a setting it would not write, an unknown or read-only setting key, a `pm grant` that changed nothing; the message is the reason; nothing changed) |
 | -32027 | not_as_expected (a `check` with `equals` read another value; `data: {what, shows?, expected}`; nothing was touched, and in a batch no later step ran) |
+| -32028 | not_picked (a `tap` with `select` opened no picker it can set, or the picker read back another value; `data: {detail}`; the picker is still open and was not confirmed, D122) |
 | -32026 | crashed (the daemon failed partway through the call, a bug: the call may have acted, and the device connects again on the next call; `daemon.log` has the failure) |
 | -32023 | not_focused (a `type` without `into` when the screen shows no focused text field and no keyboard; nothing is typed; `data.fields` lists up to five text fields on screen) |
 | -32019 | needs_approval (a tap or `type --submit` that spends money, deletes an account, or is in a category named in `ask`, without an `approval`; `data.label`, `data.app`, `data.category` (`payment`, `account`, `send`, `delete`, `install`), `data.details`; decisions D27 and D31) |

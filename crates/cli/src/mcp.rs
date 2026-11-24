@@ -294,6 +294,8 @@ struct TapArgs {
     /// Tap this many times; 2 is a double tap.
     count: Option<u32>,
     long: Option<u32>,
+    /// Set the date or time picker this opens: `2026-12-18` or `19:45`.
+    select: Option<String>,
     /// Texts to tap next on the screens that follow, in order (a menu path in one call); stops at the first one missing.
     #[serde(default, deserialize_with = "texts")]
     then: Option<Vec<String>>,
@@ -440,6 +442,7 @@ impl TapArgs {
             role: self.role,
             count: self.count,
             long: self.long,
+            select: self.select,
             autonomous: false,
         }
     }
@@ -564,6 +567,7 @@ fn step_wire(step: serde_json::Value) -> Result<Vec<serde_json::Value>, String> 
             role: None,
             count: None,
             long: None,
+            select: None,
             autonomous: false,
         })
     };
@@ -2146,6 +2150,7 @@ impl Waits {
                 ("scroll", "the target is not in view yet", None)
             }
             "scroll" => ("scroll", "still scrolling", None),
+            "tap" if given("select").is_some() => ("tap", "setting the picker", None),
             "replay" => ("replay", "running the steps", None),
             "shell" => ("shell", "the command is still running", None),
             "batch" => ("batch", "running the steps", None),

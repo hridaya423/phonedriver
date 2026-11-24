@@ -72,6 +72,9 @@ pub enum Action {
         target: Target,
         count: Option<u32>,
         long: Option<u32>,
+        /// The date (`2026-12-18`) or time (`19:45`) to set in the picker this tap opens (decision D122).
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        select: Option<String>,
     },
     Gesture {
         fingers: Vec<Vec<PathPoint>>,
@@ -140,9 +143,25 @@ pub const MAX_LONG_PRESS_MS: u32 = 10_000;
 impl Action {
     /// Why the daemon will not run this action, when its parameters alone say so.
     pub fn refusal(&self) -> Option<String> {
-        let Action::Tap { count, long, .. } = self else {
+        let Action::Tap {
+            count,
+            long,
+            select,
+            ..
+        } = self
+        else {
             return None;
         };
+        if let Some(value) = select {
+            if count.is_some() || long.is_some() {
+                return Some(
+                    "`select` goes with one plain tap: leave out `count` and `long`".into(),
+                );
+            }
+            if let Err(why) = crate::daemon::actor::pick::Want::parse(value) {
+                return Some(why);
+            }
+        }
         if count.is_some_and(|c| c > MAX_TAP_COUNT) {
             return Some(format!(
                 "a tap can repeat at most {MAX_TAP_COUNT} times; lower `count`"

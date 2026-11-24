@@ -298,6 +298,34 @@ impl Actor {
         s: &mut Session,
         p: ActParams,
     ) -> Result<ActionResult, Error> {
+        if let Action::Tap {
+            target,
+            select: Some(value),
+            ..
+        } = &p.action
+        {
+            let want = pick::Want::parse(value).map_err(|detail| Error::Refused { detail })?;
+            let (approval, approved, ask) = (p.approval, p.approved.clone(), p.ask.clone());
+            let timeout_ms = p.timeout_ms;
+            let sub = move |action: Action| ActParams {
+                action,
+                approval,
+                approved: approved.clone(),
+                ask: ask.clone(),
+                settle: true,
+                timeout_ms,
+                expect_change_ms: None,
+                secret_field_only: false,
+                on: None,
+            };
+            let open = sub(Action::Tap {
+                target: target.clone(),
+                count: None,
+                long: None,
+                select: None,
+            });
+            return self.pick(s, open, want, sub).await;
+        }
         let mut cfg = Config::action();
         if let Some(t) = p.timeout_ms {
             cfg.timeout = Duration::from_millis(t);
@@ -318,6 +346,7 @@ impl Actor {
                 target,
                 count,
                 long,
+                select: _,
             } => {
                 self.need(
                     Capabilities::GESTURE,

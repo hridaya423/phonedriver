@@ -573,8 +573,8 @@ async fn the_tool_list_every_turn_re_reads_fits_a_budget_and_hides_what_agents_n
         })
         .sum();
     assert!(
-        total < 7_290,
-        "what a model reads of tools/list is {total} characters (6,371 in 0.1.7; lanes in `devices` and the `check` step added about 160, `collect` on `scroll` 56, notifications on `snapshot` and `wait` about 130, paths on `replay` 103, `within` on `screenshot` 21, `restore` on `setting` 20, files on `clipboard` 246); every turn re-reads it, so raise this only for a tool or argument worth its cost"
+        total < 7_398,
+        "what a model reads of tools/list is {total} characters (6,371 in 0.1.7; lanes in `devices` and the `check` step added about 160, `collect` on `scroll` 56, notifications on `snapshot` and `wait` about 130, paths on `replay` 103, `within` on `screenshot` 21, `restore` on `setting` 20, files on `clipboard` 246, `select` on `tap` 108); every turn re-reads it, so raise this only for a tool or argument worth its cost"
     );
     for t in &tools {
         let text = serde_json::to_string(&*t.input_schema).unwrap();
@@ -2163,6 +2163,182 @@ async fn progress_names_the_replay_step_and_never_carries_text_given_to_the_call
         .await;
     assert_eq!(said.len(), 1, "{said:?}");
     assert!(!said[0].contains("hunter2"), "{said:?}");
+}
+
+/// A date picker as the platform draws it: a month of dated day cells, a button to each neighbouring month, and
+/// `OK`. It opens on 15 January 2026 and keeps what was tapped, as the real one does.
+fn fake_calendar() -> (
+    Arc<phonedriver_core::testing::FakeDevice>,
+    Arc<std::sync::Mutex<Vec<String>>>,
+) {
+    const MONTHS: [&str; 12] = [
+        "January",
+        "February",
+        "March",
+        "April",
+        "May",
+        "June",
+        "July",
+        "August",
+        "September",
+        "October",
+        "November",
+        "December",
+    ];
+    #[derive(Clone)]
+    struct Shown {
+        open: bool,
+        month: i32,
+        chosen: (i32, u32),
+        picked: String,
+    }
+    fn buttons(shown: &Shown) -> Vec<(String, bool)> {
+        if !shown.open {
+            return vec![("Date".into(), false), (shown.picked.clone(), false)];
+        }
+        let (year, month) = (shown.month.div_euclid(12), shown.month.rem_euclid(12));
+        let mut all = vec![
+            ("Previous month".to_string(), false),
+            ("Next month".to_string(), false),
+        ];
+        for day in 1..=28 {
+            all.push((
+                format!("{day:02} {} {year}", MONTHS[month as usize]),
+                shown.chosen == (shown.month, day),
+            ));
+        }
+        all.push(("OK".into(), false));
+        all
+    }
+    fn drawn(shown: &Shown) -> RawTree {
+        let mut nodes = vec![
+            r#"{"p":-1,"w":1,"cls":"android.widget.FrameLayout","b":[0,0,360,800],"f":"vVe"}"#
+                .to_string(),
+        ];
+        for (i, (label, chosen)) in buttons(shown).iter().enumerate() {
+            let (left, top) = (90 * (i as i32 % 4), 100 + 60 * (i as i32 / 4));
+            nodes.push(format!(
+                r#"{{"p":0,"w":1,"cls":"android.widget.Button","text":"{label}","b":[{left},{top},{},{}],"f":"vVe{}","a":["tap"]}}"#,
+                left + 90,
+                top + 60,
+                if *chosen { "s" } else { "" }
+            ));
+        }
+        let json = format!(
+            r#"{{"windows":[{{"id":1,"type":"application","package":"com.example","bounds":[0,0,360,800]}}],"nodes":[{}]}}"#,
+            nodes.join(",")
+        );
+        RawTree::from_android_json(&json, phonedriver_core::geometry::Scale { density: 1.0 })
+            .unwrap()
+    }
+    let state = Arc::new(std::sync::Mutex::new(Shown {
+        open: false,
+        month: 2026 * 12,
+        chosen: (2026 * 12, 15),
+        picked: "nothing picked".into(),
+    }));
+    let taps = Arc::new(std::sync::Mutex::new(Vec::new()));
+    let fake = Arc::new(phonedriver_core::testing::FakeDevice::new(vec![drawn(
+        &state.lock().unwrap(),
+    )]));
+    let tapped = taps.clone();
+    fake.on_gesture(move |g| {
+        let at = g.fingers[0][0].at;
+        let mut shown = state.lock().unwrap();
+        let hit = buttons(&shown)
+            .into_iter()
+            .enumerate()
+            .find(|(i, _)| {
+                let (left, top) = (90.0 * (*i % 4) as f32, 100.0 + 60.0 * (*i / 4) as f32);
+                (left..left + 90.0).contains(&at.x) && (top..top + 60.0).contains(&at.y)
+            })
+            .map(|(_, (label, _))| label)?;
+        tapped.lock().unwrap().push(hit.clone());
+        match hit.as_str() {
+            "Date" => shown.open = true,
+            "Previous month" => shown.month -= 1,
+            "Next month" => shown.month += 1,
+            "OK" => {
+                shown.open = false;
+                shown.picked = format!(
+                    "picked {}-{:02}-{:02}",
+                    shown.chosen.0.div_euclid(12),
+                    shown.chosen.0.rem_euclid(12) + 1,
+                    shown.chosen.1
+                );
+            }
+            day => shown.chosen = (shown.month, day[..2].parse().ok()?),
+        }
+        Some(vec![drawn(&shown)])
+    });
+    (fake, taps)
+}
+
+#[tokio::test]
+async fn tap_with_select_steps_a_calendar_to_the_date_reads_it_back_and_confirms() {
+    let (fake, taps) = fake_calendar();
+    let rig = rig_with(fake).await;
+    rig.call("snapshot", json!({})).await;
+
+    let r = rig
+        .call("tap", json!({"target": "Date", "select": "18/12/2026"}))
+        .await;
+    assert_eq!(r.is_error, Some(true), "{r:?}");
+    assert!(
+        texts(&r)[0].contains("`select` is a date as `2026-12-18`"),
+        "{r:?}"
+    );
+    assert!(
+        !texts(&r)[0].contains("18/12"),
+        "the value is not quoted back: {r:?}"
+    );
+    assert_eq!(*taps.lock().unwrap(), [""; 0], "refused before any touch");
+
+    let r = rig
+        .call("tap", json!({"target": "Date", "select": "2026-03-09"}))
+        .await;
+    let text = texts(&r).join("\n");
+    assert_ne!(r.is_error, Some(true), "{text}");
+    let first = text.lines().next().unwrap();
+    assert!(
+        first.starts_with("ok tapped @e1 \"Date\", set the picker to 2026-03-09, then tapped @e")
+            && first.contains("\"OK\" · verified"),
+        "{text}"
+    );
+    assert!(text.contains("\"picked 2026-03-09\""), "{text}");
+    assert_eq!(
+        *taps.lock().unwrap(),
+        ["Date", "Next month", "Next month", "09 March 2026", "OK"]
+    );
+
+    taps.lock().unwrap().clear();
+    let r = rig
+        .call("tap", json!({"target": "Date", "select": "2025-11-03"}))
+        .await;
+    assert!(texts(&r)[0].contains("\"picked 2025-11-03\""), "{r:?}");
+    assert_eq!(taps.lock().unwrap().len(), 7, "{taps:?}");
+
+    taps.lock().unwrap().clear();
+    let r = rig
+        .call("tap", json!({"target": "Date", "select": "1990-05-01"}))
+        .await;
+    let text = texts(&r).join("\n");
+    assert_eq!(r.is_error, Some(true), "{text}");
+    assert!(
+        text.contains("the calendar shows November 2025, and 1990-05 is more than 36 months from it: tap the year at the top"),
+        "{text}"
+    );
+    assert_eq!(*taps.lock().unwrap(), ["Date"], "nothing was confirmed");
+
+    let r = rig
+        .call("tap", json!({"target": "OK", "select": "19:45"}))
+        .await;
+    let text = texts(&r).join("\n");
+    assert_eq!(r.is_error, Some(true), "{text}");
+    assert!(
+        text.contains("no time picker that takes typed digits"),
+        "{text}"
+    );
 }
 
 struct Asked(OneDevice, Arc<std::sync::Mutex<Vec<Option<String>>>>);
