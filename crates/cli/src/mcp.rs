@@ -179,6 +179,8 @@ struct ScreenshotArgs {
     marks: Option<bool>,
     compare: Option<bool>,
     record: Option<String>,
+    /// Only this element, by @ref or text.
+    within: Option<String>,
 }
 
 #[derive(Deserialize, JsonSchema)]
@@ -1069,7 +1071,7 @@ impl Mcp {
         let Some(above) = text.strip_suffix(crate::commands::EMPTY_SCREEN) else {
             return text_result(self.told.trim(success_text(text)));
         };
-        let note = match self.shot(globals, false).await {
+        let note = match self.shot(globals, false, None).await {
             Ok(ScreenshotResult {
                 data_b64: Some(data),
                 ..
@@ -1087,9 +1089,17 @@ impl Mcp {
         text_result(self.told.trim(success_text(note)))
     }
 
-    async fn shot(&self, globals: &Globals, marks: bool) -> Result<ScreenshotResult, Failure> {
+    async fn shot(
+        &self,
+        globals: &Globals,
+        marks: bool,
+        within: Option<&str>,
+    ) -> Result<ScreenshotResult, Failure> {
         self.with_client(async |client| {
             let mut params = json!({"inline": true, "marks": marks});
+            if let Some(w) = within {
+                params["within"] = crate::commands::parse_target(w);
+            }
             if let Some(d) = &globals.device {
                 params["device"] = json!(d);
             }
@@ -1805,7 +1815,7 @@ impl Mcp {
     }
 
     #[tool(
-        description = "Image of the screen, for what the snapshot lacks (canvas, map, photo). `marks` boxes tappable elements with their @ref. `compare`: what changed since your last screenshot, as text. `record` `start`, later `stop`: a video, with the actions done meanwhile (Android, Simulator).",
+        description = "Image of the screen, for what the snapshot lacks (canvas, map, photo). `marks` boxes tappable elements with @ref. `within` @ref crops to it. `compare`: what changed since your last screenshot, as text. `record` `start`, later `stop`: a video, with the actions done meanwhile (Android, Simulator).",
         annotations(title = "Screenshot", read_only_hint = true, open_world_hint = true)
     )]
     async fn screenshot(&self, Parameters(a): Parameters<ScreenshotArgs>) -> CallToolResult {
@@ -1821,15 +1831,18 @@ impl Mcp {
         }
         let compare = a.compare.unwrap_or(false);
         let marks = a.marks.unwrap_or(false) && !compare;
+        if compare && a.within.is_some() {
+            return bad("`compare` is of the whole screen: leave `within` out");
+        }
         let globals = self.globals(a.device.clone());
-        let shot = match self.shot(&globals, marks).await {
+        let shot = match self.shot(&globals, marks, a.within.as_deref()).await {
             Ok(s) => s,
             Err(f) => return failure(&f),
         };
         let Some(data) = shot.data_b64 else {
             return bad("the daemon sent no image data");
         };
-        if !marks {
+        if !marks && shot.origin.is_none() {
             let Ok(now) = base64::Engine::decode(&base64::engine::general_purpose::STANDARD, &data)
             else {
                 return bad("the daemon sent bad image data");
@@ -1864,12 +1877,18 @@ impl Mcp {
         }
         CallToolResult::success(vec![
             ContentBlock::image(data, "image/png"),
-            ContentBlock::text(match shot.marks {
-                Some(n) => format!(
-                    "{}x{} at scale {}, {n} marked elements",
-                    shot.width, shot.height, shot.scale
-                ),
-                None => format!("{}x{} at scale {}", shot.width, shot.height, shot.scale),
+            ContentBlock::text({
+                let mut line = format!("{}x{} at scale {}", shot.width, shot.height, shot.scale);
+                if let Some(o) = shot.origin {
+                    line.push_str(&format!(
+                        ", top left at screen point {},{}: add it to a pixel for `tap x,y`",
+                        o.x, o.y
+                    ));
+                }
+                if let Some(n) = shot.marks {
+                    line.push_str(&format!(", {n} marked elements"));
+                }
+                line
             }),
         ])
     }

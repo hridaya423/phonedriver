@@ -350,6 +350,10 @@ pub struct ScreenshotResult {
     /// How many rows at the top of the picture the system's status bar covers, when the last screen read showed one.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub status_bar: Option<u32>,
+    /// The screen point of the picture's top left pixel, when the picture is the part `within` asked for. A pixel
+    /// `px,py` of it is the screen point `origin.x + px / scale`, `origin.y + py / scale`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub origin: Option<PointJson>,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -358,7 +362,13 @@ pub struct ScreenshotParams {
     pub inline: bool,
     #[serde(default)]
     pub marks: bool,
+    /// The picture is this element with [`CROP_MARGIN`] points around it, not the whole screen.
+    #[serde(default)]
+    pub within: Option<Target>,
 }
+
+/// Points of screen kept around the element a screenshot is cut to, so its edge and what it touches can be seen.
+pub const CROP_MARGIN: f32 = 8.0;
 
 #[derive(Debug, Default, Deserialize)]
 pub struct Common {

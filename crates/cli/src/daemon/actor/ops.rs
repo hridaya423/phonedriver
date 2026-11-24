@@ -654,10 +654,22 @@ impl Actor {
             "this device has no screen capture",
         )?;
         let device = self.device()?;
-        let now = if p.marks {
+        let now = if p.marks || p.within.is_some() {
             Some(self.fresh(s).await?)
         } else {
             None
+        };
+        let part = match (&p.within, &now) {
+            (Some(target), Some(now)) => {
+                let found = s.resolve_read(target, now)?;
+                let Some(e) = found.element else {
+                    return Err(Error::Refused {
+                        detail: "`within` takes an element (a ref or its text), not a point".into(),
+                    });
+                };
+                Some((e.r#ref, e.bounds))
+            }
+            _ => None,
         };
         let mut image = match device.screenshot(Quality(100)).await {
             Err(Error::DeviceGone { .. }) => {
@@ -669,8 +681,29 @@ impl Actor {
             }
             shot => shot?,
         };
+        let mut origin = None;
+        let part = match part {
+            Some((r, b)) => {
+                let m = crate::wire::CROP_MARGIN;
+                let (x, y) = ((b.x - m).max(0.0).floor(), (b.y - m).max(0.0).floor());
+                let (right, bottom) = (
+                    (b.x + b.w + m).min(image.width as f32).ceil(),
+                    (b.y + b.h + m).min(image.height as f32).ceil(),
+                );
+                if b.w <= 0.0 || b.h <= 0.0 || right <= x || bottom <= y {
+                    return Err(Error::Refused {
+                        detail: format!(
+                            "@{r} is not on the screen, so there is no picture of it; scroll to it first"
+                        ),
+                    });
+                }
+                origin = Some(crate::wire::PointJson { x, y });
+                Some((x, y, right - x, bottom - y))
+            }
+            None => None,
+        };
         let mut marked = None;
-        if let Some(now) = now {
+        if let Some(now) = now.filter(|_| p.marks) {
             let marks: Vec<phonedriver_video::marks::Mark> = now
                 .elements
                 .iter()
@@ -679,6 +712,10 @@ impl Actor {
                         .intersects(Actions::TAP | Actions::LONG_PRESS | Actions::EDIT)
                         && e.bounds.w > 0.0
                         && e.bounds.h > 0.0
+                        && part.is_none_or(|(x, y, w, h)| {
+                            let c = e.bounds.center();
+                            (x..x + w).contains(&c.x) && (y..y + h).contains(&c.y)
+                        })
                 })
                 .map(|e| phonedriver_video::marks::Mark {
                     label: e.r#ref.to_string(),
@@ -701,6 +738,20 @@ impl Actor {
             })?;
             image.bytes = drawn.0;
             marked = Some(drawn.1 as u32);
+        }
+        if let Some((x, y, w, h)) = part {
+            let png = std::mem::take(&mut image.bytes);
+            let (w, h, bytes) = tokio::task::spawn_blocking(move || {
+                phonedriver_video::marks::crop(&png, x as u32, y as u32, w as u32, h as u32)
+            })
+            .await
+            .map_err(|e| Error::Transport {
+                detail: format!("the crop task failed: {e}"),
+            })?
+            .map_err(|detail| Error::Transport {
+                detail: format!("cannot cut the picture: {detail}"),
+            })?;
+            (image.width, image.height, image.bytes) = (w, h, bytes);
         }
         let path = self.tmp_file("png");
         path.parent()
@@ -727,7 +778,8 @@ impl Actor {
             data_b64: inline
                 .then(|| base64::engine::general_purpose::STANDARD.encode(&image.bytes)),
             marks: marked,
-            status_bar,
+            status_bar: status_bar.filter(|_| origin.is_none()),
+            origin,
         })
     }
 

@@ -1862,3 +1862,21 @@ The GitHub Action passes `--any-build`: it installs the build under test before 
 **Limits.** The landmark is one label. Two screens with the same title of the same role are the same arrival to it (a list and its filtered form; "Settings" on a tablet's two panes), and a title that is content (a contact's name, a date) has to be edited by hand, as `save` says. On a screen whose title is not the first label, the pick is wrong until edited. A path saved in one language does not arrive in another. Paths are found by app id, so a path saved on Android is not offered for the iOS app. A wrong arrival that holds none of the landmark's text takes the wait's 5 s to say so. `launch --json` does not list paths. Verified live on one app, Settings on Android API 37, and not run on iOS.
 
 **Reopen if.** Agents save paths whose landmark needs editing more often than not, or two paths of one app need the same name on two builds.
+
+## D121. A screenshot can be one element, and says where it was cut from (2026-11-24, #52)
+
+**Problem.** Issue #52: an agent that wants one chart, one row or one image pays for the whole screen, 411x923 on the emulator, and a model's image cost grows with the area.
+
+**Decision.** `screenshot` takes `within`, a target that names an element (a ref, an id or a text; a point is refused). The picture is the element's bounds with 8 points around it, cut to the screen. The margin shows the element's edge and what it touches; 8 points is the gap Material and iOS lists leave between rows. The element is resolved on a fresh read, as a tap's target is, and by `resolve_read`, so a text that names a row and its label picks the row.
+
+**D5 holds.** The reply carries `origin`, the screen point of the crop's top left pixel, next to the `scale` every screenshot has: pixel `px,py` is the point `origin.x + px / scale, origin.y + py / scale`. The CLI prints `411x90 from 0,229`; MCP says `top left at screen point 0,229: add it to a pixel for \`tap x,y\``. Without the origin a crop would be a picture nobody can tap on.
+
+**Marks.** They are drawn on the whole picture and the picture is cut after, so a box is where it would be on the screen. Only elements whose center is inside the crop are drawn and counted: the first live run boxed the next row's top 8 points with its label cut off (`2 marks` for one row).
+
+**MCP.** An argument on `screenshot`, not a tool. The lean schema hides it and the description names it in 27 characters (`within` @ref crops to it.), 21 after `their` left the sentence before it, because a description is at most 299: the schema entry would cost about as much again, and an agent that reads the description can pass it. A crop or a marked picture is not the baseline `compare` uses, and `compare` with `within` is refused: a comparison of a part with a whole says everything changed.
+
+**Unchanged.** The capture is the same `Device::screenshot` call, so the app scope's check before and after it, the refusal on an iPhone under a scope, and a secure window's black frame are as before. An element outside the scope is not in the tree the target is resolved on.
+
+**Evidence.** `cargo test --locked -p phonedriver --test daemon --test mcp -- screenshot`: 12 passed; `-p phonedriver-video a_crop`: 1 passed. Live, API 37 emulator, Settings: `screenshot --within "Network & internet"` answered `411x90 from 0,229` and the file is 9,720 bytes against 120,972 for the screen; I looked at it and it is the row with the edge of the rows above and below. `--within 5,5`: `\`within\` takes an element (a ref or its text), not a point`.
+
+**Limits.** Frames are one pixel per point, so a crop has no more detail than the same part of the whole screenshot: it saves bytes and image tokens, it does not zoom. An element larger than the screen is cut to the screen. An element that is off the screen is refused (`not on the screen ... scroll to it first`). iOS was not run live: the code path is the shared daemon's.
