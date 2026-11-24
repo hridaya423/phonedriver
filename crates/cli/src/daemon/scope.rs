@@ -12,6 +12,7 @@ use phonedriver_core::device::{
     ShellRequest, TextInput, Url, WebPage,
 };
 use phonedriver_core::error::Error;
+use phonedriver_core::files::Shelf;
 use phonedriver_core::geometry::Size;
 use phonedriver_core::network::{LogWait, LogWaited, NetworkView};
 use phonedriver_core::notice::Notices;
@@ -343,6 +344,20 @@ impl Device for ScopedDevice {
 
     async fn setting(&self, op: SettingOp) -> Result<SettingReply> {
         self.inner.setting(op).await
+    }
+
+    async fn file_push(&self, _to: Shelf, _name: &str, _bytes: &[u8]) -> Result<String> {
+        Err(refused(format!(
+            "files are refused under an app scope: the shared folders hold other apps' files. {}",
+            self.lift()
+        )))
+    }
+
+    async fn file_pull(&self, _path: &str, _limit: u64) -> Result<Vec<u8>> {
+        Err(refused(format!(
+            "files are refused under an app scope: the shared folders hold other apps' files. {}",
+            self.lift()
+        )))
     }
 
     async fn install(&self, path: &Path) -> Result<Vec<AppId>> {

@@ -11,6 +11,9 @@ pub const SECRET_PREFIX: &str = "PHONEDRIVER_SECRET_";
 
 /// Set to `1` where a replay runs, a secret it reads goes into any field, not only a password or one-time code field
 /// (decision D105).
+/// The one folder on this machine that `files` copies from and to. Without it every transfer is refused.
+pub const FILES: &str = "PHONEDRIVER_FILES";
+
 pub const SECRET_ANY_FIELD: &str = "PHONEDRIVER_REPLAY_SECRET_ANY_FIELD";
 
 pub const RUN: &str = "run";

@@ -496,6 +496,21 @@ pub struct SettingParams {
     pub expect_change_ms: Option<u64>,
 }
 
+/// One file to or from the device (`docs/protocol.md`, `files`): `push` names a file in `folder`, `pull` a path
+/// under the device's Download, Pictures or DCIM. `folder` is the one folder the person allowed, from the client's
+/// `PHONEDRIVER_FILES`.
+#[derive(Debug, Deserialize)]
+pub struct FilesParams {
+    pub folder: Option<std::path::PathBuf>,
+    pub push: Option<String>,
+    pub pull: Option<String>,
+    pub to: Option<phonedriver_core::files::Shelf>,
+    #[serde(default)]
+    pub approval: Option<Approval>,
+    #[serde(default)]
+    pub approved: Option<Approved>,
+}
+
 #[derive(Debug, Deserialize)]
 pub struct FindParams {
     pub text: String,

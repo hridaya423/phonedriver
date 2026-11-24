@@ -36,6 +36,8 @@ Three unit tests in `daemon/secrets.rs` cover what the property's fixed secrets 
 
 2026-11-24, named paths (D118): a run saved under `paths/` ends with a landmark, a text the command line takes from a `snapshot` with `elements` and writes into the steps file. No covered file changed. The property generates that read (`Step::Landmark`), so a secret in an element's label would fail it as a reply that holds the secret; `paths::landmark` also passes over a label that holds the mask and every text field (unit test `typed_text_masked_text_and_a_long_sentence_are_never_the_landmark`). The sync commit is not moved.
 
+2026-11-24, group 4: `setting` with `restore` (D120) writes a new file, `settings-before/<device>.json`. The property generates a write and a restore (`Step::Setting`) against a setting whose value repeats every earlier secret; its first run failed with `settings-before/fake_1.json holds the secret login --token Sh0xK9pQ2vL7`, and a value that holds a secret is now not kept. `files` (D119) takes no secret, answers a receipt through `Daemon::call`, and writes outside the home, into the folder the person named; it is not generated. `screenshot` with `within` (D121) adds `origin`, two numbers. Break B1 run on the Mac mini failed with `step 0 (type): the reply holds the secret`. The sync commit is still not moved.
+
 When you finish a change, run:
 
 ```

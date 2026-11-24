@@ -34,6 +34,7 @@ png = "0.18.1"
 qrcode = { version = "0.14.1", default-features = false }
 tempfile = "3.27.0"
 serde_ignored = "0.1.14"
+sha2 = "0.11.1"
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2.191"

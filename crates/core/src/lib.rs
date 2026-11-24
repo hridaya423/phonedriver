@@ -6,6 +6,7 @@ pub mod device;
 pub mod diff;
 pub mod element;
 pub mod error;
+pub mod files;
 pub mod geometry;
 pub mod gesture;
 pub mod inject;

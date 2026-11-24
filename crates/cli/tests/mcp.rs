@@ -536,8 +536,8 @@ async fn the_tool_list_every_turn_re_reads_fits_a_budget_and_hides_what_agents_n
         })
         .sum();
     assert!(
-        total < 7_044,
-        "what a model reads of tools/list is {total} characters (6,371 in 0.1.7; lanes in `devices` and the `check` step added about 160, `collect` on `scroll` 56, notifications on `snapshot` and `wait` about 130, paths on `replay` 103, `within` on `screenshot` 21, `restore` on `setting` 20); every turn re-reads it, so raise this only for a tool or argument worth its cost"
+        total < 7_290,
+        "what a model reads of tools/list is {total} characters (6,371 in 0.1.7; lanes in `devices` and the `check` step added about 160, `collect` on `scroll` 56, notifications on `snapshot` and `wait` about 130, paths on `replay` 103, `within` on `screenshot` 21, `restore` on `setting` 20, files on `clipboard` 246); every turn re-reads it, so raise this only for a tool or argument worth its cost"
     );
     for t in &tools {
         let text = serde_json::to_string(&*t.input_schema).unwrap();
@@ -1235,6 +1235,19 @@ async fn a_screenshot_within_an_element_says_where_its_top_left_is_and_is_not_th
     assert_eq!(
         texts(&r),
         ["`compare` is of the whole screen: leave `within` out"]
+    );
+}
+
+#[tokio::test]
+async fn a_file_is_refused_until_the_person_names_a_folder_and_says_how() {
+    let rig = rig(vec![tree(&["One"])]).await;
+    let r = rig.call("clipboard", json!({"push": "cat.png"})).await;
+    assert_eq!(r.is_error, Some(true), "{r:?}");
+    assert!(
+        texts(&r)[0].starts_with(
+            "no folder is allowed for files: set PHONEDRIVER_FILES to the one folder files may go to and come from"
+        ),
+        "{r:?}"
     );
 }
 

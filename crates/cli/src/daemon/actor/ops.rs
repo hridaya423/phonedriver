@@ -769,6 +769,85 @@ impl Actor {
         }
     }
 
+    /// Copies one file between the folder the person allowed and the device's shared storage (decision D119). The
+    /// reply is a receipt: where the file is now, its size and its SHA-256, never its bytes.
+    pub(super) async fn files(&mut self, p: crate::wire::FilesParams) -> Result<Value, Error> {
+        use super::super::files as host;
+        let refused = |detail| Error::Refused { detail };
+        let device = self.device()?;
+        let folder = host::folder(p.folder.as_deref()).map_err(refused)?;
+        if let Some(name) = p.push {
+            let from = host::source(&folder, &name).map_err(refused)?;
+            let base = from
+                .file_name()
+                .and_then(|n| n.to_str())
+                .ok_or_else(|| refused(format!("{name} has a name that is not text")))?;
+            let base = phonedriver_core::files::name(base).map_err(refused)?;
+            let to = p.to.unwrap_or(phonedriver_core::files::Shelf::of(base));
+            let bytes = tokio::fs::read(&from)
+                .await
+                .map_err(|e| refused(format!("cannot read {}: {e}", from.display())))?;
+            host::too_large(&name, bytes.len() as u64).map_err(refused)?;
+            let sha256 = host::sha256(&bytes);
+            self.transfer_allowed(
+                p.approval,
+                p.approved.as_ref(),
+                format!("copy {base} to the phone's {} folder", to.folder()),
+                vec![
+                    format!("from {}", from.display()),
+                    format!("{} bytes, SHA-256 {sha256}", bytes.len()),
+                ],
+            )?;
+            let at = device.file_push(to, base, &bytes).await?;
+            return Ok(
+                json!({"pushed": name, "device_path": at, "bytes": bytes.len(), "sha256": sha256}),
+            );
+        }
+        let asked = p.pull.unwrap_or_default();
+        let path = phonedriver_core::files::shared(&asked).map_err(refused)?;
+        let base = path.rsplit('/').next().unwrap_or_default().to_string();
+        let to = host::destination(&folder, &base).map_err(refused)?;
+        self.transfer_allowed(
+            p.approval,
+            p.approved.as_ref(),
+            format!("copy {path} from the phone"),
+            vec![format!("to {}", to.display())],
+        )?;
+        let bytes = device.file_pull(&path, host::LIMIT).await?;
+        host::keep(&to, &bytes).map_err(refused)?;
+        Ok(
+            json!({"pulled": path, "file": base, "bytes": bytes.len(), "sha256": host::sha256(&bytes)}),
+        )
+    }
+
+    /// On a person's phone every transfer waits for their word, and their word is for the transfer they were
+    /// shown: this file, these bytes, this place. An approval for the session does not cover the next file.
+    fn transfer_allowed(
+        &self,
+        approval: Option<Approval>,
+        approved: Option<&Approved>,
+        label: String,
+        details: Vec<String>,
+    ) -> Result<(), Error> {
+        if !self.physical() {
+            return Ok(());
+        }
+        match (approval, approved) {
+            (Some(Approval::Autonomous), _) => Ok(()),
+            (Some(Approval::Once | Approval::Session), Some(shown))
+                if shown.label == label && shown.details == details =>
+            {
+                Ok(())
+            }
+            _ => Err(Error::NeedsApproval {
+                label,
+                category: Category::Files,
+                app: None,
+                details,
+            }),
+        }
+    }
+
     /// Everything but an emulator or a Simulator belongs to a person.
     pub(super) fn physical(&self) -> bool {
         match self.id.split_once(':') {

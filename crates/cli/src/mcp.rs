@@ -44,6 +44,8 @@ pub struct Mcp {
     /// Where `replay` reads a relative steps file and the only folder it saves one in; the working directory when
     /// it is not set.
     folder: Option<PathBuf>,
+    /// The folder `files` copies from and to, when it is not the one `PHONEDRIVER_FILES` names.
+    files: Option<PathBuf>,
 }
 
 /// The call a held question belongs to, as a keyed hash of its tool and arguments: a retry is matched to it without
@@ -206,6 +208,10 @@ struct ReplayArgs {
 struct ClipboardArgs {
     device: Option<String>,
     set: Option<String>,
+    push: Option<String>,
+    pull: Option<String>,
+    /// For a push: `photos` or `downloads`, instead of the folder the file's type picks.
+    to: Option<String>,
 }
 
 #[derive(Deserialize, JsonSchema)]
@@ -647,7 +653,14 @@ impl Mcp {
             told: Told::default(),
             last_shot: Arc::default(),
             folder: None,
+            files: None,
         }
+    }
+
+    /// The same server, copying files from and to `folder` whatever the environment says.
+    pub fn with_files(mut self, folder: PathBuf) -> Mcp {
+        self.files = Some(folder);
+        self
     }
 
     /// The same server, reading relative steps files from `folder` and saving them only there.
@@ -724,6 +737,7 @@ impl Mcp {
             ),
             approval: None,
             approved: None,
+            files: self.files.clone().or_else(crate::commands::files_folder),
             ask: self.ask.clone(),
             folder: self.folder.clone(),
         }
@@ -1200,6 +1214,7 @@ fn commitment(label: &str, app: Option<&str>, category: Category, details: &[Str
             "Tap \"{label}\" in {}. {kind}",
             one_line(app, PROMPT_APP_CHARS)
         ),
+        None if category == Category::Files => format!("{label}. {kind}"),
         None => format!("Tap \"{label}\". {kind}"),
     };
     for d in details {
@@ -1735,7 +1750,7 @@ impl Mcp {
     }
 
     #[tool(
-        description = "Read the clipboard, or `set` it.",
+        description = "Read the clipboard, or `set` it. Files (Android): `push` a name in the user's PHONEDRIVER_FILES folder to Pictures or Download; `pull` `Download/a.pdf` (or Pictures, DCIM) into it. Replies place, size, SHA-256.",
         annotations(
             title = "Clipboard",
             read_only_hint = false,
@@ -1744,7 +1759,45 @@ impl Mcp {
             open_world_hint = false
         )
     )]
-    async fn clipboard(&self, Parameters(a): Parameters<ClipboardArgs>) -> CallToolResult {
+    async fn clipboard(
+        &self,
+        peer: Peer<RoleServer>,
+        Parameters(a): Parameters<ClipboardArgs>,
+    ) -> CallToolResult {
+        let transfer = match (&a.push, &a.pull) {
+            (Some(name), None) => Some(("push", name.clone())),
+            (None, Some(path)) => Some(("pull", path.clone())),
+            (None, None) => None,
+            _ => return bad("give `push` or `pull`, one file a call"),
+        };
+        if let Some((action, name)) = transfer {
+            if a.set.is_some() {
+                return bad("`set` is the clipboard's; a file goes in a call of its own");
+            }
+            if a.to
+                .as_deref()
+                .is_some_and(|t| !matches!(t, "photos" | "downloads"))
+            {
+                return bad("`to` is `photos` or `downloads`");
+            }
+            let verb = || Verb::Files {
+                action: action.to_string(),
+                name: name.clone(),
+                to: a.to.clone(),
+                autonomous: false,
+            };
+            return self
+                .guarded(
+                    Channel::Peer(&peer),
+                    String::new(),
+                    a.device,
+                    verb,
+                    None,
+                    false,
+                )
+                .await
+                .complete();
+        }
         let reading = a.set.is_none();
         let verb = Verb::Clipboard {
             action: a.set.as_ref().map(|_| "set".to_string()),

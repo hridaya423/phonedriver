@@ -56,6 +56,8 @@ pub enum Category {
     Send,
     Delete,
     Install,
+    /// A file copied to or from a person's phone (decision D119): asked for every transfer.
+    Files,
 }
 
 impl Category {
@@ -68,6 +70,7 @@ impl Category {
             Category::Send => "send",
             Category::Delete => "delete",
             Category::Install => "install",
+            Category::Files => "files",
         }
     }
 
@@ -78,6 +81,7 @@ impl Category {
             Category::Send => "sends a message or post",
             Category::Delete => "deletes something",
             Category::Install => "installs or removes an app",
+            Category::Files => "copies a file to or from the phone",
         }
     }
 
@@ -206,6 +210,7 @@ pub enum Op {
     Page,
     Network,
     Notifications,
+    Files,
 }
 
 impl Op {
@@ -232,6 +237,7 @@ impl Op {
             Op::Page => "page",
             Op::Network => "network",
             Op::Notifications => "notifications",
+            Op::Files => "files",
         }
     }
 }

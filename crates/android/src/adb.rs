@@ -378,6 +378,54 @@ impl Adb {
         Ok(())
     }
 
+    /// The bytes of the file at `path`, over the sync service. A file that turns out larger than `limit` is given
+    /// up on as soon as it is.
+    pub async fn pull(&self, serial: &str, path: &str, limit: u64) -> Result<Vec<u8>> {
+        let mut s = self.transport_stream(serial, "sync:").await?;
+        let io = |e: std::io::Error| transport(format!("pull of {path} failed: {e}"));
+        let mut head = b"RECV".to_vec();
+        head.extend_from_slice(&(path.len() as u32).to_le_bytes());
+        head.extend_from_slice(path.as_bytes());
+        s.write_all(&head).await.map_err(io)?;
+        let mut bytes = Vec::new();
+        loop {
+            let mut packet = [0u8; 8];
+            s.read_exact(&mut packet).await.map_err(io)?;
+            let n = u32::from_le_bytes(packet[4..8].try_into().unwrap_or([0; 4])) as usize;
+            match &packet[..4] {
+                b"DATA" if n <= SYNC_CHUNK => {
+                    if (bytes.len() + n) as u64 > limit {
+                        return Err(Error::Refused {
+                            detail: format!("{path} is over the limit of {limit} bytes"),
+                        });
+                    }
+                    let at = bytes.len();
+                    bytes.resize(at + n, 0);
+                    s.read_exact(&mut bytes[at..]).await.map_err(io)?;
+                }
+                b"DONE" => break,
+                b"FAIL" => {
+                    let mut msg = vec![0u8; n.min(4096)];
+                    let _ = s.read_exact(&mut msg).await;
+                    return Err(Error::Refused {
+                        detail: format!(
+                            "{path} could not be read: {}",
+                            String::from_utf8_lossy(&msg)
+                        ),
+                    });
+                }
+                other => {
+                    return Err(transport(format!(
+                        "pull of {path} failed: the device sent {:?}",
+                        String::from_utf8_lossy(other)
+                    )));
+                }
+            }
+        }
+        let _ = s.write_all(b"QUIT\0\0\0\0").await;
+        Ok(bytes)
+    }
+
     /// A duplex stream to the abstract socket `name` on the device.
     pub async fn open_abstract(&self, serial: &str, name: &str) -> Result<TcpStream> {
         self.transport_stream(serial, &format!("localabstract:{name}"))

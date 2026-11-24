@@ -126,6 +126,7 @@ const UNUSED_GLOBALS: &[(&str, &[&str])] = &[
     ("apps", &["no_settle", "timeout", "expect_change"]),
     ("find", &["no_settle", "timeout", "expect_change"]),
     ("clipboard", &["no_settle", "timeout", "expect_change"]),
+    ("files", &["no_settle", "timeout", "expect_change"]),
     ("release", &["no_settle", "timeout", "expect_change"]),
     ("daemon", ALL_GLOBALS),
     ("doctor", ALL_GLOBALS),
@@ -556,6 +557,24 @@ pub(crate) enum Verb {
         #[arg(long)]
         force: bool,
     },
+    /// Copy one file to or from the device (Android): `files push cat.jpg` sends that file of the folder
+    /// `PHONEDRIVER_FILES` names to the device's Pictures (pictures and videos) or Download folder, and
+    /// `files pull Download/report.pdf` brings a file under Download, Pictures or DCIM into that folder. It prints
+    /// where the file is now, its size and its SHA-256. Nothing is replaced on either side, a file is 64 MiB at
+    /// most, and on a physical device each transfer needs the human's approval.
+    Files {
+        /// `push` (to the device) or `pull` (from it).
+        #[arg(value_parser = ["push", "pull"])]
+        action: String,
+        /// For `push`, a file in the allowed folder; for `pull`, a path on the device such as `Download/a.pdf`.
+        name: String,
+        /// Where a push goes instead of the folder its type picks: `photos` or `downloads`.
+        #[arg(long, value_parser = ["photos", "downloads"])]
+        to: Option<String>,
+        /// The human approved this transfer on their own phone.
+        #[arg(long)]
+        autonomous: bool,
+    },
     /// Print the device clipboard, or set it with `clipboard set <text>`.
     Clipboard {
         /// `get` (the default) or `set`.
@@ -835,6 +854,7 @@ pub fn run(cli: Cli) -> ExitCode {
                 display: display_mode(&cli.display),
                 approval: None,
                 approved: None,
+                files: files_folder(),
                 ask,
                 folder: None,
             };
@@ -867,6 +887,8 @@ pub(crate) struct Globals {
     pub share: bool,
     pub display: DisplayMode,
     pub approval: Option<Approval>,
+    /// The one folder `files` copies from and to, from `PHONEDRIVER_FILES`.
+    pub files: Option<std::path::PathBuf>,
     /// What the human approved, so the daemon runs the action only if the screen still shows it (decision D104).
     pub approved: Option<crate::wire::Approved>,
     pub ask: Vec<Category>,
@@ -943,6 +965,9 @@ fn guard_override(verb: &Verb, given: Option<Approval>, env: Option<&str>) -> Op
             autonomous: true,
             ..
         } | Verb::Press {
+            autonomous: true,
+            ..
+        } | Verb::Files {
             autonomous: true,
             ..
         }
@@ -1534,6 +1559,41 @@ pub(crate) async fn execute_with(
             } else {
                 lines.join("\n")
             })
+        }
+        Verb::Files {
+            action, name, to, ..
+        } => {
+            let mut p = json!({});
+            p[action.as_str()] = json!(name);
+            if let Some(to) = to {
+                p["to"] = json!(to);
+            }
+            if let Some(folder) = &g.files {
+                p["folder"] = json!(folder);
+            }
+            if let Some(a) = approval {
+                p["approval"] = json!(a);
+            }
+            if let Some(shown) = &g.approved {
+                p["approved"] = json!(shown);
+            }
+            let r = client.call("files", with(p)).await?;
+            if g.json {
+                return Ok(r.to_string());
+            }
+            let text = |name: &str| r[name].as_str().unwrap_or_default();
+            let (from, to) = match r["pushed"].as_str() {
+                Some(name) => (name.to_string(), text("device_path").to_string()),
+                None => (
+                    text("pulled").to_string(),
+                    format!("{} in the allowed folder", text("file")),
+                ),
+            };
+            Ok(format!(
+                "ok copied {from} to {to} · {} bytes · sha256 {}",
+                r["bytes"],
+                text("sha256")
+            ))
         }
         Verb::Clipboard { action, text } => {
             let mut p = json!({});
@@ -2221,6 +2281,13 @@ fn with_secret(action: &Value) -> Result<(Value, Option<String>), NoSecret> {
 
 /// The parameters of a saved step that is not an action, without the `device` and `share` the file may hold: a step
 /// runs on the replay's own device and lease, as an action step does.
+/// The folder `PHONEDRIVER_FILES` names. The daemon refuses a `files` call without one, and says how to set it.
+pub(crate) fn files_folder() -> Option<std::path::PathBuf> {
+    std::env::var_os(variables::FILES)
+        .filter(|f| !f.is_empty())
+        .map(std::path::PathBuf::from)
+}
+
 fn own_params(params: &Value) -> Value {
     let mut params = params.clone();
     if let Some(fields) = params.as_object_mut() {
@@ -2608,6 +2675,13 @@ impl Replay {
                 },
                 (None, Some(method @ ("wait" | "check" | "shell" | "setting" | "app"))) => {
                     client.call(method, with(own_params(&step["params"]))).await
+                }
+                (None, Some("files")) => {
+                    let mut params = own_params(&step["params"]);
+                    if let Some(folder) = files_folder() {
+                        params["folder"] = json!(folder);
+                    }
+                    client.call("files", with(params)).await
                 }
                 _ => Err(refused("this is not a step this version can run")),
             };

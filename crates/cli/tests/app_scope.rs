@@ -422,6 +422,35 @@ async fn the_keyboard_over_an_app_in_the_scope_does_not_stop_typing() {
     );
 }
 
+/// The shared folders hold every app's files, so a scope to some apps takes no file in and gives none out.
+#[tokio::test(start_paused = true)]
+async fn files_are_refused_under_a_scope() {
+    let (d, fake, _home) = setup(vec![mine(&["Save"])]);
+    let folder = tempfile::tempdir().unwrap();
+    std::fs::write(folder.path().join("cat.png"), b"abc").unwrap();
+    fake.with_file("/sdcard/Download/report.pdf", b"abc");
+    for transfer in [
+        json!({"push": "cat.png"}),
+        json!({"pull": "Download/report.pdf"}),
+    ] {
+        let mut params = transfer;
+        params["folder"] = json!(folder.path());
+        params["approval"] = json!("autonomous");
+        let e = err(&d, "files", params).await;
+        assert_eq!(e.code, -32025, "{e:?}");
+        assert!(e.message.contains("PHONEDRIVER_APP_SCOPE"), "{}", e.message);
+    }
+    assert!(
+        !fake
+            .calls()
+            .iter()
+            .any(|c| matches!(c, Call::FilePush(..) | Call::FilePull(..))),
+        "{:?}",
+        fake.calls()
+    );
+    assert!(!folder.path().join("report.pdf").exists());
+}
+
 #[tokio::test(start_paused = true)]
 async fn shell_is_refused_with_the_way_to_lift_the_scope() {
     let (d, fake, _home) = setup(vec![mine(&["Save"])]);

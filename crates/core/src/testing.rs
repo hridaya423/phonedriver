@@ -12,6 +12,7 @@ use crate::device::{
     ShellReply, ShellRequest, TextInput, Url, WebPage,
 };
 use crate::error::{Error, Op};
+use crate::files::Shelf;
 use crate::geometry::{Rect, Size};
 use crate::network::{LogWait, LogWaited, NetworkView};
 use crate::notice::Notices;
@@ -33,6 +34,9 @@ pub enum Call {
     Revoke(AppId, Vec<String>),
     Push(AppId, String),
     Setting(SettingOp),
+    /// A file written to this path, with its size.
+    FilePush(String, usize),
+    FilePull(String),
     Logs(AppId, bool),
     LogWait(Option<AppId>, Vec<String>),
     RecordStart(std::path::PathBuf),
@@ -75,6 +79,7 @@ pub struct FakeDevice {
     after_shot: Mutex<Option<Vec<RawTree>>>,
     order: Mutex<Vec<&'static str>>,
     settings: Mutex<Option<FakeSettings>>,
+    files: Mutex<std::collections::BTreeMap<String, Vec<u8>>>,
     logs: Mutex<Option<LogReply>>,
     log_lines: Mutex<Option<Vec<String>>>,
     log_wait_takes: Mutex<Duration>,
@@ -139,6 +144,7 @@ impl FakeDevice {
             after_shot: Mutex::new(None),
             order: Mutex::new(Vec::new()),
             settings: Mutex::new(None),
+            files: Mutex::default(),
             logs: Mutex::new(None),
             log_lines: Mutex::new(None),
             log_wait_takes: Mutex::new(Duration::ZERO),
@@ -291,6 +297,16 @@ impl FakeDevice {
             .map(|(k, v)| ((*k).to_string(), (*v).to_string()))
             .collect();
         *lock(&self.settings) = Some((std::sync::Arc::new(index), values));
+    }
+
+    /// Puts a file on the device's shared storage, as an app or a person would.
+    pub fn with_file(&self, path: &str, bytes: &[u8]) {
+        lock(&self.files).insert(path.to_string(), bytes.to_vec());
+    }
+
+    /// The bytes of a file on the device's shared storage.
+    pub fn file(&self, path: &str) -> Option<Vec<u8>> {
+        lock(&self.files).get(path).cloned()
     }
 
     /// The device can record its screen: a start writes a small file, a stop answers 2 frames over 1500 ms.
@@ -637,6 +653,32 @@ impl Device for FakeDevice {
             }),
             1 => Ok(views[0].clone()),
             _ => Ok(views.remove(0)),
+        }
+    }
+
+    async fn file_push(&self, to: Shelf, name: &str, bytes: &[u8]) -> Result<String> {
+        let path = format!("/sdcard/{}/{name}", to.folder());
+        let mut files = lock(&self.files);
+        if files.contains_key(&path) {
+            return Err(Error::Refused {
+                detail: format!("{path} is already on the device and was not replaced"),
+            });
+        }
+        lock(&self.calls).push(Call::FilePush(path.clone(), bytes.len()));
+        files.insert(path.clone(), bytes.to_vec());
+        Ok(path)
+    }
+
+    async fn file_pull(&self, path: &str, limit: u64) -> Result<Vec<u8>> {
+        lock(&self.calls).push(Call::FilePull(path.to_string()));
+        match lock(&self.files).get(path) {
+            Some(bytes) if bytes.len() as u64 > limit => Err(Error::Refused {
+                detail: format!("{path} is over the limit of {limit} bytes"),
+            }),
+            Some(bytes) => Ok(bytes.clone()),
+            None => Err(Error::Refused {
+                detail: format!("{path} is not on the device"),
+            }),
         }
     }
 
