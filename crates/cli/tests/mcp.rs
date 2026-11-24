@@ -1334,6 +1334,69 @@ async fn a_save_that_cannot_write_leaves_the_steps_for_the_next_save() {
     assert_eq!(std::fs::read_dir(&folder).unwrap().count(), 1);
 }
 
+/// Issue #52: three things the command line could do and an MCP agent could not, though the description or the
+/// daemon already had them.
+#[tokio::test]
+async fn logs_take_since_and_replay_takes_screens_inside_its_folder_and_snapshot_shows_audit() {
+    let rig = rig(vec![tree(&["One", "Two"])]).await;
+    let r = rig.call("logs", json!({"since": 5})).await;
+    assert!(
+        !texts(&r).join("\n").contains("since"),
+        "`since` was not taken: {r:?}"
+    );
+
+    rig.call("snapshot", json!({})).await;
+    rig.call("tap", json!({"target": "One"})).await;
+    rig.call("replay", json!({"file": "run.steps", "save": true}))
+        .await;
+    let r = rig
+        .call("replay", json!({"file": "run.steps", "screens": "shots"}))
+        .await;
+    assert_ne!(r.is_error, Some(true), "{r:?}");
+    let kept = files(&rig.home.path().join("shots"));
+    assert!(
+        kept.iter()
+            .any(|f| f.extension().is_some_and(|e| e == "png")),
+        "{kept:?} {:?}",
+        texts(&r)
+    );
+    assert!(!texts(&r)[0].contains("--screens"), "{:?}", texts(&r));
+    let r = rig
+        .call(
+            "replay",
+            json!({"file": "run.steps", "screens": "../shots"}),
+        )
+        .await;
+    assert_eq!(r.is_error, Some(true), "{r:?}");
+    assert!(texts(&r)[0].contains("not inside"), "{r:?}");
+
+    let tools = rig.client.list_all_tools().await.unwrap();
+    let schema = |name: &str| {
+        let t = tools.iter().find(|t| t.name == name).unwrap();
+        serde_json::to_string(&*t.input_schema).unwrap()
+    };
+    assert!(schema("snapshot").contains("\"audit\""));
+    assert!(!schema("logs").contains("\"since\"") && !schema("replay").contains("\"screens\""));
+    let devices = tools.iter().find(|t| t.name == "devices").unwrap();
+    assert!(devices.description.as_deref().unwrap().contains("+name"));
+    for name in ["scroll", "swipe"] {
+        let t = tools.iter().find(|t| t.name == name).unwrap();
+        assert_eq!(
+            t.input_schema["properties"]["direction"],
+            json!({"enum": ["up", "down", "left", "right"]}),
+            "{name}"
+        );
+    }
+    let swipe = tools.iter().find(|t| t.name == "swipe").unwrap();
+    assert!(
+        !schema("swipe").contains("\"required\""),
+        "{:?}",
+        swipe.input_schema
+    );
+    let r = rig.call("swipe", json!({"pinch": "in"})).await;
+    assert_ne!(r.is_error, Some(true), "{r:?}");
+}
+
 #[tokio::test]
 async fn replay_saves_only_a_steps_file_inside_its_folder_and_over_nothing_but_steps() {
     let fake = Arc::new(phonedriver_core::testing::FakeDevice::new(vec![tree(&[
