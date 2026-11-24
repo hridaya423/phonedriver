@@ -2114,6 +2114,57 @@ impl Mcp {
     }
 }
 
+/// A call still running after `FIRST_BEAT` tells a client that gave a progress token so, and again every `BEAT`
+/// (decision D124).
+const FIRST_BEAT: std::time::Duration = std::time::Duration::from_secs(2);
+const BEAT: std::time::Duration = std::time::Duration::from_secs(5);
+
+/// What a running call says it waits for. It is made from the tool's name, which arguments were given, and the time
+/// limit, never from the text of an argument, so nothing typed and no secret can reach a progress message.
+struct Waits {
+    tool: &'static str,
+    what: &'static str,
+    limit: Option<u64>,
+}
+
+impl Waits {
+    fn of(request: &CallToolRequestParams) -> Self {
+        let given = |key: &str| request.arguments.as_ref().and_then(|a| a.get(key));
+        let (tool, what, limit) = match request.name.as_ref() {
+            "wait" => (
+                "wait",
+                "the condition has not held yet",
+                Some(
+                    given("timeout_ms")
+                        .and_then(serde_json::Value::as_u64)
+                        .unwrap_or(5000)
+                        / 1000,
+                ),
+            ),
+            "scroll" if given("collect").is_some() => ("scroll", "collecting rows", None),
+            "scroll" if given("until").is_some() => {
+                ("scroll", "the target is not in view yet", None)
+            }
+            "scroll" => ("scroll", "still scrolling", None),
+            "replay" => ("replay", "running the steps", None),
+            "shell" => ("shell", "the command is still running", None),
+            "batch" => ("batch", "running the steps", None),
+            "launch" => ("launch", "the app is not up yet", None),
+            _ => ("call", "still working", None),
+        };
+        Self { tool, what, limit }
+    }
+
+    /// `doing` is the last line the daemon or the replay said about this call, when one did.
+    fn message(&self, doing: &str, seconds: u64) -> String {
+        let what = if doing.is_empty() { self.what } else { doing };
+        match self.limit {
+            Some(limit) => format!("{}: {what} · {seconds}s of {limit}s", self.tool),
+            None => format!("{}: {what} · {seconds}s", self.tool),
+        }
+    }
+}
+
 #[tool_handler(
     name = "phonedriver",
     instructions = "Operate an Android or iOS device. System settings: `setting` first; `shell` where it is unsupported. App UI: `launch` takes an app name (no `devices` or `apps` first) and returns the screen; act on its @refs, and each action returns what changed (`snapshot` only to see the whole screen again). A path of taps you can predict goes in one `tap` with `then`. Send calls one at a time on the shared screen. If an error needs the user to act on the device, say so and go on when they are done. Passwords, payments, sending and deleting need the user's word for this task. A refusal naming the app scope is by design: `press back` or `home`, `launch` an app in scope, never work around it."
@@ -2124,22 +2175,52 @@ impl ServerHandler for Mcp {
         request: CallToolRequestParams,
         context: RequestContext<rmcp::RoleServer>,
     ) -> Result<CallToolResponse, rmcp::ErrorData> {
-        let mrtr = context
-            .protocol_version()
-            .is_some_and(|v| v >= ProtocolVersion::V_2026_07_28);
-        if mrtr
-            && matches!(
-                request.name.as_ref(),
-                "tap" | "type" | "batch" | "swipe" | "scroll" | "press"
-            )
-        {
-            return self.call_guarded(request, &context).await;
+        let token = request
+            .meta
+            .as_ref()
+            .and_then(|m| m.get_progress_token())
+            .or_else(|| context.meta.get_progress_token());
+        let waits = Waits::of(&request);
+        let peer = context.peer.clone();
+        let (doing, done) = tokio::sync::watch::channel(String::new());
+        let work = crate::client::DOING.scope(doing, async {
+            let mrtr = context
+                .protocol_version()
+                .is_some_and(|v| v >= ProtocolVersion::V_2026_07_28);
+            if mrtr
+                && matches!(
+                    request.name.as_ref(),
+                    "tap" | "type" | "batch" | "swipe" | "scroll" | "press"
+                )
+            {
+                return self.call_guarded(request, &context).await;
+            }
+            let call = rmcp::handler::server::tool::ToolCallContext::new(self, request, context);
+            Ok(match Self::tool_router().call(call).await? {
+                CallToolResponse::Complete(r) => CallToolResponse::Complete(without_values(r)),
+                other => other,
+            })
+        });
+        let Some(token) = token else {
+            return work.await;
+        };
+        tokio::pin!(work);
+        let started = tokio::time::Instant::now();
+        let mut beat = tokio::time::interval_at(started + FIRST_BEAT, BEAT);
+        loop {
+            tokio::select! {
+                out = &mut work => return out,
+                _ = beat.tick() => {
+                    let seconds = started.elapsed().as_secs();
+                    let mut said = rmcp::model::ProgressNotificationParam::new(token.clone(), seconds as f64)
+                        .with_message(waits.message(&done.borrow(), seconds));
+                    if let Some(limit) = waits.limit {
+                        said = said.with_total(limit as f64);
+                    }
+                    let _ = peer.notify_progress(said).await;
+                }
+            }
         }
-        let call = rmcp::handler::server::tool::ToolCallContext::new(self, request, context);
-        Ok(match Self::tool_router().call(call).await? {
-            CallToolResponse::Complete(r) => CallToolResponse::Complete(without_values(r)),
-            other => other,
-        })
     }
 
     async fn list_tools(
@@ -2241,6 +2322,51 @@ pub fn run(device: Option<String>) -> ExitCode {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_progress_message_holds_no_text_a_caller_gave() {
+        let tools = Mcp::tool_router().list_all();
+        assert!(tools.len() > 10);
+        for tool in tools
+            .iter()
+            .map(|t| t.name.to_string())
+            .chain(["hunter2".to_string()])
+        {
+            let mut args = serde_json::Map::new();
+            for key in [
+                "text",
+                "target",
+                "condition",
+                "until",
+                "collect",
+                "command",
+                "file",
+                "app",
+                "log",
+                "notification",
+                "vars",
+                "steps",
+                "device",
+                "then",
+                "select",
+            ] {
+                args.insert(key.into(), json!("hunter2"));
+                let request = CallToolRequestParams::new(tool.clone()).with_arguments(args.clone());
+                let said = Waits::of(&request).message("", 3);
+                assert!(!said.contains("hunter2"), "{tool} with {key}: {said}");
+            }
+        }
+        let request = CallToolRequestParams::new("wait")
+            .with_arguments(json!({"timeout_ms": 30000}).as_object().unwrap().clone());
+        assert_eq!(
+            Waits::of(&request).message("", 7),
+            "wait: the condition has not held yet · 7s of 30s"
+        );
+        assert_eq!(
+            Waits::of(&request).message("starting the Android agent on emulator-5554", 3),
+            "wait: starting the Android agent on emulator-5554 · 3s of 30s"
+        );
+    }
 
     #[test]
     fn a_replay_reads_a_steps_file_wherever_the_person_keeps_it() {

@@ -11,13 +11,27 @@ use phonedriver::daemon::{Config, Daemon, socket};
 use phonedriver::mcp::Mcp;
 use phonedriver_core::raw::RawTree;
 use rmcp::ServiceExt;
-use rmcp::model::{CallToolRequestParams, CallToolResult};
+use rmcp::model::{CallToolRequestParams, CallToolResult, ProgressNotificationParam};
 use serde_json::{Value, json};
 
 struct Rig {
     home: tempfile::TempDir,
     socket: PathBuf,
-    client: rmcp::service::RunningService<rmcp::RoleClient, ()>,
+    client: rmcp::service::RunningService<rmcp::RoleClient, Heard>,
+    heard: Heard,
+}
+
+#[derive(Clone, Default)]
+struct Heard(Arc<std::sync::Mutex<Vec<ProgressNotificationParam>>>);
+
+impl rmcp::ClientHandler for Heard {
+    async fn on_progress(
+        &self,
+        params: ProgressNotificationParam,
+        _context: rmcp::service::NotificationContext<rmcp::RoleClient>,
+    ) {
+        self.0.lock().unwrap().push(params);
+    }
 }
 
 async fn rig(trees: Vec<RawTree>) -> Rig {
@@ -45,11 +59,13 @@ async fn rig_on(source: Arc<dyn phonedriver::daemon::DeviceSource>) -> Rig {
         let running = mcp.serve(server_io).await.unwrap();
         let _ = running.waiting().await;
     });
-    let client = ().serve(client_io).await.unwrap();
+    let heard = Heard::default();
+    let client = heard.clone().serve(client_io).await.unwrap();
     Rig {
         home,
         socket,
         client,
+        heard,
     }
 }
 
@@ -61,6 +77,26 @@ impl Rig {
             )
             .await
             .unwrap()
+    }
+
+    /// The rmcp client gives a progress token with every request, so this is what a call was told while it ran.
+    async fn call_told(&self, tool: &'static str, args: Value) -> (CallToolResult, Vec<String>) {
+        let before = self.heard.0.lock().unwrap().len();
+        let result = self.call(tool, args).await;
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+        let heard = self.heard.0.lock().unwrap()[before..].to_vec();
+        assert!(
+            heard
+                .windows(2)
+                .all(|w| w[0].progress_token == w[1].progress_token),
+            "{heard:?}"
+        );
+        assert!(
+            heard.windows(2).all(|w| w[0].progress < w[1].progress),
+            "progress only grows: {heard:?}"
+        );
+        let said = heard.into_iter().map(|p| p.message.unwrap()).collect();
+        (result, said)
     }
 
     async fn daemon(
@@ -409,6 +445,7 @@ async fn closing_the_mcp_connection_releases_its_lease_without_a_release_call() 
         socket,
         client,
         home: _home,
+        heard: _,
     } = rig;
     client.cancel().await.unwrap();
     for _ in 0..100 {
@@ -2016,4 +2053,114 @@ async fn a_path_is_saved_named_by_launch_and_gone_down_with_the_tools_there_are(
     assert_eq!(r.is_error, Some(false), "{shown}");
     assert!(shown.starts_with("arrived at \"One\""), "{shown}");
     assert!(shown.contains("\"Two\""), "{shown}");
+}
+
+#[tokio::test]
+async fn a_long_call_tells_a_client_that_gave_a_progress_token_what_it_waits_for() {
+    let rig = rig(vec![tree(&["One", "Two"])]).await;
+    rig.call("snapshot", json!({})).await;
+
+    let (r, said) = rig.call_told("snapshot", json!({})).await;
+    assert_ne!(r.is_error, Some(true), "{r:?}");
+    assert_eq!(said, [""; 0], "a call that is over at once says nothing");
+
+    let (r, said) = rig
+        .call_told("wait", json!({"condition": "Zebra", "timeout_ms": 7400}))
+        .await;
+    assert_eq!(r.is_error, Some(true), "{r:?}");
+    assert_eq!(
+        said,
+        [
+            "wait: the condition has not held yet · 2s of 7s",
+            "wait: the condition has not held yet · 7s of 7s"
+        ]
+    );
+}
+
+#[tokio::test]
+async fn a_client_that_gave_no_progress_token_is_sent_no_progress() {
+    use tokio::io::{AsyncBufReadExt, AsyncWriteExt};
+    let rig = rig(vec![tree(&["One", "Two"])]).await;
+    let (client_io, server_io) = tokio::io::duplex(1 << 20);
+    let mcp = Mcp::new(Some(rig.socket.clone()), "mcp-raw".into());
+    tokio::spawn(async move {
+        let running = mcp.serve(server_io).await.unwrap();
+        let _ = running.waiting().await;
+    });
+    let (read, mut write) = tokio::io::split(client_io);
+    let mut lines = tokio::io::BufReader::new(read).lines();
+    let mut send = async |message: Value| {
+        write
+            .write_all(format!("{message}\n").as_bytes())
+            .await
+            .unwrap()
+    };
+    send(json!({"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {
+        "protocolVersion": "2025-06-18", "capabilities": {}, "clientInfo": {"name": "raw", "version": "0"}
+    }}))
+    .await;
+    lines.next_line().await.unwrap().unwrap();
+    send(json!({"jsonrpc": "2.0", "method": "notifications/initialized"})).await;
+    let wait = json!({"name": "wait", "arguments": {"condition": "Zebra", "timeout_ms": 2400}});
+    let mut until_reply = async |id: u64| {
+        let mut sent = Vec::new();
+        loop {
+            let line: Value =
+                serde_json::from_str(&lines.next_line().await.unwrap().unwrap()).unwrap();
+            if line["id"] == id {
+                return sent;
+            }
+            sent.push(line);
+        }
+    };
+
+    send(json!({"jsonrpc": "2.0", "id": 2, "method": "tools/call", "params": wait})).await;
+    assert_eq!(until_reply(2).await, [Value::Null; 0]);
+
+    let mut told = wait.clone();
+    told["_meta"] = json!({"progressToken": "mine"});
+    send(json!({"jsonrpc": "2.0", "id": 3, "method": "tools/call", "params": told})).await;
+    assert_eq!(
+        until_reply(3).await,
+        [
+            json!({"jsonrpc": "2.0", "method": "notifications/progress", "params": {
+                "progressToken": "mine", "progress": 2.0, "total": 2.0,
+                "message": "wait: the condition has not held yet · 2s of 2s"
+            }})
+        ]
+    );
+}
+
+#[tokio::test]
+async fn progress_names_the_replay_step_and_never_carries_text_given_to_the_call() {
+    let rig = rig(vec![
+        field_tree("", false),
+        field_tree("hunter2-typed", false),
+    ])
+    .await;
+    rig.call("snapshot", json!({})).await;
+    let file = rig.home.path().join("run.steps");
+    std::fs::write(
+        &file,
+        format!(
+            "{}\n{}\n",
+            json!({"method": "act", "params": {"action": {"kind": "type", "text": "hunter2-typed"}}}),
+            json!({"method": "wait", "params": {"condition": {"appears": {"text": "hunter2-awaited", "role": null}}, "timeout_ms": 2400}}),
+        ),
+    )
+    .unwrap();
+    let (r, said) = rig
+        .call_told("replay", json!({"file": file.to_str().unwrap()}))
+        .await;
+    assert_eq!(r.is_error, Some(true), "{r:?}");
+    assert_eq!(said, ["replay: step 2 of 2 · 2s"]);
+
+    let (_, said) = rig
+        .call_told(
+            "wait",
+            json!({"condition": "hunter2-awaited", "timeout_ms": 2400}),
+        )
+        .await;
+    assert_eq!(said.len(), 1, "{said:?}");
+    assert!(!said[0].contains("hunter2"), "{said:?}");
 }
