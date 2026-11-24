@@ -754,8 +754,11 @@ impl Actor {
             .iter()
             .filter(|w| !alerts.iter().any(|(id, _)| *id == w.id))
             .find(|w| w.kind == "application" && w.package.is_some());
-        let popup = tree.outside.is_empty()
-            && front.is_some_and(|w| w.bounds.x > 1.0 || w.bounds.x + w.bounds.w < screen.w - 1.0);
+        let (left, right) = front
+            .filter(|_| tree.outside.is_empty())
+            .map_or((false, false), |w| {
+                (w.bounds.x > 1.0, w.bounds.x + w.bounds.w < screen.w - 1.0)
+            });
         let app = match tree.outside.first() {
             Some(o) => Some(AppLine {
                 id: o.package.clone().unwrap_or_else(|| "unknown".into()),
@@ -793,7 +796,8 @@ impl Actor {
             settle,
             secure_hidden,
             alerts: alerts.into_iter().map(|(_, a)| a).collect(),
-            popup,
+            popup: left && right,
+            partial: left != right,
         };
         Rendered::build(nodes, &refs, header)
     }

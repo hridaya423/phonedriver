@@ -4,21 +4,39 @@ use serde_json::{Value, json};
 
 use super::session::Session;
 use crate::wire::{Action, ActionResult, OnScreen, PointJson, Target, WaitCondition};
+use phonedriver_core::render::Rendered;
 
 impl OnScreen {
     /// The screen the agent last saw, for an action aimed at it. A launch, a link, back and home leave whatever is
-    /// in front, so they keep none.
+    /// in front, so they keep none, and nor does a screen read while its page may still have been sliding in.
     fn of(action: &Action, s: &Session) -> Option<OnScreen> {
         let leaves = match action {
             Action::Launch { .. } | Action::Open { .. } => true,
             Action::Press { key } => matches!(key.as_str(), "back" | "home"),
             _ => false,
         };
-        let last = s.last.as_ref().filter(|_| !leaves && !s.unsure)?;
+        let last = s
+            .last
+            .as_ref()
+            .filter(|l| !leaves && !s.unsure && !l.front_unclear())?;
         Some(OnScreen {
             app: last.header.app.as_ref().map(|a| a.id.clone()),
             over: last.dialog_in_front(),
         })
+    }
+
+    /// How `now` is another kind of screen than this one, in the words a refusal uses.
+    pub fn differs(&self, now: &Rendered) -> Option<String> {
+        let app = now.header.app.as_ref().map(|a| a.id.as_str());
+        let over = now.dialog_in_front();
+        match (self.app.as_deref(), app) {
+            (Some(was), Some(is)) if was != is => Some(format!("{is} is in front")),
+            _ if self.over && !over => Some("the dialog it was saved on is not in front".into()),
+            _ if !self.over && over => {
+                Some("a dialog is in front, which was not there when it was saved".into())
+            }
+            _ => None,
+        }
     }
 }
 
