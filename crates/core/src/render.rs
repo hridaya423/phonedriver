@@ -59,6 +59,11 @@ pub struct Header {
     /// from both edges (`real_dialog.json`, the permission and VPN consent dialogs all start 28 px in).
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub popup: bool,
+    /// The front app window is inset from one edge only. Android reports a page that is sliding in that way (issue
+    /// #53: x 41.9, width 369.5 on a 411.4 wide screen, and x 0 once it arrived), and a sheet at one edge or an app
+    /// beside a landscape navigation bar looks the same.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub partial: bool,
 }
 
 /// A screen ready to print: header plus elements with refs, in preorder.
@@ -90,11 +95,17 @@ impl Rendered {
     /// the platform calls one (an iOS alert or sheet).
     pub fn dialog_in_front(&self) -> bool {
         self.header.popup
+            || self.header.partial
             || !self.header.alerts.is_empty()
             || self
                 .elements
                 .iter()
                 .any(|e| matches!(e.role, Role::Dialog | Role::Alert))
+    }
+
+    /// Whether a dialog is in front cannot be told from this read: the front window may be a page on its way in.
+    pub fn front_unclear(&self) -> bool {
+        self.header.partial
     }
 
     pub fn build(nodes: Vec<Node>, refs: &[Ref], header: Header) -> Rendered {
@@ -920,6 +931,7 @@ mod tests {
             secure_hidden: false,
             alerts: Vec::new(),
             popup: false,
+            partial: false,
         }
     }
 

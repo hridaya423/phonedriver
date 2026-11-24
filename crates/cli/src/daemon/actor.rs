@@ -101,6 +101,10 @@ const NO_APP_LIST: usize = 40;
 /// How many drags `type` makes to bring back a field the keyboard pushed out of its list.
 const BRING_BACK_DRAGS: u32 = 4;
 
+/// How long a replayed step waits for the kind of screen it was saved on before it is refused. Android goes on
+/// reporting a page that slides in as a window short of one edge after the settle is over, and that reads as a
+/// dialog: 16 of 40 replays of plain Settings steps stopped on it, and none of 64 that waited (issue #53).
+const SCREEN_KIND_WAIT: Duration = Duration::from_secs(1);
 const TREE_STABLE_WAIT: Duration = Duration::from_secs(1);
 const LOADING_WAIT: Duration = Duration::from_secs(4);
 /// How long a reply waits for a tree that lists elements. A read right after an app starts can list none (observed

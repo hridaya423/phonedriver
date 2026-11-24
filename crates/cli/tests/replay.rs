@@ -658,6 +658,15 @@ fn dialog_over(labels: &[&str]) -> RawTree {
     RawTree::from_android_json(&json, Scale { density: 1.0 }).unwrap()
 }
 
+/// The window of a page Android is sliding in from the right: it starts short of the left edge and ends at the
+/// right one (issue #53 read x 41.9, width 369.5 on a 411.4 wide screen).
+fn sliding(labels: &[&str]) -> RawTree {
+    let mut tree = tree(labels);
+    tree.windows[0].bounds.x = 36.0;
+    tree.windows[0].bounds.w = 324.0;
+    tree
+}
+
 /// Issue #41: a replay checked nothing about the screen before a step, so a dialog in front, or another app, took a
 /// step saved by position or by a common word ("OK"). Each step keeps the app it was saved on and whether a dialog
 /// was in front.
@@ -722,4 +731,42 @@ async fn a_replayed_step_saved_in_another_app_stops_before_touching_this_one() {
             .any(|c| matches!(c, phonedriver_core::testing::Call::Gesture(_))),
         "the tap went out: {shown}"
     );
+}
+
+/// Issue #53: Android reports a page that is sliding in as a window that starts 42 px in and ends at the screen's
+/// right edge, the screen the session held said a dialog was in front, and 16 of 40 replays of plain Settings steps
+/// stopped. The step waits for the page to arrive.
+#[tokio::test(start_paused = true)]
+async fn a_replayed_step_waits_for_a_page_that_is_still_sliding_in() {
+    let (d, fake, _home) = setup(vec![sliding(&["One"])]);
+    ok(&d, "snapshot", json!({})).await;
+    fake.set_tree(tree(&["One"]));
+    ok(
+        &d,
+        "act",
+        json!({"action": {"kind": "tap", "target": {"text": "One"}}, "on": {"app": "com.example", "over": false}}),
+    )
+    .await;
+    assert!(
+        fake.calls()
+            .iter()
+            .any(|c| matches!(c, phonedriver_core::testing::Call::Gesture(_))),
+        "the tap did not go out"
+    );
+}
+
+/// A page caught sliding in is not a dialog, and a sheet at one edge looks the same, so a step saved there keeps no
+/// screen rather than one a replay would refuse every time.
+#[tokio::test(start_paused = true)]
+async fn a_step_saved_on_a_page_still_sliding_in_keeps_no_screen() {
+    let (d, _fake, _home) = setup(vec![sliding(&["One"])]);
+    ok(&d, "snapshot", json!({})).await;
+    ok(
+        &d,
+        "act",
+        json!({"action": {"kind": "tap", "target": {"text": "One"}}}),
+    )
+    .await;
+    let saved = ok(&d, "journal", json!({})).await;
+    assert_eq!(saved["steps"][0]["on"], Value::Null, "{saved}");
 }

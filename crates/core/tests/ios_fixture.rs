@@ -29,6 +29,7 @@ fn header() -> Header {
         secure_hidden: false,
         alerts: Vec::new(),
         popup: false,
+        partial: false,
     }
 }
 

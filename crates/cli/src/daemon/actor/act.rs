@@ -179,30 +179,23 @@ impl Actor {
     }
 
     /// A replayed step runs only on the kind of screen it was saved on: the same app, and a dialog in front exactly
-    /// when there was one. It reads the screen only when the session has none it is sure of.
+    /// when there was one. It reads the screen only when the session has none it is sure of, or when that one
+    /// differs: then it reads until the screen is the saved kind or `SCREEN_KIND_WAIT` is over.
     pub(super) async fn on_screen(
         &mut self,
         s: &mut Session,
         saved: &OnScreen,
     ) -> Result<(), Error> {
-        let fresh;
-        let now = match s.last.as_ref().filter(|_| !s.unsure) {
-            Some(last) => last,
-            None => {
-                fresh = self.fresh(s).await?;
-                &fresh
-            }
+        let mut differs = match s.last.as_ref().filter(|_| !s.unsure) {
+            Some(last) => saved.differs(last),
+            None => saved.differs(&self.fresh(s).await?),
         };
-        let app = now.header.app.as_ref().map(|a| a.id.as_str());
-        let over = now.dialog_in_front();
-        let differs = match (saved.app.as_deref(), app) {
-            (Some(was), Some(is)) if was != is => Some(format!("{is} is in front")),
-            _ if saved.over && !over => Some("the dialog it was saved on is not in front".into()),
-            _ if !saved.over && over => {
-                Some("a dialog is in front, which was not there when it was saved".into())
-            }
-            _ => None,
-        };
+        let started = Instant::now();
+        while differs.is_some() && started.elapsed() < SCREEN_KIND_WAIT {
+            tokio::time::sleep(TREE_STEP).await;
+            let tree = self.device()?.tree().await?;
+            differs = saved.differs(&self.build(s, &tree, None));
+        }
         let Some(differs) = differs else {
             return Ok(());
         };
