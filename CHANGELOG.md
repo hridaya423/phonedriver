@@ -6,7 +6,7 @@ Every release of phonedriver, newest first. Binaries and checksums for each vers
 
 - **`check` reads a value in the middle of a flow** (#52): `check "Total"` answers `"Total" = "€24.99"` and touches nothing; as a `batch` step it costs no model turn, and with `equals` it stops the batch before the next tap when the screen says anything else. A switch reads `on` or `off`, a settings row reads its summary, and a password field is never read. `save` keeps checks and `replay` runs them.
 - **A tap that finds nothing answers with the screen** (#37): a `tap`, `type`, `scroll` or `check` whose target or `@ref` is gone carries what changed since the screen the agent last saw, so the next call acts from the error instead of calling `snapshot` first.
-
+- **Small MCP fixes**: `logs` takes `since`, `replay` takes `screens` (a folder inside the server's own), `snapshot` lists `audit`, `devices` says what a lane is, and `scroll` and `swipe` list the four directions as fixed values.
 - **Replays check what they type** (#41, #42): a replayed step whose field shows other text than typed, or that nothing confirms, stops the replay; a saved `type --submit` sends Enter only once the field shows the text; the first line says how many typed texts were verified.
 - **Saved files hold up better** (#41): a field the keyboard pushed off the screen is saved by its label, and a failed `scroll --until` that moved the list is kept as the scrolls the next step needs.
 - **Read-backs** (#41): `save` names typed values no later step reads back, and `wait` finds a phone number however the app formats it, never behind a country code it did not type.

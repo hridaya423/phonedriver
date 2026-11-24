@@ -8,14 +8,7 @@ use serde_json::{Map, Value};
 const HIDDEN: &[(&str, &[&str])] = &[
     (
         "snapshot",
-        &[
-            "diff",
-            "interactive",
-            "within",
-            "max_lines",
-            "pixels",
-            "audit",
-        ],
+        &["diff", "interactive", "within", "max_lines", "pixels"],
     ),
     ("tap", &["role", "count", "autonomous"]),
     ("type", &["mode", "append", "autonomous"]),
@@ -25,7 +18,8 @@ const HIDDEN: &[(&str, &[&str])] = &[
     ("shell", &["grep", "head", "settle", "force", "secret"]),
     ("batch", &["timeout_ms"]),
     ("setting", &["force"]),
-    ("logs", &["head"]),
+    ("logs", &["head", "since"]),
+    ("replay", &["screens"]),
 ];
 
 pub fn lean(tool: &str, schema: &mut Map<String, Value>) {

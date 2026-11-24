@@ -139,6 +139,8 @@ struct LogsArgs {
     grep: Option<String>,
     /// The last lines to keep; default 40, 0 for all.
     head: Option<u32>,
+    /// Read this many seconds back; default 60.
+    since: Option<u64>,
 }
 
 #[derive(Deserialize, JsonSchema)]
@@ -191,6 +193,8 @@ struct ReplayArgs {
     vars: Option<std::collections::BTreeMap<String, String>>,
     /// Run on another build of an app than the file was saved on.
     any_build: Option<bool>,
+    /// A folder: compare each step's screen with the screenshot kept there, and keep one where there is none.
+    screens: Option<String>,
 }
 
 #[derive(Deserialize, JsonSchema)]
@@ -231,7 +235,6 @@ struct SnapshotArgs {
     max_lines: Option<u32>,
     /// Read the pixels with OCR and add text the tree lacks (automatic when the tree is empty).
     pixels: Option<bool>,
-    /// Add accessibility problems: unnamed controls, small tap targets.
     audit: Option<bool>,
     find: Option<String>,
     /// The web page in front as text, whole, no scrolling (Chrome; web views of debug builds). `find` keeps matching lines.
@@ -308,11 +311,16 @@ struct TypeArgs {
     autonomous: Option<bool>,
 }
 
+fn direction(_: &mut schemars::SchemaGenerator) -> schemars::Schema {
+    schemars::json_schema!({"enum": ["up", "down", "left", "right"]})
+}
+
 #[derive(Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 struct SwipeArgs {
     device: Option<String>,
-    /// up, down, left or right.
+    #[serde(default)]
+    #[schemars(schema_with = "direction")]
     direction: Option<String>,
     /// Start; default the screen's center.
     from: Option<String>,
@@ -330,7 +338,7 @@ struct SwipeArgs {
 #[serde(deny_unknown_fields)]
 struct ScrollArgs {
     device: Option<String>,
-    /// up, down, left or right.
+    #[schemars(schema_with = "direction")]
     direction: String,
     /// The list to scroll: an @ref. Default is the largest scrollable element.
     r#in: Option<String>,
@@ -1330,6 +1338,9 @@ fn success_text(text: String) -> String {
     text.lines()
         .map(|l| match l.strip_prefix("hint: ") {
             Some(h) => format!("hint: {}", for_mcp(h)),
+            None if l.starts_with("kept ") => {
+                l.replace("a replay with --screens", "a replay with `screens`")
+            }
             None => l.to_string(),
         })
         .collect::<Vec<_>>()
@@ -1490,6 +1501,31 @@ fn savable(folder: &std::path::Path, file: &std::path::Path) -> Result<(), Strin
     }
 }
 
+/// Where MCP `replay` keeps and reads the screenshots of `screens`: a folder inside `folder`, reached through no
+/// `..` and no link out of it. An agent chooses the path, and a replay writes pictures there.
+fn kept_inside(
+    folder: &std::path::Path,
+    dir: &std::path::Path,
+) -> Result<std::path::PathBuf, String> {
+    let path = folder.join(dir);
+    let outside = dir
+        .components()
+        .any(|c| c == std::path::Component::ParentDir)
+        || !path.starts_with(folder)
+        || match (path.canonicalize(), folder.canonicalize()) {
+            (Ok(p), Ok(f)) => !p.starts_with(f),
+            _ => false,
+        };
+    if outside {
+        return Err(format!(
+            "{} is not inside {}: keep screens in a folder there",
+            dir.display(),
+            folder.display()
+        ));
+    }
+    Ok(path)
+}
+
 fn bad(message: &str) -> CallToolResult {
     CallToolResult::error(vec![ContentBlock::text(message)])
 }
@@ -1497,7 +1533,7 @@ fn bad(message: &str) -> CallToolResult {
 #[tool_router]
 impl Mcp {
     #[tool(
-        description = "List devices (id, model, OS, holder). With several, `use` an id to send later calls to it; `device` on one call overrides. `release` gives up this session's hold. `boot` starts a simulator or emulator that is off.",
+        description = "List devices (id, model, OS, holder). With several, `use` an id to send later calls to it; `device` on one call overrides, and `<id>+name` is a lane: a screen of your own (Android 13+). `release` gives up this session's hold. `boot` starts a simulator or emulator that is off.",
         annotations(
             title = "List devices",
             read_only_hint = false,
@@ -1609,7 +1645,7 @@ impl Mcp {
             app: a.app,
             grep: a.grep,
             head: a.head.map(|h| h as usize),
-            since: None,
+            since: a.since,
         };
         self.run(a.device, verb, None).await
     }
@@ -1643,10 +1679,15 @@ impl Mcp {
                 Ok(file) => file,
                 Err(why) => return bad(&why),
             };
+            let screens = match a.screens.map(|dir| kept_inside(&folder, dir.as_ref())) {
+                Some(Err(why)) => return bad(&why),
+                Some(Ok(dir)) => Some(dir),
+                None => None,
+            };
             Verb::Replay {
                 file,
                 from: a.from.map_or(1, |n| n as usize),
-                screens: None,
+                screens,
                 vars: a.vars.unwrap_or_default().into_iter().collect(),
                 any_build: a.any_build.unwrap_or(false),
             }

@@ -1793,3 +1793,13 @@ The GitHub Action passes `--any-build`: it installs the build under test before 
 **Not on every error.** `Ambiguous` already lists the candidates; `OffScreen`, `NeedsUser` and the rest name their own next step. A ref from another session gets no screen: there is no screen of that session to measure against, and the hint to read one first stays.
 
 **Evidence.** Same rig. The screen was changed behind the session (Settings sent to the launcher with `adb shell input keyevent 4`), then `tap "Dark theme"`: the error printed `screen now, against what you last saw:` and the launcher's lines with new refs. The same tap with the screen unchanged printed the hint `The screen is as you last saw it, and nothing on it matches.` and no lines. Daemon test `a_tap_that_finds_no_element_answers_with_the_screen_as_it_is_now` asserts one tree read per failure and that a ref taken from the error taps.
+
+## D115. Small MCP gaps closed; directions are a fixed list, keys are not (2026-11-24, #52)
+
+**Choice.** `logs` takes `since`; `replay` takes `screens`, a folder that must be inside the server's own folder (no `..`, checked again after symlinks resolve); `snapshot` shows `audit` in its schema; the `devices` description says what `<id>+name` is; `direction` on `scroll` and `swipe` is `{"enum": ["up","down","left","right"]}`. `since` and `screens` are accepted and hidden from the lean schema, like the other arguments an agent meets only through a hint that names them.
+
+**Why.** Each was something the CLI did that an MCP-only agent could not, or had to learn from an error. The enum costs the characters the sentence it replaces did.
+
+**Keys stay prose.** `press` takes nineteen names and the description says what the unusual ones do (`landscape`, `fingerprint` on an emulator only). An enum would add about 200 characters to every turn and say less; a wrong key is already answered with the valid ones.
+
+**Budget.** The tool list is 6,700 characters at most now (6,600 before): lanes in `devices` and the `check` clause in `batch` are about 160.
