@@ -2,8 +2,6 @@
 
 <h3 align="center">Give your AI agent a phone.</h3>
 
-_Last updated: 2026-11-20_
-
 <p align="center"><b>6.9x fewer tokens than mobile-mcp.</b></p>
 
 <p align="center">
