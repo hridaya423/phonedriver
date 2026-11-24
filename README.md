@@ -10,6 +10,7 @@ _Last updated: 2026-11-20_
   <a href="LICENSE"><img alt="License: AGPL-3.0" src="https://img.shields.io/badge/license-AGPL--3.0-6b675e?style=flat-square&labelColor=161512"></a>
   <a href="https://www.npmjs.com/package/phonedriver"><img alt="npm" src="https://img.shields.io/npm/v/phonedriver?style=flat-square&labelColor=161512&color=6b675e"></a>
   <a href="https://github.com/hridaya423/phonedriver/actions/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/hridaya423/phonedriver/ci.yml?branch=main&style=flat-square&labelColor=161512&label=ci"></a>
+  <a href="https://github.com/sponsors/hridaya423"><img alt="Sponsor" src="https://img.shields.io/badge/sponsor-GitHub_Sponsors-6b675e?style=flat-square&labelColor=161512"></a>
 </p>
 
 <p align="center">
@@ -270,3 +271,5 @@ phonedriver sends no telemetry. After the first download from GitHub, it connect
 AGPL-3.0-only. See [LICENSE](LICENSE). The Android helper includes files from scrcpy under Apache-2.0; see [NOTICE](NOTICE).
 
 The binary decodes H.264 with OpenH264 built from source. Cisco's patent license covers only the binaries Cisco distributes, so this build carries no H.264 patent license.
+
+phonedriver is free and open source. If it saves you or your team time, you can [sponsor development on GitHub](https://github.com/sponsors/hridaya423).
