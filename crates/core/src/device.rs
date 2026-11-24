@@ -355,7 +355,8 @@ pub trait Device: Send + Sync {
     async fn text(&self, t: TextInput) -> Result<()>;
     async fn clipboard(&self, op: ClipboardOp) -> Result<Option<String>>;
     async fn apps(&self) -> Result<Vec<App>>;
-    async fn launch(&self, app: &AppId) -> Result<()>;
+    /// Brings `app` to the front. With `fresh` it opens on its first screen, whatever screens its task still holds.
+    async fn launch(&self, app: &AppId, fresh: bool) -> Result<()>;
     async fn foreground(&self) -> Result<Option<AppId>>;
     /// Grants runtime permissions to an installed app, before it is launched.
     async fn grant(&self, _app: &AppId, _permissions: &[String]) -> Result<()> {

@@ -624,7 +624,7 @@ impl Actor {
                 }
                 let t = Instant::now();
                 let started_launch = t;
-                if let Err(e) = device.launch(&found.id).await {
+                if let Err(e) = device.launch(&found.id, restart).await {
                     self.forget_apps();
                     return Err(e);
                 }

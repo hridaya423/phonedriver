@@ -253,7 +253,7 @@ async fn text_clipboard_keys_buttons_apps_and_events() {
     }
     assert!(left, "Home did not leave the testbed");
     device
-        .launch(&AppId(testbed::PACKAGE.into()))
+        .launch(&AppId(testbed::PACKAGE.into()), false)
         .await
         .unwrap();
     let mut back = false;
@@ -338,7 +338,7 @@ async fn the_testbed_on_the_hidden_display_gets_the_taps_and_is_a_task_of_that_d
     assert!(id > 0);
     testbed::clear_log(&adb, &serial).await;
     device
-        .launch(&AppId(testbed::PACKAGE.into()))
+        .launch(&AppId(testbed::PACKAGE.into()), false)
         .await
         .unwrap();
     let button = wait_for_node(&device, Duration::from_secs(10), |n| {
@@ -398,7 +398,7 @@ async fn two_lanes_of_one_phone_take_their_own_taps_at_the_same_time() {
     testbed::clear_log(&adb, &serial).await;
     let settings = AppId("com.android.settings".into());
     let app = AppId(testbed::PACKAGE.into());
-    let (on_a, on_b) = tokio::join!(a.launch(&app), b.launch(&settings));
+    let (on_a, on_b) = tokio::join!(a.launch(&app, false), b.launch(&settings, false));
     on_a.unwrap();
     on_b.unwrap();
     let button = wait_for_node(&a, Duration::from_secs(20), |n| {

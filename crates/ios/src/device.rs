@@ -911,7 +911,7 @@ impl Device for IosDevice {
         Ok(map::build(&json))
     }
 
-    async fn launch(&self, app: &AppId) -> Result<()> {
+    async fn launch(&self, app: &AppId, _fresh: bool) -> Result<()> {
         {
             let _busy = Busy::new(&self.activity);
             match self.host {

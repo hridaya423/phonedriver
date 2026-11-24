@@ -237,9 +237,9 @@ impl Device for ScopedDevice {
         Ok(apps)
     }
 
-    async fn launch(&self, app: &AppId) -> Result<()> {
+    async fn launch(&self, app: &AppId, fresh: bool) -> Result<()> {
         self.in_scope(app, "`launch`")?;
-        self.inner.launch(app).await
+        self.inner.launch(app, fresh).await
     }
 
     async fn foreground(&self) -> Result<Option<AppId>> {

@@ -3130,8 +3130,12 @@ impl Device for AlphaList {
     async fn apps(&self) -> Result<Vec<phonedriver_core::device::App>, Error> {
         self.inner.apps().await
     }
-    async fn launch(&self, app: &phonedriver_core::device::AppId) -> Result<(), Error> {
-        self.inner.launch(app).await
+    async fn launch(
+        &self,
+        app: &phonedriver_core::device::AppId,
+        fresh: bool,
+    ) -> Result<(), Error> {
+        self.inner.launch(app, fresh).await
     }
     async fn foreground(&self) -> Result<Option<phonedriver_core::device::AppId>, Error> {
         self.inner.foreground().await
@@ -3411,7 +3415,9 @@ async fn a_launch_waits_while_the_app_has_drawn_nothing_to_read_or_tap() {
 #[tokio::test(start_paused = true)]
 async fn a_launch_whose_app_is_not_in_front_afterwards_says_which_app_is() {
     let (source, fake) = installed();
-    fake.launch(&AppId("com.launcher".into())).await.unwrap();
+    fake.launch(&AppId("com.launcher".into()), false)
+        .await
+        .unwrap();
     fake.set_quits_at_launch(true);
     let (d, _home) = daemon(source);
     let r = ok(
@@ -3436,7 +3442,9 @@ async fn a_launch_whose_app_is_not_in_front_afterwards_says_which_app_is() {
 #[tokio::test(start_paused = true)]
 async fn a_launch_whose_app_crashed_at_start_says_so_with_the_crash() {
     let (source, fake) = installed();
-    fake.launch(&AppId("com.launcher".into())).await.unwrap();
+    fake.launch(&AppId("com.launcher".into()), false)
+        .await
+        .unwrap();
     fake.set_quits_at_launch(true);
     fake.answer_logs(phonedriver_core::device::LogReply {
         text: String::new(),
@@ -3474,7 +3482,7 @@ async fn a_launch_behind_a_system_prompt_naming_the_app_says_launched_without_wa
     .unwrap();
     let (source, fake) = FakeSource::with(vec![prompt]);
     fake.install(&[("com.android.calculator2", "Calculator")]);
-    fake.launch(&AppId("com.apple.springboard".into()))
+    fake.launch(&AppId("com.apple.springboard".into()), false)
         .await
         .unwrap();
     fake.set_quits_at_launch(true);
@@ -3498,7 +3506,9 @@ async fn a_launch_behind_a_system_prompt_naming_the_app_says_launched_without_wa
 #[tokio::test(start_paused = true)]
 async fn a_launch_waits_for_an_app_that_comes_to_the_front_late() {
     let (source, fake) = installed();
-    fake.launch(&AppId("com.launcher".into())).await.unwrap();
+    fake.launch(&AppId("com.launcher".into()), false)
+        .await
+        .unwrap();
     fake.set_launch_takes(12);
     let (d, _home) = daemon(source);
     let started = tokio::time::Instant::now();
@@ -3520,7 +3530,9 @@ async fn a_launch_waits_for_an_app_that_comes_to_the_front_late() {
 #[tokio::test(start_paused = true)]
 async fn a_launch_whose_app_starts_slowly_still_settles_after_it_starts() {
     let (source, fake) = installed();
-    fake.launch(&AppId("com.launcher".into())).await.unwrap();
+    fake.launch(&AppId("com.launcher".into()), false)
+        .await
+        .unwrap();
     fake.set_launch_takes(22);
     let (d, _home) = daemon(source);
     let started = tokio::time::Instant::now();
@@ -3540,8 +3552,10 @@ async fn a_launch_whose_app_starts_slowly_still_settles_after_it_starts() {
     assert_eq!(r["summary"], "launched Calculator", "{r}");
 }
 
+/// Issue #51: stopping the app was not enough. A screen another package had put in its task stayed in front of
+/// every restart, so the launch itself asks for the first screen.
 #[tokio::test(start_paused = true)]
-async fn a_launch_with_restart_stops_the_app_first_so_it_opens_on_its_first_screen() {
+async fn a_launch_with_restart_stops_the_app_first_and_asks_for_its_first_screen() {
     let (source, fake) = installed();
     let (d, _home) = daemon(source);
     let r = ok(
@@ -3565,9 +3579,22 @@ async fn a_launch_with_restart_stops_the_app_first_so_it_opens_on_its_first_scre
         .expect("a stop");
     let launch = calls
         .iter()
-        .position(|c| matches!(c, Call::Launch(_)))
-        .unwrap();
+        .position(|c| matches!(c, Call::Relaunch(_)))
+        .expect("a launch that asks for the first screen");
     assert!(stop < launch, "{calls:?}");
+
+    ok(
+        &d,
+        "default",
+        "act",
+        act_with(json!({"kind": "launch", "app": "Calculator"})),
+    )
+    .await;
+    assert!(
+        matches!(fake.calls().last(), Some(Call::Launch(_))),
+        "a plain launch keeps the app where it was: {:?}",
+        fake.calls()
+    );
 }
 
 #[tokio::test(start_paused = true)]
@@ -3853,7 +3880,9 @@ async fn opening_a_link_from_the_launcher_waits_for_another_app_to_come_to_the_f
         home(),
         tree_of("com.chrome", &["Stay signed out"]),
     ]);
-    fake.launch(&AppId("com.launcher".into())).await.unwrap();
+    fake.launch(&AppId("com.launcher".into()), false)
+        .await
+        .unwrap();
     let (d, _home) = daemon(source);
     ok(&d, "default", "snapshot", json!({})).await;
     let r = ok(
@@ -4044,7 +4073,7 @@ async fn a_link_opened_in_the_browser_already_in_front_does_not_wait_for_the_bro
     trees.extend((0..60).map(|_| chrome_tree(Some("Example Org"))));
     let (source, fake) = FakeSource::with(trees);
     let chrome = AppId("com.android.chrome".into());
-    fake.launch(&chrome).await.unwrap();
+    fake.launch(&chrome, false).await.unwrap();
     fake.set_url_handler(Some(chrome));
     let (d, _home) = daemon(source);
     ok(&d, "default", "snapshot", json!({})).await;
@@ -4881,8 +4910,12 @@ impl Device for SlowPolled {
     async fn apps(&self) -> Result<Vec<phonedriver_core::device::App>, Error> {
         self.inner.apps().await
     }
-    async fn launch(&self, app: &phonedriver_core::device::AppId) -> Result<(), Error> {
-        self.inner.launch(app).await
+    async fn launch(
+        &self,
+        app: &phonedriver_core::device::AppId,
+        fresh: bool,
+    ) -> Result<(), Error> {
+        self.inner.launch(app, fresh).await
     }
     async fn foreground(&self) -> Result<Option<phonedriver_core::device::AppId>, Error> {
         self.inner.foreground().await

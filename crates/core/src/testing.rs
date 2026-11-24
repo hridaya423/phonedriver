@@ -26,6 +26,8 @@ pub enum Call {
     OpenUrl(Url, Option<AppId>),
     Text(TextInput),
     Launch(AppId),
+    /// A launch that asked for the app's first screen.
+    Relaunch(AppId),
     Grant(AppId, Vec<String>),
     Revoke(AppId, Vec<String>),
     Push(AppId, String),
@@ -507,7 +509,7 @@ impl Device for FakeDevice {
         Ok(lock(&self.apps).clone())
     }
 
-    async fn launch(&self, app: &AppId) -> Result<()> {
+    async fn launch(&self, app: &AppId, fresh: bool) -> Result<()> {
         let reads = self.launch_reads.load(std::sync::atomic::Ordering::Relaxed);
         if reads > 0 {
             *lock(&self.slow_launch) = Some((reads, app.clone()));
@@ -517,7 +519,11 @@ impl Device for FakeDevice {
         {
             *lock(&self.foreground) = Some(app.clone());
         }
-        self.record(Call::Launch(app.clone()))
+        self.record(if fresh {
+            Call::Relaunch(app.clone())
+        } else {
+            Call::Launch(app.clone())
+        })
     }
 
     async fn grant(&self, app: &AppId, permissions: &[String]) -> Result<()> {

@@ -599,7 +599,7 @@ impl Device for CoreDevice {
         Ok(apps)
     }
 
-    async fn launch(&self, app: &AppId) -> Result<()> {
+    async fn launch(&self, app: &AppId, _fresh: bool) -> Result<()> {
         self.apps
             .lock()
             .await
