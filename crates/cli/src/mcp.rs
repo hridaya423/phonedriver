@@ -373,6 +373,16 @@ struct WaitArgs {
     timeout_ms: Option<u64>,
 }
 
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct CheckArgs {
+    #[serde(alias = "ref")]
+    target: String,
+    equals: Option<String>,
+    #[serde(rename = "as")]
+    name: Option<String>,
+}
+
 impl WaitArgs {
     fn verb(self) -> Result<Verb, String> {
         match (self.condition, self.vpn, self.log) {
@@ -557,6 +567,14 @@ fn step_wire(step: serde_json::Value) -> Result<Vec<serde_json::Value>, String> 
             }
             return Ok(vec![step]);
         }
+        "check" => {
+            let a = serde_json::from_value::<CheckArgs>(rest).map_err(args)?;
+            Verb::Check {
+                target: a.target,
+                equals: a.equals,
+                name: a.name,
+            }
+        }
         "launch" => serde_json::from_value::<LaunchArgs>(rest)
             .map_err(args)?
             .verb()?,
@@ -587,7 +605,7 @@ fn step_wire(step: serde_json::Value) -> Result<Vec<serde_json::Value>, String> 
         }
         other => {
             return Err(format!(
-                "`{other}` cannot be a step; use tap, type, swipe, scroll, press, launch or wait"
+                "`{other}` cannot be a step; use tap, type, swipe, scroll, press, launch, wait or check"
             ));
         }
     };
@@ -1296,10 +1314,14 @@ fn text_result(text: String) -> CallToolResult {
 }
 
 fn failure(f: &Failure) -> CallToolResult {
-    let text = match f.hint() {
+    let mut text = match f.hint() {
         Some(h) => format!("{}\nhint: {}", f.message(), for_mcp(&h)),
         None => f.message(),
     };
+    if let Some(screen) = f.screen() {
+        text.push('\n');
+        text.push_str(&screen);
+    }
     CallToolResult::error(vec![ContentBlock::text(text)])
 }
 
@@ -1908,7 +1930,7 @@ impl Mcp {
     }
 
     #[tool(
-        description = "Run steps in order, one diff back; stops at the first failure. A step is {\"tool\":\"tap\",\"target\":\"@e3\"}: tap, type, swipe, scroll, press, launch or wait.",
+        description = "Run steps in order, one diff back; stops at the first failure. A step is {\"tool\":\"tap\",\"target\":\"@e3\"}: tap, type, swipe, scroll, press, launch, wait or check (reads the value of `target`; with `equals`, stops unless it is that).",
         annotations(
             title = "Run steps",
             read_only_hint = false,

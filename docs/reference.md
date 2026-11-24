@@ -426,6 +426,45 @@ It is the text a person can read on the page, in reading order, with blank lines
 
 It works for Chrome and for a web view inside an app that is a debug build (or that turned web debugging on), because it reads through the debugging socket those open. Any other app answers that it has no page that can be read. It only reads: taps and typing still go through the screen, so the approval guard sees them. iOS has no equivalent yet. Decision D71.
 
+### Reading a value
+
+`phonedriver check "Total"` reads what the screen shows for a label and touches nothing:
+
+```
+$ phonedriver check "Network & internet"
+ok "Network & internet" = "Mobile, Wi‑Fi, hotspot"
+$ phonedriver check "Dark theme"
+ok "Dark theme" = "off"
+$ phonedriver check "Brightness level" --equals "0%"
+error: "Brightness level" shows "83%", not "0%"
+```
+
+The value is, in this order: `on` or `off` for a switch or checkbox; a field's text; the second text on the element's own line (a settings row's summary); the rest of a label that holds the text and more (`Total: €24.99`); the text on the same row to its right, or the plain text right under it. An element that is there with nothing to read answers `"Order placed" is shown`. A text that names a row and the switch inside it reads the switch. A password field is never read. `--equals` compares without regard to case or runs of spaces and fails with exit 1 when the screen says anything else. `--as total` adds the name to the line, for a script that reads several.
+
+Its use is inside a `batch`, where it saves a model turn and stops a flow that went wrong before the next tap:
+
+```
+phonedriver batch 'tap "Checkout"' 'check "Total" --equals "€24.99"' 'tap "Pay"'
+```
+
+Over MCP it is a `batch` step: `{"tool":"check","target":"Total","equals":"€24.99"}`. A check is saved by `save` and replayed, so a saved run can prove a value and not only that a text is somewhere on the screen. A value that looks like an instruction to an agent is marked `(ai-instruction)`, as a snapshot line is. Decision D113.
+
+### When a tap finds nothing
+
+A `tap`, `type`, `scroll` or `check` whose target is not on the screen, or whose `@ref` is gone, answers with what the screen shows now, as lines against the screen the agent last saw, so the next call can use a ref from the error itself:
+
+```
+$ phonedriver tap "Dark theme"
+error: no element matches "Dark theme"
+hint: Use what the screen below shows.
+screen now, against what you last saw:
+app com.google.android.apps.nexuslauncher
+@e33 text "Gmail"
+…
+```
+
+When nothing changed the hint says so and no screen is repeated. A ref the session never saw still answers that refs are per session. Decision D114.
+
 ### Saving and replaying a run
 
 `phonedriver save run.steps` writes what the session has done so far to a file, and `phonedriver replay run.steps` does it again with no model:
@@ -446,7 +485,7 @@ screen now:
 ...
 ```
 
-Only calls that worked are saved: actions, waits, shell commands, app installs and permission changes, and settings written by key. A `scroll --until` that failed after moving the list is saved as the plain scrolls that moved it, since the step after it may need the list there. An element is saved by its text and role, not by its `@ref`, so the file works in a later session. Where no text singles the element out it is saved by position, and `save` says how many such steps there are. `save` lists every step it wrote, so a step that was a wrong turn can be seen and its line deleted from the file. After `save` the session's list starts again empty, so save once before a flow (to a file you throw away) and once after it. A text field the keyboard pushed off the screen is saved by its label. `save` also names each typed value that no later step reads back: to check what the app kept, not only what the field showed, end the file with a `wait` for each value on a screen that shows it. A phone number matches however the app formats it (`wait "0655555552"` finds `065-555-5552`, not `+1 065-555-5552`).
+Only calls that worked are saved: actions, waits, shell commands, app installs and permission changes, and settings written by key. A `scroll --until` that failed after moving the list is saved as the plain scrolls that moved it, since the step after it may need the list there. An element is saved by its text and role, not by its `@ref`, so the file works in a later session. Where no text singles the element out it is saved by position, and `save` says how many such steps there are. `save` lists every step it wrote, so a step that was a wrong turn can be seen and its line deleted from the file. After `save` the session's list starts again empty, so save once before a flow (to a file you throw away) and once after it. A text field the keyboard pushed off the screen is saved by its label. `save` also names each typed value that no later step reads back: to check what the app kept, not only what the field showed, end the file with a `check` of its label that `--equals` it, or a `wait` for it, on a screen that shows it. A phone number matches however the app formats it (`wait "0655555552"` finds `065-555-5552`, not `+1 065-555-5552`).
 
 `save` keeps the build of each app a step launches (`"build": "4.37.1 (437001)"`), and a replay whose app is now another build stops before its first step and names both; `--any-build` (MCP `any_build: true`) runs it anyway (D109). A physical iPhone reports no build, so its replays are not checked. Each action step also keeps the app it was done in and whether a dialog was in front (`"on": {"app": "com.android.contacts", "over": false}`), and a replay stops before touching anything when the app in front is another or a dialog is in front where there was none, or none where there was one (D110).
 

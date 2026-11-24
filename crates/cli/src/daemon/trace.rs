@@ -67,6 +67,12 @@ impl Traces {
                 ),
                 v["action"]["settle_ms"].as_u64(),
             ),
+            Ok(_) if method == "check" && !self.options.full => (true, "checked".into(), None),
+            Err(e) if method == "check" && !self.options.full => (
+                false,
+                e.data["code_name"].as_str().unwrap_or("failed").to_string(),
+                None,
+            ),
             Ok(v) => (
                 true,
                 v["summary"].as_str().unwrap_or(method).to_string(),
@@ -181,6 +187,9 @@ fn hide_action(action: &mut Value, full: bool) {
         let end = url.find(['?', '#']).unwrap_or(url.len());
         action["url"] = json!(&url[..end]);
     }
+    if let Some(expected) = action.get("equals").filter(|_| !full).cloned() {
+        action["equals"] = length("text_len", &expected);
+    }
     for key in ["target", "into", "from", "to", "at", "in", "until"] {
         hide_text(&mut action[key], full);
     }
@@ -194,6 +203,7 @@ fn sanitize(method: &str, params: &Value, full: bool) -> Value {
     match method {
         "act" => hide_action(&mut p["action"], full),
         "wait" => hide_condition(&mut p["condition"], full),
+        "check" => hide_action(&mut p, full),
         "batch" => {
             for step in p["steps"].as_array_mut().into_iter().flatten() {
                 if step["kind"] == "wait" {

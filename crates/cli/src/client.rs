@@ -63,6 +63,13 @@ impl Failure {
         }
     }
 
+    /// The screen a failed action came back with, under the heading a failed batch uses.
+    pub fn screen(&self) -> Option<String> {
+        let Failure::Rpc(e) = self else { return None };
+        let text = e.data["screen"].as_str().filter(|t| !t.is_empty())?;
+        Some(format!("screen now, against what you last saw:\n{text}"))
+    }
+
     /// `needs_user` is 3, `device_gone` and `no_device` are 4, `needs_approval` is 5, everything else is 1.
     pub fn exit_code(&self) -> u8 {
         match self {

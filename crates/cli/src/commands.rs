@@ -120,6 +120,7 @@ const UNUSED_GLOBALS: &[(&str, &[&str])] = &[
     ),
     ("snapshot", &["expect_change"]),
     ("wait", &["no_settle"]),
+    ("check", &["no_settle", "timeout", "expect_change"]),
     ("screenshot", &["no_settle", "timeout", "expect_change"]),
     ("apps", &["no_settle", "timeout", "expect_change"]),
     ("find", &["no_settle", "timeout", "expect_change"]),
@@ -571,6 +572,19 @@ pub(crate) enum Verb {
         #[arg(long)]
         app: Option<String>,
     },
+    /// Read the value the screen shows for a text or `@ref` (`check Total` prints `"Total" = "€24.99"`), and fail
+    /// when it is not `--equals`. It touches nothing; as a step of a batch or a saved run it stops a run whose
+    /// screen shows another value.
+    Check {
+        /// The text beside the value, or an `@ref`.
+        target: String,
+        /// Fail unless the value is this (case, width and runs of spaces aside).
+        #[arg(long)]
+        equals: Option<String>,
+        /// A name for the value in the reply.
+        #[arg(long = "as", value_name = "NAME")]
+        name: Option<String>,
+    },
     /// Run steps in order and print one diff at the end; stops at the first step that fails. Each step is a
     /// command line in quotes, such as `batch "tap @e3" "type hello --submit" "press enter"`.
     Batch {
@@ -811,6 +825,9 @@ pub fn run(cli: Cli) -> ExitCode {
                     eprintln!("error: {}", f.message());
                     if let Some(h) = f.hint() {
                         eprintln!("hint: {h}");
+                    }
+                    if let Some(screen) = f.screen() {
+                        eprintln!("{screen}");
                     }
                     ExitCode::from(f.exit_code())
                 }
@@ -1177,6 +1194,10 @@ pub(crate) async fn execute_with(
                 p["expect_change_ms"] = json!(t);
             }
             let r = client.call("wait", with(p)).await?;
+            show_action(&r, g.json)
+        }
+        verb @ Verb::Check { .. } => {
+            let r = client.call("check", with(check_json(&verb))).await?;
             show_action(&r, g.json)
         }
         verb @ (Verb::Tap { .. }
@@ -1686,12 +1707,37 @@ pub(crate) fn step_json(verb: &Verb, secret: Option<&str>) -> Result<Value, Fail
         Verb::Wait { condition, app } => {
             json!({"kind": "wait", "condition": wait_condition(condition, app.as_deref())})
         }
+        Verb::Check { .. } => {
+            let mut step = check_json(verb);
+            step["kind"] = json!("check");
+            step
+        }
         _ => {
             return Err(Failure::Local(
                 "that command cannot be a step of a batch".into(),
             ));
         }
     })
+}
+
+/// The params of a `check`: its target, and `equals` and `as` when given.
+fn check_json(verb: &Verb) -> Value {
+    let Verb::Check {
+        target,
+        equals,
+        name,
+    } = verb
+    else {
+        return Value::Null;
+    };
+    let mut p = json!({"target": parse_target(target)});
+    if let Some(e) = equals {
+        p["equals"] = json!(e);
+    }
+    if let Some(n) = name {
+        p["as"] = json!(n);
+    }
+    p
 }
 
 /// Splits a command line into words: spaces separate them, single or double quotes keep spaces in one, a backslash
@@ -2197,9 +2243,10 @@ pub(crate) fn show_saved(path: &str, steps: &[Value], over: bool) -> String {
             let text = a["text"]
                 .as_str()
                 .filter(|t| a["kind"] == "type" && !t.is_empty())?;
-            let read = steps[i..]
-                .iter()
-                .any(|later| later["params"]["condition"]["appears"]["text"] == text);
+            let read = steps[i..].iter().any(|later| {
+                later["params"]["condition"]["appears"]["text"] == text
+                    || later["params"]["equals"] == text
+            });
             let cut: String = text.chars().take(SAVED_STEP_CHARS).collect();
             let more = if cut.len() < text.len() { "…" } else { "" };
             (!read).then(|| format!("\"{cut}{more}\""))
@@ -2207,7 +2254,7 @@ pub(crate) fn show_saved(path: &str, steps: &[Value], over: bool) -> String {
         .collect();
     if !unread.is_empty() {
         out.push_str(&format!(
-            "\nno step reads back {} after typing it: to check what the app kept, end with `wait` for it on a screen that shows it (a phone number matches however the app formats it)",
+            "\nno step reads back {} after typing it: to check what the app kept, end with a `check` of its label that `equals` it, or a `wait` for it, on a screen that shows it (`wait` matches a phone number however the app formats it)",
             unread.join(", ")
         ));
     }
@@ -2284,6 +2331,10 @@ impl Replay {
                 };
                 format!("{kind}{what}{typed}{into}{on}")
             }
+            "check" => match params["equals"].as_str() {
+                Some(e) => format!("check{} = \"{e}\"", target(&params["target"])),
+                None => format!("check{}", target(&params["target"])),
+            },
             "wait" => {
                 let c = &params["condition"];
                 if let Some(state) = c["vpn"].as_str() {
@@ -2438,7 +2489,7 @@ impl Replay {
                         Err(refused(&why.message()))
                     }
                 },
-                (None, Some(method @ ("wait" | "shell" | "setting" | "app"))) => {
+                (None, Some(method @ ("wait" | "check" | "shell" | "setting" | "app"))) => {
                     client.call(method, with(own_params(&step["params"]))).await
                 }
                 _ => Err(refused("this is not a step this version can run")),

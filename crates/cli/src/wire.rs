@@ -561,11 +561,23 @@ pub struct WaitParams {
     pub expect_change_ms: Option<u64>,
 }
 
-/// One step of a batch: an action, or a wait (`{"kind": "wait", "condition": ..., "timeout_ms"?: ...}`), whose own
+/// What `check` reads: the value the screen shows for `target`. With `equals`, another value is an error.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct CheckParams {
+    pub target: Target,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub equals: Option<String>,
+    /// A name for the value in the reply, for telling two checks of the same label apart.
+    #[serde(default, rename = "as", skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+}
+
+/// One step of a batch: an action, a check (`{"kind": "check", "target": ..., "equals"?: ..., "as"?: ...}`), or a wait (`{"kind": "wait", "condition": ..., "timeout_ms"?: ...}`), whose own
 /// timeout stands in for the batch's.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Step {
     Act(Action),
+    Check(CheckParams),
     Wait {
         condition: WaitCondition,
         timeout_ms: Option<u64>,
@@ -588,6 +600,21 @@ impl Step {
                 condition,
                 timeout_ms,
             });
+        }
+        if v["kind"] == "check" {
+            let mut own = v.clone();
+            if let Some(fields) = own.as_object_mut() {
+                fields.remove("kind");
+                if let Some(other) = fields
+                    .keys()
+                    .find(|k| !["target", "equals", "as"].contains(&k.as_str()))
+                {
+                    return Err(format!("a check has no `{other}`"));
+                }
+            }
+            return serde_json::from_value(own)
+                .map(Step::Check)
+                .map_err(|e| format!("the check is malformed: {}", malformed_reason(&e)));
         }
         serde_json::from_value(v.clone())
             .map(Step::Act)
