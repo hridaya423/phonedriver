@@ -91,6 +91,7 @@ pub struct FakeDevice {
     installs: Mutex<Vec<AppId>>,
     installed_at: Mutex<Option<String>>,
     app_build: Mutex<Option<String>>,
+    builds_asked: Mutex<Vec<AppId>>,
     hardware_serial: Mutex<Option<String>>,
 }
 
@@ -156,6 +157,7 @@ impl FakeDevice {
             installs: Mutex::new(vec![AppId("com.example.installed".into())]),
             installed_at: Mutex::new(None),
             app_build: Mutex::new(None),
+            builds_asked: Mutex::new(Vec::new()),
             hardware_serial: Mutex::new(None),
         }
     }
@@ -266,6 +268,11 @@ impl FakeDevice {
     /// What `installed_at` answers for every app from now on.
     pub fn set_installed_at(&self, stamp: &str) {
         *lock(&self.installed_at) = Some(stamp.into());
+    }
+
+    /// The apps whose build was asked for, in order.
+    pub fn builds_asked(&self) -> Vec<AppId> {
+        lock(&self.builds_asked).clone()
     }
 
     /// What `app_build` answers for every app from now on.
@@ -738,7 +745,8 @@ impl Device for FakeDevice {
         Ok(lock(&self.installed_at).clone())
     }
 
-    async fn app_build(&self, _app: &AppId) -> Result<Option<String>> {
+    async fn app_build(&self, app: &AppId) -> Result<Option<String>> {
+        lock(&self.builds_asked).push(app.clone());
         Ok(lock(&self.app_build).clone())
     }
 

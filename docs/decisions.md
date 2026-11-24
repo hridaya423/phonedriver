@@ -1933,6 +1933,39 @@ The GitHub Action passes `--any-build`: it installs the build under test before 
 
 **Limits.** Frames are one pixel per point, so a crop has no more detail than the same part of the whole screenshot: it saves bytes and image tokens, it does not zoom. An element larger than the screen is cut to the screen. An element that is off the screen is refused (`not on the screen ... scroll to it first`). iOS was not run live: the code path is the shared daemon's.
 
+## D123. A replay asks which device it runs on once; every wait that guards a step stays (2026-11-24, #41)
+
+**Measured first.** Two saved runs on the API 37 emulator (Mac mini to win-pc), six replays each, with the phases the daemon already writes to its trace. Run A, 11 steps in the testbed (a launch, taps, two typed texts, a `check`, a `wait`): 7.7 to 8.8 s. Run B, 9 steps in and out of four Settings pages: 10.9 to 11.9 s. Where the median replay's time went:
+
+| | Run A (8.25 s) | Run B (11.36 s) |
+|---|---|---|
+| Waiting for the screen to go quiet after each action (`settle`) | 3.66 s | 8.65 s |
+| Reading the tree until two reads agree (`stabilize`, `tree`) | 0.62 s | 2.21 s |
+| Waiting for a launched app's first content | 1.04 s | 0.90 s |
+| A second wait for a page after a tap that moved pixels and no element (two taps) | 1.2 s | none |
+| Hiding the keyboard before a tap under it | 0.5 s | none |
+| Finding the default device | 0.24 s | 0.30 s |
+| Typing | 0.14 s | none |
+| Finding the target, with the on-screen check (D110) | 0.10 s | 0.14 s |
+| Reading the crash log after a new screen | 0.10 s | 0.10 s |
+| The build check (D109), before the first step | none saved, see below | 0.68 s |
+
+The client's round trip is not in the table because it is not there to find: a replay's wall time was 25 to 35 ms more than the sum of its daemon calls, for 11 steps. The on-screen check costs under 40 ms a step. Typed text is verified inside the reads a `type` makes anyway.
+
+**The one wait that was redundant.** A replayed step named no device, so the daemon found the default again for each: it lists every source (adb, the simulators, attached iPhones), and the simulator list is kept for 2 s. On the mini that is a 75 ms listing every 2 s: four or five in a replay of A (0.31 to 0.41 s), five to eight in a replay of B (0.37 to 0.79 s). A replay runs on one device from its first step to its last, so it asks once (a new method, `device`, which answers the id a call would run on) and names that device on every call after. A named `android:` id is asked of adb alone: 0 ms on every step of the eight replays measured after the change. It is also the stricter behaviour: a second device plugged in halfway used to make the default ambiguous and stop the run.
+
+**What stays, and why each is not redundant.** The settle is the check that the screen stopped moving, and the next step is found with one read and no retry (`resolve_target`), so the reads that wait for the tree to agree are what the next step stands on. The second wait after a tap that only rippled exists because a phone's Settings drew the ripple, went quiet, and only then opened the page (Honor X8, `act.rs`); without it the next tap can land while that page arrives, and a saved step does not record which kind of tap it was. The launch waits are for the app's own content. The crash log read is how a replay knows the app died. The build check runs once. None was shortened, and there is no flag to shorten them.
+
+**Found while measuring: the build check read the wrong package.** A launch takes a name (`Settings`) as readily as an id, and `Device::app_build` reads by id. Asked for `Settings`, `dumpsys package Settings | grep version` printed three version lines of other packages, and the saved build was one of them; asked for `phonedriver testbed`, the name was no package name, no build was saved, and that run's replays checked no build at all. `journal` and `build` now find the app as `launch` does and read the build by its id (`Actor::build_of`).
+
+**Evidence.** `--test mcp a_replay_asks_which_device_is_the_default_once_and_names_it_on_every_step` (a source that records each lookup: before, four unnamed; after, one unnamed and every step named). `--test replay the_build_of_an_app_launched_by_name_is_read_by_its_id`. Live, the base build and this one in turn, three rounds: device lookups in a replay of A 312 to 411 ms before and 0 after (plus one 75 ms `device` call), of B 365 to 785 ms and 0. Four runs that must stop were replayed on both builds, and their outputs are the same line for line: a target that is gone (`step 9 of 11 … no element matches "b99"`), a step saved on another app (D110, `nothing was touched`), a step that changed nothing where it had (`it changed nothing this time`), and another build (D109). Both builds reported `2 typed texts verified` for A.
+
+**The wall clock that day.** Other work on win-pc starved the emulator during the comparison: replays of A took 11.3 to 15.9 s on the base build and 10.2 to 24.7 s on this one, with two `device disconnected` failures, against 7.7 to 8.8 s that morning. A third of a second cannot be read off that, so the gain is stated from the phases, which are measured inside the daemon call by call.
+
+**Rejected.** A `--fast` flag or a shorter quiet window for replays: that trades the check for speed. Skipping the second wait when the saved step is known to be a ripple-only tap: the file does not say, and saying it would make the dangerous case (the app now opens a page) the unguarded one. Sending the whole file to the daemon as one call: the round trip measured is 3 ms a step.
+
+**Limits.** The gain is small and depends on the machine: a few tenths of a second a replay where listing devices is slow (a Mac with Xcode), nothing where adb is the only source. Most of a replay is the screen's own animations. A replay now fails with `device gone` if its device leaves, where it used to move to the one that was left.
+
 ## D124. A long MCP call tells a client that gave a progress token what it waits for (2026-11-24, #52)
 
 **Choice.** When a `tools/call` request carries `_meta.progressToken`, `phonedriver mcp` sends `notifications/progress` for it while the call runs: the first after 2 s, then one every 5 s. `progress` is the whole seconds so far, `total` is the time limit when the call has one (`wait`), and `message` says what the call waits for: `wait: the condition has not held yet · 7s of 30s`, `replay: step 4 of 12 · 7s`, `scroll: collecting rows · 12s`, `shell: the command is still running · 7s`, `launch: starting the Android agent on emulator-5554 (the first run on a device pushes it) · 7s`. A call that is over in under 2 s sends nothing, and a request with no token gets nothing, as before. No tool argument was added, so the tool list is the same size.
