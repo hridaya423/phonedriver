@@ -561,11 +561,15 @@ pub struct WaitParams {
     pub expect_change_ms: Option<u64>,
 }
 
-/// One step of a batch: an action, or a wait (`{"kind": "wait", "condition": ...}`).
+/// One step of a batch: an action, or a wait (`{"kind": "wait", "condition": ..., "timeout_ms"?: ...}`), whose own
+/// timeout stands in for the batch's.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Step {
     Act(Action),
-    Wait(WaitCondition),
+    Wait {
+        condition: WaitCondition,
+        timeout_ms: Option<u64>,
+    },
 }
 
 impl Step {
@@ -573,7 +577,17 @@ impl Step {
         if v["kind"] == "wait" {
             let condition = serde_json::from_value(v["condition"].clone())
                 .map_err(|_| "the wait condition is malformed".to_string())?;
-            return Ok(Step::Wait(condition));
+            let timeout_ms = match &v["timeout_ms"] {
+                serde_json::Value::Null => None,
+                t => Some(
+                    t.as_u64()
+                        .ok_or("a wait's `timeout_ms` is a whole number of milliseconds")?,
+                ),
+            };
+            return Ok(Step::Wait {
+                condition,
+                timeout_ms,
+            });
         }
         serde_json::from_value(v.clone())
             .map(Step::Act)

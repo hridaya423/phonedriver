@@ -503,64 +503,95 @@ impl LaunchArgs {
     }
 }
 
-/// A step of `batch`: `tool` and that tool's arguments, as the same verb the tool runs. A `type` step keeps its
-/// `secret`: the daemon masks a step's secret as it masks one typed alone (decision D70).
-fn step_verb(step: serde_json::Value) -> Result<Verb, String> {
+/// A step of `batch`: `tool` and that tool's arguments, as the wire steps the tool itself would send. A `tap` or
+/// `type` with `then` is several, as it is on its own, and a `wait` keeps its own `timeout_ms`. A `type` step keeps
+/// its `secret`: the daemon masks a step's secret as it masks one typed alone (decision D70). A step that names a
+/// device is refused: issue #50 saw `press home` with another device's id press home on the batch's device.
+fn step_wire(step: serde_json::Value) -> Result<Vec<serde_json::Value>, String> {
     let serde_json::Value::Object(mut fields) = step else {
         return Err("a step is an object with a `tool`".into());
     };
     let Some(serde_json::Value::String(tool)) = fields.remove("tool") else {
         return Err("a step needs `tool`".into());
     };
+    if fields.get("device").is_some_and(|d| !d.is_null()) {
+        return Err("`device` goes on the batch: every step runs on its device".into());
+    }
     let rest = serde_json::Value::Object(fields);
     let args = |e: serde_json::Error| crate::wire::malformed_reason(&e);
-    match tool.as_str() {
-        "tap" => Ok(serde_json::from_value::<TapArgs>(rest)
-            .map_err(args)?
-            .verb()),
+    let wire = |v: Verb| crate::commands::step_json(&v, None).map_err(|f| f.message());
+    let taps = |then: Option<Vec<String>>| {
+        then.into_iter().flatten().map(|target| Verb::Tap {
+            target,
+            role: None,
+            count: None,
+            long: None,
+            autonomous: false,
+        })
+    };
+    let verb = match tool.as_str() {
+        "tap" => {
+            let mut a = serde_json::from_value::<TapArgs>(rest).map_err(args)?;
+            let then = a.then.take();
+            return std::iter::once(a.verb())
+                .chain(taps(then))
+                .map(wire)
+                .collect();
+        }
         "swipe" => serde_json::from_value::<SwipeArgs>(rest)
             .map_err(args)?
-            .verb()
-            .map_err(String::from),
-        "scroll" => Ok(serde_json::from_value::<ScrollArgs>(rest)
-            .map_err(args)?
-            .verb()),
-        "press" => Ok(Verb::Press {
-            key: serde_json::from_value::<PressArgs>(rest).map_err(args)?.key,
-            autonomous: false,
-        }),
-        "wait" => serde_json::from_value::<WaitArgs>(rest)
+            .verb()?,
+        "scroll" => serde_json::from_value::<ScrollArgs>(rest)
             .map_err(args)?
             .verb(),
+        "press" => Verb::Press {
+            key: serde_json::from_value::<PressArgs>(rest).map_err(args)?.key,
+            autonomous: false,
+        },
+        "wait" => {
+            let a = serde_json::from_value::<WaitArgs>(rest).map_err(args)?;
+            let timeout = a.timeout_ms;
+            let mut step = wire(a.verb()?)?;
+            if let Some(ms) = timeout {
+                step["timeout_ms"] = json!(ms);
+            }
+            return Ok(vec![step]);
+        }
         "launch" => serde_json::from_value::<LaunchArgs>(rest)
             .map_err(args)?
-            .verb()
-            .map_err(String::from),
+            .verb()?,
         "type" => {
             let a = serde_json::from_value::<TypeArgs>(rest).map_err(args)?;
-            if a.text.is_empty() {
-                return match a.into {
-                    Some(target) => Ok(Verb::Clear {
-                        target,
-                        autonomous: false,
-                    }),
-                    None => Err("to clear a field pass `into`: the field to empty".into()),
-                };
-            }
-            Ok(Verb::Type {
-                text: Some(a.text),
-                into: a.into,
-                mode: a.mode,
-                submit: a.submit.unwrap_or(false),
-                append: a.append.unwrap_or(false),
-                secret: a.secret.unwrap_or(false),
-                autonomous: false,
-            })
+            let first = if a.text.is_empty() {
+                Verb::Clear {
+                    target: a
+                        .into
+                        .ok_or("to clear a field pass `into`: the field to empty")?,
+                    autonomous: false,
+                }
+            } else {
+                Verb::Type {
+                    text: Some(a.text),
+                    into: a.into,
+                    mode: a.mode,
+                    submit: a.submit.unwrap_or(false),
+                    append: a.append.unwrap_or(false),
+                    secret: a.secret.unwrap_or(false),
+                    autonomous: false,
+                }
+            };
+            return std::iter::once(first)
+                .chain(taps(a.then))
+                .map(wire)
+                .collect();
         }
-        other => Err(format!(
-            "`{other}` cannot be a step; use tap, type, swipe, scroll, press, launch or wait"
-        )),
-    }
+        other => {
+            return Err(format!(
+                "`{other}` cannot be a step; use tap, type, swipe, scroll, press, launch or wait"
+            ));
+        }
+    };
+    Ok(vec![wire(verb)?])
 }
 
 impl Mcp {
@@ -1071,10 +1102,8 @@ fn batch_steps(raw: Vec<serde_json::Value>) -> Result<Vec<serde_json::Value>, St
                 i + 1
             ));
         }
-        let json = step_verb(step)
-            .and_then(|v| crate::commands::step_json(&v, None).map_err(|f| f.message()));
-        match json {
-            Ok(j) => steps.push(j),
+        match step_wire(step) {
+            Ok(wire) => steps.extend(wire),
             Err(why) => return Err(format!("step {}: {why}", i + 1)),
         }
     }

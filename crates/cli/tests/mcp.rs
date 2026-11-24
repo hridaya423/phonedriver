@@ -731,6 +731,41 @@ async fn a_tap_with_then_taps_each_text_in_order_and_returns_one_numbered_reply(
     assert!(text.contains("\n3. tapped @e3"), "{text}");
 }
 
+/// Issue #50: a batch step took `then` and a wait's `timeout_ms`, ran without them and answered `ok 1 step`.
+#[tokio::test]
+async fn a_batch_step_taps_its_then_texts_and_a_wait_step_keeps_its_own_timeout() {
+    let rig = rig(vec![tree(&["One", "Two", "Three"])]).await;
+    rig.call("snapshot", json!({})).await;
+    let r = rig
+        .call(
+            "batch",
+            json!({"steps": [
+                {"tool": "tap", "target": "One", "then": ["Two"]},
+                {"tool": "tap", "target": "Three"},
+            ]}),
+        )
+        .await;
+    assert_ne!(r.is_error, Some(true), "{r:?}");
+    let text = texts(&r).join("\n");
+    assert!(text.starts_with("ok 3 steps"), "{text}");
+    assert!(text.contains("\n2. tapped @e2"), "{text}");
+    assert!(text.contains("\n3. tapped @e3"), "{text}");
+
+    let started = std::time::Instant::now();
+    let r = rig
+        .call(
+            "batch",
+            json!({"steps": [{"tool": "wait", "condition": "Nope", "timeout_ms": 300}]}),
+        )
+        .await;
+    assert_eq!(r.is_error, Some(true), "{r:?}");
+    assert!(
+        started.elapsed() < std::time::Duration::from_secs(3),
+        "the wait took the batch's 5 s: {:?}",
+        started.elapsed()
+    );
+}
+
 #[tokio::test]
 async fn then_written_as_a_json_string_or_one_bare_text_is_read_as_the_list() {
     let rig = rig(vec![tree(&["One", "Two", "Three"])]).await;
@@ -852,6 +887,10 @@ async fn a_batch_refuses_unknown_tools_and_unknown_arguments_before_acting() {
             "colour",
         ),
         (json!({"target": "@e1"}), "needs `tool`"),
+        (
+            json!({"tool": "press", "key": "back", "device": "android:emulator-9999"}),
+            "`device` goes on the batch",
+        ),
     ] {
         let r = rig
             .call(
