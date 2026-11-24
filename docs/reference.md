@@ -167,6 +167,7 @@ Tested on an iPhone 13 Pro Max (iOS 27.0.1) on one network. An iPhone 14 Plus (i
 | `PHONEDRIVER_APPS_UNDER_TEST` | none | A comma list of package names, such as `com.example.app,com.example.other`: apps of yours that Gradle or Android Studio installed, not phonedriver. On a physical Android phone `apps clear`, `uninstall`, `grant`, `revoke` and `launch --grant` touch only apps phonedriver installed; the packages listed here count as installed by you. The daemon reads it when it starts, so set it in the environment of the command that starts it (for an MCP client, the server's `env`; see [Claude Code](/docs/claude-code/#an-app-you-are-developing)) and run `phonedriver daemon stop` first if a daemon is running. It is the person's setting and there is no tool argument for it, so an agent cannot add an app to the list. |
 | `PHONEDRIVER_APP_SCOPE` | none | A comma list of package names, such as `com.example.app`: the only apps the agent may read or act in (see [App scope](#app-scope)). Not the same as `PHONEDRIVER_APPS_UNDER_TEST`, which says which apps phonedriver may clear or uninstall on a physical phone and restricts nothing else. The daemon reads it when it starts; a client that sets a scope the running daemon was not started with is refused until `phonedriver daemon stop`. There is no tool argument for it, so an agent cannot set or clear it. |
 | `PHONEDRIVER_HOST_SHELL` | off | `1` lets `shell` act on this computer as well as the device: on an iOS Simulator it runs any program (without it only `defaults` and `log show|stream`, with no file named) and the `simctl` forms that read or write a Mac file, on an Android emulator it sends any console command. Read when the daemon starts; see [Shell](#shell) and decision D108. |
+| `PHONEDRIVER_FILES` | none | The one folder on the machine with the device that `files` copies from and to (an absolute path). Without it every transfer is refused. For the MCP server, set it in the server's `env`. |
 | `PHONEDRIVER_SECRET` | none | The text for `type --secret`, instead of stdin. The daemon shows it as `•••` wherever it later appears on a screen it reads or in a command's output, until the daemon stops; a screenshot still shows what the phone shows. |
 | `PHONEDRIVER_REPLAY_SECRET_ANY_FIELD` | off | `1` lets `replay` type a secret it reads from `PHONEDRIVER_SECRET_*` into any field. Without it a replayed secret goes only into a password or one-time code field (D105). Read by the process that replays: the CLI, or the MCP server. |
 | `PHONEDRIVER_TRACE_FULL` | off | `1` keeps observation text and the text of text targets in the traced requests (the daemon reads it at start). Replies are traced as returned either way: a summary or an error can name an element, as in `tapped @e6 "Busy"` or `no element matches "Pay"`. |
@@ -694,6 +695,27 @@ steps: 2 with their times in /Users/me/run.mp4.steps.jsonl
 The video is the H.264 stream the phone already sends, in an MP4 file, with no sound. It starts at the first full picture (a keyframe) the phone sends after `record start`, which phonedriver asks the phone's encoder for, so the file holds nothing that was on screen before the start. A screen that changed in the last second sends it within about 100 ms. A still screen needs none: the phone sends a full picture each time the screen stops changing, so a recording started on a still screen opens with that screen, and one that never changes shows it for its whole length. Only when an encoder ignores the request and pictures keep coming for a second does the file start from the last keyframe before the start, as releases before 0.1.7 always did, and then it can hold a few seconds of what was on screen before. The steps file has one line for each action that succeeded during the recording, such as `{"summary":"scrolled down","t_ms":11119}`: the summary line of the action's reply and when it began, in milliseconds on the video's clock. Text typed with `--secret` is not in it. Without `-o` the file goes under `~/.phonedriver/tmp`, where a starting daemon deletes files older than a day. In MCP, `screenshot` takes `record: "start"` and `record: "stop"`.
 
 A turned screen ends the recording, and `record stop` says so. Stop a recording before you stop the daemon: a daemon that is killed leaves a file players cannot open. The Simulator records itself (`xcrun simctl io recordVideo`): it writes a frame only when the screen changes, so the video of a still screen has one frame, and a turned screen does not end it. An iPhone answers that recording it is not built. Decisions D59 and D66.
+
+### Files to and from the device
+
+```
+export PHONEDRIVER_FILES=~/phone-files                 # the one folder files may leave and enter
+phonedriver files push cat.jpg                         # to /sdcard/Pictures; the gallery shows it
+phonedriver files push report.pdf                      # anything but a picture or a video goes to /sdcard/Download
+phonedriver files push cat.jpg --to downloads
+phonedriver files pull Download/invoice.pdf            # into the folder, under its own name
+phonedriver files pull DCIM/Camera/IMG_0001.jpg
+```
+
+Android only. Each call copies one file and prints a receipt: `ok copied cat.jpg to /sdcard/Pictures/cat.jpg · 48213 bytes · sha256 ac40…`. The contents are never in a reply, a trace or a saved step.
+
+- **The folder.** A push reads only inside `PHONEDRIVER_FILES`: a name with `..`, an absolute path, or a link that leads out of the folder is refused. A pull writes only there, never over a file or a link that is already there. The folder is on the machine that runs the daemon.
+- **The device.** A push writes to `Pictures` or `Download` and tells Android's media index, so a picture is in the gallery at once. A pull reads under `Download`, `Pictures` or `DCIM` and nowhere else: not `Android/data`, not `/data`. A file already on the device is not replaced.
+- **Size.** 64 MiB a file. The daemon holds the file in memory to hash it, and the device takes no other call until the copy ends.
+- **A physical phone.** Every transfer waits for the person's approval, which shows the file, its size and its SHA-256. Over MCP the client asks them; an approval "for this session" still covers that one file. On the command line the call exits 5 until it is run with `--autonomous`.
+- **Under an app scope** files are refused: the shared folders hold other apps' files.
+
+Over MCP it is the `clipboard` tool with `push` or `pull`. `ls /sdcard/Download` through `shell` lists what there is to pull. Decision D119.
 
 ### Shell
 

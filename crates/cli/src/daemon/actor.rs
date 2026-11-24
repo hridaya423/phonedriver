@@ -158,6 +158,7 @@ pub enum Call {
     Wait(WaitParams),
     Check(CheckParams),
     Notifications(NotificationsParams),
+    Files(crate::wire::FilesParams),
     Batch(BatchParams),
     Find(FindParams),
     Apps,
@@ -911,6 +912,22 @@ impl Actor {
             Call::Logs(p) => self.logs(s, p).await?,
             Call::Network => to_value(self.device()?.network().await?),
             Call::Notifications(p) => self.notifications(p).await?,
+            Call::Files(p) => {
+                let done = self.files(p).await?;
+                if let Some(name) = done["pushed"].as_str() {
+                    let to = if done["device_path"]
+                        .as_str()
+                        .is_some_and(|p| p.starts_with("/sdcard/Pictures/"))
+                    {
+                        phonedriver_core::files::Shelf::Photos
+                    } else {
+                        phonedriver_core::files::Shelf::Downloads
+                    };
+                    s.journal
+                        .push(journal::call("files", json!({"push": name, "to": to})));
+                }
+                done
+            }
             Call::Page(p) => self.page(p).await?,
             Call::Record(p) => self.record(p).await?,
             Call::Health => self.health().await?,

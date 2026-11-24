@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 use tokio::sync::{broadcast, watch};
 
 use crate::error::{DeviceId, Error, Op};
+use crate::files::Shelf;
 use crate::geometry::{Point, Rect, Size};
 use crate::network::{LogWait, LogWaited, NetworkView};
 use crate::notice::Notices;
@@ -413,6 +414,22 @@ pub trait Device: Send + Sync {
         Err(Error::Unsupported {
             op: Op::Network,
             reason: "this device's networks cannot be read; Android devices can",
+        })
+    }
+    /// Writes `bytes` as the file `name` in a folder of the device's shared storage and tells the device's media
+    /// index, so a picture shows in the gallery. Answers the file's path on the device. A file already there is
+    /// not replaced.
+    async fn file_push(&self, _to: Shelf, _name: &str, _bytes: &[u8]) -> Result<String> {
+        Err(Error::Unsupported {
+            op: Op::Files,
+            reason: "files cannot be copied to or from this device; an Android device's Pictures and Download folders can",
+        })
+    }
+    /// The bytes of the file at `path`, which `files::shared` made. A file over `limit` bytes is refused.
+    async fn file_pull(&self, _path: &str, _limit: u64) -> Result<Vec<u8>> {
+        Err(Error::Unsupported {
+            op: Op::Files,
+            reason: "files cannot be copied to or from this device; an Android device's Pictures and Download folders can",
         })
     }
     /// The notifications the device is showing, newest first, with the time on its own clock.

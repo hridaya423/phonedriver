@@ -7,6 +7,7 @@ use phonedriver_core::device::{
     Recorded, Result, ScreenState, ShellReply, ShellRequest, TextInput, Url, WebPage,
 };
 use phonedriver_core::error::{Error, Op};
+use phonedriver_core::files::Shelf;
 use phonedriver_core::geometry::{Rect, Size};
 use phonedriver_core::network::{LogWait, LogWaited, NetworkView};
 use phonedriver_core::notice::Notices;
@@ -588,6 +589,50 @@ impl Device for AndroidDevice {
             });
         }
         Ok(network::parse(&reply.stdout))
+    }
+
+    async fn file_push(&self, to: Shelf, name: &str, bytes: &[u8]) -> Result<String> {
+        let name =
+            phonedriver_core::files::name(name).map_err(|detail| Error::Refused { detail })?;
+        let path = format!("/sdcard/{}/{name}", to.folder());
+        let there = self
+            .adb
+            .shell(&self.serial, &format!("[ -e '{path}' ] && echo there"))
+            .await?;
+        if there.stdout_text().trim() == "there" {
+            return Err(Error::Refused {
+                detail: format!("{path} is already on the device and was not replaced"),
+            });
+        }
+        self.adb.push(&self.serial, bytes, &path, 0o644).await?;
+        let uri: String = path
+            .bytes()
+            .map(|b| match b {
+                b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'/' | b'.' | b'-' | b'_' => {
+                    (b as char).to_string()
+                }
+                other => format!("%{other:02X}"),
+            })
+            .collect();
+        let scan = format!(
+            "am broadcast -a android.intent.action.MEDIA_SCANNER_SCAN_FILE -d 'file://{uri}'"
+        );
+        let scanned = self.adb.shell(&self.serial, &scan).await?;
+        if scanned.exit_code != 0 {
+            return Err(Error::Refused {
+                detail: format!(
+                    "{path} was written, and the media index was not told: {}",
+                    scanned.stdout_text().trim()
+                ),
+            });
+        }
+        Ok(path)
+    }
+
+    async fn file_pull(&self, path: &str, limit: u64) -> Result<Vec<u8>> {
+        let path =
+            phonedriver_core::files::shared(path).map_err(|detail| Error::Refused { detail })?;
+        self.adb.pull(&self.serial, &path, limit).await
     }
 
     async fn setting(&self, op: SettingOp) -> Result<SettingReply> {

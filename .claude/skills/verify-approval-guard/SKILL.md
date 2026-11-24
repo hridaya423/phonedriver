@@ -71,6 +71,8 @@ To see the check fail on purpose: `python3 .claude/skills/verify-approval-guard/
 
 Before a commit that touches the covered files, run at least one break whose area you changed and confirm it still fails. A check that cannot fail is dead.
 
+2026-11-24, group 4: `files` on a physical device (D119) asks through `guarded` with a new category, `files`, that never goes through `guard::stance`: the daemon runs a transfer only with `autonomous` or with the `approved` label and details of that very transfer, so a session answer does not cover the next file. `commitment` prints a file's label without `Tap`. The property does not generate transfers; `tests/files.rs` (`on_a_physical_device_every_transfer_asks...`) and `tests/files_mcp.rs` (a decline, an allow for the session, and the next file asked again, over elicitation) cover it. Break B9 run on the Mac mini failed two checks, as it should.
+
 ## Findings, fixed
 
 F1, F2 and F3 were found at sync commit `4fc2204` and fixed in the commit that follows `55741c4`. Their tests now run by default.

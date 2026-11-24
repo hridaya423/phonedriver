@@ -9,6 +9,7 @@ pub mod android;
 pub mod check;
 pub mod checkbox;
 pub mod collect;
+pub mod files;
 pub mod guard;
 pub mod ios;
 pub mod journal;
@@ -332,7 +333,7 @@ impl Daemon {
             }
             "release" | "snapshot" | "screenshot" | "act" | "wait" | "check" | "batch" | "find"
             | "apps" | "app" | "clipboard" | "health" | "shell" | "setting" | "logs"
-            | "network" | "notifications" | "page" | "record" | "journal" | "build" => {
+            | "network" | "notifications" | "page" | "record" | "journal" | "build" | "files" => {
                 let common: Common = serde_json::from_value(if params.is_null() {
                     json!({})
                 } else {
@@ -365,6 +366,15 @@ impl Daemon {
                     "logs" => Call::Logs(rpc::params(params)?),
                     "network" => Call::Network,
                     "notifications" => Call::Notifications(rpc::params(params)?),
+                    "files" => {
+                        let p: crate::wire::FilesParams = rpc::params(params)?;
+                        if p.push.is_some() == p.pull.is_some() {
+                            return Err(RpcError::invalid_params(
+                                "files needs one of `push` (a file in the allowed folder) or `pull` (a path under the device's Download, Pictures or DCIM)",
+                            ));
+                        }
+                        Call::Files(p)
+                    }
                     "page" => Call::Page(rpc::params(params)?),
                     "record" => {
                         let p: RecordParams = rpc::params(params)?;

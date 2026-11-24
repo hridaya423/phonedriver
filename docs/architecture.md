@@ -260,6 +260,8 @@ pub trait Device: Send + Sync {
     async fn open_url(&self, url: &Url) -> Result<()>;
     async fn text(&self, t: TextInput) -> Result<()>;     // Paste | PasteSecret | SetValue | Keystrokes
     async fn clipboard(&self, op: ClipboardOp) -> Result<Option<String>>;
+    async fn file_push(&self, to: Shelf, name: &str, bytes: &[u8]) -> Result<String>;   // D119; default: unsupported
+    async fn file_pull(&self, path: &str, limit: u64) -> Result<Vec<u8>>;               // D119; default: unsupported
     async fn apps(&self) -> Result<Vec<App>>;
     async fn launch(&self, app: &AppId) -> Result<()>;
     async fn foreground(&self) -> Result<Option<AppId>>;
@@ -473,6 +475,7 @@ phonedriver notifications [--app <app>] [--limit N]   the notifications that are
 phonedriver check <"text"|@ref> [--equals <text>] [--as <name>]   read the value the screen shows for it; touches nothing (D113)
 phonedriver batch "<step>" "<step>" ...      steps in order, one diff at the end, stops at the first failure
 phonedriver clipboard [get|set <text>]
+phonedriver files push <file> [--to photos|downloads] | pull <device path>   (decision D119)
 phonedriver shell <command> [--grep words] [--head n] [--force] [--time-limit s] [--secret]
 phonedriver setting find <words> | get <key> | set <key> <value> [--force] | open <screen key> | restore [<key>...]
 phonedriver logs [app] [--grep words] [--head n] [--since s]     an app's last log lines and its last crash
