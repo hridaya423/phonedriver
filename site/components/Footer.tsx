@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { displaySvg, METRICS, ORANGE, WIDTH } from "@/lib/brand";
-import { REPO } from "@/lib/site";
+import { REPO, SPONSORS } from "@/lib/site";
 import { FootMark } from "./FootMark";
 import { Wordmark } from "./Wordmark";
 
@@ -31,6 +31,7 @@ export function Footer() {
           <nav aria-label="Project">
             <p className="lab">Project</p>
             <a href={REPO}>GitHub</a>
+            <a href={SPONSORS}>Sponsor</a>
             <Link href="/changelog/">Changelog</Link>
             <a href={`${REPO}/discussions`}>Discussions</a>
             <a href={`${REPO}/blob/main/LICENSE`}>License: AGPL-3.0</a>
