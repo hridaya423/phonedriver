@@ -268,6 +268,10 @@ pub(crate) enum Verb {
         /// Draw a box and the `@eN` ref on every element that can be tapped or typed into.
         #[arg(long)]
         marks: bool,
+        /// Only this element (`@ref` or its text) with 8 points around it. The output says the screen point of the
+        /// picture's top left: add it to a pixel of the picture to get the point to tap.
+        #[arg(long, value_name = "TARGET")]
+        within: Option<String>,
     },
     /// Tap `@ref`, `x,y` in points, or the element with this text.
     Tap {
@@ -1153,9 +1157,13 @@ pub(crate) async fn execute_with(
             file,
             output,
             marks,
+            within,
         } => {
             let output = output.or(file);
             let mut params = json!({"marks": marks});
+            if let Some(w) = &within {
+                params["within"] = parse_target(w);
+            }
             if output.is_some() {
                 params["inline"] = json!(true);
             }
@@ -1178,15 +1186,14 @@ pub(crate) async fn execute_with(
             if g.json {
                 return Ok(result.to_string());
             }
-            Ok(match shot.marks {
-                Some(n) => format!(
-                    "{path} {}x{} · {}",
-                    shot.width,
-                    shot.height,
-                    plural(n.into(), "mark")
-                ),
-                None => format!("{path} {}x{}", shot.width, shot.height),
-            })
+            let mut line = format!("{path} {}x{}", shot.width, shot.height);
+            if let Some(o) = shot.origin {
+                line.push_str(&format!(" from {},{}", o.x, o.y));
+            }
+            if let Some(n) = shot.marks {
+                line.push_str(&format!(" · {}", plural(n.into(), "mark")));
+            }
+            Ok(line)
         }
         Verb::Compare {
             before,

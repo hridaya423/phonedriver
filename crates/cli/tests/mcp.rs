@@ -536,8 +536,8 @@ async fn the_tool_list_every_turn_re_reads_fits_a_budget_and_hides_what_agents_n
         })
         .sum();
     assert!(
-        total < 7_003,
-        "what a model reads of tools/list is {total} characters (6,371 in 0.1.7; lanes in `devices` and the `check` step added about 160, `collect` on `scroll` 56, notifications on `snapshot` and `wait` about 130, paths on `replay` 103); every turn re-reads it, so raise this only for a tool or argument worth its cost"
+        total < 7_024,
+        "what a model reads of tools/list is {total} characters (6,371 in 0.1.7; lanes in `devices` and the `check` step added about 160, `collect` on `scroll` 56, notifications on `snapshot` and `wait` about 130, paths on `replay` 103, `within` on `screenshot` 21); every turn re-reads it, so raise this only for a tool or argument worth its cost"
     );
     for t in &tools {
         let text = serde_json::to_string(&*t.input_schema).unwrap();
@@ -1195,6 +1195,47 @@ async fn a_screenshot_with_marks_boxes_every_tappable_element_and_says_how_many(
         .unwrap();
     assert_eq!(&bytes[..8], b"\x89PNG\r\n\x1a\n");
     assert_ne!(bytes, PNG, "the picture was redrawn");
+}
+
+#[tokio::test]
+async fn a_screenshot_within_an_element_says_where_its_top_left_is_and_is_not_the_compare_baseline()
+{
+    let frame = phonedriver_video::frame_store::Frame::from_i420(
+        360,
+        800,
+        vec![128; 360 * 800],
+        vec![128; 360 * 200],
+        vec![128; 360 * 200],
+    );
+    let whole = phonedriver_core::device::Image {
+        width: 360,
+        height: 800,
+        format: phonedriver_core::device::ImageFormat::Png,
+        bytes: phonedriver_video::image::encode_png(&frame, 1.0).unwrap(),
+    };
+    let fake = phonedriver_core::testing::FakeDevice::new(vec![tree(&["One", "Two"])])
+        .with_screenshot(whole);
+    let rig = rig_with(Arc::new(fake)).await;
+    let r = rig.call("screenshot", json!({"within": "Two"})).await;
+    assert_ne!(r.is_error, Some(true), "{r:?}");
+    assert_eq!(
+        texts(&r),
+        ["360x76 at scale 1, top left at screen point 0,192: add it to a pixel for `tap x,y`"]
+    );
+    assert!(r.content.iter().any(|c| c.as_image().is_some()));
+    let r = rig.call("screenshot", json!({"compare": true})).await;
+    assert_eq!(
+        r.is_error,
+        Some(true),
+        "a part of the screen is nothing to compare with: {r:?}"
+    );
+    let r = rig
+        .call("screenshot", json!({"compare": true, "within": "@e1"}))
+        .await;
+    assert_eq!(
+        texts(&r),
+        ["`compare` is of the whole screen: leave `within` out"]
+    );
 }
 
 #[tokio::test]

@@ -89,6 +89,38 @@ impl Canvas {
 
 /// Draws each mark's outline and label on the PNG `png` and returns the new PNG. Marks are clipped to the image.
 pub fn draw_marks(png: &[u8], marks: &[Mark]) -> Result<Vec<u8>, String> {
+    let mut canvas = decode(png)?;
+    for (i, m) in marks.iter().enumerate() {
+        let c = COLORS[i % COLORS.len()];
+        let (x, y) = (m.x.round() as i64, m.y.round() as i64);
+        let (mw, mh) = ((m.w.round() as usize).max(4), (m.h.round() as usize).max(4));
+        canvas.outline(x, y, mw, mh, c);
+        canvas.label(x, y, &m.label, c);
+    }
+    encode(canvas.w, canvas.h, &canvas.rgb)
+}
+
+/// The part of the PNG `png` that is `w` by `h` pixels from `x`,`y`, as a new PNG with its size. The part is cut to
+/// the image.
+pub fn crop(png: &[u8], x: u32, y: u32, w: u32, h: u32) -> Result<(u32, u32, Vec<u8>), String> {
+    let canvas = decode(png)?;
+    let (x, y) = (x as usize, y as usize);
+    if x >= canvas.w || y >= canvas.h || w == 0 || h == 0 {
+        return Err("none of it is in the picture".into());
+    }
+    let (w, h) = (
+        (w as usize).min(canvas.w - x),
+        (h as usize).min(canvas.h - y),
+    );
+    let mut rgb = Vec::with_capacity(w * h * 3);
+    for row in y..y + h {
+        let from = (row * canvas.w + x) * 3;
+        rgb.extend_from_slice(&canvas.rgb[from..from + w * 3]);
+    }
+    Ok((w as u32, h as u32, encode(w, h, &rgb)?))
+}
+
+fn decode(png: &[u8]) -> Result<Canvas, String> {
     let mut decoder = png::Decoder::new(std::io::Cursor::new(png));
     decoder.set_transformations(png::Transformations::EXPAND);
     let mut reader = decoder.read_info().map_err(|e| e.to_string())?;
@@ -112,21 +144,17 @@ pub fn draw_marks(png: &[u8], marks: &[Mark]) -> Result<Vec<u8>, String> {
             _ => rgb.extend_from_slice(&px[..3]),
         }
     }
-    let mut canvas = Canvas { w, h, rgb };
-    for (i, m) in marks.iter().enumerate() {
-        let c = COLORS[i % COLORS.len()];
-        let (x, y) = (m.x.round() as i64, m.y.round() as i64);
-        let (mw, mh) = ((m.w.round() as usize).max(4), (m.h.round() as usize).max(4));
-        canvas.outline(x, y, mw, mh, c);
-        canvas.label(x, y, &m.label, c);
-    }
+    Ok(Canvas { w, h, rgb })
+}
+
+fn encode(w: usize, h: usize, rgb: &[u8]) -> Result<Vec<u8>, String> {
     let mut out = Vec::new();
     let mut encoder = png::Encoder::new(&mut out, w as u32, h as u32);
     encoder.set_color(png::ColorType::Rgb);
     encoder.set_depth(png::BitDepth::Eight);
     encoder
         .write_header()
-        .and_then(|mut wr| wr.write_image_data(&canvas.rgb))
+        .and_then(|mut wr| wr.write_image_data(rgb))
         .map_err(|e| e.to_string())?;
     Ok(out)
 }
@@ -154,6 +182,34 @@ mod tests {
         let mut buf = vec![0; r.output_buffer_size().unwrap()];
         let i = r.next_frame(&mut buf).unwrap();
         (i.width, i.height, buf)
+    }
+
+    #[test]
+    fn a_crop_keeps_the_pixels_of_its_part_and_is_cut_to_the_image() {
+        let mut rgb = vec![0u8; 40 * 30 * 3];
+        for y in 0..30usize {
+            for x in 0..40usize {
+                rgb[(y * 40 + x) * 3] = x as u8;
+                rgb[(y * 40 + x) * 3 + 1] = y as u8;
+            }
+        }
+        let mut whole = Vec::new();
+        let mut e = png::Encoder::new(&mut whole, 40, 30);
+        e.set_color(png::ColorType::Rgb);
+        e.set_depth(png::BitDepth::Eight);
+        e.write_header().unwrap().write_image_data(&rgb).unwrap();
+        let (w, h, part) = crop(&whole, 10, 5, 8, 6).unwrap();
+        assert_eq!((w, h), (8, 6));
+        let (dw, dh, px) = decode(&part);
+        assert_eq!((dw, dh), (8, 6));
+        assert_eq!(&px[..3], [10, 5, 0], "the first pixel is the one at 10,5");
+        assert_eq!(&px[px.len() - 3..], [17, 10, 0]);
+        let (w, h, _) = crop(&whole, 35, 28, 20, 20).unwrap();
+        assert_eq!((w, h), (5, 2), "cut to the image");
+        assert!(
+            crop(&whole, 40, 0, 5, 5).is_err(),
+            "nothing of it is in the image"
+        );
     }
 
     #[test]

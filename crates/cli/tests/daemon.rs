@@ -4326,6 +4326,68 @@ async fn a_screenshot_with_marks_is_taken_after_the_tree_it_is_marked_with() {
     assert_eq!(fake.order(), ["tree", "screenshot"]);
 }
 
+/// Issue #52: a whole screen is 411x914 when the agent wants one chart or one row. The crop says where it was cut
+/// from, so a pixel of it is still a point to tap (D5).
+#[tokio::test(start_paused = true)]
+async fn a_screenshot_within_an_element_is_cut_to_it_with_a_margin_and_says_where_from() {
+    let (source, fake) =
+        FakeSource::of(FakeDevice::new(vec![tree(&["One", "Two"])]).with_screenshot(fake_png()));
+    let (d, _home) = daemon(source);
+    ok(&d, "default", "snapshot", json!({})).await;
+    let r = ok(
+        &d,
+        "default",
+        "screenshot",
+        json!({"within": {"ref": "e2"}, "inline": true}),
+    )
+    .await;
+    assert_eq!(
+        (r["width"].as_u64(), r["height"].as_u64()),
+        (Some(360), Some(76)),
+        "{}",
+        r["path"]
+    );
+    assert_eq!(r["origin"], json!({"x": 0.0, "y": 192.0}), "{}", r["path"]);
+    assert_eq!(r["scale"], 1.0);
+    let png = base64::Engine::decode(
+        &base64::engine::general_purpose::STANDARD,
+        r["data_b64"].as_str().unwrap(),
+    )
+    .unwrap();
+    let decoder = png::Decoder::new(std::io::Cursor::new(png));
+    let info = decoder.read_info().unwrap();
+    assert_eq!((info.info().width, info.info().height), (360, 76));
+    assert!(fake.calls().is_empty(), "a picture touches nothing");
+
+    let r = ok(
+        &d,
+        "default",
+        "screenshot",
+        json!({"within": {"text": "One"}, "marks": true}),
+    )
+    .await;
+    assert_eq!(
+        r["marks"], 1,
+        "only the marks inside the crop are counted: {r}"
+    );
+    let e = err(
+        &d,
+        "default",
+        "screenshot",
+        json!({"within": {"text": "Nope"}}),
+    )
+    .await;
+    assert_eq!(e.code, -32007, "{e:?}");
+    let e = err(
+        &d,
+        "default",
+        "screenshot",
+        json!({"within": {"point": {"x": 5, "y": 5}}}),
+    )
+    .await;
+    assert_eq!(e.code, -32025, "{e:?}");
+}
+
 #[tokio::test(start_paused = true)]
 async fn a_screenshot_whose_stream_was_gone_reconnects_once_and_answers() {
     let (source, fake) =
