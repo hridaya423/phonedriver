@@ -241,6 +241,24 @@ impl Session {
         }
     }
 
+    /// The element a `check` names. A text that names elements inside one another names one thing to read: Android
+    /// Settings has a row "Dark theme" holding a switch "Dark theme", and `check "Dark theme"` was refused as
+    /// ambiguous.
+    pub fn resolve_read(&self, target: &Target, now: &Rendered) -> Result<Resolved, Error> {
+        let plain = self.resolve(target, now);
+        let (Err(Error::Ambiguous { .. }), Target::Text { text, role }) = (&plain, target) else {
+            return plain;
+        };
+        let TextMatch::Many(refs) = find_text(now, text, *role, Some(EXTRA_WORDS)) else {
+            return plain;
+        };
+        let found: Vec<usize> = refs.iter().filter_map(|r| now.index_of(*r)).collect();
+        match super::check::nested(now, &found) {
+            Some(i) => Ok(element_at(now, i)),
+            None => plain,
+        }
+    }
+
     /// Finds where a target is on `now`. A ref the screen no longer has fails with the closest current element.
     pub fn resolve(&self, target: &Target, now: &Rendered) -> Result<Resolved, Error> {
         match target {
@@ -260,6 +278,7 @@ impl Session {
                     r#ref: *r#ref,
                     closest: self.closest(*r#ref, now),
                     unseen: self.unseen(*r#ref),
+                    screen: None,
                 }),
             },
             Target::Id { id, text, role } => {
@@ -538,6 +557,7 @@ fn not_found(now: &Rendered, text: &str) -> Error {
         query: text.to_string(),
         similar,
         scrolls,
+        screen: None,
     }
 }
 

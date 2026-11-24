@@ -34,6 +34,7 @@ Progress: a client that sends `"progress": true` in `hello` may receive notifica
 | `find` | `device?, text, role?` | `[ElementLine]` (rendered lines such as `@e12 cell "Row 1"`; the elements whose label or hint contains `text`, in any case; `role` is a snake_case role name) |
 | `act` | `device?, action: Action, approval?: "once"\|"session"\|"autonomous", ask?: ("send"\|"delete"\|"install")[], settle?: bool, timeout_ms?, expect_change_ms?, secret_field_only?: bool, on?: {app, over}` | `ActionResult`; with `secret_field_only` a secret `type` goes only into a password or one-time code field and is refused before typing otherwise (a replay sets it, D105); with `on` (a replayed step's saved screen) the action is refused before any touch on another app or when a dialog is in front and was not, or the other way round (D110) |
 | `wait` | `device?, condition: WaitCondition, timeout_ms?, expect_change_ms?` | `ActionResult`; a wait for an element returns when it shows (or is gone), with `settled: false` and `settle_ms: 0`, since nothing was settled; its summary says how many tree reads it took. A text is found in a label, a hint, or, when neither has it, what a field holds (never a password field's) |
+| `check` | `device?, target: Target` (a text or a ref, not a point), `equals?: string`, `as?: string` | `ActionResult` whose summary is the reading: `"Total" = "€24.99"`, `"Dark theme" = "off"`, or `"Order placed" is shown` when the element is there and nothing reads as its value; `as` adds ` · <as>` so one reply can carry several named readings. It touches nothing (decision D113). With `equals`, a value that differs (after folding case, width and runs of spaces) is `not_as_expected` (-32027). A password field is `refused`. Saved by `journal` and replayed like a `wait`. The trace keeps `checked` or the error's name, never the value, unless traces are full |
 | `batch` | `device?, steps: Step[], approval?: "autonomous", ask?: ("send"\|"delete"\|"install")[], timeout_ms?, expect_change_ms?` | `BatchResult` |
 | `apps` | `device?` | `[App]` (launchable apps: `{id, name, system}`) |
 | `app` | `device?, action: "install"|"stop"|"clear"|"uninstall"|"grant"|"revoke"|"notify", app?, path?, permissions?: string[], payload?: string` | `{ok, summary}` (`path` is for install, on the daemon's machine; `app` is a name or id; `permissions` is for grant and revoke, with the names `launch`'s `grant` takes; `payload` is for notify: the push notification as JSON text with an `aps` object, delivered to the app on an iOS Simulator and `unsupported` everywhere else (decision D100), `refused` when it is not valid; all but install and stop are refused with `unsupported` on a physical device for an app phonedriver did not install) |
@@ -85,7 +86,7 @@ type WaitCondition = {appears: Target} | {gone: Target} | {settled: true}
 // `timeout` names the last state seen (`last seen: cellular, wifi (default)`) or how many log lines arrived. `unsupported`
 // (-32011) where the device has no network state (everything but Android) or no log to follow (a physical iPhone or iPad).
 
-type Step = Action | {kind: "wait", condition: WaitCondition, timeout_ms?: number}   // a wait's own timeout stands in for the batch's (D111); the CLI refuses `secret` text in a batch, the MCP server passes it (D85); the daemon masks it either way (D70)
+type Step = Action | {kind: "wait", condition: WaitCondition, timeout_ms?: number} | {kind: "check", target: Target, equals?: string, as?: string}   // a check step reads as the `check` method does and stops the batch when `equals` does not hold (D113); a wait's own timeout stands in for the batch's (D111); the CLI refuses `secret` text in a batch, the MCP server passes it (D85); the daemon masks it either way (D70)
 type BatchResult = {
   ok: boolean,
   steps: Array<{summary: string, verified?: boolean, unverified?: {shows, hint}}>,   // the steps that ran and succeeded
@@ -137,8 +138,8 @@ JSON-RPC `error` with `code` from the table, `message`, and `data: {code_name, h
 | -32003 | device_gone |
 | -32004 | device_busy |
 | -32005 | needs_user |
-| -32006 | stale_ref |
-| -32007 | not_found |
+| -32006 | stale_ref (`data.screen`, when the session had seen a screen: what changed since the one it was last shown, or the whole screen when there is nothing to compare with, and `""` when nothing changed; the session's last screen is then this one, so its refs can be used at once. Decision D114) |
+| -32007 | not_found (`data.screen` as for `stale_ref`, on a failed `act` or `check`) |
 | -32008 | ambiguous |
 | -32009 | off_screen (`data.behind_keyboard` is true when the keyboard covers the element; `data.covered_by` names a floating toolbar that covers it) |
 | -32010 | version_mismatch |
@@ -155,6 +156,7 @@ JSON-RPC `error` with `code` from the table, `message`, and `data: {code_name, h
 | -32020 | secret_field (a `type` with plain text into a password field, or a text field whose label, hint or id names a one-time code, without `secret`; `data.ref`, `data.kind` `password` or `code`; decision D31) |
 | -32024 | point_off_screen (an `x,y` target outside the screen; `data.x`, `data.y`, and the screen's `data.w` and `data.h` in points; nothing is sent to the device) |
 | -32025 | refused (the device answered and did not do what was asked: a setting it would not write, an unknown or read-only setting key, a `pm grant` that changed nothing; the message is the reason; nothing changed) |
+| -32027 | not_as_expected (a `check` with `equals` read another value; `data: {what, shows?, expected}`; nothing was touched, and in a batch no later step ran) |
 | -32026 | crashed (the daemon failed partway through the call, a bug: the call may have acted, and the device connects again on the next call; `daemon.log` has the failure) |
 | -32023 | not_focused (a `type` without `into` when the screen shows no focused text field and no keyboard; nothing is typed; `data.fields` lists up to five text fields on screen) |
 | -32019 | needs_approval (a tap or `type --submit` that spends money, deletes an account, or is in a category named in `ask`, without an `approval`; `data.label`, `data.app`, `data.category` (`payment`, `account`, `send`, `delete`, `install`), `data.details`; decisions D27 and D31) |

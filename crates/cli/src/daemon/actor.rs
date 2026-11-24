@@ -44,8 +44,8 @@ use super::verify::{Expect, Verdict, Verify};
 use super::{guard, secret_field};
 use crate::wire::{
     ActParams, Action, ActionResult, AppParams, Approval, Approved, BatchParams, BatchResult,
-    BuildParams, ClipboardParams, Crashed, FindParams, JournalParams, Kind, LogsParams,
-    Observation, OnScreen, PageParams, PinchDirection, RecordAction, RecordParams,
+    BuildParams, CheckParams, ClipboardParams, Crashed, FindParams, JournalParams, Kind,
+    LogsParams, Observation, OnScreen, PageParams, PinchDirection, RecordAction, RecordParams,
     ScreenshotParams, ScreenshotResult, SettingParams, ShellParams, ShellResult, SnapshotParams,
     Step, StepFailure, StepResult, Target, TypeMode, VpnState, WaitCondition, WaitParams,
 };
@@ -149,6 +149,7 @@ pub enum Call {
     Screenshot(ScreenshotParams),
     Act(ActParams),
     Wait(WaitParams),
+    Check(CheckParams),
     Batch(BatchParams),
     Find(FindParams),
     Apps,
@@ -785,12 +786,23 @@ impl Actor {
             }
             Call::Screenshot(p) => to_value(self.screenshot(s, p).await?),
             Call::Act(p) => {
-                let mut done = self.act(s, p).await?;
+                let mut done = match self.act(s, p).await {
+                    Ok(done) => done,
+                    Err(e) => return Err(self.with_screen(s, e).await),
+                };
                 done.observation.empty = nothing_to_act_on(s);
                 to_value(done)
             }
             Call::Wait(p) => {
                 let mut done = self.wait(s, p).await?;
+                done.observation.empty = nothing_to_act_on(s);
+                to_value(done)
+            }
+            Call::Check(p) => {
+                let mut done = match self.check(s, p).await {
+                    Ok(done) => done,
+                    Err(e) => return Err(self.with_screen(s, e).await),
+                };
                 done.observation.empty = nothing_to_act_on(s);
                 to_value(done)
             }
@@ -1411,6 +1423,7 @@ fn stale(r: Ref, s: &Session) -> Error {
         r#ref: r,
         closest: None,
         unseen: s.unseen(r),
+        screen: None,
     }
 }
 

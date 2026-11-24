@@ -259,6 +259,34 @@ impl Actor {
         Ok(rendered)
     }
 
+    /// An action that found no element for its target answers with the screen as it is, against the one the agent
+    /// last saw, so the agent need not ask for it (issue #37: the turn that fetched it cost about 8.5k tokens). The
+    /// screen is the one the target was looked for on, and the session holds it from here on.
+    pub(super) async fn with_screen(&mut self, s: &mut Session, mut e: Error) -> Error {
+        let (Error::StaleRef {
+            unseen: false,
+            screen,
+            ..
+        }
+        | Error::NotFound { screen, .. }) = &mut e
+        else {
+            return e;
+        };
+        let now = match self.guard_view.take() {
+            Some((_, seen)) => seen,
+            None => match self.fresh(s).await {
+                Ok(seen) => seen,
+                Err(_) => return e,
+            },
+        };
+        *screen = Some(match s.diff_for_reply(&now) {
+            Some(DiffOrFull::Diff(changes)) => DiffOrFull::Diff(changes).text(&now),
+            _ => now.text(&Filters::default()).unwrap_or_default(),
+        });
+        s.set_last(Some(now));
+        e
+    }
+
     /// A web checkbox or radio repaints after the screen has looked settled (up to 3 s on a page that has just loaded in the
     /// emulator), so a read right away still shows the old state and the reply says nothing changed.
     pub(super) async fn await_toggle(

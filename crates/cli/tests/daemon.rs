@@ -408,7 +408,13 @@ async fn act_on_a_ref_the_screen_no_longer_has_is_stale_with_the_closest_element
     assert_eq!(moved["at"], json!({"x": 180.0, "y": 430.0}), "{moved}");
     let e = err(&d, "default", "act", tap_ref("e3")).await;
     assert_eq!(e.code, -32006);
-    assert!(e.data["hint"].as_str().unwrap().contains("snapshot"));
+    assert!(
+        e.data["hint"]
+            .as_str()
+            .unwrap()
+            .contains("as you last saw it")
+    );
+    assert_eq!(e.data["screen"], "", "{e:?}");
     assert_eq!(fake.calls().len(), 1);
 }
 
@@ -2508,6 +2514,170 @@ async fn a_misspelled_text_target_is_not_found_and_names_the_close_element() {
     assert!(similar.contains("Row 5"), "{similar}");
     assert!(!similar.contains("Wallpaper"), "{similar}");
     assert!(fake.calls().is_empty());
+}
+
+fn receipt(total: &str) -> RawTree {
+    let json = format!(
+        r#"{{"windows":[{{"id":1,"type":"application","package":"com.example","bounds":[0,0,360,800]}}],"nodes":[
+        {{"p":-1,"w":1,"cls":"android.widget.FrameLayout","b":[0,0,360,800],"f":"vVe"}},
+        {{"p":0,"w":1,"cls":"android.widget.TextView","text":"Total","b":[0,100,180,160],"f":"vVe"}},
+        {{"p":0,"w":1,"cls":"android.widget.TextView","text":"{total}","b":[180,100,360,160],"f":"vVe"}},
+        {{"p":0,"w":1,"cls":"android.widget.Button","text":"One","b":[0,200,360,260],"f":"vVe","a":["tap"]}},
+        {{"p":0,"w":1,"cls":"android.widget.Button","text":"Two","b":[0,300,360,360],"f":"vVe","a":["tap"]}}]}}"#
+    );
+    RawTree::from_android_json(&json, Scale { density: 1.0 }).unwrap()
+}
+
+/// Issue #52: a batch gave back its last screen only, so a value on the way (a total before paying, a price in
+/// one app before opening another) cost a turn to read. `check` reads it, and with `equals` stops on another.
+#[tokio::test(start_paused = true)]
+async fn a_check_reads_the_value_beside_a_label_and_touches_nothing() {
+    let (source, fake) = FakeSource::with(vec![receipt("€24.99")]);
+    let (d, _home) = daemon(source);
+    let r = ok(
+        &d,
+        "default",
+        "check",
+        json!({"target": {"text": "Total"}, "as": "price_a"}),
+    )
+    .await;
+    assert_eq!(r["summary"], "\"Total\" = \"€24.99\" · price_a", "{r}");
+    let r = ok(
+        &d,
+        "default",
+        "check",
+        json!({"target": {"text": "total"}, "equals": "€24.99"}),
+    )
+    .await;
+    assert_eq!(r["summary"], "\"total\" = \"€24.99\"", "{r}");
+    let e = err(
+        &d,
+        "default",
+        "check",
+        json!({"target": {"text": "Total"}, "equals": "€19.99"}),
+    )
+    .await;
+    assert_eq!(e.code, -32027, "{e:?}");
+    assert_eq!(e.message, "\"Total\" shows \"€24.99\", not \"€19.99\"");
+    let e = err(
+        &d,
+        "default",
+        "check",
+        json!({"target": {"point": {"x": 10.0, "y": 10.0}}}),
+    )
+    .await;
+    assert!(e.message.contains("not a point"), "{e:?}");
+    assert!(fake.calls().is_empty(), "{:?}", fake.calls());
+
+    let saved = ok(&d, "default", "journal", json!({})).await;
+    assert_eq!(saved["steps"][0]["method"], "check", "{saved}");
+    assert_eq!(saved["steps"][1]["params"]["equals"], "€24.99", "{saved}");
+    assert_eq!(saved["steps"].as_array().unwrap().len(), 2, "{saved}");
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_check_in_a_batch_that_reads_another_value_stops_the_steps_after_it() {
+    let (source, fake) = FakeSource::with(vec![receipt("€24.99")]);
+    let (d, _home) = daemon(source);
+    ok(&d, "default", "snapshot", json!({})).await;
+    let r = ok(
+        &d,
+        "default",
+        "batch",
+        json!({"steps": [
+            {"kind": "tap", "target": {"text": "One"}},
+            {"kind": "check", "target": {"text": "Total"}, "equals": "€19.99"},
+            {"kind": "tap", "target": {"text": "Two"}},
+        ]}),
+    )
+    .await;
+    assert_eq!(r["failed"]["step"], 2, "{r}");
+    assert_eq!(r["failed"]["error"]["data"]["code_name"], "not_as_expected");
+    assert_eq!(fake.calls().len(), 1, "{:?}", fake.calls());
+
+    let r = ok(
+        &d,
+        "default",
+        "batch",
+        json!({"steps": [
+            {"kind": "check", "target": {"text": "Total"}, "equals": "€24.99"},
+            {"kind": "tap", "target": {"text": "Two"}},
+        ]}),
+    )
+    .await;
+    assert_eq!(r["ok"], true, "{r}");
+    assert_eq!(r["steps"][0]["summary"], "\"Total\" = \"€24.99\"", "{r}");
+    let e = err(
+        &d,
+        "default",
+        "batch",
+        json!({"steps": [{"kind": "check", "target": {"text": "Total"}, "equal": "x"}]}),
+    )
+    .await;
+    assert!(e.message.contains("no `equal`"), "{e:?}");
+}
+
+/// Issue #37: a tap that found no element answered with a hint to run `snapshot`, a model turn spent fetching the
+/// screen the daemon had just read. The failure carries that screen, against the one the agent last saw.
+#[tokio::test(start_paused = true)]
+async fn a_tap_that_finds_no_element_answers_with_the_screen_as_it_is_now() {
+    let (source, fake) = FakeSource::with(vec![tree(&["One", "Two", "A", "B", "C", "D"])]);
+    let (d, _home) = daemon(source);
+    ok(&d, "default", "snapshot", json!({})).await;
+    fake.set_tree(tree(&["One", "Three", "A", "B", "C", "D"]));
+    let e = err(
+        &d,
+        "default",
+        "act",
+        json!({"action": {"kind": "tap", "target": {"text": "Two"}}}),
+    )
+    .await;
+    assert_eq!(e.code, -32007);
+    let screen = e.data["screen"].as_str().expect("the screen");
+    assert!(screen.contains("\"Three\""), "{screen}");
+    assert!(!screen.contains("\"One\""), "only what changed: {screen}");
+    let hint = e.data["hint"].as_str().unwrap();
+    assert!(!hint.contains("snapshot"), "{hint}");
+    let reads = fake.tree_reads();
+
+    let e = err(&d, "default", "act", tap_ref("e2")).await;
+    assert_eq!(e.code, -32006, "{e:?}");
+    assert_eq!(e.data["screen"], "", "nothing changed since: {e:?}");
+    let hint = e.data["hint"].as_str().unwrap();
+    assert!(hint.contains("as you last saw it"), "{hint}");
+    assert_eq!(fake.tree_reads(), reads + 1, "one read finds the ref gone");
+
+    let third = screen
+        .lines()
+        .find(|l| l.contains("\"Three\""))
+        .and_then(|l| l.split_whitespace().find(|w| w.starts_with("@e")))
+        .unwrap()
+        .trim_start_matches('@');
+    ok(&d, "default", "act", tap_ref(third)).await;
+    assert_eq!(fake.calls().len(), 1, "{:?}", fake.calls());
+
+    fake.set_tree(tree(&["One", "Four", "A", "B", "C", "D"]));
+    let reads = fake.tree_reads();
+    let e = err(&d, "default", "check", json!({"target": {"text": "Three"}})).await;
+    assert_eq!(e.code, -32007);
+    let after = e.data["screen"].as_str().expect("a check's screen");
+    assert!(after.contains("\"Four\""), "{after}");
+    assert_eq!(
+        fake.tree_reads(),
+        reads + 1,
+        "the check's own read is the one shown"
+    );
+}
+
+/// A ref from another session has no screen to be measured against, so it still says to read one.
+#[tokio::test(start_paused = true)]
+async fn a_ref_the_session_never_saw_comes_back_with_no_screen() {
+    let (source, _fake) = FakeSource::with(vec![tree(&["One"])]);
+    let (d, _home) = daemon(source);
+    let e = err(&d, "default", "act", tap_ref("e9")).await;
+    assert_eq!(e.code, -32006);
+    assert_eq!(e.data["screen"], Value::Null, "{e:?}");
+    assert!(e.data["hint"].as_str().unwrap().contains("snapshot"));
 }
 
 #[tokio::test(start_paused = true)]

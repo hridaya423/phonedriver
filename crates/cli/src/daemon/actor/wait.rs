@@ -36,6 +36,7 @@ impl Actor {
                     )
                     .await
                 }
+                Step::Check(check) => self.check(s, check).await,
                 Step::Wait {
                     condition,
                     timeout_ms,
@@ -161,6 +162,82 @@ impl Actor {
             settle_ms: result.settle_ms,
             changed: result.observation.changed,
             observation: result.observation,
+        })
+    }
+
+    /// Reads the value the screen shows for a target, on a fresh read of the screen the step before left settled,
+    /// and fails when `equals` names another (decision D113). Nothing is touched. The session holds the screen read.
+    pub(super) async fn check(
+        &mut self,
+        s: &mut Session,
+        p: CheckParams,
+    ) -> Result<ActionResult, Error> {
+        if matches!(p.target, Target::Point { .. }) {
+            return Err(Error::Refused {
+                detail: "a check reads an element, so its target is a text or a ref, not a point; nothing was read".into(),
+            });
+        }
+        let step = journal::check(&p, s);
+        let now = self.fresh(s).await?;
+        let found = s.resolve_read(&p.target, &now)?;
+        let i = found
+            .element
+            .as_ref()
+            .and_then(|e| now.index_of(e.r#ref))
+            .ok_or_else(unreachable_state)?;
+        let asked = match &p.target {
+            Target::Text { text, .. } => Some(text.as_str()),
+            _ => None,
+        };
+        let reading = crate::daemon::check::read(&now, i, asked).map_err(|why| Error::Refused {
+            detail: format!("{why}; nothing was read"),
+        })?;
+        if let Some(expected) = p.equals.as_deref().filter(|e| !reading.equals(e)) {
+            return Err(Error::NotAsExpected {
+                what: reading.name,
+                shows: reading.value,
+                expected: expected.to_string(),
+            });
+        }
+        let summary = match &p.name {
+            Some(name) => format!("{} · {name}", reading.line()),
+            None => reading.line(),
+        };
+        let (kind, text) = answer(s, &now);
+        let changed = kind == Kind::Full || !text.is_empty();
+        let observation = Observation {
+            header: now.header.clone(),
+            text,
+            kind,
+            changed,
+            settled: false,
+            settle_ms: 0,
+            still_changing: None,
+            loading: now.loading(),
+            elements: None,
+            capture: None,
+            empty: false,
+        };
+        s.set_last(Some(now));
+        let mut step = step;
+        step["summary"] = json!(summary);
+        s.journal.push(step);
+        Ok(ActionResult {
+            at: None,
+            typed_into: None,
+            unchanged_repeats: None,
+            crashed: None,
+            ok: true,
+            summary,
+            via: None,
+            verified: None,
+            unverified: None,
+            settled: false,
+            settle_ms: 0,
+            changed,
+            woke: false,
+            unlocked: false,
+            observation,
         })
     }
 

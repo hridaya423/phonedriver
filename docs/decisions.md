@@ -1767,3 +1767,29 @@ The GitHub Action passes `--any-build`: it installs the build under test before 
 
 **Limits.** An app whose launcher activity only forwards to another task is not helped by clearing its own.
 
+
+## D113. `check` reads one value, alone or as a batch step (2026-11-24, #52)
+
+**Choice.** A daemon method `check {target, equals?, as?}` and a `Step` of that kind. It resolves the target as an action does, reads a value for it and touches nothing. The value is the first of: `on` or `off` for a checkable element; the element's value; the second text its snapshot line shows (a row's summary), except a text field's placeholder; for a text target, the rest of a label that holds the text and more; the element on the same row to its right, else the non-actionable text right under it within one label-height. With none of those the reading is `"X" is shown`. A text that names elements inside one another (a row and its switch) reads the checkable one, else the outermost. `equals` compares after `text::fold` and with runs of spaces as one, and a mismatch is `NotAsExpected` (-32027), which ends a batch like any failed step. A password field is `Refused`. The CLI verb is `check`; over MCP it is a `batch` step only.
+
+**Why.** Issue #52's first proposal. A flow that taps Pay after reading a total needed three model turns: a batch up to the total, a read, a batch after it. With a check step it is one call, and with `equals` the batch stops before the tap when the total is not the one the model planned for. `wait "€24.99"` proves the text is somewhere on the screen, not that it is the total. A saved run had the same gap: it could wait for a value and never say which label it belonged to.
+
+**Not an MCP tool.** The tool list is read every turn (budget test, 6,700 characters). A single check over MCP is a batch of one step; the batch description carries it in one clause.
+
+**Secrets and untrusted text.** The reply and the error leave through `Daemon::call`, so a remembered secret the field shows is masked (D70); the secrets property test generates checks of both fields, right and wrong, and break B1 shows a check leaking in the reply and in the trace when the mask is removed. The default trace keeps `checked` or the error's name and the length of `equals`, never the value. A value that `inject::looks_like_instruction` flags is marked `(ai-instruction)` like a snapshot line. An app scope applies as to any read: the target resolves on the scoped screen.
+
+**Evidence.** Mac mini to the win-pc emulator (`Pixel_API_37`), Settings, 2026-11-24: `check "Network & internet"` answered `"Network & internet" = "Mobile, Wi‑Fi, hotspot"`; `check "Dark theme"` on the Display page answered `"Dark theme" = "off"`; `check "Brightness level" --equals "0%"` failed with `shows "83%", not "0%"`; a batch stopped at its third step on a wrong `equals` with the two steps before it listed; a saved run of seven steps with four checks replayed 7 of 7 in 4.7 s. The first live run is why the row summary and the row-and-switch rule exist: the fake phone's rows had neither, `check "Network & internet"` said only `is shown`, and `check "Dark theme"` was refused as ambiguous.
+
+**Rejected.** Reading several values in one step (several steps do it, each named with `as`); a pattern or a numeric comparison in `equals` (no flow asked for one); returning values as structured fields beside the text (the numbered line is what the model reads, and a client can parse it).
+
+**Limits.** "Beside" is geometry within one parent: a value in another container, or a table whose cells share no parent with their header, reads `is shown`. OCR-only screens read what OCR found. iOS was checked on the fake only.
+
+## D114. An action that finds no element answers with the screen (2026-11-24, #37)
+
+**Choice.** A failed `act` or `check` whose error is `NotFound`, or `StaleRef` for a ref the session did see, carries `screen`: the screen as the daemon just read it, as the diff against the one the session was last shown (the whole screen when there is nothing to diff against, `""` when nothing changed). The session's last screen becomes that one, so the refs in the error are valid for the next call. The hints stop telling the agent to run `snapshot`; with `""` they say the screen is as it was last seen. The read is the one the failed resolve already made (`guard_view`), so the failure costs no extra tree read.
+
+**Why.** Issue #37: after a tap on text that was gone, the agent's next call was always `snapshot`, a turn that carries nothing the daemon did not already hold. A failed batch already returns the screen with its failure; a single action now does the same.
+
+**Not on every error.** `Ambiguous` already lists the candidates; `OffScreen`, `NeedsUser` and the rest name their own next step. A ref from another session gets no screen: there is no screen of that session to measure against, and the hint to read one first stays.
+
+**Evidence.** Same rig. The screen was changed behind the session (Settings sent to the launcher with `adb shell input keyevent 4`), then `tap "Dark theme"`: the error printed `screen now, against what you last saw:` and the launcher's lines with new refs. The same tap with the screen unchanged printed the hint `The screen is as you last saw it, and nothing on it matches.` and no lines. Daemon test `a_tap_that_finds_no_element_answers_with_the_screen_as_it_is_now` asserts one tree read per failure and that a ref taken from the error taps.

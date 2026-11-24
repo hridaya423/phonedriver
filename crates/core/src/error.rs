@@ -132,6 +132,17 @@ pub fn span(secs: u64) -> String {
     }
 }
 
+fn not_as_expected(what: &str, shows: Option<&str>, expected: &str) -> String {
+    let expected = crate::render::quote(expected);
+    match shows {
+        Some(shows) => format!(
+            "{what} shows {}, not {expected}",
+            crate::render::quote(shows)
+        ),
+        None => format!("{what} shows no value to compare with {expected}"),
+    }
+}
+
 fn stale_message(r: Ref, unseen: bool) -> String {
     if unseen {
         format!("@{r} belongs to an earlier screen or another session")
@@ -350,6 +361,13 @@ pub enum Error {
     /// The daemon failed partway through a call on this device; the next call connects it again.
     #[error("phonedriver failed partway through the call on {id}")]
     Crashed { id: DeviceId },
+    #[error("{}", not_as_expected(what, shows.as_deref(), expected))]
+    NotAsExpected {
+        /// What was checked, as the reply names it: `"Total"`, `@e9`.
+        what: String,
+        shows: Option<String>,
+        expected: String,
+    },
     #[error("device {id} is leased by session {held_by}")]
     DeviceBusy {
         id: DeviceId,
@@ -374,6 +392,10 @@ pub enum Error {
         closest: Option<ElementLine>,
         /// This session has not been shown the ref: it comes from another session or an older daemon.
         unseen: bool,
+        /// The screen as it is now, against the one the session last saw, when the reply carries it (issue #37):
+        /// empty when nothing differs.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        screen: Option<String>,
     },
     #[error("no element matches \"{query}\"")]
     NotFound {
@@ -382,6 +404,9 @@ pub enum Error {
         /// Ways the screen can still scroll, as `scroll` arguments: `down`, `right --within @e1`.
         #[serde(default)]
         scrolls: Vec<String>,
+        /// As `StaleRef::screen`.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        screen: Option<String>,
     },
     #[error("unknown key \"{key}\"")]
     UnknownKey { key: String, valid: Vec<String> },
@@ -571,6 +596,7 @@ impl Error {
             Error::PointOffScreen { .. } => -32024,
             Error::Refused { .. } => -32025,
             Error::Crashed { .. } => -32026,
+            Error::NotAsExpected { .. } => -32027,
         }
     }
 
@@ -604,6 +630,7 @@ impl Error {
             Error::DeviceGone { .. } => {
                 "Reconnect the device, then run `phonedriver devices`.".into()
             }
+            Error::NotAsExpected { .. } => "The check did not hold, so no step after it ran.".into(),
             Error::Crashed { .. } => "Run `phonedriver snapshot` before you repeat the call: it stopped partway and may have acted. The device connects again on the next call; daemon.log has the failure.".into(),
             Error::DeviceBusy {
                 held_by,
@@ -631,6 +658,21 @@ impl Error {
             Error::StaleRef { unseen: true, .. } => {
                 "Run `phonedriver snapshot` to read the screen, then use its refs; refs are per session.".into()
             }
+            Error::StaleRef {
+                closest,
+                screen: Some(screen),
+                ..
+            } => {
+                let from = if screen.is_empty() {
+                    "The screen is as you last saw it: use a ref from it"
+                } else {
+                    "Use a ref from the screen below"
+                };
+                match closest {
+                    Some(line) => format!("{from}; closest now: {line}"),
+                    None => format!("{from}."),
+                }
+            }
             Error::StaleRef { closest, .. } => match closest {
                 Some(line) => {
                     format!("Run `phonedriver snapshot` for fresh refs; closest now: {line}")
@@ -640,16 +682,33 @@ impl Error {
             Error::NotFound { similar, .. } if !similar.is_empty() => {
                 format!("Use one of these instead: {}", similar.join("; "))
             }
-            Error::NotFound { query, scrolls, .. } if !scrolls.is_empty() => {
+            Error::NotFound {
+                query,
+                scrolls,
+                screen,
+                ..
+            } if !scrolls.is_empty() => {
                 let ways: Vec<String> = scrolls
                     .iter()
                     .map(|way| format!("`phonedriver scroll {way} --until {}`", crate::render::quote(query)))
                     .collect();
                 format!(
-                    "It may be off screen: {} drags until it shows. Or run `phonedriver snapshot` to see what is on screen.",
-                    ways.join(" or ")
+                    "It may be off screen: {} drags until it shows.{}",
+                    ways.join(" or "),
+                    if screen.is_some() {
+                        ""
+                    } else {
+                        " Or run `phonedriver snapshot` to see what is on screen."
+                    }
                 )
             }
+            Error::NotFound {
+                screen: Some(screen),
+                ..
+            } if screen.is_empty() => "The screen is as you last saw it, and nothing on it matches.".into(),
+            Error::NotFound {
+                screen: Some(_), ..
+            } => "Use what the screen below shows.".into(),
             Error::NotFound { .. } => "Run `phonedriver snapshot` to see what is on screen.".into(),
             Error::UnknownKey { valid, .. } => {
                 format!("Use one of these keys: {}.", valid.join("; "))
@@ -902,11 +961,13 @@ mod tests {
                 r#ref: Ref(4),
                 closest: Some("@e9 button \"Network & internet\"".into()),
                 unseen: false,
+                screen: None,
             },
             Error::NotFound {
                 query: "Wifi".into(),
                 similar: vec!["@e4 button \"Wi‑Fi\"".into()],
                 scrolls: vec![],
+                screen: None,
             },
             Error::Ambiguous {
                 query: "Dark theme".into(),
@@ -1058,6 +1119,7 @@ mod tests {
             Error::PointOffScreen { .. } => (-32024, "point_off_screen"),
             Error::Refused { .. } => (-32025, "refused"),
             Error::Crashed { .. } => (-32026, "crashed"),
+            Error::NotAsExpected { .. } => (-32027, "not_as_expected"),
         }
     }
 
@@ -1136,6 +1198,7 @@ mod tests {
             r#ref: Ref(4),
             closest: None,
             unseen: false,
+            screen: None,
         }
         .to_rpc();
         assert_eq!(v["data"]["ref"], json!("e4"));
@@ -1156,6 +1219,7 @@ mod tests {
             r#ref: Ref(4),
             closest: Some("@e9 button \"Network & internet\"".into()),
             unseen: false,
+            screen: None,
         };
         let hint = e.hint();
         assert!(hint.contains("phonedriver snapshot"), "{hint}");
@@ -1169,6 +1233,7 @@ mod tests {
             r#ref: Ref(5),
             closest: None,
             unseen: true,
+            screen: None,
         };
         let message = e.to_string();
         assert!(

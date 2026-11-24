@@ -6,6 +6,7 @@
 pub mod actor;
 #[cfg(feature = "android")]
 pub mod android;
+pub mod check;
 pub mod checkbox;
 pub mod guard;
 pub mod ios;
@@ -327,9 +328,9 @@ impl Daemon {
                     .insert(session.to_string(), line.clone());
                 Ok(json!({"same": last.as_deref() == Some(line.as_str())}))
             }
-            "release" | "snapshot" | "screenshot" | "act" | "wait" | "batch" | "find" | "apps"
-            | "app" | "clipboard" | "health" | "shell" | "setting" | "logs" | "network"
-            | "page" | "record" | "journal" | "build" => {
+            "release" | "snapshot" | "screenshot" | "act" | "wait" | "check" | "batch" | "find"
+            | "apps" | "app" | "clipboard" | "health" | "shell" | "setting" | "logs"
+            | "network" | "page" | "record" | "journal" | "build" => {
                 let common: Common = serde_json::from_value(if params.is_null() {
                     json!({})
                 } else {
@@ -434,6 +435,7 @@ impl Daemon {
                         }
                         Call::Batch(batch)
                     }
+                    "check" => Call::Check(rpc::params(params)?),
                     _ => Call::Wait(rpc::params(params)?),
                 };
                 let looked = Instant::now();

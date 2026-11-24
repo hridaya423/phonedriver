@@ -536,8 +536,8 @@ async fn the_tool_list_every_turn_re_reads_fits_a_budget_and_hides_what_agents_n
         })
         .sum();
     assert!(
-        total < 6_600,
-        "what a model reads of tools/list is {total} characters (6,371 in 0.1.7); every turn re-reads it, so raise this only for a tool or argument worth its cost"
+        total < 6_700,
+        "what a model reads of tools/list is {total} characters (6,371 in 0.1.7; lanes in `devices` and the `check` step added about 160); every turn re-reads it, so raise this only for a tool or argument worth its cost"
     );
     for t in &tools {
         let text = serde_json::to_string(&*t.input_schema).unwrap();
@@ -764,6 +764,109 @@ async fn a_batch_step_taps_its_then_texts_and_a_wait_step_keeps_its_own_timeout(
         "the wait took the batch's 5 s: {:?}",
         started.elapsed()
     );
+}
+
+fn receipt(total: &str) -> RawTree {
+    let json = format!(
+        r#"{{"windows":[{{"id":1,"type":"application","package":"com.example","bounds":[0,0,360,800]}}],"nodes":[
+        {{"p":-1,"w":1,"cls":"android.widget.FrameLayout","b":[0,0,360,800],"f":"vVe"}},
+        {{"p":0,"w":1,"cls":"android.widget.TextView","text":"Total","b":[0,100,180,160],"f":"vVe"}},
+        {{"p":0,"w":1,"cls":"android.widget.TextView","text":"{total}","b":[180,100,360,160],"f":"vVe"}},
+        {{"p":0,"w":1,"cls":"android.widget.Button","text":"One","b":[0,200,360,260],"f":"vVe","a":["tap"]}}]}}"#
+    );
+    RawTree::from_android_json(&json, phonedriver_core::geometry::Scale { density: 1.0 }).unwrap()
+}
+
+#[tokio::test]
+async fn a_check_step_reads_a_value_in_the_numbered_reply_and_a_wrong_one_names_what_it_shows() {
+    let rig = rig(vec![receipt("€24.99")]).await;
+    rig.call("snapshot", json!({})).await;
+    let r = rig
+        .call(
+            "batch",
+            json!({"steps": [
+                {"tool": "check", "target": "Total", "as": "price_a"},
+                {"tool": "tap", "target": "One"},
+            ]}),
+        )
+        .await;
+    assert_ne!(r.is_error, Some(true), "{r:?}");
+    let text = texts(&r).join("\n");
+    assert!(
+        text.contains("\n1. \"Total\" = \"€24.99\" · price_a\n2. tapped"),
+        "{text}"
+    );
+
+    let r = rig
+        .call(
+            "batch",
+            json!({"steps": [
+                {"tool": "check", "target": "Total", "equals": "€19.99"},
+                {"tool": "tap", "target": "One"},
+            ]}),
+        )
+        .await;
+    assert_eq!(r.is_error, Some(true), "{r:?}");
+    let text = texts(&r).join("\n");
+    assert!(
+        text.starts_with("step 1 of 2 failed: \"Total\" shows \"€24.99\", not \"€19.99\""),
+        "{text}"
+    );
+    let r = rig
+        .call(
+            "batch",
+            json!({"steps": [{"tool": "check", "target": "Total", "equal": "x"}]}),
+        )
+        .await;
+    assert!(texts(&r)[0].contains("equal"), "{r:?}");
+}
+
+/// What a check reads is screen text, which a trace keeps only when asked to (`full`).
+#[tokio::test]
+async fn a_value_a_check_reads_stays_out_of_the_trace() {
+    let rig = rig(vec![receipt("€24.99")]).await;
+    let r = rig
+        .daemon(
+            "check",
+            json!({"target": {"text": "Total"}, "equals": "€24.99"}),
+        )
+        .await
+        .unwrap();
+    assert_eq!(r["summary"], "\"Total\" = \"€24.99\"");
+    let e = rig
+        .daemon(
+            "check",
+            json!({"target": {"text": "Total"}, "equals": "€19.99"}),
+        )
+        .await
+        .unwrap_err();
+    assert!(e.message().contains("€24.99"), "{}", e.message());
+    for f in files(rig.home.path()) {
+        if f.extension().is_some_and(|e| e == "sock") {
+            continue;
+        }
+        let text = std::fs::read(&f).unwrap();
+        let text = String::from_utf8_lossy(&text);
+        assert!(
+            !text.contains("24.99") && !text.contains("19.99"),
+            "{} holds a checked value",
+            f.display()
+        );
+    }
+}
+
+#[tokio::test]
+async fn a_failed_tap_replies_with_the_screen_and_no_advice_to_call_snapshot() {
+    let rig = rig(vec![tree(&["One", "Two"])]).await;
+    rig.call("snapshot", json!({})).await;
+    let r = rig.call("tap", json!({"target": "Nope"})).await;
+    assert_eq!(r.is_error, Some(true), "{r:?}");
+    let text = texts(&r).join("\n");
+    assert!(
+        text.ends_with("The screen is as you last saw it, and nothing on it matches."),
+        "{text}"
+    );
+    assert!(!text.contains("`snapshot`"), "{text}");
 }
 
 #[tokio::test]

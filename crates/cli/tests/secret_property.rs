@@ -120,6 +120,10 @@ enum Step {
     TapWhatTheNoteSays,
     Page,
     Find,
+    Check {
+        field: Field,
+        wrong: bool,
+    },
     Journal,
     RecordStart,
     RecordStop,
@@ -156,6 +160,10 @@ fn steps() -> impl Strategy<Value = Vec<Step>> {
         1 => Just(Step::Tap(Field::Note)),
         1 => Just(Step::Tap(Field::Password)),
         1 => Just(Step::Find),
+        1 => (any::<bool>(), any::<bool>()).prop_map(|(note, wrong)| Step::Check {
+            field: if note { Field::Note } else { Field::Password },
+            wrong,
+        }),
         1 => Just(Step::Journal),
         1 => Just(Step::RecordStart),
         1 => Just(Step::RecordStop),
@@ -185,6 +193,7 @@ struct Seen {
     typed_ok: usize,
     typed_refused: usize,
     shells: usize,
+    checks: usize,
     secrets: usize,
     leaks: Vec<String>,
 }
@@ -239,6 +248,22 @@ async fn session(steps: &[Step], full: bool, deaf: bool, fails: bool, home: &Pat
         let (what, (_, said)) = match step {
             Step::Snapshot => ("snapshot", call("snapshot", json!({})).await),
             Step::Find => ("find", call("find", json!({"text": "Note"})).await),
+            Step::Check { field, wrong } => {
+                let name = if *field == Field::Note {
+                    "Note"
+                } else {
+                    "Password"
+                };
+                let mut p = json!({"target": {"text": name}});
+                if *wrong {
+                    p["equals"] = json!("something it does not show");
+                }
+                let said = call("check", p).await;
+                if said.0 {
+                    seen.checks += 1;
+                }
+                ("check", said)
+            }
             Step::Journal => ("journal", call("journal", json!({})).await),
             Step::Tap(field) => {
                 let name = if *field == Field::Note {
@@ -458,7 +483,22 @@ fn typed(flagged: bool, into: Aim, in_batch: bool) -> Step {
 
 #[test]
 fn the_sessions_that_leaked_before_the_fixes_stay_closed() {
-    let found: [(&str, Vec<Step>, bool); 5] = [
+    let found: [(&str, Vec<Step>, bool); 6] = [
+        (
+            "a check of a field that shows the secret, right and wrong",
+            vec![
+                typed(true, Aim::Note, false),
+                Step::Check {
+                    field: Field::Note,
+                    wrong: false,
+                },
+                Step::Check {
+                    field: Field::Note,
+                    wrong: true,
+                },
+            ],
+            false,
+        ),
         (
             "F1, a later look at a plain field",
             vec![typed(true, Aim::Note, false), Step::Snapshot, Step::Find],
@@ -536,14 +576,28 @@ fn every_kind_of_step_works_on_the_fake_phone() {
         Step::RecordStart,
         Step::Snapshot,
         Step::Find,
+        Step::Check {
+            field: Field::Note,
+            wrong: false,
+        },
+        Step::Check {
+            field: Field::Note,
+            wrong: true,
+        },
         Step::RecordStop,
         Step::Page,
         Step::Journal,
     ];
     let seen = run(session(&steps, true, false, false, home.path()));
     assert_eq!(
-        (seen.typed_ok, seen.typed_refused, seen.shells, seen.secrets),
-        (3, 0, 1, 4)
+        (
+            seen.typed_ok,
+            seen.typed_refused,
+            seen.shells,
+            seen.checks,
+            seen.secrets
+        ),
+        (3, 0, 1, 1, 4)
     );
 }
 

@@ -3,7 +3,7 @@
 use serde_json::{Value, json};
 
 use super::session::Session;
-use crate::wire::{Action, ActionResult, OnScreen, PointJson, Target, WaitCondition};
+use crate::wire::{Action, ActionResult, CheckParams, OnScreen, PointJson, Target, WaitCondition};
 use phonedriver_core::render::Rendered;
 
 impl OnScreen {
@@ -189,6 +189,16 @@ impl Kept {
 }
 
 /// The step for a wait about to run; its `@ref` is replaced as an action's is.
+/// A `check` in the form it is kept in: its target as a later run finds it, and what it must equal.
+pub fn check(p: &CheckParams, s: &Session) -> Value {
+    let mut by_position = false;
+    let kept = CheckParams {
+        target: lasting(&p.target, s, &mut by_position),
+        ..p.clone()
+    };
+    call("check", json!(kept))
+}
+
 pub fn wait(condition: &WaitCondition, s: &Session) -> Value {
     let mut by_position = false;
     let condition = match condition {
