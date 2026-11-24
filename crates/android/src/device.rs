@@ -409,9 +409,12 @@ impl Device for AndroidDevice {
             .unwrap_or_default())
     }
 
-    async fn launch(&self, app: &AppId) -> Result<()> {
-        self.simple(Op::Launch, json!({"op": "launch", "package": app.0}))
-            .await?;
+    async fn launch(&self, app: &AppId, fresh: bool) -> Result<()> {
+        self.simple(
+            Op::Launch,
+            json!({"op": "launch", "package": app.0, "fresh": fresh}),
+        )
+        .await?;
         Ok(())
     }
 

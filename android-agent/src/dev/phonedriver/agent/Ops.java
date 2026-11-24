@@ -28,7 +28,7 @@ final class Ops {
                 return Json.put(r, "apps", Apps.list(q.optBoolean("all")));
             case "launch":
                 Input.collapsePanels();
-                Apps.launch(q.getString("package"));
+                Apps.launch(q.getString("package"), q.optBoolean("fresh"));
                 return r;
             case "open_url":
                 Input.collapsePanels();

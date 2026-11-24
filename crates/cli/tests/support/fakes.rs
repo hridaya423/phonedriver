@@ -95,8 +95,8 @@ impl Device for Pixels {
     async fn apps(&self) -> Result<Vec<App>, Error> {
         self.0.apps().await
     }
-    async fn launch(&self, app: &AppId) -> Result<(), Error> {
-        self.0.launch(app).await
+    async fn launch(&self, app: &AppId, fresh: bool) -> Result<(), Error> {
+        self.0.launch(app, fresh).await
     }
     async fn foreground(&self) -> Result<Option<AppId>, Error> {
         self.0.foreground().await

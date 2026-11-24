@@ -71,7 +71,7 @@ type Action =
   | {kind: "gesture", fingers: Array<Array<{x: number, y: number, t_ms: number}>>}
   | {kind: "press", key: Key}
   | {kind: "open", url: string, app?: string}         // a link or deep link, in `app` when given
-  | {kind: "launch", app: string, grant?: string[], restart?: boolean}  // restart: stop the app first; grant: runtime permissions to grant first (Android `pm grant`:
+  | {kind: "launch", app: string, grant?: string[], restart?: boolean}  // restart: stop the app first and open it on its first screen (Android: its task is cleared too, D112); grant: runtime permissions to grant first (Android `pm grant`:
     // `notifications`, `camera`, `location` or a full name; Simulator `simctl privacy` services). On a physical device only
     // for an app phonedriver installed (`Unsupported`, -32011, otherwise); a physical iPhone and `notifications` on the
     // Simulator are `Unsupported`.
@@ -186,7 +186,7 @@ Frames: `u32 big-endian length` + UTF-8 JSON. Requests carry `id`; replies echo 
 | `shell` | `command`, `timeout_ms?` (default 30000) | `{exit, stdout, stderr, timed_out}`; runs `sh -c` as the shell user on a thread of its own, each stream capped at 1 MiB, killed at the timeout with exit 124 |
 | `clipboard_get` / `clipboard_set` | `text` (set), `sensitive?` | `{text}` (get; null when empty) |
 | `apps` | `all?` | `{apps:[{package, label, system}]}` |
-| `launch` | `package` | `{}` |
+| `launch` | `package`, `fresh?` | `{}`; `fresh` starts the app's launcher activity with its task cleared (`FLAG_ACTIVITY_CLEAR_TASK`), which `launch` with `restart` sends (decision D112) |
 | `open_url` | `url` | `{package}` that handled it |
 | `notifications` | none | `{}` (expands the shade) |
 | `state` | none | `{screen_on, locked, secure_keyguard, ime_visible, foreground}` |

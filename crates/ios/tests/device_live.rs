@@ -323,7 +323,7 @@ fn home_backgrounds_the_app_and_launch_brings_it_back() {
     RT.block_on(d.button(Button::Home)).unwrap();
     testbed::wait_for(&udid, "background", |e| e["state"] == "background");
     testbed::clear_log(&udid);
-    RT.block_on(d.launch(&AppId(testbed::BUNDLE_ID.into())))
+    RT.block_on(d.launch(&AppId(testbed::BUNDLE_ID.into()), false))
         .unwrap();
     testbed::wait_for(&udid, "active", |e| e["state"] == "active");
     assert_eq!(
@@ -463,7 +463,7 @@ fn the_tree_right_after_a_launch_is_the_launched_app() {
             .args(["simctl", "terminate", &udid, "com.apple.Preferences"])
             .output();
         std::thread::sleep(Duration::from_millis(500));
-        RT.block_on(d.launch(&AppId("com.apple.Preferences".into())))
+        RT.block_on(d.launch(&AppId("com.apple.Preferences".into()), false))
             .unwrap();
         let t = tree(&d);
         assert_eq!(

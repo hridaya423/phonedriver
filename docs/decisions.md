@@ -1754,3 +1754,16 @@ The GitHub Action passes `--any-build`: it installs the build under test before 
 **Rejected.** Refusing all three (the issue's patch): an agent that writes `then` or a wait's timeout in a step means what the tool does with them alone, and a refusal costs it a turn to say the same thing in more steps. Honouring `device` per step: a batch is one lease, one screen and one diff. A timeout on every kind of step: only `wait` takes one as a tool, and the batch's covers each action's settle.
 
 **Cost.** No schema text. An older daemon ignores a wait step's `timeout_ms` and uses the batch's, as before.
+
+## D112. `launch` with `restart` clears the app's task on Android (2026-11-24, #51)
+
+**Choice.** `Device::launch` takes `fresh`. `launch` with `restart` still stops the app (`am force-stop`) and then starts its launcher activity with `FLAG_ACTIVITY_CLEAR_TASK` beside `FLAG_ACTIVITY_NEW_TASK` (agent op `launch`, `fresh: true`). A plain `launch` is unchanged and brings the app back where it was. iOS ignores `fresh`: a terminated app already starts on its first screen.
+
+**Why.** Issue #51, API 37 emulator: from Settings, the search screen (`com.google.android.settings.intelligence`) and Default apps (`com.google.android.permissioncontroller`) are activities of another package inside the Settings task. A force-stop of Settings ends Settings' own activities and leaves that one, and a plain start brings the task forward with it on top, so every `launch Settings --restart` answered "Settings is not in front" and a saved run that starts with `launch restart` could not start clean. Stopping the other package by hand was the only way out.
+
+**Evidence.** Mac mini to the win-pc emulator (`Pixel_API_37`, animations on), 2026-11-24. With the 0.1.4 binary: `restarted Settings, but Settings is not in front (com.google.android.settings.intelligence is)`, twice. With this change: 8 of 8 restarts from the two pages opened on Settings' first screen (two runs, four from each page), and `launch Settings` after `press home` from the Apps page came back to the Apps page.
+
+**Rejected.** Stopping whatever package is in front as well: it may be a system component other apps share (the permission controller). Clearing the task on every launch: `launch` promises the app where it was left.
+
+**Limits.** An app whose launcher activity only forwards to another task is not helped by clearing its own.
+

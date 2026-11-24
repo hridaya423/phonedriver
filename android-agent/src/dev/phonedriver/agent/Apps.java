@@ -56,10 +56,16 @@ final class Apps {
         }
     }
 
-    static void launch(String pkg) {
+    static void launch(String pkg, boolean fresh) {
         Intent intent = packages().getLaunchIntentForPackage(pkg);
         if (intent == null) {
             throw new IllegalArgumentException("no launcher activity for " + pkg);
+        }
+        if (fresh) {
+            // A screen another package put in the app's task outlives a force-stop of the app, and a plain start
+            // brings that task back with it on top: Settings' search (settings.intelligence) and Default apps
+            // (permissioncontroller) stayed in front of every restart of Settings on API 37 (issue #51).
+            intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK);
         }
         start(intent);
     }
