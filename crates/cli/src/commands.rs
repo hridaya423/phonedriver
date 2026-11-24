@@ -2650,6 +2650,12 @@ impl Replay {
                 self.from
             )));
         }
+        let device = client.call("device", with(json!({}))).await?["device"].take();
+        let named = |mut params: Value| {
+            params["device"] = device.clone();
+            params
+        };
+        let (act, with) = (&|action| named(act(action)), &|params| named(with(params)));
         if !self.any_build {
             self.same_builds(client, with).await?;
         }

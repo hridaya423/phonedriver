@@ -309,6 +309,7 @@ impl Daemon {
                 Ok(json!({"pid": std::process::id()}))
             }
             "devices" => Ok(self.devices().await?),
+            "device" => Ok(json!({"device": self.resolve(params["device"].as_str()).await?})),
             "hidden" => {
                 let extra: Vec<String> = params["ids"]
                     .as_array()

@@ -2164,3 +2164,57 @@ async fn progress_names_the_replay_step_and_never_carries_text_given_to_the_call
     assert_eq!(said.len(), 1, "{said:?}");
     assert!(!said[0].contains("hunter2"), "{said:?}");
 }
+
+struct Asked(OneDevice, Arc<std::sync::Mutex<Vec<Option<String>>>>);
+
+#[async_trait::async_trait]
+impl phonedriver::daemon::DeviceSource for Asked {
+    async fn list(
+        &self,
+    ) -> Result<Vec<phonedriver::daemon::Listed>, phonedriver_core::error::Error> {
+        self.1.lock().unwrap().push(None);
+        self.0.list().await
+    }
+    async fn connect(
+        &self,
+        id: &str,
+    ) -> Result<Arc<dyn phonedriver_core::device::Device>, phonedriver_core::error::Error> {
+        self.0.connect(id).await
+    }
+    async fn list_for(
+        &self,
+        requested: Option<&str>,
+    ) -> Result<Vec<phonedriver::daemon::Listed>, phonedriver_core::error::Error> {
+        self.1.lock().unwrap().push(requested.map(str::to_string));
+        self.0.list().await
+    }
+}
+
+#[tokio::test]
+async fn a_replay_asks_which_device_is_the_default_once_and_names_it_on_every_step() {
+    let asked = Arc::new(std::sync::Mutex::new(Vec::new()));
+    let source = Asked(
+        OneDevice(pixel_device(vec![tree(&["One", "Two"])])),
+        asked.clone(),
+    );
+    let rig = rig_on(Arc::new(source)).await;
+    rig.call("snapshot", json!({})).await;
+    let tap = |text: &str| json!({"method": "act", "params": {"action": {"kind": "tap", "target": {"text": text}}}});
+    let file = rig.home.path().join("run.steps");
+    std::fs::write(
+        &file,
+        format!("{}\n{}\n{}\n", tap("One"), tap("Two"), tap("One")),
+    )
+    .unwrap();
+    asked.lock().unwrap().clear();
+    let r = rig
+        .call("replay", json!({"file": file.to_str().unwrap()}))
+        .await;
+    assert!(texts(&r)[0].starts_with("replayed 3 steps in "), "{r:?}");
+    let asked = asked.lock().unwrap().clone();
+    assert_eq!(asked[0], None, "{asked:?}");
+    assert!(
+        asked.len() >= 4 && asked[1..].iter().all(|d| d.as_deref() == Some("fake:1")),
+        "{asked:?}"
+    );
+}

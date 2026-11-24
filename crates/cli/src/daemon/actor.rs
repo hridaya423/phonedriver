@@ -762,12 +762,19 @@ impl Actor {
         }
     }
 
+    /// The build of the app a launch names. A launch takes a name as readily as an id, and a device reads a build
+    /// by id. Observed on the API 37 emulator: asked for `Settings`, `dumpsys package Settings` printed the version
+    /// lines of three other packages, and `phonedriver testbed` was no package name at all, so its saved run kept
+    /// no build and its replay checked none.
+    async fn build_of(&mut self, app: &str) -> Result<Option<String>, Error> {
+        let device = self.device()?;
+        let found = self.app_named(&*device, app).await?;
+        device.app_build(&found.id).await
+    }
+
     /// Steps about to be saved, each launch with the build of the app it launches, read once per app. A replay
     /// refuses another build: the steps were saved on that one's screens.
-    async fn with_builds(&self, mut journal: Value) -> Value {
-        let Ok(device) = self.device() else {
-            return journal;
-        };
+    async fn with_builds(&mut self, mut journal: Value) -> Value {
         let mut builds: HashMap<String, Option<String>> = HashMap::new();
         let Some(steps) = journal["steps"].as_array_mut() else {
             return journal;
@@ -782,7 +789,7 @@ impl Actor {
             };
             let app = app.to_string();
             if !builds.contains_key(&app) {
-                let build = device.app_build(&AppId(app.clone())).await.ok().flatten();
+                let build = self.build_of(&app).await.ok().flatten();
                 builds.insert(app.clone(), build);
             }
             if let Some(build) = &builds[&app] {
@@ -908,7 +915,7 @@ impl Actor {
                 None if p.keep => self.with_builds(s.journal.peek()).await,
                 None => self.with_builds(s.journal.take()).await,
             },
-            Call::Build(p) => json!({"build": self.device()?.app_build(&AppId(p.app)).await?}),
+            Call::Build(p) => json!({"build": self.build_of(&p.app).await?}),
             Call::Logs(p) => self.logs(s, p).await?,
             Call::Network => to_value(self.device()?.network().await?),
             Call::Notifications(p) => self.notifications(p).await?,

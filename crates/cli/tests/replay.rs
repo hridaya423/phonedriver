@@ -607,6 +607,28 @@ async fn save_keeps_the_build_of_each_app_it_launches() {
     assert_eq!(asked["build"], "4.37.1 (437001)", "{asked}");
 }
 
+/// Seen while timing replays on the API 37 emulator: a run saved after `launch Settings` kept the build that
+/// `dumpsys package Settings` printed, which is other packages' (three version lines, none of them Settings'), and
+/// one saved after `launch "phonedriver testbed"` kept none, so its replay checked no build.
+#[tokio::test(start_paused = true)]
+async fn the_build_of_an_app_launched_by_name_is_read_by_its_id() {
+    let (d, fake, _home) = setup(vec![tree(&["One"])]);
+    fake.install(&[("com.example", "Example App")]);
+    fake.set_app_build("4.37.1 (437001)");
+    ok(
+        &d,
+        "act",
+        json!({"action": {"kind": "launch", "app": "Example App"}}),
+    )
+    .await;
+    let saved = ok(&d, "journal", json!({"keep": true})).await;
+    assert_eq!(saved["steps"][0]["build"], "4.37.1 (437001)", "{saved}");
+    let asked = ok(&d, "build", json!({"app": "Example App"})).await;
+    assert_eq!(asked["build"], "4.37.1 (437001)", "{asked}");
+    let ids: Vec<String> = fake.builds_asked().into_iter().map(|a| a.0).collect();
+    assert_eq!(ids, ["com.example", "com.example"]);
+}
+
 #[tokio::test(flavor = "multi_thread")]
 async fn a_replay_refuses_another_build_of_an_app_it_launches_unless_told_any_build() {
     let fake = Arc::new(FakeDevice::new(vec![tree(&["One"])]).lacking(Capabilities::FRAMES));
