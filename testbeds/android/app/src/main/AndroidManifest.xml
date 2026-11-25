@@ -27,6 +27,10 @@
             </intent-filter>
         </activity>
         <activity
+            android:name=".MaterialPickers"
+            android:exported="true"
+            android:theme="@style/Theme.Material3.DayNight.NoActionBar" />
+        <activity
             android:name=".SecondActivity"
             android:exported="false" />
     </application>

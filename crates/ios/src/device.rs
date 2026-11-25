@@ -7,6 +7,7 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 use base64::Engine;
+use phonedriver_core::calendar::CalendarNames;
 use phonedriver_core::device::{
     App, AppId, AppOp, Button, Capabilities, ClipboardOp, Device, DeviceEvent, DeviceInfo,
     FrameRef, Gesture, Image, ImageFormat, Key, Quality, Recorded, Result, ScreenState, ShellReply,
@@ -1115,6 +1116,14 @@ impl Device for IosDevice {
             secure: locked,
             focused: true,
         })
+    }
+
+    async fn calendar_names(&self, _app: Option<&AppId>) -> Result<Option<CalendarNames>> {
+        let reply = self
+            .client()
+            .request(Op::Foreground, json!({"op": "calendar_names"}))
+            .await?;
+        Ok(serde_json::from_value(reply).ok())
     }
 
     async fn foreground(&self) -> Result<Option<AppId>> {

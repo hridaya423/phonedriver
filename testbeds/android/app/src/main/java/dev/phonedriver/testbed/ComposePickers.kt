@@ -30,9 +30,11 @@ object ComposePickers {
         view.setContent {
             var date by remember { mutableStateOf(false) }
             var time by remember { mutableStateOf(false) }
+            var whole by remember { mutableStateOf(false) }
             Row {
                 Button(onClick = { date = true }) { Text("Compose date") }
-                Button(onClick = { time = true }) { Text("Compose time") }
+                Button(onClick = { time = true; whole = false }) { Text("Compose time") }
+                Button(onClick = { time = true; whole = true }) { Text("Compose 24h") }
             }
             if (date) {
                 val state = rememberDatePickerState(initialSelectedDateMillis = 1768435200000L)
@@ -51,14 +53,14 @@ object ComposePickers {
                 ) { DatePicker(state = state) }
             }
             if (time) {
-                val state = rememberTimePickerState(initialHour = 9, initialMinute = 5, is24Hour = false)
+                val state = rememberTimePickerState(initialHour = 9, initialMinute = 5, is24Hour = whole)
                 AlertDialog(
                     onDismissRequest = { time = false },
                     confirmButton = {
                         TextButton(onClick = {
                             time = false
                             Pickers.picked(
-                                "compose_time",
+                                if (whole) "compose_time_24h" else "compose_time",
                                 String.format(Locale.ROOT, "%02d:%02d", state.hour, state.minute),
                             )
                         }) { Text("OK") }

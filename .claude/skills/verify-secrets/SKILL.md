@@ -44,6 +44,8 @@ Three unit tests in `daemon/secrets.rs` cover what the property's fixed secrets 
 
 2026-11-25, D127 and D128: `act` took `next`, the target of the following step and the screen it was saved on; it is a target, never typed text, and `trace.rs` hides its text as it hides the action's own target (`--test replay a_replayed_step_is_told_what_the_next_step_touches_and_the_last_step_nothing` reads the trace line). The property does not generate it. The Android device now prints the agent's video lines to the daemon's log when a stream ends (lines that start `stream V `, `video` or `encoder `; unit test `video_log_tests`), and `replay --screens` writes `NN.now.png` from the command line, a picture as the kept ones are. Break B1 was run again on the Mac mini and failed as it should. The sync commit is not moved.
 
+2026-11-25, pickers everywhere (D125, D126): `Device::calendar_names` is a new device reply (month names, the words for the halves of the day, digits), read by the daemon and never returned as such; `FakeDevice` answers it. `not_picked` details now quote what wheels and fields show, which leaves through `Daemon::call` and its mask like every other error; `select` is still not secret text. `--test secret_property`: 3 passed; break B1 on the Mac mini failed as it should (`step 1 (check): the reply holds the secret Ty0mW4zR8nB3c`). The sync commit is not moved.
+
 When you finish a change, run:
 
 ```

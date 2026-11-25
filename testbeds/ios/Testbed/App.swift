@@ -51,7 +51,9 @@ final class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         window.rootViewController = host
         window.makeKeyAndVisible()
         self.window = window
-        if let name = UserDefaults.standard.string(forKey: "tab"), let tab = Tab(rawValue: name) {
+        if UserDefaults.standard.string(forKey: "tab") == "pickers" {
+            model.pickers = true
+        } else if let name = UserDefaults.standard.string(forKey: "tab"), let tab = Tab(rawValue: name) {
             model.select(tab)
         }
         options.urlContexts.forEach { open($0.url) }

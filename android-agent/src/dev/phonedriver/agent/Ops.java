@@ -36,6 +36,8 @@ final class Ops {
             case "notifications":
                 Input.expandNotifications();
                 return r;
+            case "calendar_names":
+                return Names.of(q.isNull("package") ? null : q.getString("package"));
             case "state":
                 return DeviceState.state();
             case "power":
