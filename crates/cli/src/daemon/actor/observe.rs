@@ -49,30 +49,82 @@ impl Actor {
     }
 
     pub(super) async fn settle(&mut self, cfg: Config, started: Duration) -> State {
-        self.settle_probing(cfg, started, false).await.0
+        self.settle_probing(cfg, started, false, None).await.0
+    }
+
+    /// Where the next step's target is on `tree`, and whether that step could start from this read: the screen is
+    /// the kind it was saved on, nothing on it says it is still loading, and the target can be touched (not under
+    /// the keyboard, not under a bar, not on a page Android still reports as short of one edge: issue #53, a page
+    /// that is sliding in).
+    pub(super) fn place(
+        &self,
+        s: &mut Session,
+        next: &crate::wire::Next,
+        tree: &RawTree,
+    ) -> Option<(Rect, bool)> {
+        let now = self.build(s, tree, None);
+        let found = s.resolve(&next.target, &now).ok()?;
+        let bounds = found.element.map(|e| e.bounds)?;
+        let holds = !now.header.partial
+            && !tree.loading()
+            && !tree.web_view_pending()
+            && next.on.as_ref().is_none_or(|on| on.differs(&now).is_none())
+            && !found.under_keyboard
+            && found.covered.is_none();
+        Some((bounds, holds))
     }
 
     /// With `probe`, reads the tree while the screen is quiet but the quiet period is not over, so a reply that needs
     /// the tree after the settle finds it already read. Two equal reads that both started after the last significant
     /// frame are what `stabilize` would have gathered after the settle.
+    ///
+    /// With `ready`, the next step's target is looked for in each read, and two reads in a row that find it at the
+    /// same bounds, in a tree that did not grow between them, do for it what two equal trees do for a reply
+    /// (decision D127):
+    ///
+    /// - When the screen has gone quiet as a whole and both reads began `READ_LAG` after its last frame, the next
+    ///   step starts from them, whatever else in the tree still differs (`stabilize` goes on from here when the
+    ///   second read is not in yet).
+    /// - While the screen still moves elsewhere, the settle ends on them, for a target that was not there before
+    ///   the action (the flag). Both reads must have begun `READ_LAG` after the last frame that drew over the
+    ///   target's bounds, that frame must be `quiet` old, and there must be one, because the tree can list a row
+    ///   before it is on the glass. Only this case reads more often than a settle without `ready`: every
+    ///   `TREE_STEP` until the target is in the tree, then only when no frame has drawn over it for `READ_LAG`,
+    ///   so a page that is sliding in as a whole is not read at all (measured on Settings, API 37 emulator: a read
+    ///   every 100 ms through each transition took 9.6 to 14.0 s of a replay's reads against 2.3 to 5.2 s).
     pub(super) async fn settle_probing(
         &mut self,
         cfg: Config,
         started: Duration,
         probe: bool,
+        mut ready: Option<(&mut Session, &crate::wire::Next, bool)>,
     ) -> (State, Option<Probe>) {
         let mut det = Detector::new(cfg, started);
+        let mut drawn: Vec<(Duration, Rect)> = Vec::new();
+        let mut unseen: Vec<Duration> = Vec::new();
+        let floor = cfg.first_change_area;
         if let Some((t, input)) = self.recent
             && (cfg.expect_change.is_none() || t >= started)
         {
             det.feed(input, t);
+            note(&mut drawn, &mut unseen, input, t, floor);
         }
         for (t, input) in std::mem::take(&mut self.during) {
             det.feed(input, t.max(started));
+            note(&mut drawn, &mut unseen, input, t.max(started), floor);
         }
         if std::mem::take(&mut self.change_seen) {
-            det.feed(Input::WindowChanged, started.max(self.now()));
+            let at = started.max(self.now());
+            det.feed(Input::WindowChanged, at);
+            unseen.push(at);
         }
+        if std::mem::take(&mut self.frames_missed) {
+            unseen.push(started.max(self.now()));
+        }
+        let mut placed: Option<Rect> = None;
+        let mut found: Option<Found> = None;
+        let mut pair: Option<(Found, Found)> = None;
+        let mut looked_at = Duration::ZERO;
         let device = if probe { self.device().ok() } else { None };
         let mut reads: Vec<Read> = Vec::new();
         let mut inflight: Option<Inflight> = None;
@@ -81,12 +133,6 @@ impl Actor {
             let st = det.poll(self.now());
             if matches!(st, State::Done { .. }) {
                 let last = det.last_significant();
-                if let (Some((at, read)), Some(last)) = (inflight.take(), last)
-                    && at >= last + READ_LAG
-                    && let Ok(tree) = read.await
-                {
-                    reads.push(Read { at, tree });
-                }
                 let settled = matches!(
                     st,
                     State::Done {
@@ -95,6 +141,31 @@ impl Actor {
                         ..
                     }
                 );
+                // The screen went quiet as a whole. When two reads made since then agree on the next step's target,
+                // that step can start from them, and the reads that wait for every line of the page to agree are
+                // not made: a stopwatch's digits or a ticker keep those from ever agreeing.
+                if settled
+                    && let (Some((a, b)), Some(last)) = (pair, last)
+                    && a.at >= last + READ_LAG
+                    && let Some(i) = reads.iter().position(|r| r.at == b.at)
+                {
+                    let newest = reads.swap_remove(i);
+                    return (
+                        st,
+                        Some(Probe {
+                            tree: newest.tree,
+                            at: newest.at,
+                            stable: true,
+                            ready: true,
+                        }),
+                    );
+                }
+                if let (Some((at, read)), Some(last)) = (inflight.take(), last)
+                    && at >= last + READ_LAG
+                    && let Ok(tree) = read.await
+                {
+                    reads.push(Read { at, tree });
+                }
                 let probed = last.filter(|_| settled).and_then(|l| probe_of(reads, l));
                 return (st, probed);
             }
@@ -103,7 +174,14 @@ impl Actor {
                 let wanted = match det.last_significant() {
                     Some(last) => {
                         let due = last + READ_LAG;
-                        now >= due && reads.iter().filter(|r| r.at >= due).count() < 2
+                        let arriving = match (&ready, placed) {
+                            (Some((_, _, true)), None) => true,
+                            (Some((_, _, true)), Some(place)) => drawn_over(&drawn, &unseen, place)
+                                .is_some_and(|over| now >= over + READ_LAG),
+                            _ => false,
+                        };
+                        (now >= due && reads.iter().filter(|r| r.at >= due).count() < 2)
+                            || (arriving && now >= looked_at + TREE_STEP)
                     }
                     None => {
                         cfg.expect_change
@@ -114,6 +192,7 @@ impl Actor {
                 };
                 if wanted {
                     let device = device.clone();
+                    looked_at = now;
                     inflight = Some((now, Box::pin(async move { device.tree().await })));
                 }
             }
@@ -122,6 +201,10 @@ impl Actor {
                     let at = self.now();
                     if let Some(input) = self.absorb(sig, at) {
                         det.feed(input, at);
+                        note(&mut drawn, &mut unseen, input, at, floor);
+                    }
+                    if std::mem::take(&mut self.frames_missed) {
+                        unseen.push(at);
                     }
                 }
                 (at, read) = finished(&mut inflight) => {
@@ -134,6 +217,41 @@ impl Actor {
                                 det.feed(Input::WindowChanged, probed_at);
                             }
                         } else {
+                            if let Some((s, next, arrives)) = &mut ready {
+                                let before = found.take();
+                                let place = self.place(s, next, &tree);
+                                placed = place.map(|(bounds, _)| bounds);
+                                found = place.filter(|(_, holds)| *holds).map(|(bounds, _)| Found {
+                                    bounds,
+                                    at,
+                                    nodes: tree.nodes.len(),
+                                });
+                                pair = before
+                                    .zip(found)
+                                    .filter(|(a, b)| a.bounds == b.bounds && a.nodes == b.nodes);
+                                if *arrives
+                                    && let Some((a, b)) = pair
+                                    && let Some(over) = drawn_over(&drawn, &unseen, b.bounds)
+                                    && a.at >= over + READ_LAG
+                                    && self.now() >= over + cfg.quiet
+                                {
+                                    let st = State::Done {
+                                        settled: true,
+                                        changed: true,
+                                        still_changing: None,
+                                        elapsed: self.now().saturating_sub(started),
+                                    };
+                                    return (
+                                        st,
+                                        Some(Probe {
+                                            tree,
+                                            at,
+                                            stable: true,
+                                            ready: true,
+                                        }),
+                                    );
+                                }
+                            }
                             reads.push(Read { at, tree });
                         }
                     }
@@ -421,4 +539,34 @@ impl Actor {
         });
         Ok(())
     }
+}
+
+/// Keeps where a frame drew, when it drew more than a caret's blink, for a later look at one element's place. A
+/// window event says the screen changed and not where, so it goes with the frames that were never seen.
+fn note(
+    drawn: &mut Vec<(Duration, Rect)>,
+    unseen: &mut Vec<Duration>,
+    input: Input,
+    at: Duration,
+    floor: f32,
+) {
+    match input {
+        Input::WindowChanged => unseen.push(at),
+        Input::Frame {
+            changed_area_pt2,
+            changed_box,
+        } if changed_area_pt2 > floor => drawn.push((at, changed_box)),
+        Input::Frame { .. } => {}
+    }
+}
+
+/// When a frame last drew over `place`, or may have: a frame that was never seen and a window event count as drawn
+/// there once a seen frame has. `None` while no seen frame has drawn there.
+fn drawn_over(drawn: &[(Duration, Rect)], unseen: &[Duration], place: Rect) -> Option<Duration> {
+    let seen = drawn
+        .iter()
+        .filter(|(_, b)| b.clip(place).is_some())
+        .map(|(t, _)| *t)
+        .max()?;
+    Some(unseen.iter().copied().fold(seen, Duration::max))
 }

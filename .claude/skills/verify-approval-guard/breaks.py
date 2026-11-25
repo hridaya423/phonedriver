@@ -3,7 +3,7 @@ import subprocess, sys, os
 OUT = "target/verify-approval-guard"
 os.makedirs(OUT, exist_ok=True)
 BREAKS = {
- "B1-approval-on-every-batch-step": ("crates/cli/src/daemon/actor.rs", "approval: p.approval.filter(|a| *a == Approval::Autonomous || i == 0),", "approval: p.approval,"),
+ "B1-approval-on-every-batch-step": ("crates/cli/src/daemon/actor/wait.rs", "approval: p.approval.filter(|a| *a == Approval::Autonomous || i == 0),", "approval: p.approval,"),
  "B2-resume-from-step-zero": ("crates/cli/src/mcp.rs", "            from = held;\n        }\n    }", "            from = 0;\n        }\n    }"),
  "B2b-mrtr-retry-resumes-from-step-zero": ("crates/cli/src/mcp.rs", "            from = step;\n        }", "            from = 0;\n        }"),
  "B6b-mrtr-decline-taps": ("crates/cli/src/mcp.rs", "            match decision(reply) {\n                Decision::Declined => return Outcome::Done(declined()),\n                Decision::Dismissed => return Outcome::Done(dismissed(None)),\n                Decision::Once => globals.approval = Some(Approval::Once),\n                Decision::Session => globals.approval = Some(Approval::Session),\n            }\n            from = step;", "            match decision(reply) {\n                Decision::Declined => globals.approval = Some(Approval::Once),\n                Decision::Dismissed => return Outcome::Done(dismissed(None)),\n                Decision::Once => globals.approval = Some(Approval::Once),\n                Decision::Session => globals.approval = Some(Approval::Session),\n            }\n            from = step;"),

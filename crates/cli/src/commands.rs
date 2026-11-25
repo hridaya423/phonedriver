@@ -2317,6 +2317,26 @@ pub(crate) fn files_folder() -> Option<std::path::PathBuf> {
         .map(std::path::PathBuf::from)
 }
 
+/// What a step's `act` is told of the step after it (`ActParams::next`, decision D127): the element that step taps
+/// or types into, and the screen it was saved on. A step saved by position, a wait, a key and a launch name none.
+fn touched_next(step: Option<&Value>) -> Option<Value> {
+    let step = step.filter(|s| s["manual"].is_null() && s["method"] == "act")?;
+    let action = &step["params"]["action"];
+    let target = match action["kind"].as_str()? {
+        "tap" => &action["target"],
+        "type" => &action["into"],
+        _ => return None,
+    };
+    if !target.is_object() || target.get("point").is_some() {
+        return None;
+    }
+    let mut next = json!({"target": target});
+    if !step["on"].is_null() {
+        next["on"] = step["on"].clone();
+    }
+    Some(next)
+}
+
 fn own_params(params: &Value) -> Value {
     let mut params = params.clone();
     if let Some(fields) = params.as_object_mut() {
@@ -2611,6 +2631,7 @@ impl Replay {
         mut action: Value,
         on: &Value,
         secret_field_only: Option<bool>,
+        next: Option<Value>,
     ) -> Result<Value, Failure> {
         let typing = action["kind"] == "type";
         let submit = typing && action["submit"] == true;
@@ -2620,6 +2641,9 @@ impl Replay {
         let mut params = act(action);
         if !on.is_null() {
             params["on"] = on.clone();
+        }
+        if let Some(next) = next.as_ref().filter(|_| !submit) {
+            params["next"] = next.clone();
         }
         if let Some(only) = secret_field_only {
             params["secret_field_only"] = json!(only);
@@ -2641,9 +2665,11 @@ impl Replay {
             return Err(refused(&why));
         }
         if submit {
-            let enter = client
-                .call("act", act(json!({"kind": "press", "key": "enter"})))
-                .await?;
+            let mut enter = act(json!({"kind": "press", "key": "enter"}));
+            if let Some(next) = next {
+                enter["next"] = next;
+            }
+            let enter = client.call("act", enter).await?;
             let summary = format!(
                 "{}, then {}",
                 r["summary"].as_str().unwrap_or("typed"),
@@ -2736,7 +2762,12 @@ impl Replay {
                     Ok((action, secret)) => {
                         let field_only = secret.is_some().then_some(!any_field);
                         typed.extend(secret);
-                        Replay::act(client, act, action, &step["on"], field_only).await
+                        let next = self
+                            .screens
+                            .is_none()
+                            .then(|| touched_next(self.steps.get(i + 1)))
+                            .flatten();
+                        Replay::act(client, act, action, &step["on"], field_only, next).await
                     }
                     Err(why) => {
                         hint = Some(secret_hint(&why, i + 1, total));

@@ -42,6 +42,8 @@ Three unit tests in `daemon/secrets.rs` cover what the property's fixed secrets 
 
 2026-11-25, round 2: `files` with no file named is a listing (D129): the names of the device's files leave through `Daemon::call` like any reply. The property now generates it (`Step::Files`), with a file on the fake named after every earlier secret, and passes (3 passed); `files_listed` on the session is a flag and holds no text. Break B1 run on the Mac mini failed as it should, `step 0 (type): the reply holds the secret Ty0mW4zR8nB3c`. The sync commit is still not moved.
 
+2026-11-25, D127 and D128: `act` took `next`, the target of the following step and the screen it was saved on; it is a target, never typed text, and `trace.rs` hides its text as it hides the action's own target (`--test replay a_replayed_step_is_told_what_the_next_step_touches_and_the_last_step_nothing` reads the trace line). The property does not generate it. The Android device now prints the agent's video lines to the daemon's log when a stream ends (lines that start `stream V `, `video` or `encoder `; unit test `video_log_tests`), and `replay --screens` writes `NN.now.png` from the command line, a picture as the kept ones are. Break B1 was run again on the Mac mini and failed as it should. The sync commit is not moved.
+
 When you finish a change, run:
 
 ```

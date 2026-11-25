@@ -1016,3 +1016,42 @@ async fn a_screen_whose_title_only_holds_the_landmark_is_not_an_arrival() {
     .await;
     assert!(!arrived, "the JSON reply skipped the check: {shown}");
 }
+
+/// Decision D127: a step is told what the step after it touches, so its settle can end on that. The last step
+/// has no step after it, and a step before a wait is told nothing.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_replayed_step_is_told_what_the_next_step_touches_and_the_last_step_nothing() {
+    let (home, socket) = served(Arc::new(
+        FakeDevice::new(vec![tree(&["One", "Two"])]).lacking(Capabilities::FRAMES),
+    ))
+    .await;
+    let on = json!({"app": "com.example", "over": false});
+    let tap = |text: &str| json!({"method": "act", "on": on, "params": {"action": {"kind": "tap", "target": {"text": text, "role": null}}}});
+    let wait = json!({"method": "wait", "params": {"condition": {"appears": {"text": "Two"}}}});
+    let file = home.path().join("run.steps");
+    std::fs::write(
+        &file,
+        format!("{}\n{}\n{wait}\n{}\n", tap("One"), tap("Two"), tap("One")),
+    )
+    .unwrap();
+    let (worked, shown) = run(&home, &socket, &["replay", file.to_str().unwrap()]).await;
+    assert!(worked, "{shown}");
+    let mut acts = Vec::new();
+    for entry in std::fs::read_dir(home.path().join("traces")).unwrap() {
+        let text = std::fs::read_to_string(entry.unwrap().path()).unwrap();
+        for line in text.lines() {
+            let line: Value = serde_json::from_str(line).unwrap();
+            if line["method"] == "act" {
+                acts.push(line["params"]["next"].clone());
+            }
+        }
+    }
+    assert_eq!(
+        acts,
+        [
+            json!({"target": {"text": {"text_len": 3}, "role": null}, "on": on}),
+            Value::Null,
+            Value::Null
+        ]
+    );
+}
