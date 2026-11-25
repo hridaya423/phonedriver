@@ -129,7 +129,7 @@ struct AppsArgs {
     action: Option<String>,
     app: Option<String>,
     permissions: Option<Vec<String>>,
-    /// For `notify`: JSON, such as `{"aps":{"alert":"Hi"}}`.
+    /// JSON: `{"aps":{"alert":"Hi"}}`.
     payload: Option<String>,
 }
 
@@ -160,7 +160,8 @@ struct SettingArgs {
     value: Option<String>,
     values: Option<BTreeMap<String, String>>,
     open: Option<String>,
-    /// Put back what your writes replaced; with `key`, that one.
+    /// Put back your writes.
+    #[serde(default, deserialize_with = "flag")]
     restore: Option<bool>,
     /// Write a setting the user must confirm, on a physical device; only when the user asked for exactly that.
     force: Option<bool>,
@@ -198,6 +199,7 @@ struct ReplayArgs {
     /// Not for secrets.
     vars: Option<std::collections::BTreeMap<String, String>>,
     /// Run on another build of an app than the file was saved on.
+    #[serde(default, deserialize_with = "flag")]
     any_build: Option<bool>,
     /// A folder: compare each step's screen with the screenshot kept there, and keep one where there is none.
     screens: Option<String>,
@@ -255,13 +257,14 @@ struct SnapshotArgs {
     pixels: Option<bool>,
     audit: Option<bool>,
     find: Option<String>,
-    /// The web page in front as text, whole, no scrolling (Chrome; web views of debug builds). `find` keeps matching lines.
+    /// The web page in front as text (Chrome; debug-build web views).
     page: Option<bool>,
     notifications: Option<bool>,
 }
 
 /// `autonomous` is not in the lean tool schema, so a model that reads the refusal text guesses its type: one sent
-/// `"true"` and the call failed with `invalid type: string`.
+/// `"true"` and the call failed with `invalid type: string`. Seen again on 2026-11-25 with `restore` on `setting`,
+/// which the description names as `restore: true`; `any_build` on `replay` is read the same way.
 fn flag<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Option<bool>, D::Error> {
     use serde::de::Error;
     match Option::<serde_json::Value>::deserialize(d)? {
@@ -294,7 +297,6 @@ fn texts<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Option<Vec<String>>, 
 #[serde(deny_unknown_fields)]
 struct TapArgs {
     device: Option<String>,
-    /// @ref, `x,y` or text.
     #[serde(alias = "ref")]
     target: String,
     /// With a text target: only an element of this role, such as button, cell, textbox or switch.
@@ -304,7 +306,7 @@ struct TapArgs {
     long: Option<u32>,
     /// Set the date or time picker this opens: `2026-12-18` or `19:45`.
     select: Option<String>,
-    /// Texts to tap next on the screens that follow, in order (a menu path in one call); stops at the first one missing.
+    /// Texts to tap next, in order (a menu path in one call); stops at the first missing.
     #[serde(default, deserialize_with = "texts")]
     then: Option<Vec<String>>,
     #[serde(default, deserialize_with = "flag")]
@@ -316,7 +318,7 @@ struct TapArgs {
 struct TypeArgs {
     device: Option<String>,
     text: String,
-    /// @ref, `x,y` or text; default the focused field.
+    /// Default the focused field.
     into: Option<String>,
     /// `paste` (default; on a hidden display, `set` for an app's own field), `set` (Android: set the field's value) or `keys` (one key at a time, ASCII only on Android).
     mode: Option<String>,
@@ -343,7 +345,7 @@ struct SwipeArgs {
     #[serde(default)]
     #[schemars(schema_with = "direction")]
     direction: Option<String>,
-    /// Start; default the screen's center.
+    /// Default: the center.
     from: Option<String>,
     to: Option<String>,
     pinch: Option<String>,
@@ -363,11 +365,11 @@ struct ScrollArgs {
     direction: String,
     /// The list to scroll: an @ref. Default is the largest scrollable element.
     r#in: Option<String>,
-    /// A text, `A|B` for either, or an @ref.
+    /// `A|B` for either.
     until: Option<String>,
     /// Give up after this many scrolls. Default 30.
     max: Option<u32>,
-    /// Scroll on and list every row passed, up to this many.
+    /// List every row passed, up to this many.
     collect: Option<u32>,
     #[serde(default, deserialize_with = "flag")]
     autonomous: Option<bool>,
@@ -1406,6 +1408,10 @@ fn for_mcp(hint: &str) -> String {
         ),
         ("`phonedriver press enter`", "`press` with key `enter`"),
         (
+            "replay the same file from step ",
+            "`replay` the same file with `from` ",
+        ),
+        (
             "`phonedriver files list DCIM/Camera` shows more of one folder",
             "`list` with a folder, such as `DCIM/Camera`, shows more of it",
         ),
@@ -1592,7 +1598,7 @@ fn bad(message: &str) -> CallToolResult {
 #[tool_router]
 impl Mcp {
     #[tool(
-        description = "List devices (id, model, OS, holder). With several, `use` an id to send later calls to it; `device` on one call overrides, and `<id>+name` is a lane: a screen of your own (Android 13+). `release` gives up this session's hold. `boot` starts a simulator or emulator that is off.",
+        description = "List devices (id, model, OS, holder). `use` an id for later calls; `device` on one call overrides, and `<id>+name` is a lane: a screen of your own (Android 13+). `release` ends this session's hold. `boot` starts a simulator or emulator that is off.",
         annotations(
             title = "List devices",
             read_only_hint = false,
@@ -1615,7 +1621,7 @@ impl Mcp {
     }
 
     #[tool(
-        description = "Run a device shell command: exit code, output, screen change. For intents, keys and state, and for settings where `setting` is unsupported: `am start -a android.intent.action.VIEW -d <url>`, `input keyevent KEYCODE_MEDIA_PLAY_PAUSE`, `cmd uimode night yes`. Simulator: `simctl ui appearance dark`. A physical iPhone has no shell.",
+        description = "Run a device shell command: exit code, output, screen change. For intents, keys, state, and settings where `setting` is unsupported: `input keyevent KEYCODE_MEDIA_PLAY_PAUSE`, `cmd uimode night yes`. Simulator: `simctl ui appearance dark`. No shell on a physical iPhone.",
         annotations(
             title = "Run a shell command",
             read_only_hint = false,
@@ -1645,7 +1651,7 @@ impl Mcp {
     }
 
     #[tool(
-        description = "System settings by key, no screens to tap (Android 17+; elsewhere unsupported: use `shell`). `find` lists keys and accepted values (`dark theme|media volume` for several); `values` {key: value} writes; `key` reads one; `open` shows the `screen` with that key; `restore: true` puts back your writes.",
+        description = "System settings by key, no screens to tap (Android 17+; elsewhere unsupported: use `shell`). `find` lists keys and accepted values (`dark theme|media volume`); `values` {key: value} writes; `key` reads one; `open` shows the `screen` with that key.",
         annotations(
             title = "Read or change a setting",
             read_only_hint = false,
@@ -1703,7 +1709,7 @@ impl Mcp {
     }
 
     #[tool(
-        description = "An app's last log lines and its last crash (Android). `app` defaults to the one in front; `grep` keeps lines with these words (`a|b`).",
+        description = "An app's last log lines and last crash (Android). `app` defaults to the one in front; `grep` keeps lines with these words (`a|b`).",
         annotations(
             title = "Read an app's logs",
             read_only_hint = true,
@@ -1721,7 +1727,7 @@ impl Mcp {
     }
 
     #[tool(
-        description = "Run a saved steps file again in one call; it stops at the first step that fails and shows the screen. `vars` fills `{{name}}` in it. `save: true` writes the file from this session's actions; as `paths/<app id>/<name>.steps` it is a path `launch` names, ending with a check of where it arrived.",
+        description = "Run a saved steps file in one call; stops at the first failing step and shows the screen. `vars` fills `{{name}}`. `save: true` writes it from this session's actions; as `paths/<app id>/<name>.steps` it is a path `launch` names, ending with a check of where it arrived.",
         annotations(
             title = "Replay saved steps",
             read_only_hint = false,
@@ -1839,7 +1845,7 @@ impl Mcp {
     }
 
     #[tool(
-        description = "List apps (`name  id`), or `action` install (file in `app`), stop, clear (data), uninstall, or grant / revoke `permissions` (`camera`, `location`), or notify (push `payload`; iOS Simulator).",
+        description = "List apps (`name  id`), or `action`: install (file in `app`), stop, clear (data), uninstall, grant / revoke `permissions` (`camera`), notify (push `payload`; iOS Simulator).",
         annotations(
             title = "Apps",
             read_only_hint = false,
@@ -2064,7 +2070,7 @@ impl Mcp {
     }
 
     #[tool(
-        description = "Press home, back, recents, notifications, lock, volume-up, volume-down, enter or hide-keyboard. `landscape` and `portrait` turn the screen. On an emulator or Simulator, fingerprint or wrong-fingerprint answers a fingerprint or Face ID prompt.",
+        description = "Press home, back, recents, notifications, lock, volume-up, volume-down, enter or hide-keyboard. landscape and portrait turn the screen. fingerprint or wrong-fingerprint answers a fingerprint or Face ID prompt (emulator, Simulator).",
         annotations(
             title = "Press a key",
             read_only_hint = false,
@@ -2084,7 +2090,7 @@ impl Mcp {
     }
 
     #[tool(
-        description = "Open an app (any part of its name, or its id) or a `url` (with `app`, opened in that app); returns the screen it shows, which is where the app was left unless `restart`. `grant` pre-allows permissions (`camera`, `notifications`).",
+        description = "Open an app (part of its name, or its id) or a `url` (with `app`: in that app); returns the screen, which is where the app was left unless `restart`. `grant` pre-allows permissions (`camera`, `notifications`).",
         annotations(
             title = "Open an app",
             read_only_hint = false,
@@ -2191,7 +2197,7 @@ impl Waits {
 
 #[tool_handler(
     name = "phonedriver",
-    instructions = "Operate an Android or iOS device. System settings: `setting` first; `shell` where it is unsupported. App UI: `launch` takes an app name (no `devices` or `apps` first) and returns the screen; act on its @refs, and each action returns what changed (`snapshot` only to see the whole screen again). A path of taps you can predict goes in one `tap` with `then`. Send calls one at a time on the shared screen. If an error needs the user to act on the device, say so and go on when they are done. Passwords, payments, sending and deleting need the user's word for this task. A refusal naming the app scope is by design: `press back` or `home`, `launch` an app in scope, never work around it."
+    instructions = "Operate an Android or iOS device. System settings: `setting` first; `shell` where it is unsupported. App UI: `launch` takes an app name (no `devices` or `apps` first) and returns the screen; act on its @refs, and each action returns what changed (`snapshot` only to see the whole screen again). Notifications: `snapshot` with `notifications`. A path of taps you can predict goes in one `tap` with `then`. Send calls one at a time on the shared screen. If an error needs the user to act on the device, say so and go on when they are done. Passwords, payments, sending and deleting need the user's word for this task. A refusal naming the app scope is by design: `press back` or `home`, `launch` an app in scope, never work around it."
 )]
 impl ServerHandler for Mcp {
     async fn call_tool(

@@ -588,8 +588,8 @@ async fn the_tool_list_every_turn_re_reads_fits_a_budget_and_hides_what_agents_n
         })
         .sum();
     assert!(
-        total < 7_480,
-        "what a model reads of tools/list is {total} characters (6,371 in 0.1.7; 7,366 with the twelve additions of #52 and #41; `files` as a tool of its own with a listing made it 7,461, 95 more); every turn re-reads it, so raise this only for a tool or argument worth its cost"
+        total < 6_900,
+        "what a model reads of tools/list is {total} characters (6,371 in 0.1.7 and 7,383 before the cuts of decision D130; 6,877 with every tool since, `files` among them); every turn re-reads it, so raise this only for a tool or argument worth its cost"
     );
     for t in &tools {
         let text = serde_json::to_string(&*t.input_schema).unwrap();
@@ -601,6 +601,58 @@ async fn the_tool_list_every_turn_re_reads_fits_a_budget_and_hides_what_agents_n
         .call("snapshot", json!({"max_lines": 2, "interactive": true}))
         .await;
     assert_ne!(r.is_error, Some(true), "{:?}", texts(&r));
+}
+
+/// Decision D130: the list was cut by a few hundred characters. What an agent needs to find each thing added since
+/// 0.1.7 is still in it: the argument's name, in the schema or in the description.
+#[tokio::test]
+async fn everything_added_since_0_1_7_is_still_named_in_the_tool_list() {
+    let rig = rig(vec![tree(&["One"])]).await;
+    let tools = rig.client.list_all_tools().await.unwrap();
+    let text = |name: &str| {
+        let t = tools.iter().find(|t| t.name == name).unwrap();
+        serde_json::to_string(t).unwrap()
+    };
+    for (tool, named) in [
+        ("devices", "lane"),
+        ("batch", "check"),
+        ("batch", "equals"),
+        ("scroll", "\"collect\""),
+        ("snapshot", "\"notifications\""),
+        ("snapshot", "\"audit\""),
+        ("wait", "\"notification\""),
+        ("replay", "paths/<app id>/<name>.steps"),
+        ("screenshot", "`within`"),
+        (
+            "setting",
+            "\"restore\":{\"description\":\"Put back your writes.\",\"type\":\"boolean\"}",
+        ),
+        ("tap", "\"select\""),
+        ("files", "\"push\""),
+        ("files", "\"pull\""),
+        ("files", "No argument lists"),
+        ("files", "PHONEDRIVER_FILES"),
+        ("files", "never contents"),
+    ] {
+        assert!(
+            text(tool).contains(named),
+            "{tool} names no {named}: {}",
+            text(tool)
+        );
+    }
+}
+
+/// A client that loads tools on demand shows an agent the tool names and these instructions, not the descriptions:
+/// asked for the phone's notifications, an agent picked `shell` by its name and never read `snapshot`'s arguments.
+#[tokio::test]
+async fn the_server_says_which_tool_reads_notifications_since_no_tool_name_does() {
+    let rig = rig(vec![tree(&["One"])]).await;
+    let info = rig.client.peer_info().unwrap();
+    let text = info.instructions.clone().unwrap_or_default();
+    assert!(
+        text.contains("Notifications: `snapshot` with `notifications`"),
+        "{text}"
+    );
 }
 
 #[tokio::test]
@@ -1554,7 +1606,7 @@ async fn replay_saves_what_the_session_did_and_runs_it_again_step_by_step() {
     assert!(text.contains("\n2. tapped @e2 \"Two\""), "{text}");
     assert!(
         text.contains(
-            "Do step 3 yourself, then replay the same file from step 4 for the 2 steps left."
+            "Do step 3 yourself, then `replay` the same file with `from` 4 for the 2 steps left."
         ),
         "{text}"
     );
@@ -1952,8 +2004,11 @@ async fn setting_finds_reads_and_writes_a_setting_by_key() {
         .call("setting", json!({"restore": true, "key": KEY}))
         .await;
     assert_eq!(r.is_error, Some(true), "nothing of that key is left: {r:?}");
-    let r = rig.call("setting", json!({"restore": true})).await;
-    assert!(texts(&r)[0].starts_with("nothing to restore"), "{r:?}");
+    let r = rig.call("setting", json!({"restore": "true"})).await;
+    assert!(
+        texts(&r)[0].starts_with("nothing to restore"),
+        "an agent sent `restore` as a string when the lean schema did not show it: {r:?}"
+    );
     let r = rig
         .call("setting", json!({"restore": true, "find": "dark"}))
         .await;
