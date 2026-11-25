@@ -23,6 +23,7 @@ enum Tab: String, CaseIterable, Identifiable {
 
 final class AppModel: ObservableObject {
     @Published private(set) var tab: Tab = .taps
+    @Published var pickers = false
 
     func select(_ tab: Tab) {
         self.tab = tab
@@ -35,7 +36,11 @@ struct RootView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            screen.frame(maxWidth: .infinity, maxHeight: .infinity)
+            if model.pickers {
+                PickersScreen().frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                screen.frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
             Divider()
             TabBar()
         }

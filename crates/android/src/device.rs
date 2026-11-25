@@ -1,6 +1,7 @@
 //! `AndroidDevice`: the `Device` port over the on-device agent.
 
 use async_trait::async_trait;
+use phonedriver_core::calendar::CalendarNames;
 use phonedriver_core::device::{
     App, AppId, AppOp, Button, Capabilities, ClipboardOp, Device, DeviceEvent, DeviceInfo,
     DisplayMode, FrameRef, Gesture, Image, ImageFormat, Key, LogReply, LogRequest, Quality,
@@ -555,6 +556,20 @@ impl Device for AndroidDevice {
                 }
             }
         }
+    }
+
+    async fn calendar_names(&self, app: Option<&AppId>) -> Result<Option<CalendarNames>> {
+        let app = match app {
+            Some(app) => Some(app.clone()),
+            None => self.foreground().await?,
+        };
+        let reply = self
+            .simple(
+                Op::Foreground,
+                json!({"op": "calendar_names", "package": app.map(|a| a.0)}),
+            )
+            .await?;
+        Ok(serde_json::from_value(reply).ok())
     }
 
     async fn notifications(&self) -> Result<Notices> {

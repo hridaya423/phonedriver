@@ -100,7 +100,7 @@ impl Role {
             "Switch" | "Toggle" => Role::Switch,
             "CheckBox" => Role::Checkbox,
             "RadioButton" => Role::Radio,
-            "Slider" | "Stepper" => Role::Slider,
+            "Slider" | "Stepper" | "PickerWheel" => Role::Slider,
             "Image" => Role::Image,
             "Table" | "CollectionView" | "Outline" => Role::List,
             "Cell" => Role::Cell,

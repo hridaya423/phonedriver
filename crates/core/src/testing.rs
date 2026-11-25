@@ -85,6 +85,7 @@ pub struct FakeDevice {
     log_wait_takes: Mutex<Duration>,
     networks: Mutex<Vec<NetworkView>>,
     notices: Mutex<Vec<Notices>>,
+    names: Mutex<Option<crate::calendar::CalendarNames>>,
     recorder: Mutex<Option<Option<std::path::PathBuf>>>,
     text_shows: Mutex<Option<(Duration, Duration)>>,
     follows: bool,
@@ -151,6 +152,7 @@ impl FakeDevice {
             log_wait_takes: Mutex::new(Duration::ZERO),
             networks: Mutex::new(Vec::new()),
             notices: Mutex::new(Vec::new()),
+            names: Mutex::new(Some(english_names())),
             recorder: Mutex::new(None),
             text_shows: Mutex::new(None),
             follows: false,
@@ -353,6 +355,11 @@ impl FakeDevice {
     /// device cannot list its notifications.
     pub fn answer_notifications(&self, lists: Vec<Notices>) {
         *lock(&self.notices) = lists;
+    }
+
+    /// What `calendar_names()` answers: English until this is called, `None` for a device that cannot tell.
+    pub fn answer_calendar_names(&self, names: Option<crate::calendar::CalendarNames>) {
+        *lock(&self.names) = names;
     }
 
     /// How many times `network()` was read.
@@ -637,6 +644,13 @@ impl Device for FakeDevice {
         })
     }
 
+    async fn calendar_names(
+        &self,
+        _app: Option<&AppId>,
+    ) -> Result<Option<crate::calendar::CalendarNames>> {
+        Ok(lock(&self.names).clone())
+    }
+
     async fn notifications(&self) -> Result<Notices> {
         let mut lists = lock(&self.notices);
         match lists.len() {
@@ -779,6 +793,41 @@ impl Device for FakeDevice {
     async fn wake(&self) -> Result<()> {
         lock(&self.screen).on = true;
         self.record(Call::Wake)
+    }
+}
+
+/// The names an English device gives, as the fake phone does until told otherwise.
+pub fn english_names() -> crate::calendar::CalendarNames {
+    let months = [
+        "January",
+        "February",
+        "March",
+        "April",
+        "May",
+        "June",
+        "July",
+        "August",
+        "September",
+        "October",
+        "November",
+        "December",
+    ];
+    crate::calendar::CalendarNames {
+        locale: "en-US".into(),
+        months: months
+            .iter()
+            .map(|m| {
+                vec![
+                    m.to_string(),
+                    m.to_string(),
+                    m[..3].to_string(),
+                    m[..3].to_string(),
+                ]
+            })
+            .collect(),
+        am: vec!["AM".into()],
+        pm: vec!["PM".into()],
+        digits: String::new(),
     }
 }
 

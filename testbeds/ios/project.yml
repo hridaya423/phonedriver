@@ -11,6 +11,7 @@ targets:
       path: Testbed/Info.plist
       properties:
         CFBundleDisplayName: Testbed
+        CFBundleLocalizations: [en, de, ja, ar]
         NSFaceIDUsageDescription: The testbed asks for Face ID so that a test can answer the prompt.
         UILaunchScreen: {}
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]

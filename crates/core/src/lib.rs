@@ -2,6 +2,7 @@
 
 pub mod alert;
 pub mod audit;
+pub mod calendar;
 pub mod device;
 pub mod diff;
 pub mod element;

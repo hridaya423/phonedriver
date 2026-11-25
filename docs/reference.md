@@ -507,9 +507,21 @@ $ phonedriver tap "Time" --select 19:45
 ok tapped @e10 "Time", set the picker to 19:45, then tapped @e644 "OK" · verified
 ```
 
-MCP: `tap {"target":"Date","select":"2026-12-18"}`. A date is `YYYY-MM-DD` and a time is 24-hour `HH:MM`, whatever the picker shows. It sets a calendar that names its days (Android's own date picker, a web page's date field, Compose Material 3) by stepping a month at a time, and a time picker that has a text input mode (Android's own, a web page's time field, the Material one in Clock) by typing the digits and choosing AM or PM. `OK` or `SET` is tapped only after the picker shows the value asked for.
+MCP: `tap {"target":"Date","select":"2026-12-18"}`. A date is `YYYY-MM-DD` and a time is 24-hour `HH:MM`, whatever the picker shows and whatever language it is in. The button that confirms is tapped only after the picker itself shows the value asked for.
 
-A picker it cannot set is left open and the error shows the screen: one with wheels, a Compose clock face, a picker in another language than English, and a date more than 36 months from the month shown (tap the year at the top, choose it, then `--select` again). `save` keeps the step with its value, so a replay sets the same date wherever the picker opens. Android only; a month step takes about a second.
+| Picker | How it is set |
+|---|---|
+| A calendar (Android's own, Material Components, Compose Material 3, a web page's date field, iOS's compact date picker) | a month step at a time, then the day; a date more than 36 months away goes through the picker's list of years (Android) or its month and year wheels (iOS) |
+| Date or time wheels on Android | the value is typed into each wheel, and the whole value is read again after the last one, because a wheel can move its neighbour |
+| Date or time wheels on iOS | each wheel is moved a row at a time, the shorter way round |
+| A time picker with a text input mode (Android's own, Material Components, a web page's time field) | switched to it, the digits typed, AM or PM chosen |
+| A clock face with no text input (Compose Material 3) | the hour and the minute are tapped on the face; a minute between two marks is dragged to and corrected until the picker reads it |
+
+The names of the months and of AM and PM come from the device, in the language the app is drawn in, so nothing depends on English: German, Japanese and Arabic (with Arabic digits) are run on the emulator and the Simulator. Buttons are found by their ids, or by where they are when they have none.
+
+A picker it cannot set is left open, nothing is confirmed, and the error shows the screen. That happens when the picker is in a calendar that is not the Gregorian one, when it is drawn in a language that is neither the device's nor the app's (nor English, on iOS), when a Compose time picker is in its text input mode in another language than English, and when a clock names neither AM nor PM in the device's words or in English. A picker that is still open after its confirming button was tapped is an error too, with the screen. A button that confirms and has neither a known id nor the text `OK`, `SET` or `Done` is not tapped: the reply says the picker is set and that the button is yours to tap. iOS wheels take each step as it is made and have no button, so a step that fails leaves them where the error says.
+
+A date in the month shown takes 3 to 5 s, a month step about a second, a date decades away 11 to 15 s on Android and 17 to 24 s on iOS (one touch a year), a wheel time 4 to 10 s. `save` keeps the step with its value, so a replay sets the same date wherever the picker opens.
 
 ### When a tap finds nothing
 

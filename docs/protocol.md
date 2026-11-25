@@ -64,7 +64,7 @@ type Target = {ref: string} | {point: {x: number, y: number}} | {id: string, tex
 // or more than one has it, `text` and `role` find the element as a text target does. Saved steps use it.
 type Action =
   | {kind: "tap", target: Target, count?: number, long?: number}   // long: hold ms, at most 10000; count taps are 80 ms apart, at most 10
-                                                                  // select?: "2026-12-18" | "19:45": the tap opens a date or time picker, which is set, read back and confirmed (D122); not with count or long
+                                                                  // select?: "2026-12-18" | "19:45": the tap opens a date or time picker, which is set, read back and confirmed (D122, D125, D126); not with count or long
   | {kind: "type", text: string, into?: Target, mode?: "paste"|"set"|"keys", secret?: boolean, submit?: boolean, append?: boolean}
     // the CLI reads secret text from stdin or PHONEDRIVER_SECRET and sends it here over the user-only socket;
     // from then on the daemon replaces that text with ••• in every reply, error and trace line (decision D70)
@@ -163,7 +163,7 @@ JSON-RPC `error` with `code` from the table, `message`, and `data: {code_name, h
 | -32024 | point_off_screen (an `x,y` target outside the screen; `data.x`, `data.y`, and the screen's `data.w` and `data.h` in points; nothing is sent to the device) |
 | -32025 | refused (the device answered and did not do what was asked: a setting it would not write, an unknown or read-only setting key, a `pm grant` that changed nothing; the message is the reason; nothing changed) |
 | -32027 | not_as_expected (a `check` with `equals` read another value; `data: {what, shows?, expected}`; nothing was touched, and in a batch no later step ran) |
-| -32028 | not_picked (a `tap` with `select` opened no picker it can set, or the picker read back another value; `data: {detail}`; the picker is still open and was not confirmed, D122) |
+| -32028 | not_picked (a `tap` with `select` opened no picker it can set, or the picker read back another value; `data: {detail}`; the picker is still open and was not confirmed, D122; iOS wheels take each step as it is made, so the detail says where they were left, D126) |
 | -32026 | crashed (the daemon failed partway through the call, a bug: the call may have acted, and the device connects again on the next call; `daemon.log` has the failure) |
 | -32023 | not_focused (a `type` without `into` when the screen shows no focused text field and no keyboard; nothing is typed; `data.fields` lists up to five text fields on screen) |
 | -32019 | needs_approval (a tap or `type --submit` that spends money, deletes an account, or is in a category named in `ask`, without an `approval`; `data.label`, `data.app`, `data.category` (`payment`, `account`, `send`, `delete`, `install`), `data.details`; decisions D27 and D31) |
@@ -199,6 +199,7 @@ Frames: `u32 big-endian length` + UTF-8 JSON. Requests carry `id`; replies echo 
 | `open_url` | `url` | `{package}` that handled it |
 | `notifications` | none | `{}` (expands the shade) |
 | `state` | none | `{screen_on, locked, secure_keyguard, ime_visible, foreground}` |
+| `calendar_names` | `package?` | `{locale, months, am, pm}`: the twelve months, each as the forms `MMMM`, `LLLL`, `MMM`, `LLL` of `SimpleDateFormat`, and the words for the two halves of the day, in the language the app is drawn in: the app's own language when one is set for it (`ILocaleManager.getApplicationLocales`, Android 13), else the system's as `ActivityManager.getConfiguration` gives it now (the agent's own default is the language of the moment it started). `tap` with `select` reads a picker with them (decision D125) |
 | `power` | none | `{screen_on, locked, secure_keyguard, focused}` (`focused`: an accessibility window has input focus); cheap, read before every action |
 | `sync_frame` | none | `{}`; next video frame is a keyframe |
 | `video_barrier` | `barrier` (u64) | `wait_ms`; the agent writes a barrier packet with that number into the video stream (below) once its encoder has given out what the screen showed when the request came. `wait_ms` is how much longer than usual that may take: 0 while the encoder keeps up. The number is not sent as `id`, which is the request's own (decision D74) |
@@ -279,6 +280,7 @@ Every request carries `id` and `op`. A reply echoes `id` and adds `ok: true` plu
 | `key` | `key` (an `XCUIKeyboardKey` string or a character), `modifiers?` (`"command"`, `"shift"`, `"option"`, `"control"`) | `{}` after the key is delivered |
 | `button` | `name: "home"|"volume_up"|"volume_down"|"lock"|"landscape"|"portrait"` | `{}`; volume is `unsupported` on the Simulator; `landscape` and `portrait` set `XCUIDevice.orientation` (decision D78) |
 | `activate` | `bundle_id` | `{}` |
+| `calendar_names` | none | `{locale, months, am, pm}` as the Android op gives them, from `NSDateFormatter` in the Gregorian calendar: each month's `monthSymbols`, `standaloneMonthSymbols`, `shortMonthSymbols` and `shortStandaloneMonthSymbols` in the system's language and then the same four in English, and `AMSymbol`, `PMSymbol` in both. English is there because an app with no translation for the system's language is drawn in English (decision D126) |
 | `open_url` | `url` | `{}` (`XCUIDevice.shared.system.openURL`; unlike `simctl openurl`, raises no "Open in …?" confirmation) |
 
 `snapshot` covers the first of `XCAXClient_iOS activeApplications` (the foreground app). Its attribute list is fixed (label, value, identifier, frame, element type, traits, placeholder value, native focus); a request-chosen list was planned and dropped because nothing needs it.

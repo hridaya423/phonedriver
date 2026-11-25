@@ -40,6 +40,8 @@ Three unit tests in `daemon/secrets.rs` cover what the property's fixed secrets 
 
 2026-11-24, group 5: `tap` took `select` (D122), a date or a time that the reply repeats (`set the picker to 2026-12-18`); it is not secret text, a value that is neither is refused with a message that does not quote it, and the digits it types go through the `type` action, so nothing new carries a secret and the property does not generate it. The `device` method (D123) returns a device id through `Daemon::call`. MCP progress messages (D124) are written by the MCP server, outside the daemon, from the tool's name, the time and the daemon's own progress lines, never from an argument; `mcp::tests::a_progress_message_holds_no_text_a_caller_gave` and `--test mcp progress_names_the_replay_step_and_never_carries_text_given_to_the_call` hold them to that. Break B1 run on the Mac mini failed as it should (`step 0 (type): the reply holds the secret`). The sync commit is still not moved.
 
+2026-11-25, pickers everywhere (D125, D126): `Device::calendar_names` is a new device reply (month names, the words for the halves of the day, digits), read by the daemon and never returned as such; `FakeDevice` answers it. `not_picked` details now quote what wheels and fields show, which leaves through `Daemon::call` and its mask like every other error; `select` is still not secret text. `--test secret_property`: 3 passed; break B1 on the Mac mini failed as it should (`step 1 (check): the reply holds the secret Ty0mW4zR8nB3c`). The sync commit is not moved.
+
 When you finish a change, run:
 
 ```

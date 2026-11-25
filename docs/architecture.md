@@ -225,7 +225,7 @@ pub enum Error {
     StaleRef { r#ref: Ref, closest: Option<ElementLine>, screen: Option<String> }, // `screen`: what changed since the screen the session last saw (D114)
     NotFound { query: String, similar: Vec<ElementLine>, screen: Option<String> },
     NotAsExpected { what: String, shows: Option<String>, expected: String }, // a `check` with `equals` read another value (D113)
-    NotPicked { detail: String }, // a `tap` with `select` could not set the picker it opened; nothing was confirmed (D122)
+    NotPicked { detail: String }, // a `tap` with `select` could not set the picker it opened; nothing was confirmed (D122, D125, D126)
     Ambiguous { query: String, matches: Vec<ElementLine> },
     OffScreen { r#ref: Ref, scroll_hint: Direction },
     Unsupported { op: Op, reason: &'static str },
