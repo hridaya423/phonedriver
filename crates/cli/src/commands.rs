@@ -339,6 +339,13 @@ pub(crate) enum Verb {
         /// Stop the app first, so it opens on its first screen instead of where it was left.
         #[arg(long)]
         restart: bool,
+        /// Go down this saved path of the app (`paths/<app id>/<NAME>.steps`, which `launch` lists) and answer with
+        /// the screen it arrives on.
+        #[arg(long, value_name = "NAME")]
+        path: Option<String>,
+        /// A value for a blank of the path, as `replay --var`.
+        #[arg(long = "var", value_name = "NAME=VALUE", value_parser = parse_var, requires = "path")]
+        vars: Vec<(String, String)>,
     },
     /// Open a web link or deep link in the app that handles it.
     Open {
@@ -1116,6 +1123,36 @@ pub(crate) async fn execute_with(
         }
         with(p)
     };
+    let verb = match verb {
+        Verb::Launch {
+            app,
+            grant,
+            restart,
+            path: Some(name),
+            vars,
+        } => {
+            let folder = g.folder.as_deref().unwrap_or(".".as_ref());
+            let found = client.call("build", with(json!({"app": app}))).await?;
+            let id = found["app"].as_str().unwrap_or(&app);
+            let shown = found["name"].as_str().unwrap_or(&app);
+            let file = paths::file(folder, id, shown, &name).map_err(Failure::Local)?;
+            let text = std::fs::read_to_string(&file)
+                .map_err(|e| Failure::Local(format!("cannot read {}: {e}", file.display())))?;
+            if !paths::opens(&text) {
+                let open = json!({"kind": "launch", "app": id, "grant": grant, "restart": restart});
+                client.call("act", act(open)).await?;
+            }
+            let down = Verb::Replay {
+                file,
+                from: 1,
+                screens: None,
+                vars,
+                any_build: false,
+            };
+            return Box::pin(execute_with(client, down, None, g)).await;
+        }
+        other => other,
+    };
     match verb {
         Verb::Devices => {
             let result = client.call("devices", json!({})).await?;
@@ -1839,6 +1876,7 @@ pub(crate) fn step_json(verb: &Verb, secret: Option<&str>) -> Result<Value, Fail
             app,
             grant,
             restart,
+            ..
         } => {
             json!({"kind": "launch", "app": app, "grant": grant, "restart": restart})
         }

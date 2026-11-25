@@ -972,9 +972,200 @@ async fn launch_names_the_paths_of_the_app_it_opened_and_says_nothing_where_ther
         .find(|l| l.starts_with("paths: "))
         .unwrap_or_else(|| panic!("{shown}"));
     assert_eq!(
-        line, "paths: find(query), wifi · replay paths/com.example/<name>.steps",
+        line,
+        "paths: find(query) → \"Wi-Fi\", wifi → \"Wi-Fi\" · launch with path <name> (vars fill its blanks) arrives on exactly that screen in one call",
         "{shown}"
     );
+}
+
+/// Decision D131. Shown `paths: internet · replay paths/…/<name>.steps` after it had launched Settings, an agent
+/// tapped its way: by then the path was a second call that started the app again. `launch` takes the path, by the
+/// app's id or its name, so arriving is the first call.
+#[tokio::test(flavor = "multi_thread")]
+async fn launch_with_a_path_opens_the_app_goes_down_it_and_answers_with_where_it_arrived() {
+    for app in ["com.example", "Example"] {
+        let fake = settings_to("Wi-Fi");
+        let (home, socket) = served(fake.clone()).await;
+        let folder = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(folder.path().join("paths/com.example")).unwrap();
+        std::fs::write(folder.path().join("paths/com.example/wifi.steps"), TO_WIFI).unwrap();
+
+        let (arrived, shown) = run_in(
+            folder.path(),
+            &home,
+            &socket,
+            &["launch", app, "--path", "wifi"],
+        )
+        .await;
+        assert!(arrived, "{shown}");
+        assert!(shown.starts_with("arrived at \"Wi-Fi\""), "{shown}");
+        assert!(shown.contains("\"Home net\""), "{shown}");
+        let calls = fake.calls();
+        let opened = calls
+            .iter()
+            .position(|c| matches!(c, phonedriver_core::testing::Call::Launch(_)));
+        let tapped = calls
+            .iter()
+            .position(|c| matches!(c, phonedriver_core::testing::Call::Gesture(_)));
+        assert!(
+            opened.is_some() && opened < tapped,
+            "the file holds no launch, so the app is opened first: {calls:?}"
+        );
+    }
+}
+
+/// A path that begins with its own launch is not launched twice.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_path_that_opens_its_app_itself_is_opened_once() {
+    let fake = settings_to("Wi-Fi");
+    let (home, socket) = served(fake.clone()).await;
+    let folder = tempfile::tempdir().unwrap();
+    std::fs::create_dir_all(folder.path().join("paths/com.example")).unwrap();
+    let opens = concat!(
+        r#"{"method":"act","params":{"action":{"kind":"launch","app":"com.example","grant":[],"restart":true}},"summary":"restarted Example","changed":true}"#,
+        "\n"
+    );
+    std::fs::write(
+        folder.path().join("paths/com.example/wifi.steps"),
+        format!("{opens}{TO_WIFI}"),
+    )
+    .unwrap();
+
+    let (arrived, shown) = run_in(
+        folder.path(),
+        &home,
+        &socket,
+        &["launch", "Example", "--path", "wifi"],
+    )
+    .await;
+    assert!(arrived, "{shown}");
+    assert!(shown.starts_with("arrived at \"Wi-Fi\""), "{shown}");
+    let opened = fake
+        .calls()
+        .iter()
+        .filter(|c| {
+            matches!(
+                c,
+                phonedriver_core::testing::Call::Launch(_)
+                    | phonedriver_core::testing::Call::Relaunch(_)
+            )
+        })
+        .count();
+    assert_eq!(opened, 1, "{:?}", fake.calls());
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_path_the_app_does_not_have_opens_nothing_and_names_the_ones_it_has() {
+    let fake = settings_to("Wi-Fi");
+    let (home, socket) = served(fake.clone()).await;
+    let folder = tempfile::tempdir().unwrap();
+    std::fs::create_dir_all(folder.path().join("paths/com.example")).unwrap();
+    std::fs::write(folder.path().join("paths/com.example/wifi.steps"), TO_WIFI).unwrap();
+    std::fs::write(folder.path().join("outside.steps"), TO_WIFI).unwrap();
+
+    for (name, says) in [
+        ("hotspot", "Example has no path hotspot"),
+        ("../../outside", "a path is a name"),
+        ("", "a path is a name"),
+    ] {
+        let (arrived, shown) = run_in(
+            folder.path(),
+            &home,
+            &socket,
+            &["launch", "com.example", "--path", name],
+        )
+        .await;
+        assert!(!arrived, "{name}: {shown}");
+        assert!(shown.contains(says), "{name}: {shown}");
+    }
+    let (_, shown) = run_in(
+        folder.path(),
+        &home,
+        &socket,
+        &["launch", "com.example", "--path", "hotspot"],
+    )
+    .await;
+    assert!(shown.contains("wifi → \"Wi-Fi\""), "{shown}");
+    assert!(
+        !fake.calls().iter().any(|c| matches!(
+            c,
+            phonedriver_core::testing::Call::Launch(_)
+                | phonedriver_core::testing::Call::Relaunch(_)
+                | phonedriver_core::testing::Call::Gesture(_)
+        )),
+        "{:?}",
+        fake.calls()
+    );
+}
+
+/// Live, Sonnet on the API 37 emulator: told `languages → "Language & region"`, an agent asked for the path
+/// `Language & region`, was refused, and called again with `languages`. The screen a path arrives on names it too,
+/// while one path arrives there.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_path_is_also_taken_by_the_screen_it_arrives_on_while_one_path_does() {
+    let fake = settings_to("Wi-Fi");
+    let (home, socket) = served(fake.clone()).await;
+    let folder = tempfile::tempdir().unwrap();
+    let at = folder.path();
+    std::fs::create_dir_all(at.join("paths/com.example")).unwrap();
+    std::fs::write(at.join("paths/com.example/wireless.steps"), TO_WIFI).unwrap();
+    let (arrived, shown) = run_in(
+        at,
+        &home,
+        &socket,
+        &["launch", "Example", "--path", "wi-fi"],
+    )
+    .await;
+    assert!(arrived, "{shown}");
+    assert!(shown.starts_with("arrived at \"Wi-Fi\""), "{shown}");
+
+    std::fs::write(at.join("paths/com.example/other.steps"), TO_WIFI).unwrap();
+    let (arrived, shown) = run_in(
+        at,
+        &home,
+        &socket,
+        &["launch", "Example", "--path", "Wi-Fi"],
+    )
+    .await;
+    assert!(!arrived, "{shown}");
+    assert!(shown.contains("has no path Wi-Fi"), "{shown}");
+    assert!(
+        shown.contains("other → \"Wi-Fi\", wireless → \"Wi-Fi\""),
+        "{shown}"
+    );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_path_with_a_blank_is_filled_by_var_and_refused_without_it() {
+    let fake = settings_to("Wi-Fi");
+    let (home, socket) = served(fake.clone()).await;
+    let folder = tempfile::tempdir().unwrap();
+    std::fs::create_dir_all(folder.path().join("paths/com.example")).unwrap();
+    std::fs::write(
+        folder.path().join("paths/com.example/find.steps"),
+        TO_WIFI.replace("Network", "{{query}}"),
+    )
+    .unwrap();
+    let at = folder.path();
+    let (arrived, shown) =
+        run_in(at, &home, &socket, &["launch", "Example", "--path", "find"]).await;
+    assert!(!arrived && shown.contains("query"), "{shown}");
+    let (arrived, shown) = run_in(
+        at,
+        &home,
+        &socket,
+        &[
+            "launch",
+            "Example",
+            "--path",
+            "find",
+            "--var",
+            "query=Network",
+        ],
+    )
+    .await;
+    assert!(arrived, "{shown}");
+    assert!(shown.starts_with("arrived at \"Wi-Fi\""), "{shown}");
 }
 
 /// Live, Settings on the API 37 emulator: the page a path ended on is titled "Internet" and the page before it

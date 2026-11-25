@@ -798,9 +798,15 @@ impl Actor {
     /// lines of three other packages, and `phonedriver testbed` was no package name at all, so its saved run kept
     /// no build and its replay checked none.
     async fn build_of(&mut self, app: &str) -> Result<Option<String>, Error> {
+        Ok(self.built(app).await?.1)
+    }
+
+    /// The app a launch names, and its build.
+    async fn built(&mut self, app: &str) -> Result<(App, Option<String>), Error> {
         let device = self.device()?;
         let found = self.app_named(&*device, app).await?;
-        device.app_build(&found.id).await
+        let build = device.app_build(&found.id).await?;
+        Ok((found, build))
     }
 
     /// Steps about to be saved, each launch with the build of the app it launches, read once per app. A replay
@@ -946,7 +952,10 @@ impl Actor {
                 None if p.keep => self.with_builds(s.journal.peek()).await,
                 None => self.with_builds(s.journal.take()).await,
             },
-            Call::Build(p) => json!({"build": self.build_of(&p.app).await?}),
+            Call::Build(p) => {
+                let (app, build) = self.built(&p.app).await?;
+                json!({"build": build, "app": app.id, "name": app.name})
+            }
             Call::Logs(p) => self.logs(s, p).await?,
             Call::Network => to_value(self.device()?.network().await?),
             Call::Notifications(p) => self.notifications(p).await?,

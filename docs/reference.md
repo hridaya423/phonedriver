@@ -598,8 +598,14 @@ app com.android.settings (Settings)
 $ phonedriver launch Settings
 ok launched Settings · new screen
 ...
-paths: internet · replay paths/com.android.settings/<name>.steps
+paths: internet → "Internet" · launch with path <name> arrives on exactly that screen in one call
+$ phonedriver launch Settings --path internet
+arrived at "Internet" · 4 steps in 10.4 s
+app com.android.settings (Settings)
+...
 ```
+
+`launch <app> --path <name>` is the way an agent takes a path: it finds the app as any launch does, goes down the file, and answers with the screen it arrived on. `--var name=value` fills a blank. The name is the file's, or the screen the path arrives on while one path of the app arrives there. A name the app has no path for opens nothing and lists the ones it has. Over MCP it is `launch` with `path` (and `vars`), and the server's instructions name the saved paths of its folder when a client connects, so an agent knows them before its first call.
 
 The last line of the file is the landmark, what must be on the screen on arrival:
 

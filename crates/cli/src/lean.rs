@@ -22,6 +22,7 @@ const HIDDEN: &[(&str, &[&str])] = &[
     ("replay", &["screens", "from", "any_build"]),
     ("screenshot", &["within"]),
     ("files", &["list", "to"]),
+    ("launch", &["vars"]),
 ];
 
 pub fn lean(tool: &str, schema: &mut Map<String, Value>) {
