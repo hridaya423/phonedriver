@@ -2165,15 +2165,91 @@ async fn a_path_is_saved_named_by_launch_and_gone_down_with_the_tools_there_are(
     let r = rig.call("launch", json!({"app": "com.example"})).await;
     let shown = texts(&r).join("\n");
     assert!(
-        shown.contains("paths: two · replay paths/com.example/<name>.steps"),
+        shown.contains("paths: two → \"One\" · launch with path <name> arrives on exactly that screen in one call"),
         "{shown}"
     );
+
+    let r = rig
+        .call("launch", json!({"app": "Example", "path": "two"}))
+        .await;
+    let shown = texts(&r).join("\n");
+    assert_eq!(r.is_error, Some(false), "{shown}");
+    assert!(shown.starts_with("arrived at \"One\""), "{shown}");
+    let r = rig
+        .call(
+            "launch",
+            json!({"url": "https://example.com", "path": "two"}),
+        )
+        .await;
+    assert_eq!(r.is_error, Some(true), "{r:?}");
 
     let r = rig.call("replay", json!({"file": file})).await;
     let shown = texts(&r).join("\n");
     assert_eq!(r.is_error, Some(false), "{shown}");
     assert!(shown.starts_with("arrived at \"One\""), "{shown}");
     assert!(shown.contains("\"Two\""), "{shown}");
+}
+
+/// Decision D131. An agent chooses its first call from the tool names and these instructions, before any reply has
+/// named a path: in the runs that found this, `launch` and `tap` were loaded and Settings was open before the line
+/// about its path was read. A folder with paths says so here; a folder with none adds nothing.
+#[test]
+fn the_server_names_the_saved_paths_before_the_first_call_and_nothing_where_there_are_none() {
+    use rmcp::ServerHandler;
+    let folder = tempfile::tempdir().unwrap();
+    let said = || {
+        Mcp::new(None, "t".into())
+            .in_folder(folder.path().into())
+            .get_info()
+            .instructions
+            .unwrap_or_default()
+    };
+    let plain = said();
+    assert!(!plain.contains("Saved paths"), "{plain}");
+
+    let app = folder.path().join("paths/com.example");
+    std::fs::create_dir_all(&app).unwrap();
+    let landmark = r#"{"landmark":true,"method":"wait","params":{"condition":{"appears":{"role":"heading","text":"Wi-Fi"}},"timeout_ms":400}}"#;
+    std::fs::write(
+        app.join("wifi.steps"),
+        format!("{{\"method\":\"act\",\"params\":{{\"action\":{{\"kind\":\"tap\",\"target\":{{\"text\":\"Network\"}}}}}}}}\n{landmark}\n"),
+    )
+    .unwrap();
+    std::fs::write(
+        app.join("find.steps"),
+        format!("{{\"method\":\"act\",\"params\":{{\"action\":{{\"kind\":\"tap\",\"target\":{{\"text\":\"{{{{query}}}}\"}}}}}}}}\n{landmark}\n"),
+    )
+    .unwrap();
+    let with = said();
+    let lead = "Operate an Android or iOS device.";
+    let added = with
+        .strip_prefix(lead)
+        .and_then(|rest| rest.strip_suffix(&plain[lead.len()..]))
+        .unwrap_or_else(|| panic!("{with}"));
+    assert_eq!(
+        added,
+        " The only saved paths are com.example: find(query) → \"Wi-Fi\", wifi → \"Wi-Fi\". When one ends on the screen you want, `launch` with `app` and its `path` (`vars` fill its blanks) arrives in one call; otherwise ignore them.",
+        "{with}"
+    );
+}
+
+/// `path` is what an agent must see on `launch`; `vars` is named by the line that lists a path with a blank.
+#[tokio::test]
+async fn launch_shows_path_and_keeps_vars_for_the_reply_that_names_a_blank() {
+    let rig = rig(vec![tree(&["One"])]).await;
+    let tools = rig.client.list_all_tools().await.unwrap();
+    let launch = tools.iter().find(|t| t.name == "launch").unwrap();
+    let schema = serde_json::to_string(&*launch.input_schema).unwrap();
+    assert!(schema.contains("\"path\""), "{schema}");
+    assert!(!schema.contains("\"vars\""), "{schema}");
+    assert!(
+        launch
+            .description
+            .as_deref()
+            .unwrap_or_default()
+            .contains("`path`"),
+        "{launch:?}"
+    );
 }
 
 #[tokio::test]

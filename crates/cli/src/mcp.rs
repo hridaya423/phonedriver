@@ -392,6 +392,8 @@ struct LaunchArgs {
     url: Option<String>,
     grant: Option<Vec<String>>,
     restart: Option<bool>,
+    path: Option<String>,
+    vars: Option<std::collections::BTreeMap<String, String>>,
 }
 
 #[derive(Deserialize, JsonSchema)]
@@ -538,11 +540,16 @@ impl ScrollArgs {
 
 impl LaunchArgs {
     fn verb(self) -> Result<Verb, &'static str> {
+        if self.url.is_some() && self.path.is_some() {
+            return Err("`path` goes with `app`, not `url`");
+        }
         match (self.app, self.url) {
             (Some(app), None) => Ok(Verb::Launch {
                 app,
                 grant: self.grant.unwrap_or_default(),
                 restart: self.restart.unwrap_or(false),
+                path: self.path,
+                vars: self.vars.unwrap_or_default().into_iter().collect(),
             }),
             (None, Some(url)) => Ok(Verb::Open { url, app: None }),
             (Some(app), Some(url)) => Ok(Verb::Open {
@@ -1727,7 +1734,7 @@ impl Mcp {
     }
 
     #[tool(
-        description = "Run a saved steps file in one call; stops at the first failing step and shows the screen. `vars` fills `{{name}}`. `save: true` writes it from this session's actions; as `paths/<app id>/<name>.steps` it is a path `launch` names, ending with a check of where it arrived.",
+        description = "Run a saved steps file in one call; stops at the first failing step and shows the screen. `vars` fills `{{name}}`. `save: true` writes it from this session's actions; as `paths/<app id>/<name>.steps` it is a path `launch` takes.",
         annotations(
             title = "Replay saved steps",
             read_only_hint = false,
@@ -2090,7 +2097,7 @@ impl Mcp {
     }
 
     #[tool(
-        description = "Open an app (part of its name, or its id) or a `url` (with `app`: in that app); returns the screen, which is where the app was left unless `restart`. `grant` pre-allows permissions (`camera`, `notifications`).",
+        description = "Open an app (part of its name, or its id) or a `url` (with `app`: in that app); returns the screen, which is where the app was left unless `restart`. `path` goes down a saved path. `grant` pre-allows permissions (`camera`, `notifications`).",
         annotations(
             title = "Open an app",
             read_only_hint = false,
@@ -2195,11 +2202,30 @@ impl Waits {
     }
 }
 
-#[tool_handler(
-    name = "phonedriver",
-    instructions = "Operate an Android or iOS device. System settings: `setting` first; `shell` where it is unsupported. App UI: `launch` takes an app name (no `devices` or `apps` first) and returns the screen; act on its @refs, and each action returns what changed (`snapshot` only to see the whole screen again). Notifications: `snapshot` with `notifications`. A path of taps you can predict goes in one `tap` with `then`. Send calls one at a time on the shared screen. If an error needs the user to act on the device, say so and go on when they are done. Passwords, payments, sending and deleting need the user's word for this task. A refusal naming the app scope is by design: `press back` or `home`, `launch` an app in scope, never work around it."
-)]
+/// The saved paths go after this, the first sentence: with them last, after "System settings: `setting` first", a
+/// small model went to `setting` for a Settings page a path ended on.
+const LEAD: &str = "Operate an Android or iOS device.";
+const INSTRUCTIONS: &str = "Operate an Android or iOS device. System settings: `setting` first; `shell` where it is unsupported. App UI: `launch` takes an app name (no `devices` or `apps` first) and returns the screen; act on its @refs, and each action returns what changed (`snapshot` only to see the whole screen again). Notifications: `snapshot` with `notifications`. A path of taps you can predict goes in one `tap` with `then`. Send calls one at a time on the shared screen. If an error needs the user to act on the device, say so and go on when they are done. Passwords, payments, sending and deleting need the user's word for this task. A refusal naming the app scope is by design: `press back` or `home`, `launch` an app in scope, never work around it.";
+
+#[tool_handler]
 impl ServerHandler for Mcp {
+    fn get_info(&self) -> rmcp::model::ServerConfig {
+        let folder = self.folder.clone().or_else(|| std::env::current_dir().ok());
+        let paths = folder
+            .and_then(|f| crate::paths::known(&f))
+            .unwrap_or_default();
+        rmcp::model::ServerConfig::new(
+            rmcp::model::ServerCapabilities::builder()
+                .enable_tools()
+                .build(),
+        )
+        .with_server_info(rmcp::model::Implementation::new(
+            "phonedriver",
+            env!("CARGO_PKG_VERSION"),
+        ))
+        .with_instructions(INSTRUCTIONS.replacen(LEAD, &format!("{LEAD}{paths}"), 1))
+    }
+
     async fn call_tool(
         &self,
         request: CallToolRequestParams,
