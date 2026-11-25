@@ -167,7 +167,7 @@ Tested on an iPhone 13 Pro Max (iOS 27.0.1) on one network. An iPhone 14 Plus (i
 | `PHONEDRIVER_APPS_UNDER_TEST` | none | A comma list of package names, such as `com.example.app,com.example.other`: apps of yours that Gradle or Android Studio installed, not phonedriver. On a physical Android phone `apps clear`, `uninstall`, `grant`, `revoke` and `launch --grant` touch only apps phonedriver installed; the packages listed here count as installed by you. The daemon reads it when it starts, so set it in the environment of the command that starts it (for an MCP client, the server's `env`; see [Claude Code](/docs/claude-code/#an-app-you-are-developing)) and run `phonedriver daemon stop` first if a daemon is running. It is the person's setting and there is no tool argument for it, so an agent cannot add an app to the list. |
 | `PHONEDRIVER_APP_SCOPE` | none | A comma list of package names, such as `com.example.app`: the only apps the agent may read or act in (see [App scope](#app-scope)). Not the same as `PHONEDRIVER_APPS_UNDER_TEST`, which says which apps phonedriver may clear or uninstall on a physical phone and restricts nothing else. The daemon reads it when it starts; a client that sets a scope the running daemon was not started with is refused until `phonedriver daemon stop`. There is no tool argument for it, so an agent cannot set or clear it. |
 | `PHONEDRIVER_HOST_SHELL` | off | `1` lets `shell` act on this computer as well as the device: on an iOS Simulator it runs any program (without it only `defaults` and `log show|stream`, with no file named) and the `simctl` forms that read or write a Mac file, on an Android emulator it sends any console command. Read when the daemon starts; see [Shell](#shell) and decision D108. |
-| `PHONEDRIVER_FILES` | none | The one folder on the machine with the device that `files` copies from and to (an absolute path). Without it every transfer is refused. For the MCP server, set it in the server's `env`. |
+| `PHONEDRIVER_FILES` | none | The one folder on the machine with the device that `files` copies from and to (an absolute path). Without it every transfer and every listing is refused. For the MCP server, set it in the server's `env`. |
 | `PHONEDRIVER_SECRET` | none | The text for `type --secret`, instead of stdin. The daemon shows it as `•••` wherever it later appears on a screen it reads or in a command's output, until the daemon stops; a screenshot still shows what the phone shows. |
 | `PHONEDRIVER_REPLAY_SECRET_ANY_FIELD` | off | `1` lets `replay` type a secret it reads from `PHONEDRIVER_SECRET_*` into any field. Without it a replayed secret goes only into a password or one-time code field (D105). Read by the process that replays: the CLI, or the MCP server. |
 | `PHONEDRIVER_TRACE_FULL` | off | `1` keeps observation text and the text of text targets in the traced requests (the daemon reads it at start). Replies are traced as returned either way: a summary or an error can name an element, as in `tapped @e6 "Busy"` or `no element matches "Pay"`. |
@@ -720,17 +720,22 @@ phonedriver files push report.pdf                      # anything but a picture 
 phonedriver files push cat.jpg --to downloads
 phonedriver files pull Download/invoice.pdf            # into the folder, under its own name
 phonedriver files pull DCIM/Camera/IMG_0001.jpg
+phonedriver files list                                 # the 10 newest files of Download, Pictures and DCIM each
+phonedriver files list DCIM/Camera                     # the 50 newest of one folder
 ```
 
-Android only. Each call copies one file and prints a receipt: `ok copied cat.jpg to /sdcard/Pictures/cat.jpg · 48213 bytes · sha256 ac40…`. The contents are never in a reply, a trace or a saved step.
+Each transfer copies one file and prints a receipt: `ok copied cat.jpg to /sdcard/Pictures/cat.jpg, where the gallery shows it · 48213 bytes · sha256 ac40…`. A listing prints a line a file, newest first, `Download/invoice.pdf · 48213 bytes · 3m ago`, then how many older files it left out. The contents are never in a reply, a trace or a saved step.
+
+Android. An iOS Simulator lists and pulls its photo library (`files list`, `files pull DCIM/100APPLE/IMG_0005.JPG`) and takes no push; a physical iPhone answers `unsupported`.
 
 - **The folder.** A push reads only inside `PHONEDRIVER_FILES`: a name with `..`, an absolute path, or a link that leads out of the folder is refused. A pull writes only there, never over a file or a link that is already there. The folder is on the machine that runs the daemon.
 - **The device.** A push writes to `Pictures` or `Download` and tells Android's media index, so a picture is in the gallery at once. A pull reads under `Download`, `Pictures` or `DCIM` and nowhere else: not `Android/data`, not `/data`. A file already on the device is not replaced.
 - **Size.** 64 MiB a file. The daemon holds the file in memory to hash it, and the device takes no other call until the copy ends.
 - **A physical phone.** Every transfer waits for the person's approval, which shows the file, its size and its SHA-256. Over MCP the client asks them; an approval "for this session" still covers that one file. On the command line the call exits 5 until it is run with `--autonomous`.
+- **Listing.** A listing reads the same three folders a pull does, skips hidden files and folders, and needs `PHONEDRIVER_FILES` set like a transfer: the folder is the one switch for files. On a physical phone it waits for approval too, because the names of a person's photos and downloads are theirs; "for this session" covers the later listings and no transfer.
 - **Under an app scope** files are refused: the shared folders hold other apps' files.
 
-Over MCP it is the `clipboard` tool with `push` or `pull`. `ls /sdcard/Download` through `shell` lists what there is to pull. Decision D119.
+Over MCP it is the `files` tool: `push`, `pull`, or no argument to list (`list` with a folder for more of one). Decisions D119, D129.
 
 ### Shell
 

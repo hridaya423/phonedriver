@@ -2,6 +2,10 @@
 
 use super::*;
 
+/// How many files a listing shows, newest first: of each shelf when it reads all three, and of one folder.
+const LISTED_OF_A_SHELF: usize = 10;
+const LISTED_OF_A_FOLDER: usize = 50;
+
 impl Actor {
     /// Install, stop, clear data or uninstall. On a physical device only an app phonedriver installed (recorded in
     /// `installed.json` under the daemon's home) can be cleared or removed.
@@ -771,11 +775,18 @@ impl Actor {
 
     /// Copies one file between the folder the person allowed and the device's shared storage (decision D119). The
     /// reply is a receipt: where the file is now, its size and its SHA-256, never its bytes.
-    pub(super) async fn files(&mut self, p: crate::wire::FilesParams) -> Result<Value, Error> {
+    pub(super) async fn files(
+        &mut self,
+        s: &mut Session,
+        p: crate::wire::FilesParams,
+    ) -> Result<Value, Error> {
         use super::super::files as host;
         let refused = |detail| Error::Refused { detail };
         let device = self.device()?;
         let folder = host::folder(p.folder.as_deref()).map_err(refused)?;
+        if p.push.is_none() && p.pull.is_none() {
+            return self.files_listed(s, p).await;
+        }
         if let Some(name) = p.push {
             let from = host::source(&folder, &name).map_err(refused)?;
             let base = from
@@ -800,24 +811,85 @@ impl Actor {
             )?;
             let at = device.file_push(to, base, &bytes).await?;
             return Ok(
-                json!({"pushed": name, "device_path": at, "bytes": bytes.len(), "sha256": sha256}),
+                json!({"pushed": name, "to": to, "device_path": at, "bytes": bytes.len(), "sha256": sha256}),
             );
         }
         let asked = p.pull.unwrap_or_default();
         let path = phonedriver_core::files::shared(&asked).map_err(refused)?;
         let base = path.rsplit('/').next().unwrap_or_default().to_string();
         let to = host::destination(&folder, &base).map_err(refused)?;
+        let named = path.strip_prefix("/sdcard/").unwrap_or(&path);
         self.transfer_allowed(
             p.approval,
             p.approved.as_ref(),
-            format!("copy {path} from the phone"),
+            format!("copy {named} from the phone"),
             vec![format!("to {}", to.display())],
         )?;
         let bytes = device.file_pull(&path, host::LIMIT).await?;
         host::keep(&to, &bytes).map_err(refused)?;
         Ok(
-            json!({"pulled": path, "file": base, "bytes": bytes.len(), "sha256": host::sha256(&bytes)}),
+            json!({"pulled": named, "file": base, "bytes": bytes.len(), "sha256": host::sha256(&bytes)}),
         )
+    }
+
+    /// What a pull could name: the newest files of each shelf, or more of the one folder asked for, each with its
+    /// size and when it was written. The names of a person's files are theirs, so on their phone a listing waits
+    /// for their word, which may be for the session; it moves no file.
+    async fn files_listed(
+        &mut self,
+        s: &mut Session,
+        p: crate::wire::FilesParams,
+    ) -> Result<Value, Error> {
+        let within = p
+            .list
+            .as_deref()
+            .map(phonedriver_core::files::folder)
+            .transpose()
+            .map_err(|detail| Error::Refused { detail })?;
+        let label = match &within {
+            Some(folder) => format!("list the names of the files in the phone's {folder} folder"),
+            None => format!(
+                "list the names of the files in the phone's {} folders",
+                phonedriver_core::files::PULL_FROM.join(", ")
+            ),
+        };
+        if self.physical() && !s.files_listed {
+            match (p.approval, p.approved.as_ref()) {
+                (Some(Approval::Autonomous), _) => {}
+                (Some(Approval::Once), Some(shown)) if shown.label == label => {}
+                (Some(Approval::Session), Some(shown)) if shown.label == label => {
+                    s.files_listed = true;
+                }
+                _ => {
+                    return Err(Error::NeedsApproval {
+                        label,
+                        category: Category::Files,
+                        app: None,
+                        details: Vec::new(),
+                    });
+                }
+            }
+        }
+        let listing = self.device()?.file_list(within.as_deref()).await?;
+        let mut files = listing.files;
+        files.sort_by(|a, b| b.modified.cmp(&a.modified).then(a.path.cmp(&b.path)));
+        let all = files.len();
+        let shown: Vec<_> = match within {
+            Some(_) => files.into_iter().take(LISTED_OF_A_FOLDER).collect(),
+            None => {
+                let mut of_shelf = std::collections::BTreeMap::<String, usize>::new();
+                files
+                    .into_iter()
+                    .filter(|f| {
+                        let shelf = f.path.split('/').next().unwrap_or_default();
+                        let n = of_shelf.entry(shelf.to_string()).or_default();
+                        *n += 1;
+                        *n <= LISTED_OF_A_SHELF
+                    })
+                    .collect()
+            }
+        };
+        Ok(json!({"files": shown, "more": all - shown.len(), "now": listing.now}))
     }
 
     /// On a person's phone every transfer waits for their word, and their word is for the transfer they were

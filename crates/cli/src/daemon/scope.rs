@@ -360,6 +360,13 @@ impl Device for ScopedDevice {
         )))
     }
 
+    async fn file_list(&self, _folder: Option<&str>) -> Result<phonedriver_core::files::Listing> {
+        Err(refused(format!(
+            "files are refused under an app scope: the shared folders hold other apps' files. {}",
+            self.lift()
+        )))
+    }
+
     async fn install(&self, path: &Path) -> Result<Vec<AppId>> {
         self.inner.install(path).await
     }

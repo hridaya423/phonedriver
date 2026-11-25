@@ -422,14 +422,22 @@ pub trait Device: Send + Sync {
     async fn file_push(&self, _to: Shelf, _name: &str, _bytes: &[u8]) -> Result<String> {
         Err(Error::Unsupported {
             op: Op::Files,
-            reason: "files cannot be copied to or from this device; an Android device's Pictures and Download folders can",
+            reason: "files cannot be copied to or from this device; an Android device's Pictures and Download folders and a Simulator's photo library can",
         })
     }
     /// The bytes of the file at `path`, which `files::shared` made. A file over `limit` bytes is refused.
     async fn file_pull(&self, _path: &str, _limit: u64) -> Result<Vec<u8>> {
         Err(Error::Unsupported {
             op: Op::Files,
-            reason: "files cannot be copied to or from this device; an Android device's Pictures and Download folders can",
+            reason: "files cannot be copied to or from this device; an Android device's Pictures and Download folders and a Simulator's photo library can",
+        })
+    }
+    /// Every file under the shelves a pull may read, or under `folder` (which `files::folder` made), with the
+    /// device's clock. Hidden files and folders are left out.
+    async fn file_list(&self, _folder: Option<&str>) -> Result<crate::files::Listing> {
+        Err(Error::Unsupported {
+            op: Op::Files,
+            reason: "files cannot be copied to or from this device; an Android device's Pictures and Download folders and a Simulator's photo library can",
         })
     }
     /// The notifications the device is showing, newest first, with the time on its own clock.

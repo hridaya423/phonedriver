@@ -432,6 +432,8 @@ async fn files_are_refused_under_a_scope() {
     for transfer in [
         json!({"push": "cat.png"}),
         json!({"pull": "Download/report.pdf"}),
+        json!({}),
+        json!({"list": "Download"}),
     ] {
         let mut params = transfer;
         params["folder"] = json!(folder.path());
@@ -441,10 +443,10 @@ async fn files_are_refused_under_a_scope() {
         assert!(e.message.contains("PHONEDRIVER_APP_SCOPE"), "{}", e.message);
     }
     assert!(
-        !fake
-            .calls()
-            .iter()
-            .any(|c| matches!(c, Call::FilePush(..) | Call::FilePull(..))),
+        !fake.calls().iter().any(|c| matches!(
+            c,
+            Call::FilePush(..) | Call::FilePull(..) | Call::FileList(..)
+        )),
         "{:?}",
         fake.calls()
     );

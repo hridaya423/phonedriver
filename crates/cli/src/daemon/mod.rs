@@ -369,9 +369,10 @@ impl Daemon {
                     "notifications" => Call::Notifications(rpc::params(params)?),
                     "files" => {
                         let p: crate::wire::FilesParams = rpc::params(params)?;
-                        if p.push.is_some() == p.pull.is_some() {
+                        let named = [&p.push, &p.pull, &p.list];
+                        if named.iter().filter(|n| n.is_some()).count() > 1 {
                             return Err(RpcError::invalid_params(
-                                "files needs one of `push` (a file in the allowed folder) or `pull` (a path under the device's Download, Pictures or DCIM)",
+                                "files takes one of `push` (a file in the allowed folder), `pull` (a path under the device's Download, Pictures or DCIM) or `list` (one of those folders); with none it lists all three",
                             ));
                         }
                         Call::Files(p)

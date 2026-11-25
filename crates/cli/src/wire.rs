@@ -515,14 +515,16 @@ pub struct SettingParams {
     pub expect_change_ms: Option<u64>,
 }
 
-/// One file to or from the device (`docs/protocol.md`, `files`): `push` names a file in `folder`, `pull` a path
-/// under the device's Download, Pictures or DCIM. `folder` is the one folder the person allowed, from the client's
+/// One file to or from the device, or what is there (`docs/protocol.md`, `files`): `push` names a file in `folder`,
+/// `pull` a path under the device's Download, Pictures or DCIM, `list` one of those folders or a folder under one,
+/// and a call with none of them lists all three. `folder` is the one folder the person allowed, from the client's
 /// `PHONEDRIVER_FILES`.
 #[derive(Debug, Deserialize)]
 pub struct FilesParams {
     pub folder: Option<std::path::PathBuf>,
     pub push: Option<String>,
     pub pull: Option<String>,
+    pub list: Option<String>,
     pub to: Option<phonedriver_core::files::Shelf>,
     #[serde(default)]
     pub approval: Option<Approval>,

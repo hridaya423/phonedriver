@@ -208,8 +208,16 @@ struct ReplayArgs {
 struct ClipboardArgs {
     device: Option<String>,
     set: Option<String>,
+}
+
+#[derive(Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+struct FilesArgs {
+    device: Option<String>,
     push: Option<String>,
     pull: Option<String>,
+    /// One of the folders, or a folder under one, to see more of it.
+    list: Option<String>,
     /// For a push: `photos` or `downloads`, instead of the folder the file's type picks.
     to: Option<String>,
 }
@@ -1397,6 +1405,10 @@ fn for_mcp(hint: &str) -> String {
             "`press` with key `hide-keyboard`",
         ),
         ("`phonedriver press enter`", "`press` with key `enter`"),
+        (
+            "`phonedriver files list DCIM/Camera` shows more of one folder",
+            "`list` with a folder, such as `DCIM/Camera`, shows more of it",
+        ),
         ("`phonedriver snapshot --no-settle`", "`snapshot`"),
         (
             "`phonedriver wait settled`",
@@ -1754,7 +1766,7 @@ impl Mcp {
     }
 
     #[tool(
-        description = "Read the clipboard, or `set` it. Files (Android): `push` a name in the user's PHONEDRIVER_FILES folder to Pictures or Download; `pull` `Download/a.pdf` (or Pictures, DCIM) into it. Replies place, size, SHA-256.",
+        description = "Read the clipboard, or `set` it.",
         annotations(
             title = "Clipboard",
             read_only_hint = false,
@@ -1763,45 +1775,7 @@ impl Mcp {
             open_world_hint = false
         )
     )]
-    async fn clipboard(
-        &self,
-        peer: Peer<RoleServer>,
-        Parameters(a): Parameters<ClipboardArgs>,
-    ) -> CallToolResult {
-        let transfer = match (&a.push, &a.pull) {
-            (Some(name), None) => Some(("push", name.clone())),
-            (None, Some(path)) => Some(("pull", path.clone())),
-            (None, None) => None,
-            _ => return bad("give `push` or `pull`, one file a call"),
-        };
-        if let Some((action, name)) = transfer {
-            if a.set.is_some() {
-                return bad("`set` is the clipboard's; a file goes in a call of its own");
-            }
-            if a.to
-                .as_deref()
-                .is_some_and(|t| !matches!(t, "photos" | "downloads"))
-            {
-                return bad("`to` is `photos` or `downloads`");
-            }
-            let verb = || Verb::Files {
-                action: action.to_string(),
-                name: name.clone(),
-                to: a.to.clone(),
-                autonomous: false,
-            };
-            return self
-                .guarded(
-                    Channel::Peer(&peer),
-                    String::new(),
-                    a.device,
-                    verb,
-                    None,
-                    false,
-                )
-                .await
-                .complete();
-        }
+    async fn clipboard(&self, Parameters(a): Parameters<ClipboardArgs>) -> CallToolResult {
         let reading = a.set.is_none();
         let verb = Verb::Clipboard {
             action: a.set.as_ref().map(|_| "set".to_string()),
@@ -1817,6 +1791,51 @@ impl Mcp {
             return CallToolResult::success(vec![ContentBlock::text("the clipboard is empty")]);
         }
         reply
+    }
+
+    #[tool(
+        description = "Files in the phone's Download, Pictures, DCIM (Android; Simulator: DCIM, no push). No argument lists the newest; `push` a name in the user's PHONEDRIVER_FILES folder; `pull` `Download/a.pdf` into it. Answers size and SHA-256, never contents.",
+        annotations(
+            title = "Files",
+            read_only_hint = false,
+            destructive_hint = false,
+            idempotent_hint = false,
+            open_world_hint = false
+        )
+    )]
+    async fn files(
+        &self,
+        peer: Peer<RoleServer>,
+        Parameters(a): Parameters<FilesArgs>,
+    ) -> CallToolResult {
+        let (action, name) = match (a.push, a.pull, a.list) {
+            (Some(name), None, None) => ("push", Some(name)),
+            (None, Some(path), None) => ("pull", Some(path)),
+            (None, None, folder) => ("list", folder),
+            _ => return bad("give one of `push`, `pull` or `list`"),
+        };
+        if a.to
+            .as_deref()
+            .is_some_and(|t| !matches!(t, "photos" | "downloads"))
+        {
+            return bad("`to` is `photos` or `downloads`");
+        }
+        let verb = || Verb::Files {
+            action: action.to_string(),
+            name: name.clone(),
+            to: a.to.clone(),
+            autonomous: false,
+        };
+        self.guarded(
+            Channel::Peer(&peer),
+            String::new(),
+            a.device,
+            verb,
+            None,
+            false,
+        )
+        .await
+        .complete()
     }
 
     #[tool(

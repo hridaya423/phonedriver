@@ -10,6 +10,7 @@ pub mod offer;
 pub mod remote;
 pub mod runner;
 pub mod setup;
+mod simfiles;
 pub mod simio;
 pub mod simulator;
 pub mod team;
