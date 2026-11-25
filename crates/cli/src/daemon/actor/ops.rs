@@ -470,6 +470,7 @@ impl Actor {
                 expect_change_ms: p.expect_change_ms,
                 secret_field_only: false,
                 on: None,
+                next: None,
             };
             let mut result = self.act(s, act).await?;
             result.summary = format!("opened the settings screen {screen}");

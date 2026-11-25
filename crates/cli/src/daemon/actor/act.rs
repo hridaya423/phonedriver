@@ -208,7 +208,7 @@ impl Actor {
     pub(super) async fn act(
         &mut self,
         s: &mut Session,
-        p: ActParams,
+        mut p: ActParams,
     ) -> Result<ActionResult, Error> {
         s.acted_at = Some(self.now());
         let t = Instant::now();
@@ -248,7 +248,14 @@ impl Actor {
             self.on_screen(s, on).await?;
         }
         let kept = Kept::of(&p.action, s);
+        self.ready = p.next.take().map(|next| {
+            let arrives = s.last.as_ref().filter(|_| !s.unsure).is_some_and(|last| {
+                matches!(s.resolve(&next.target, last), Err(Error::NotFound { .. }))
+            });
+            (next, arrives)
+        });
         let acted = self.act_now(s, p).await;
+        self.ready = None;
         if let Err(Error::NotReached { scrolls, end, .. }) = &acted {
             let moved = match end {
                 ScrollEnd::Stuck => 0,
@@ -317,6 +324,7 @@ impl Actor {
                 expect_change_ms: None,
                 secret_field_only: false,
                 on: None,
+                next: None,
             };
             let open = sub(Action::Tap {
                 target: target.clone(),
@@ -391,7 +399,7 @@ impl Actor {
                         let wanted = e.r#ref;
                         let started = self.begin_action();
                         device.hide_keyboard().await?;
-                        self.settle_probing(cfg, started, false).await;
+                        self.settle_probing(cfg, started, false, None).await;
                         let now = self.fresh(s).await?;
                         let r = s.resolve(&Target::Ref { r#ref: wanted }, &now)?;
                         if r.under_keyboard
@@ -467,7 +475,7 @@ impl Actor {
                     expect_change: Some(LATE_PAGE_WAIT),
                     ..cfg
                 };
-                let (st, probe) = self.settle_probing(late, again, true).await;
+                let (st, probe) = self.settle_probing(late, again, true, None).await;
                 match st {
                     State::Done {
                         settled,
@@ -481,7 +489,7 @@ impl Actor {
                             still_changing,
                             elapsed: elapsed + Duration::from_millis(r.settle_ms.into()),
                         };
-                        self.report(s, st, probe, summary, None, None)
+                        self.report(s, st, probe, summary, None, None, None)
                             .await
                             .map(landed)
                     }
@@ -814,7 +822,15 @@ impl Actor {
                         elapsed: Duration::ZERO,
                     };
                     return self
-                        .report(s, st, None, "keyboard already hidden".into(), None, None)
+                        .report(
+                            s,
+                            st,
+                            None,
+                            "keyboard already hidden".into(),
+                            None,
+                            None,
+                            None,
+                        )
                         .await;
                 }
                 let started = self.begin_action();
@@ -1440,7 +1456,7 @@ impl Actor {
             still_changing: None,
             elapsed: Duration::ZERO,
         });
-        let mut done = self.report(s, st, None, summary, None, None).await?;
+        let mut done = self.report(s, st, None, summary, None, None, None).await?;
         done.rows = all.into_iter().map(|r| r.text).collect();
         Ok(done)
     }
@@ -1526,7 +1542,7 @@ impl Actor {
                             elapsed: Duration::ZERO,
                         },
                     };
-                    return self.report(s, st, None, summary, None, None).await;
+                    return self.report(s, st, None, summary, None, None, None).await;
                 }
                 Ok(_) | Err(Error::NotFound { .. } | Error::StaleRef { .. }) => {}
                 Err(Error::Ambiguous { query, matches }) => {

@@ -20,6 +20,16 @@ impl Actor {
             let step = Step::parse(raw).map_err(|_| unreachable_state())?;
             let result = match step {
                 Step::Act(action) => {
+                    let next = p
+                        .steps
+                        .get(i + 1)
+                        .and_then(|raw| match Step::parse(raw).ok()? {
+                            Step::Act(Action::Tap { target, .. }) => Some(target),
+                            Step::Act(Action::Type { into, .. }) => into,
+                            _ => None,
+                        })
+                        .filter(|target| !matches!(target, Target::Point { .. }))
+                        .map(|target| crate::wire::Next { target, on: None });
                     self.act(
                         s,
                         ActParams {
@@ -32,6 +42,7 @@ impl Actor {
                             expect_change_ms: p.expect_change_ms,
                             secret_field_only: false,
                             on: None,
+                            next,
                         },
                     )
                     .await
