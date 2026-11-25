@@ -2965,8 +2965,14 @@ impl Replay {
 /// across (read as "q•") or the app's window still black after a restart, and the same screen matched a moment later.
 /// So a screen that differs is looked at again, every `LOOK_AGAIN`, until it has stayed the same for `STILL_FOR` or
 /// `LOOK_FOR` has passed, and one about to be kept must first look the same twice.
+///
+/// Observed on GitHub's Linux runner (2026-11-24, run 45499616335): with `STILL_FOR` at 1.5 s a step failed on the
+/// 0.2% of the screen that is the switch it had tapped, the tree said the switch was on, and the picture taken
+/// after the failure matched the kept one. The app's log of that replay has `Davey! duration=2370ms` (and 2584 ms
+/// in the replay before it): the app drew nothing for longer than the wait, so its last picture was one from
+/// before the change.
 const LOOK_AGAIN: std::time::Duration = std::time::Duration::from_millis(250);
-const STILL_FOR: std::time::Duration = std::time::Duration::from_millis(1500);
+const STILL_FOR: std::time::Duration = std::time::Duration::from_secs(3);
 const LOOK_FOR: std::time::Duration = std::time::Duration::from_secs(5);
 
 /// Compares the screen after step `n` with the screenshot `dir` keeps for it, or keeps it there when there is none.
@@ -3004,37 +3010,96 @@ async fn screen(
         }
         Err(e) => return Err(local(format!("cannot read {}: {e}", path.display()))),
     };
-    let started = std::time::Instant::now();
-    loop {
-        let report = crate::compare::compare(&kept, &now, bar).map_err(|e| {
+    let compare = |now: &[u8]| {
+        crate::compare::compare(&kept, now, bar).map_err(|e| {
             local(format!(
                 "its screen cannot be compared with {}: {e}",
                 path.display()
             ))
-        })?;
-        if report.regions.is_empty() {
+        })
+    };
+    let shown = path.with_extension("now.png");
+    let looked = look(now, &mut Phone { client, with }, compare, still).await?;
+    let (report, now) = match looked {
+        Looked::Different(report, now) => (report, now),
+        Looked::Same => {
+            let _ = std::fs::remove_file(&shown);
             return Ok(Screen::Same);
         }
-        if report.text.is_empty() && report.unread.is_none() {
-            return Ok(Screen::Silent(report.regions.len()));
+        Looked::Silent(regions) => {
+            let _ = std::fs::remove_file(&shown);
+            return Ok(Screen::Silent(regions));
         }
-        let still_since = std::time::Instant::now();
+    };
+    let hint = match std::fs::write(&shown, &now) {
+        Ok(()) => format!(
+            "The screen it showed is in {}. If that one is right, put it in place of {}.",
+            shown.display(),
+            path.display()
+        ),
+        Err(_) => format!(
+            "If the new screen is right, delete {} and replay again to keep it.",
+            path.display()
+        ),
+    };
+    Err((
+        refused(&format!(
+            "its screen is not the one in {}\n{}",
+            path.display(),
+            crate::compare::render(&report)
+        )),
+        Some(hint),
+    ))
+}
+
+/// What a screen came to after it was looked at until it matched the kept one or stayed different.
+enum Looked {
+    Same,
+    Silent(usize),
+    Different(crate::compare::Report, Vec<u8>),
+}
+
+/// Where the next picture of the screen comes from: the phone, or a test's list.
+#[async_trait::async_trait]
+trait Shots<E> {
+    async fn next(&mut self) -> Result<Vec<u8>, E>;
+}
+
+struct Phone<'a> {
+    client: &'a mut Client,
+    with: &'a (dyn Fn(Value) -> Value + Sync),
+}
+
+#[async_trait::async_trait]
+impl Shots<(Failure, Option<String>)> for Phone<'_> {
+    async fn next(&mut self) -> Result<Vec<u8>, (Failure, Option<String>)> {
+        shoot(self.client, self.with).await.map(|(png, _)| png)
+    }
+}
+
+/// Looks at the screen again, every `LOOK_AGAIN`, while it differs from the kept one and is still changing.
+async fn look<E>(
+    mut now: Vec<u8>,
+    shots: &mut (dyn Shots<E> + Send),
+    compare: impl Fn(&[u8]) -> Result<crate::compare::Report, E>,
+    still: impl Fn(&[u8], &[u8]) -> Result<bool, E>,
+) -> Result<Looked, E> {
+    let started = tokio::time::Instant::now();
+    loop {
+        let report = compare(&now)?;
+        if report.regions.is_empty() {
+            return Ok(Looked::Same);
+        }
+        if report.text.is_empty() && report.unread.is_none() {
+            return Ok(Looked::Silent(report.regions.len()));
+        }
+        let still_since = tokio::time::Instant::now();
         loop {
             if still_since.elapsed() >= STILL_FOR || started.elapsed() >= LOOK_FOR {
-                return Err((
-                    refused(&format!(
-                        "its screen is not the one in {}\n{}",
-                        path.display(),
-                        crate::compare::render(&report)
-                    )),
-                    Some(format!(
-                        "If the new screen is right, delete {} and replay again to keep it.",
-                        path.display()
-                    )),
-                ));
+                return Ok(Looked::Different(report, now));
             }
             tokio::time::sleep(LOOK_AGAIN).await;
-            let (next, _) = shoot(client, with).await?;
+            let next = shots.next().await?;
             if !still(&now, &next)? {
                 now = next;
                 break;
@@ -3600,6 +3665,73 @@ fn run_daemon(trace: TraceOptions) -> ExitCode {
 #[cfg(test)]
 mod tests {
     use serde_json::json;
+
+    /// A switch as two replays of one run saw it: its picture differs from the kept one until the app draws again.
+    struct Frozen {
+        began: tokio::time::Instant,
+        for_ms: u64,
+    }
+
+    #[async_trait::async_trait]
+    impl super::Shots<()> for Frozen {
+        async fn next(&mut self) -> Result<Vec<u8>, ()> {
+            Ok(
+                if self.began.elapsed() < std::time::Duration::from_millis(self.for_ms) {
+                    b"halfway".to_vec()
+                } else {
+                    b"kept".to_vec()
+                },
+            )
+        }
+    }
+
+    async fn looked_at(frozen_ms: u64) -> super::Looked {
+        let thumb = phonedriver_core::geometry::Rect {
+            x: 386.0,
+            y: 97.0,
+            w: 27.0,
+            h: 27.0,
+        };
+        let compare = |now: &[u8]| -> Result<crate::compare::Report, ()> {
+            Ok(if now == b"kept" {
+                crate::compare::Report::default()
+            } else {
+                crate::compare::Report {
+                    regions: vec![thumb],
+                    share: 0.002,
+                    text: vec![crate::compare::TextChange::Removed {
+                        text: "e".into(),
+                        at: thumb,
+                    }],
+                    unread: None,
+                }
+            })
+        };
+        let mut shots = Frozen {
+            began: tokio::time::Instant::now(),
+            for_ms: frozen_ms,
+        };
+        super::look(b"halfway".to_vec(), &mut shots, compare, |a, b| Ok(a == b))
+            .await
+            .unwrap()
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn a_screen_whose_app_drew_nothing_for_two_and_a_half_seconds_still_matches_when_it_does()
+    {
+        assert!(matches!(looked_at(2584).await, super::Looked::Same));
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn a_screen_that_stays_different_is_told_with_its_picture_once_it_has_been_still() {
+        let began = tokio::time::Instant::now();
+        let super::Looked::Different(report, now) = looked_at(60_000).await else {
+            panic!("a screen that never matched was not told");
+        };
+        assert_eq!(now, b"halfway");
+        assert_eq!(report.regions.len(), 1);
+        assert!(began.elapsed() <= super::LOOK_FOR, "{:?}", began.elapsed());
+    }
 
     #[test]
     fn the_command_list_names_every_command_and_the_help_names_no_missing_readme_section() {

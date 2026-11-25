@@ -108,11 +108,6 @@ impl AndroidDevice {
         })
     }
 
-    /// The last lines the agent printed, for the daemon's log.
-    pub fn agent_log(&self) -> Vec<String> {
-        self.log.recent()
-    }
-
     async fn pm(&self, cmd: &str) -> Result<String> {
         let out = self.adb.shell(&self.serial, cmd).await?.stdout_text();
         let last = out
@@ -294,6 +289,13 @@ impl Device for AndroidDevice {
             }
         }
         if self.video.ended() {
+            // Observed on GitHub's Linux runner (2026-11-17, 2026-11-24): the stream ended while the keyboard
+            // came up, and nothing kept why. The agent prints the reason; the daemon's log is where it is read.
+            eprintln!(
+                "the video stream of {} ended; the agent said: {}",
+                self.info.id,
+                video_lines(&self.log.recent()).join(" | ")
+            );
             return Err(Error::DeviceGone {
                 id: self.info.id.clone(),
             });
@@ -1038,6 +1040,38 @@ where
         Ok(())
     } else {
         Err(gone())
+    }
+}
+
+/// The agent's own lines about its video stream and encoder. Its other lines stay out of the daemon's log.
+fn video_lines(log: &[String]) -> Vec<&str> {
+    log.iter()
+        .map(String::as_str)
+        .filter(|l| {
+            l.starts_with("stream V ") || l.starts_with("video") || l.starts_with("encoder ")
+        })
+        .collect()
+}
+
+#[cfg(test)]
+mod video_log_tests {
+    use super::video_lines;
+
+    #[test]
+    fn only_the_agents_lines_about_its_video_go_to_the_daemons_log() {
+        let log = [
+            "stream C ended: java.io.EOFException".to_string(),
+            "stream V ended: android.media.MediaCodec$CodecException: Error 0xffffffe0".to_string(),
+            "encoder rejected 1080x2400: x; retrying with max size 1920".to_string(),
+            "control stream refused: lane in use: b".to_string(),
+        ];
+        assert_eq!(
+            video_lines(&log),
+            [
+                "stream V ended: android.media.MediaCodec$CodecException: Error 0xffffffe0",
+                "encoder rejected 1080x2400: x; retrying with max size 1920"
+            ]
+        );
     }
 }
 
