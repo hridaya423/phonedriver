@@ -4414,6 +4414,116 @@ async fn a_screenshot_that_is_gone_twice_is_an_error() {
     assert_eq!(e.code, -32003, "{e:?}");
 }
 
+/// One connection of a phone, as the Android agent counts them: the phone's own screen is one lane, and the
+/// agent gives it to a second connection only once the first is closed.
+struct OneLane(Arc<FakeDevice>);
+
+#[async_trait]
+impl Device for OneLane {
+    fn info(&self) -> &phonedriver_core::device::DeviceInfo {
+        self.0.info()
+    }
+    async fn tree(&self) -> Result<RawTree, Error> {
+        self.0.tree().await
+    }
+    fn frames(&self) -> Option<tokio::sync::watch::Receiver<FrameRef>> {
+        self.0.frames()
+    }
+    async fn screenshot(
+        &self,
+        q: phonedriver_core::device::Quality,
+    ) -> Result<phonedriver_core::device::Image, Error> {
+        self.0.screenshot(q).await
+    }
+    fn events(&self) -> tokio::sync::broadcast::Receiver<DeviceEvent> {
+        self.0.events()
+    }
+    async fn gesture(&self, g: phonedriver_core::device::Gesture) -> Result<(), Error> {
+        self.0.gesture(g).await
+    }
+    async fn key(&self, k: Key) -> Result<(), Error> {
+        self.0.key(k).await
+    }
+    async fn button(&self, b: phonedriver_core::device::Button) -> Result<(), Error> {
+        self.0.button(b).await
+    }
+    async fn open_url(&self, u: &Url, app: Option<&AppId>) -> Result<Option<AppId>, Error> {
+        self.0.open_url(u, app).await
+    }
+    async fn text(&self, t: TextInput) -> Result<(), Error> {
+        self.0.text(t).await
+    }
+    async fn clipboard(
+        &self,
+        op: phonedriver_core::device::ClipboardOp,
+    ) -> Result<Option<String>, Error> {
+        self.0.clipboard(op).await
+    }
+    async fn apps(&self) -> Result<Vec<phonedriver_core::device::App>, Error> {
+        self.0.apps().await
+    }
+    async fn launch(&self, app: &AppId, fresh: bool) -> Result<(), Error> {
+        self.0.launch(app, fresh).await
+    }
+    async fn foreground(&self) -> Result<Option<AppId>, Error> {
+        self.0.foreground().await
+    }
+}
+
+struct OneLaneSource {
+    fake: Arc<FakeDevice>,
+    open: Mutex<std::sync::Weak<OneLane>>,
+}
+
+#[async_trait]
+impl DeviceSource for OneLaneSource {
+    async fn list(&self) -> Result<Vec<Listed>, Error> {
+        Ok(vec![Listed {
+            id: "fake:1".into(),
+            model: "Fake".into(),
+            os: Some("FakeOS 1".into()),
+            tier: "fake".into(),
+            capabilities: self.fake.info().capabilities,
+        }])
+    }
+    async fn connect(&self, _id: &str) -> Result<Arc<dyn Device>, Error> {
+        let asked = tokio::time::Instant::now();
+        while self.open.lock().unwrap().upgrade().is_some() {
+            if asked.elapsed() >= Duration::from_secs(5) {
+                return Err(Error::Refused {
+                    detail: "lane the phone's own screen of this device is already open from this daemon"
+                        .into(),
+                });
+            }
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        }
+        let lane = Arc::new(OneLane(self.fake.clone()));
+        *self.open.lock().unwrap() = Arc::downgrade(&lane);
+        Ok(lane)
+    }
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_screenshot_whose_stream_was_gone_closes_its_connection_before_it_opens_the_next() {
+    let fake = Arc::new(FakeDevice::new(vec![tree(&["One"])]).with_screenshot(fake_png()));
+    fake.fail_screenshots(vec![Error::DeviceGone {
+        id: "fake:1".into(),
+    }]);
+    let home = tempfile::tempdir().unwrap();
+    let d = Daemon::new(
+        Arc::new(OneLaneSource {
+            fake: fake.clone(),
+            open: Mutex::default(),
+        }),
+        Config {
+            home: home.path().to_path_buf(),
+        },
+    );
+    let r = ok(&d, "default", "screenshot", json!({})).await;
+    assert_eq!(r["width"], 360, "{r}");
+    assert_eq!(fake.order(), ["screenshot", "screenshot"]);
+}
+
 fn tree_of(package: &str, labels: &[&str]) -> RawTree {
     let mut nodes = vec![
         r#"{"p":-1,"w":1,"cls":"android.widget.FrameLayout","b":[0,0,360,800],"f":"vVe"}"#

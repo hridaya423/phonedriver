@@ -811,6 +811,20 @@ async fn replay_screens_masks_the_text_it_read_from_a_screen_that_shows_the_secr
     assert!(shown.contains("its screen is not the one in"), "{shown}");
     assert!(shown.contains("+ \"•••\""), "{shown}");
     assert!(!shown.contains("hunter2-test-secret"), "{shown}");
+    let now = shots.join("01.now.png");
+    assert_eq!(
+        std::fs::read(&now).unwrap(),
+        fakes::PNG,
+        "the screen it showed is kept"
+    );
+    assert!(
+        shown.contains(&format!(
+            "hint: The screen it showed is in {}. If that one is right, put it in place of {}.",
+            now.display(),
+            shots.join("01.png").display()
+        )),
+        "{shown}"
+    );
 }
 
 #[cfg(unix)]
