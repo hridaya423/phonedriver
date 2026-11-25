@@ -12,4 +12,5 @@ pub mod map;
 mod network;
 mod notifications;
 mod settings;
+mod shelves;
 pub mod wireless;

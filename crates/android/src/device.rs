@@ -635,6 +635,16 @@ impl Device for AndroidDevice {
         self.adb.pull(&self.serial, &path, limit).await
     }
 
+    async fn file_list(&self, folder: Option<&str>) -> Result<phonedriver_core::files::Listing> {
+        let out = self
+            .adb
+            .shell(&self.serial, &crate::shelves::command(folder))
+            .await?;
+        crate::shelves::parse(&out.stdout_text()).ok_or_else(|| Error::Transport {
+            detail: "the device did not print its clock before its files".into(),
+        })
+    }
+
     async fn setting(&self, op: SettingOp) -> Result<SettingReply> {
         match op {
             SettingOp::Index => {

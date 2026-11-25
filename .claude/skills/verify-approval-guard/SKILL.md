@@ -73,6 +73,8 @@ Before a commit that touches the covered files, run at least one break whose are
 
 2026-11-24, group 4: `files` on a physical device (D119) asks through `guarded` with a new category, `files`, that never goes through `guard::stance`: the daemon runs a transfer only with `autonomous` or with the `approved` label and details of that very transfer, so a session answer does not cover the next file. `commitment` prints a file's label without `Tap`. The property does not generate transfers; `tests/files.rs` (`on_a_physical_device_every_transfer_asks...`) and `tests/files_mcp.rs` (a decline, an allow for the session, and the next file asked again, over elicitation) cover it. Break B9 run on the Mac mini failed two checks, as it should.
 
+2026-11-25, round 2 (D129): files are an MCP tool of their own, which calls `guarded` as `clipboard` did. A listing of a physical device's files asks too, with category `files`; its answer for the session is kept in `Session::files_listed`, not in `guard_allowed`, and covers later listings and no transfer (`tests/files.rs`, `on_a_physical_device_a_listing_asks_and_a_session_approval_covers_listings_only`, which a break that lets a transfer through on any `session` approval now fails). The property does not generate listings. Break B5 run on the Mac mini failed four tests as it should. Two things about running a break there: without `ulimit -n 8192` the run fails on `Too many open files` and proves nothing, and the script restores with `git checkout`, so on a copy without `.git` put the file back by hand.
+
 ## Findings, fixed
 
 F1, F2 and F3 were found at sync commit `4fc2204` and fixed in the commit that follows `55741c4`. Their tests now run by default.

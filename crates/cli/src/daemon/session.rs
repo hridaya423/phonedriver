@@ -40,6 +40,8 @@ pub struct Session {
     /// When this session's last action began, on the actor's clock: a wait for a notification counts the ones
     /// posted since then.
     pub acted_at: Option<std::time::Duration>,
+    /// The human allowed this session to list the names of the files on their phone; it ends with the daemon.
+    pub files_listed: bool,
 }
 
 /// How many dropped text fields a session remembers.

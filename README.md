@@ -186,9 +186,9 @@ The repository is also a GitHub Action that boots an emulator or a Simulator, in
 - One call can tap a whole path: `tap {"target":"More options","then":["Settings","Dark theme"]}`. Models tap one step at a time unless told otherwise, so give your agent the skill (`phonedriver skill` prints it), which tells it to send paths.
 
 <details>
-<summary>The 17 MCP tools</summary>
+<summary>The 19 MCP tools</summary>
 
-`devices`, `apps`, `snapshot`, `screenshot`, `tap`, `type`, `swipe`, `scroll`, `press`, `launch`, `wait`, `batch`, `clipboard`, `shell`, `setting`, `logs` and `replay`.
+`devices`, `apps`, `snapshot`, `screenshot`, `tap`, `type`, `swipe`, `scroll`, `press`, `launch`, `wait`, `batch`, `clipboard`, `files`, `shell`, `setting`, `logs`, `network` and `replay`.
 
 `snapshot`, `screenshot`, `wait`, `logs` and `network` are marked read-only, so a client can run them without a permission prompt. The `phonedriver` CLI has the same commands, for scripts and for agents that prefer a shell. A device you used from a terminal goes to your agent after 30 seconds idle. Every command and argument is in the [reference](docs/reference.md), and everything new in 0.1.7 is in the [changelog](CHANGELOG.md).
 

@@ -64,7 +64,7 @@ impl Notice {
     }
 }
 
-fn age(ms: u64) -> String {
+pub(crate) fn age(ms: u64) -> String {
     match ms / 1000 {
         s if s < 60 => "now".into(),
         s if s < 3600 => format!("{}m ago", s / 60),

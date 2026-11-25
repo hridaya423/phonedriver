@@ -110,7 +110,9 @@ fn on_a_phone_the_human_is_asked_for_each_file_and_a_decline_copies_nothing() {
             let running = server.serve(server_io).await.unwrap();
             let _ = running.waiting().await;
         });
-        let allows = Arc::new(Mutex::new(VecDeque::from([false, true, false])));
+        let allows = Arc::new(Mutex::new(VecDeque::from([
+            false, true, false, false, true,
+        ])));
         let asked = Arc::new(Mutex::new(Vec::new()));
         let client = Human {
             allows,
@@ -121,7 +123,7 @@ fn on_a_phone_the_human_is_asked_for_each_file_and_a_decline_copies_nothing() {
         .unwrap();
         let call = |args: serde_json::Value| {
             client.call_tool(
-                CallToolRequestParams::new("clipboard")
+                CallToolRequestParams::new("files")
                     .with_arguments(args.as_object().unwrap().clone()),
             )
         };
@@ -148,7 +150,7 @@ fn on_a_phone_the_human_is_asked_for_each_file_and_a_decline_copies_nothing() {
         assert_ne!(r.is_error, Some(true), "{r:?}");
         assert!(
             text(&r).starts_with(
-                "ok copied cat.png to /sdcard/Pictures/cat.png · 3 bytes · sha256 ba7816bf"
+                "ok copied cat.png to /sdcard/Pictures/cat.png, where the gallery shows it · 3 bytes · sha256 ba7816bf"
             ),
             "{}",
             text(&r)
@@ -161,6 +163,42 @@ fn on_a_phone_the_human_is_asked_for_each_file_and_a_decline_copies_nothing() {
             "allowed for the session a file ago, and asked again: {r:?}"
         );
         assert_eq!(asked.lock().unwrap().len(), 3);
+        assert_eq!(pushes(), 1);
+
+        fake.with_file_aged("/sdcard/Download/report.pdf", b"BYTESOFTHEREPORT", 180);
+        let lists = || {
+            fake.calls()
+                .into_iter()
+                .filter(|c| matches!(c, Call::FileList(..)))
+                .count()
+        };
+        let r = call(json!({})).await.unwrap();
+        assert!(text(&r).starts_with("The human declined"), "{r:?}");
+        assert_eq!(lists(), 0, "a decline names no file");
+        let prompt = asked.lock().unwrap()[3].clone();
+        assert!(
+            prompt.contains(
+                "list the names of the files in the phone's Download, Pictures, DCIM folders"
+            ) && prompt.contains("Category: files"),
+            "{prompt}"
+        );
+        let r = call(json!({})).await.unwrap();
+        assert_eq!(
+            text(&r),
+            "Pictures/cat.png · 3 bytes · now\nDownload/report.pdf · 16 bytes · 3m ago"
+        );
+        let r = call(json!({"list": "Download"})).await.unwrap();
+        assert_eq!(text(&r), "Download/report.pdf · 16 bytes · 3m ago");
+        assert_eq!(
+            asked.lock().unwrap().len(),
+            5,
+            "allowed for the session, a listing is not asked again"
+        );
+        let r = call(json!({"push": "dog.png"})).await.unwrap();
+        assert!(
+            text(&r).starts_with("cannot ask") || text(&r).contains("declined"),
+            "a listing's word moves no file: {r:?}"
+        );
         assert_eq!(pushes(), 1);
 
         let r = call(json!({"push": "cat.png", "pull": "Download/a"}))

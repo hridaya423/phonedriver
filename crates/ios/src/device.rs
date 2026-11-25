@@ -328,6 +328,24 @@ impl IosDevice {
         now
     }
 
+    /// The folder of this Mac that holds the Simulator's photo originals. A physical iPhone's photos are reached
+    /// through no service this tier has.
+    async fn photo_library(&self) -> Result<std::path::PathBuf> {
+        if !matches!(self.host, Host::Simulator) {
+            return Err(Error::Unsupported {
+                op: Op::Files,
+                reason: "files cannot be copied to or from a physical iPhone; a Simulator's photo library and an Android device's Pictures and Download folders can",
+            });
+        }
+        let devices = simctl(&["list", "devices", "-j"]).await?;
+        crate::simfiles::dcim(&devices, &self.udid).ok_or_else(|| Error::Transport {
+            detail: format!(
+                "simctl does not say where the data of Simulator {} is",
+                self.udid
+            ),
+        })
+    }
+
     fn simulator_only(&self) -> Result<()> {
         match self.host {
             Host::Simulator => Ok(()),
@@ -854,6 +872,48 @@ impl Device for IosDevice {
         };
         self.input(Op::Text, req).await?;
         Ok(())
+    }
+
+    // Seen on a Mac mini with Xcode 27 and iOS 26.5, 2026-11-25: `simctl addmedia` of a PNG and of a JPEG failed
+    // with `PHPhotosErrorDomain error 3301` on a simulator in use and on one created a minute before, three times
+    // each, so nothing here puts a picture into the library.
+    async fn file_push(
+        &self,
+        _to: phonedriver_core::files::Shelf,
+        _name: &str,
+        _bytes: &[u8],
+    ) -> Result<String> {
+        Err(Error::Unsupported {
+            op: Op::Files,
+            reason: "a file cannot be pushed to an iOS device: a Simulator's photo library can be listed and pulled from, and an Android device takes a push",
+        })
+    }
+
+    async fn file_pull(&self, path: &str, limit: u64) -> Result<Vec<u8>> {
+        let dcim = self.photo_library().await?;
+        let refused = |detail| Error::Refused { detail };
+        let path = phonedriver_core::files::shared(path).map_err(refused)?;
+        let real = crate::simfiles::original(&dcim, &path).map_err(refused)?;
+        let size = tokio::fs::metadata(&real)
+            .await
+            .map_err(|e| refused(format!("cannot read {path}: {e}")))?
+            .len();
+        if size > limit {
+            return Err(refused(format!(
+                "{path} is {size} bytes, over the limit of {limit}"
+            )));
+        }
+        tokio::fs::read(&real)
+            .await
+            .map_err(|e| refused(format!("cannot read {path}: {e}")))
+    }
+
+    async fn file_list(&self, folder: Option<&str>) -> Result<phonedriver_core::files::Listing> {
+        let dcim = self.photo_library().await?;
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_or(0, |d| d.as_secs());
+        Ok(crate::simfiles::list(&dcim, folder, now))
     }
 
     async fn clipboard(&self, op: ClipboardOp) -> Result<Option<String>> {

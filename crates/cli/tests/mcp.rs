@@ -43,6 +43,17 @@ async fn rig_with(device: Arc<dyn phonedriver_core::device::Device>) -> Rig {
 }
 
 async fn rig_on(source: Arc<dyn phonedriver::daemon::DeviceSource>) -> Rig {
+    rig_built(source, None).await
+}
+
+async fn rig_with_files(device: Arc<dyn phonedriver_core::device::Device>, files: &Path) -> Rig {
+    rig_built(Arc::new(OneDevice(device)), Some(files)).await
+}
+
+async fn rig_built(
+    source: Arc<dyn phonedriver::daemon::DeviceSource>,
+    files: Option<&Path>,
+) -> Rig {
     let home = tempfile::tempdir().unwrap();
     let daemon = Daemon::new(
         source,
@@ -54,7 +65,10 @@ async fn rig_on(source: Arc<dyn phonedriver::daemon::DeviceSource>) -> Rig {
     let listener = socket::listen(&socket).await.unwrap();
     tokio::spawn(daemon.serve_on(listener));
     let (client_io, server_io) = tokio::io::duplex(1 << 20);
-    let mcp = Mcp::new(Some(socket.clone()), "mcp-test".into()).in_folder(home.path().into());
+    let mut mcp = Mcp::new(Some(socket.clone()), "mcp-test".into()).in_folder(home.path().into());
+    if let Some(files) = files {
+        mcp = mcp.with_files(files.to_path_buf());
+    }
     tokio::spawn(async move {
         let running = mcp.serve(server_io).await.unwrap();
         let _ = running.waiting().await;
@@ -170,6 +184,7 @@ async fn tools_list_is_the_tools_with_short_descriptions_and_the_cli_required_ar
         ("wait", vec![]),
         ("batch", vec!["steps"]),
         ("clipboard", vec![]),
+        ("files", vec![]),
         ("shell", vec!["command"]),
         ("setting", vec![]),
         ("logs", vec![]),
@@ -573,8 +588,8 @@ async fn the_tool_list_every_turn_re_reads_fits_a_budget_and_hides_what_agents_n
         })
         .sum();
     assert!(
-        total < 7_398,
-        "what a model reads of tools/list is {total} characters (6,371 in 0.1.7; lanes in `devices` and the `check` step added about 160, `collect` on `scroll` 56, notifications on `snapshot` and `wait` about 130, paths on `replay` 103, `within` on `screenshot` 21, `restore` on `setting` 20, files on `clipboard` 246, `select` on `tap` 108); every turn re-reads it, so raise this only for a tool or argument worth its cost"
+        total < 7_480,
+        "what a model reads of tools/list is {total} characters (6,371 in 0.1.7; 7,366 with the twelve additions of #52 and #41; `files` as a tool of its own with a listing made it 7,461, 95 more); every turn re-reads it, so raise this only for a tool or argument worth its cost"
     );
     for t in &tools {
         let text = serde_json::to_string(&*t.input_schema).unwrap();
@@ -1275,10 +1290,61 @@ async fn a_screenshot_within_an_element_says_where_its_top_left_is_and_is_not_th
     );
 }
 
+/// Decision D129: files are a tool of their own. The clipboard takes no file, and a `files` call with no argument
+/// says what a pull could name, with the way to see more of one folder.
+#[tokio::test]
+async fn files_are_their_own_tool_and_a_call_with_no_argument_lists_what_a_pull_can_name() {
+    let fake = Arc::new(phonedriver_core::testing::FakeDevice::new(vec![tree(&[
+        "One",
+    ])]));
+    fake.with_file_aged("/sdcard/Download/report.pdf", b"BYTESOFTHEREPORT", 7200);
+    for n in 0..12 {
+        fake.with_file_aged(&format!("/sdcard/DCIM/Camera/IMG_{n:02}.jpg"), b"abc", n);
+    }
+    let folder = tempfile::tempdir().unwrap();
+    let rig = rig_with_files(fake, folder.path()).await;
+
+    let r = rig.call("clipboard", json!({"push": "cat.png"})).await;
+    assert_eq!(r.is_error, Some(true), "{r:?}");
+    assert!(texts(&r)[0].contains("push"), "{r:?}");
+
+    let r = rig.call("files", json!({})).await;
+    assert_ne!(r.is_error, Some(true), "{r:?}");
+    let shown = texts(&r).join("\n");
+    let lines: Vec<&str> = shown.lines().collect();
+    assert_eq!(lines.len(), 13, "{shown}");
+    assert_eq!(lines[0], "DCIM/Camera/IMG_00.jpg · 3 bytes · now");
+    assert_eq!(lines[10], "Download/report.pdf · 16 bytes · 2h ago");
+    assert_eq!(lines[11], "2 more, older");
+    assert_eq!(
+        lines[12],
+        "hint: `list` with a folder, such as `DCIM/Camera`, shows more of it"
+    );
+    assert!(!shown.contains("BYTESOF"), "{shown}");
+
+    let r = rig.call("files", json!({"list": "Music"})).await;
+    assert_eq!(r.is_error, Some(true), "{r:?}");
+    let r = rig.call("files", json!({"list": "Pictures"})).await;
+    assert_eq!(texts(&r), ["no files in Pictures"]);
+
+    let tools = rig.client.list_all_tools().await.unwrap();
+    let files = tools.iter().find(|t| t.name == "files").unwrap();
+    let text = serde_json::to_string(files).unwrap();
+    assert!(
+        text.contains("\"push\"") && text.contains("\"pull\""),
+        "{text}"
+    );
+    let clipboard = tools.iter().find(|t| t.name == "clipboard").unwrap();
+    assert!(
+        !serde_json::to_string(clipboard).unwrap().contains("push"),
+        "{clipboard:?}"
+    );
+}
+
 #[tokio::test]
 async fn a_file_is_refused_until_the_person_names_a_folder_and_says_how() {
     let rig = rig(vec![tree(&["One"])]).await;
-    let r = rig.call("clipboard", json!({"push": "cat.png"})).await;
+    let r = rig.call("files", json!({"push": "cat.png"})).await;
     assert_eq!(r.is_error, Some(true), "{r:?}");
     assert!(
         texts(&r)[0].starts_with(

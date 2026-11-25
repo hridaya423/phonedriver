@@ -34,6 +34,51 @@ impl Shelf {
 /// The folders a file may be pulled from: the downloads and the two photo folders.
 pub const PULL_FROM: [&str; 3] = ["Download", "Pictures", "DCIM"];
 
+/// One file a pull may read: its path under shared storage (`Download/a.pdf`), its size, and when it was last
+/// written, in seconds on the device's clock.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Entry {
+    pub path: String,
+    pub bytes: u64,
+    pub modified: u64,
+}
+
+impl Entry {
+    /// `Download/report.pdf · 48213 bytes · 3m ago`, with `now` on the same clock as `modified`.
+    pub fn line(&self, now: u64) -> String {
+        format!(
+            "{} · {} bytes · {}",
+            self.path,
+            self.bytes,
+            crate::notice::age(now.saturating_sub(self.modified) * 1000)
+        )
+    }
+}
+
+/// The files of the shelves, with the time on the device's clock when they were read.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Listing {
+    pub now: u64,
+    pub files: Vec<Entry>,
+}
+
+/// `path` as a folder a listing may read: one of the three shelves or a folder under one, `DCIM/Camera`.
+pub fn folder(path: &str) -> Result<String, String> {
+    let inside = ["/sdcard/", "/storage/emulated/0/"]
+        .iter()
+        .find_map(|root| path.strip_prefix(root))
+        .unwrap_or(path);
+    let inside = inside.strip_suffix('/').unwrap_or(inside);
+    let parts: Vec<&str> = inside.split('/').collect();
+    if !PULL_FROM.contains(&parts[0]) || parts.iter().any(|p| name(p).is_err()) {
+        return Err(format!(
+            "{path:?} is not a folder a listing may read: it takes {} or a folder under one, such as `DCIM/Camera`",
+            PULL_FROM.join(", ")
+        ));
+    }
+    Ok(parts.join("/"))
+}
+
 /// The name a file gets on the device, if it is one: a single path component with no control character, that no
 /// shell and no file system reads as anything else.
 pub fn name(name: &str) -> Result<&str, String> {
@@ -101,6 +146,24 @@ mod tests {
             "/sdcard/../data/x",
         ] {
             assert!(shared(refused).is_err(), "{refused}");
+        }
+    }
+
+    #[test]
+    fn a_listing_reads_a_shelf_or_a_folder_under_one_only() {
+        assert_eq!(folder("Download").unwrap(), "Download");
+        assert_eq!(folder("/sdcard/DCIM/Camera/").unwrap(), "DCIM/Camera");
+        for refused in [
+            "",
+            "/sdcard",
+            "Android/data",
+            "Download/..",
+            "DCIM/../Android",
+            "Pictures/.thumbnails",
+            "Download/a'b",
+            "download",
+        ] {
+            assert!(folder(refused).is_err(), "{refused}");
         }
     }
 

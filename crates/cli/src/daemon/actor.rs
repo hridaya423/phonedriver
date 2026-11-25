@@ -921,18 +921,12 @@ impl Actor {
             Call::Network => to_value(self.device()?.network().await?),
             Call::Notifications(p) => self.notifications(p).await?,
             Call::Files(p) => {
-                let done = self.files(p).await?;
+                let done = self.files(s, p).await?;
                 if let Some(name) = done["pushed"].as_str() {
-                    let to = if done["device_path"]
-                        .as_str()
-                        .is_some_and(|p| p.starts_with("/sdcard/Pictures/"))
-                    {
-                        phonedriver_core::files::Shelf::Photos
-                    } else {
-                        phonedriver_core::files::Shelf::Downloads
-                    };
-                    s.journal
-                        .push(journal::call("files", json!({"push": name, "to": to})));
+                    s.journal.push(journal::call(
+                        "files",
+                        json!({"push": name, "to": done["to"]}),
+                    ));
                 }
                 done
             }

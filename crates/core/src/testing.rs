@@ -37,6 +37,7 @@ pub enum Call {
     /// A file written to this path, with its size.
     FilePush(String, usize),
     FilePull(String),
+    FileList(Option<String>),
     Logs(AppId, bool),
     LogWait(Option<AppId>, Vec<String>),
     RecordStart(std::path::PathBuf),
@@ -80,6 +81,7 @@ pub struct FakeDevice {
     order: Mutex<Vec<&'static str>>,
     settings: Mutex<Option<FakeSettings>>,
     files: Mutex<std::collections::BTreeMap<String, Vec<u8>>>,
+    file_times: Mutex<std::collections::BTreeMap<String, u64>>,
     logs: Mutex<Option<LogReply>>,
     log_lines: Mutex<Option<Vec<String>>>,
     log_wait_takes: Mutex<Duration>,
@@ -146,6 +148,7 @@ impl FakeDevice {
             order: Mutex::new(Vec::new()),
             settings: Mutex::new(None),
             files: Mutex::default(),
+            file_times: Mutex::default(),
             logs: Mutex::new(None),
             log_lines: Mutex::new(None),
             log_wait_takes: Mutex::new(Duration::ZERO),
@@ -310,6 +313,15 @@ impl FakeDevice {
     pub fn with_file(&self, path: &str, bytes: &[u8]) {
         lock(&self.files).insert(path.to_string(), bytes.to_vec());
     }
+
+    /// Puts a file on the device's shared storage that was last written `age` seconds before the fake's clock,
+    /// which stands at `FakeDevice::FILES_NOW`.
+    pub fn with_file_aged(&self, path: &str, bytes: &[u8], age: u64) {
+        self.with_file(path, bytes);
+        lock(&self.file_times).insert(path.to_string(), Self::FILES_NOW - age);
+    }
+
+    pub const FILES_NOW: u64 = 1_800_000_000;
 
     /// The bytes of a file on the device's shared storage.
     pub fn file(&self, path: &str) -> Option<Vec<u8>> {
@@ -687,6 +699,38 @@ impl Device for FakeDevice {
                 detail: format!("{path} is not on the device"),
             }),
         }
+    }
+
+    async fn file_list(&self, folder: Option<&str>) -> Result<crate::files::Listing> {
+        lock(&self.calls).push(Call::FileList(folder.map(str::to_string)));
+        let times = lock(&self.file_times);
+        let files = lock(&self.files)
+            .iter()
+            .filter_map(|(path, bytes)| {
+                let path = path.strip_prefix("/sdcard/")?;
+                let inside = match folder {
+                    Some(f) => path
+                        .strip_prefix(f)
+                        .is_some_and(|rest| rest.starts_with('/')),
+                    None => crate::files::PULL_FROM.iter().any(|f| {
+                        path.strip_prefix(f)
+                            .is_some_and(|rest| rest.starts_with('/'))
+                    }),
+                };
+                inside.then(|| crate::files::Entry {
+                    path: path.to_string(),
+                    bytes: bytes.len() as u64,
+                    modified: times
+                        .get(&format!("/sdcard/{path}"))
+                        .copied()
+                        .unwrap_or(Self::FILES_NOW),
+                })
+            })
+            .collect();
+        Ok(crate::files::Listing {
+            now: Self::FILES_NOW,
+            files,
+        })
     }
 
     async fn setting(&self, op: SettingOp) -> Result<SettingReply> {

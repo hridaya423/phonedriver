@@ -122,6 +122,7 @@ enum Step {
     Notifications {
         waited: bool,
     },
+    Files,
     Find,
     Check {
         field: Field,
@@ -179,6 +180,7 @@ fn steps() -> impl Strategy<Value = Vec<Step>> {
         1 => Just(Step::Page),
         1 => any::<bool>().prop_map(|waited| Step::Notifications { waited }),
         1 => any::<bool>().prop_map(|restore| Step::Setting { restore }),
+        1 => Just(Step::Files),
     ];
     prop::collection::vec(step, 1..7)
 }
@@ -366,6 +368,12 @@ async fn session(steps: &[Step], full: bool, deaf: bool, fails: bool, home: &Pat
                     text: secrets.join("\n"),
                 });
                 ("page", call("page", json!({})).await)
+            }
+            Step::Files => {
+                for (n, secret) in secrets.iter().enumerate() {
+                    fake.with_file_aged(&format!("/sdcard/Download/{secret} {n}.txt"), b"x", 1);
+                }
+                ("files", call("files", json!({"folder": home})).await)
             }
             Step::Notifications { waited } => {
                 fake.answer_notifications(vec![phonedriver_core::notice::Notices {
@@ -659,6 +667,7 @@ fn every_kind_of_step_works_on_the_fake_phone() {
         Step::Landmark,
         Step::Setting { restore: false },
         Step::Setting { restore: true },
+        Step::Files,
         Step::Journal,
     ];
     let seen = run(session(&steps, true, false, false, home.path()));

@@ -560,17 +560,20 @@ pub(crate) enum Verb {
         #[arg(long)]
         force: bool,
     },
-    /// Copy one file to or from the device (Android): `files push cat.jpg` sends that file of the folder
-    /// `PHONEDRIVER_FILES` names to the device's Pictures (pictures and videos) or Download folder, and
-    /// `files pull Download/report.pdf` brings a file under Download, Pictures or DCIM into that folder. It prints
-    /// where the file is now, its size and its SHA-256. Nothing is replaced on either side, a file is 64 MiB at
-    /// most, and on a physical device each transfer needs the human's approval.
+    /// Copy one file to or from the device, or list what is there (Android). `files push cat.jpg` sends that file of
+    /// the folder `PHONEDRIVER_FILES` names to the device's Pictures (pictures and videos) or Download folder;
+    /// `files pull Download/report.pdf` brings a file under Download, Pictures or DCIM into that folder; `files list`
+    /// prints the newest files of those three folders, and `files list DCIM/Camera` more of one. A transfer prints
+    /// where the file is now, its size and its SHA-256, and a listing a path, a size and an age a file, never
+    /// contents. Nothing is replaced on either side, a file is 64 MiB at most, and on a physical device each
+    /// transfer and a listing need the human's approval.
     Files {
-        /// `push` (to the device) or `pull` (from it).
-        #[arg(value_parser = ["push", "pull"])]
+        /// `push` (to the device), `pull` (from it) or `list`.
+        #[arg(value_parser = ["push", "pull", "list"])]
         action: String,
-        /// For `push`, a file in the allowed folder; for `pull`, a path on the device such as `Download/a.pdf`.
-        name: String,
+        /// For `push`, a file in the allowed folder; for `pull`, a path on the device such as `Download/a.pdf`;
+        /// for `list`, one folder to see more of.
+        name: Option<String>,
         /// Where a push goes instead of the folder its type picks: `photos` or `downloads`.
         #[arg(long, value_parser = ["photos", "downloads"])]
         to: Option<String>,
@@ -1567,7 +1570,15 @@ pub(crate) async fn execute_with(
             action, name, to, ..
         } => {
             let mut p = json!({});
-            p[action.as_str()] = json!(name);
+            match (action.as_str(), &name) {
+                ("list", None) => {}
+                (_, Some(name)) => p[action.as_str()] = json!(name),
+                (_, None) => {
+                    return Err(Failure::Local(format!(
+                        "files {action} needs the file: `files {action} <name>`"
+                    )));
+                }
+            }
             if let Some(to) = to {
                 p["to"] = json!(to);
             }
@@ -1584,8 +1595,19 @@ pub(crate) async fn execute_with(
             if g.json {
                 return Ok(r.to_string());
             }
+            if let Some(files) = r["files"].as_array() {
+                return Ok(listed(files, &r, name.as_deref()));
+            }
             let text = |name: &str| r[name].as_str().unwrap_or_default();
             let (from, to) = match r["pushed"].as_str() {
+                Some(name)
+                    if r["to"] == "photos" && text("device_path").starts_with("/sdcard/") =>
+                {
+                    (
+                        name.to_string(),
+                        format!("{}, where the gallery shows it", text("device_path")),
+                    )
+                }
                 Some(name) => (name.to_string(), text("device_path").to_string()),
                 None => (
                     text("pulled").to_string(),
@@ -2424,6 +2446,36 @@ pub(crate) fn show_saved(path: &str, steps: &[Value], over: bool) -> String {
         ));
     }
     out
+}
+
+/// A listing as lines, `Download/report.pdf · 48213 bytes · 3m ago`, newest first, then how many older files were
+/// left out. `folder` is the one folder that was asked for.
+fn listed(files: &[Value], r: &Value, folder: Option<&str>) -> String {
+    let now = r["now"].as_u64().unwrap_or_default();
+    let mut lines: Vec<String> = files
+        .iter()
+        .filter_map(|f| serde_json::from_value::<phonedriver_core::files::Entry>(f.clone()).ok())
+        .map(|f| f.line(now))
+        .collect();
+    let more = r["more"].as_u64().unwrap_or_default();
+    match (lines.is_empty(), folder) {
+        (true, Some(folder)) => return format!("no files in {folder}"),
+        (true, None) => {
+            return format!(
+                "no files in {}",
+                phonedriver_core::files::PULL_FROM.join(", ")
+            );
+        }
+        _ => {}
+    }
+    if more > 0 {
+        lines.push(format!("{more} more, older"));
+        if folder.is_none() {
+            lines
+                .push("hint: `phonedriver files list DCIM/Camera` shows more of one folder".into());
+        }
+    }
+    lines.join("\n")
 }
 
 /// The landmark of a run about to be saved as a path of `app` (decision D118): a wait for what the screen it ended
