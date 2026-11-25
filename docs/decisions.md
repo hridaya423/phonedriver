@@ -2031,3 +2031,57 @@ A tool of its own costs 95 characters more than the `clipboard` arrangement, abo
 **Evidence.** `cargo test --locked -p phonedriver --test files --test files_mcp --test app_scope --test mcp`, `-p phonedriver-core files`, `-p phonedriver-android shelves`, `-p phonedriver-ios simfiles`. The five listing tests ran red first (`files needs one of push … or pull`, `no such option: list`). Live, API 37 emulator: `files list` in 0.14 s once connected, `Download/pd-h3-note.txt · 17 bytes · now` first after the push; `files list Android/data` refused. Outputs are in `progress.md`.
 
 **Limits.** A listing is names, sizes and ages: no thumbnails, no search, no folders-only view; a folder with more than 50 files shows its newest 50. It walks the three folders whole, so a phone with tens of thousands of photos pays for that on each listing (0.14 s for 5 files on the emulator; not measured on a large gallery). An iOS Simulator takes no push, and nothing reaches a physical iPhone's files. One file a call.
+
+## D130. The tool list is cut back to what an agent needs to choose and not to err (2026-11-25, #52)
+
+**Problem.** What a model reads of `tools/list` is re-read on every turn. It was 6,371 characters in 0.1.7 and 7,366 after the twelve additions of #52 and #41 (D113 to D124), with a budget test that had only ever been raised.
+
+**Decision.** The list is 6,877 characters with every tool since, `files` as a tool of its own among them (D129), and the budget test stands at 6,900. Three kinds of cut, none of a fact an agent needs to pick a tool or avoid a mistake:
+
+- **Words the schema already says, and examples that taught nothing.** `target`'s description repeated `tap`'s first sentence; `until`'s repeated `scroll`'s; `shell` showed `am start -a android.intent.action.VIEW -d <url>`, which `launch` with `url` does; `apps` gave two permission examples where one shows the form; `page` said `find` filters, which `snapshot` says above it.
+- **Arguments no agent needs before a hint names them**, hidden from the lean schema and still accepted (`lean.rs`): `replay`'s `from` (the stop hint now reads "then `replay` the same file with `from` 4"), `replay`'s `any_build` (the build refusal names it), `setting`'s `value` (`values` writes one or several), `batch`'s `autonomous` (the approval refusal names it, as on every other tool).
+- **Tighter sentences** in `devices`, `launch`, `replay`, `press` and `setting`.
+
+| Tool | Before | After | | Tool | Before | After |
+|---|---|---|---|---|---|---|
+| `apps` | 438 | 399 | | `scroll` | 363 | 329 |
+| `batch` | 344 | 312 | | `setting` | 505 | 495 |
+| `clipboard` | 325 | 97 | | `shell` | 417 | 358 |
+| `devices` | 393 | 365 | | `snapshot` | 495 | 441 |
+| `files` | none | 328 | | `swipe` | 331 | 316 |
+| `launch` | 395 | 375 | | `tap` | 631 | 563 |
+| `logs` | 219 | 215 | | `type` | 505 | 484 |
+| `press` | 322 | 311 | | `replay` | 669 | 477 |
+
+`network`, `screenshot` and `wait` are as they were.
+
+**Guard.** `everything_added_since_0_1_7_is_still_named_in_the_tool_list` asserts, for each addition since 0.1.7, that the word an agent needs is in the tool's entry: `lane`, `check` and `equals`, `collect`, `notifications` and `notification`, `audit`, the path form on `replay`, `within`, `restore`, `select`, and `files` with `push`, `pull`, the listing, `PHONEDRIVER_FILES` and "never contents". The tests that already read descriptions pass unchanged.
+
+**Checked with agents, and what that changed.** Eight tasks that each need one of the newer features, run with `claude -p` (Sonnet 5.5, the subscription, the Mac mini, the API 37 emulator) through the MCP server of `main` (old) and of this branch (new), one run a cell:
+
+| Task | Feature | Old list | New list |
+|---|---|---|---|
+| Every row of Settings' main page | `scroll` `collect` | used, 5 calls | used, 4 calls |
+| Which notifications are up | `snapshot` `notifications` | not used: `shell dumpsys`, 3 calls | not used, the same; after the fix below: used, 2 calls |
+| An alarm at 19:45 | `tap` `select` | used, 4 calls | used, 3 calls |
+| A picture of one row | `screenshot` `within` | used, 6 calls | used, 5 calls |
+| Dark theme on, then back as it was | `setting` `restore` | sent `"restore": "true"`, refused for its type, wrote the value back by hand, 8 calls | wrote it back by hand, 7 calls; after the fixes below: used with `restore: true`, 7 calls |
+| Put a picture on the phone | `files` `push` | found no tool and gave up after 2 calls | used, 4 calls (one a needless media scan through `shell`); after the fix below: 3 calls |
+| The Internet page of Settings | a named path | tapped there, 3 calls | `setting` `open`, 4 calls; a second run tapped, 4 calls |
+| The newest download, to the computer | `files` listing and `pull` | no listing | used, 3 calls |
+
+No cut cost a feature: where the new list missed, the old one missed the same way. The runs found four things the wording alone could not, each fixed with a test that failed first:
+
+1. **Claude Code loads tools on demand.** The agent saw the tool names and the server's instructions, picked tools by name, and read only those descriptions. So the name carries the weight, which is the case for `files` (the old arrangement never loaded `clipboard` for a file); and no tool name says "notifications", so the instructions now say `Notifications: \`snapshot\` with \`notifications\``.
+2. **A hidden boolean is sent as a string.** `restore` was hidden and named in the description as `restore: true`; two runs sent `"true"`, one was refused for its type, and a third sent `open: "restore"`. `restore` is now in the lean schema as a boolean, and `flag` reads `"true"` for it and for `any_build` as it already did for `autonomous`. A run on the final list sent `restore: true`.
+3. **The receipt did not say the gallery has the picture**, and the agent sent a media scan through `shell` to be sure. A pushed picture's receipt reads `ok copied a.png to /sdcard/Pictures/a.png, where the gallery shows it · …`.
+4. **Both lists were told of the saved path in the `launch` reply and neither took it**: two taps were as cheap. That is D118's to weigh, not this list's.
+
+**Rejected.** Cutting "call tools one at a time (they share one screen)" from `tap`, which the instructions also say: a client that drops instructions keeps descriptions. Dropping `audit`, `notifications` or `page` from `snapshot`'s schema: each is the only place the argument is named. A shorter `files` description without "never contents": an agent that expects the bytes of a pulled file in the reply would pull to read.
+
+**Cost.** The instructions grew by 49 characters; they are read once a session, not counted by the budget test.
+
+**Limits.** One run a cell, one model, one client: the table shows no regression from the cuts and proves no rate. `from`, `any_build` and `value` are found only by the hint that names them or by an agent that read the skill. The count is of characters, not tokens.
+
+**Reopen if.** An agent run shows a hint-named argument being missed, or a client is found that reads descriptions the lean list no longer carries.
+
