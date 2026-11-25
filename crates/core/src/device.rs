@@ -5,6 +5,7 @@ use bitflags::bitflags;
 use serde::{Deserialize, Serialize};
 use tokio::sync::{broadcast, watch};
 
+use crate::calendar::CalendarNames;
 use crate::error::{DeviceId, Error, Op};
 use crate::files::Shelf;
 use crate::geometry::{Point, Rect, Size};
@@ -439,6 +440,11 @@ pub trait Device: Send + Sync {
             op: Op::Files,
             reason: "files cannot be copied to or from this device; an Android device's Pictures and Download folders and a Simulator's photo library can",
         })
+    }
+    /// The names of the months and of the halves of the day in the language `app` (the app in front when `None`)
+    /// is drawn in, or `None` when the device cannot tell (decision D125).
+    async fn calendar_names(&self, _app: Option<&AppId>) -> Result<Option<CalendarNames>> {
+        Ok(None)
     }
     /// The notifications the device is showing, newest first, with the time on its own clock.
     async fn notifications(&self) -> Result<Notices> {

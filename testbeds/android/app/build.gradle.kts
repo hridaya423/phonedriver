@@ -23,6 +23,8 @@ android {
 
 dependencies {
     implementation("androidx.recyclerview:recyclerview:1.4.0")
+    implementation("com.google.android.material:material:1.13.0")
+    implementation("androidx.fragment:fragment:1.8.9")
     implementation(platform("androidx.compose:compose-bom:2025.10.01"))
     implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.foundation:foundation")

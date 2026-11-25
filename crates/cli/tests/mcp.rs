@@ -2446,7 +2446,7 @@ async fn tap_with_select_steps_a_calendar_to_the_date_reads_it_back_and_confirms
     let text = texts(&r).join("\n");
     assert_eq!(r.is_error, Some(true), "{text}");
     assert!(
-        text.contains("the calendar shows November 2025, and 1990-05 is more than 36 months from it: tap the year at the top"),
+        text.contains("the calendar shows 2025-11, 1990-05 is more than 36 months from it, and no list of years opened"),
         "{text}"
     );
     assert_eq!(*taps.lock().unwrap(), ["Date"], "nothing was confirmed");
@@ -2457,7 +2457,9 @@ async fn tap_with_select_steps_a_calendar_to_the_date_reads_it_back_and_confirms
     let text = texts(&r).join("\n");
     assert_eq!(r.is_error, Some(true), "{text}");
     assert!(
-        text.contains("no time picker that takes typed digits"),
+        text.contains(
+            "no time picker is on screen that takes typed digits, has wheels, or has a clock face"
+        ),
         "{text}"
     );
 }

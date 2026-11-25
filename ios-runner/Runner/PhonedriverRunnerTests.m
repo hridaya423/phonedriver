@@ -71,6 +71,37 @@ static NSString *PUStringField(NSDictionary *request, NSString *key, NSError **e
     return value;
 }
 
+// The names of the months and of the halves of the day, each form at the same place for every month: full, full
+// standing alone, short, short standing alone, first in the language the device is set to and then in English.
+// An app draws its pickers in its own language, which is English when it has no translation for the device's:
+// on a Simulator set to ja_JP the testbed, then English only, showed `Jan 15, 2026` (iOS 26.5).
+static NSDictionary *PUCalendarNames(void)
+{
+    NSMutableArray<NSMutableArray *> *months = [NSMutableArray array];
+    for (NSUInteger month = 0; month < 12; month++) [months addObject:[NSMutableArray array]];
+    NSMutableArray *am = [NSMutableArray array];
+    NSMutableArray *pm = [NSMutableArray array];
+    for (NSLocale *locale in @[NSLocale.autoupdatingCurrentLocale, [NSLocale localeWithLocaleIdentifier:@"en"]]) {
+        NSDateFormatter *formatter = [[NSDateFormatter alloc] init];
+        formatter.locale = locale;
+        formatter.calendar = [[NSCalendar alloc] initWithCalendarIdentifier:NSCalendarIdentifierGregorian];
+        for (NSUInteger month = 0; month < 12; month++) {
+            [months[month] addObjectsFromArray:@[
+                formatter.monthSymbols[month], formatter.standaloneMonthSymbols[month],
+                formatter.shortMonthSymbols[month], formatter.shortStandaloneMonthSymbols[month],
+            ]];
+        }
+        [am addObject:formatter.AMSymbol ?: @""];
+        [pm addObject:formatter.PMSymbol ?: @""];
+    }
+    return @{
+        @"locale": NSLocale.autoupdatingCurrentLocale.localeIdentifier,
+        @"months": months,
+        @"am": am,
+        @"pm": pm,
+    };
+}
+
 static NSDictionary *PUPerform(NSDictionary *request, NSError **error)
 {
     NSString *op = request[@"op"];
@@ -108,6 +139,9 @@ static NSDictionary *PUPerform(NSDictionary *request, NSError **error)
     if ([op isEqualToString:@"key"]) {
         NSString *key = PUStringField(request, @"key", error);
         return key && PUKey(key, request[@"modifiers"] ?: @[], error) ? @{} : nil;
+    }
+    if ([op isEqualToString:@"calendar_names"]) {
+        return PUCalendarNames();
     }
     if ([op isEqualToString:@"awake"]) {
         return PUAwake(error) ? @{} : nil;
