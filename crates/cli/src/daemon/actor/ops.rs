@@ -948,7 +948,12 @@ impl Actor {
             }
             _ => None,
         };
-        let mut image = match device.screenshot(Quality(100)).await {
+        let shot = device.screenshot(Quality(100)).await;
+        // Observed on GitHub's Linux runner (2026-11-24): the video stream ended, and the reconnect below ran
+        // while this handle still held the old control connection open, so the agent kept the lane and
+        // answered "lane in use" until the wait for it ran out.
+        drop(device);
+        let mut image = match shot {
             Err(Error::DeviceGone { .. }) => {
                 let display = self.live.as_ref().map(|l| l.display);
                 self.live = None;

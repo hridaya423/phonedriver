@@ -649,10 +649,10 @@ changed: 2 regions, 35.7% of the screen
 ~ "General" → "About" at 201,85
 + "Name" at 59,161
 ...
-hint: If the new screen is right, delete screens/settings/05.png and replay again to keep it.
+hint: The screen it showed is in screens/settings/05.now.png. If that one is right, put it in place of screens/settings/05.png.
 ```
 
-Pixels that changed with no text in them (a pressed row, a scroll bar) do not stop a replay; the step's line says how many regions changed. The status bar is left out (its clock, notification icons, battery and signal): the Android agent and the iOS runner report how far down it reaches. A screen that differs is looked at again every quarter second until it has stayed the same for 1.5 s or 5 s have passed, so a switch still sliding or a picture the video encoder has not sharpened yet does not stop the replay; a screen about to be kept must first look the same twice. A screenshot of another size stops the replay, so keep the screens on the device type the replays run on. Text is read with the recognition of section 9, so on Linux it needs Tesseract. Decision D89.
+Pixels that changed with no text in them (a pressed row, a scroll bar) do not stop a replay; the step's line says how many regions changed. The status bar is left out (its clock, notification icons, battery and signal): the Android agent and the iOS runner report how far down it reaches. A screen that differs is looked at again every quarter second until it has stayed the same for 3 s or 5 s have passed, so a switch still sliding, an app that drew nothing for two seconds or a picture the video encoder has not sharpened yet does not stop the replay; the screen that did stop it is kept beside the kept one as `05.now.png`, and a later replay whose step matches removes it; a screen about to be kept must first look the same twice. A screenshot of another size stops the replay, so keep the screens on the device type the replays run on. Text is read with the recognition of section 9, so on Linux it needs Tesseract. Decision D89.
 
 #### Replaying runs in GitHub Actions
 
