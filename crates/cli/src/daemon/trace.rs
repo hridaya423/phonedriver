@@ -203,7 +203,12 @@ fn sanitize(method: &str, params: &Value, full: bool) -> Value {
         o.remove("session");
     }
     match method {
-        "act" => hide_action(&mut p["action"], full),
+        "act" => {
+            hide_action(&mut p["action"], full);
+            if let Some(next) = p.get_mut("next") {
+                hide_text(&mut next["target"], full);
+            }
+        }
         "wait" => hide_condition(&mut p["condition"], full),
         "check" => hide_action(&mut p, full),
         "batch" => {

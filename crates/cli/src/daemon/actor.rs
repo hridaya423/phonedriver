@@ -229,6 +229,9 @@ pub fn spawn(
         base: Instant::now(),
         recent: None,
         during: Vec::new(),
+        ready: None,
+        frame_seq: None,
+        frames_missed: false,
         change_seen: false,
         unobserved: None,
         cold_until: None,
@@ -322,6 +325,16 @@ struct Probe {
     tree: RawTree,
     at: Duration,
     stable: bool,
+    /// The settle ended on the next step's target (`Actor::ready`), so this tree is one of two that agree on it.
+    ready: bool,
+}
+
+/// A read that found the next step's target: where, when the read began, and how long the tree was.
+#[derive(Clone, Copy)]
+struct Found {
+    bounds: Rect,
+    at: Duration,
+    nodes: usize,
 }
 
 fn probe_of(mut reads: Vec<Read>, last: Duration) -> Option<Probe> {
@@ -332,6 +345,7 @@ fn probe_of(mut reads: Vec<Read>, last: Duration) -> Option<Probe> {
         tree: newest.tree,
         at: newest.at,
         stable,
+        ready: false,
     })
 }
 
@@ -374,6 +388,13 @@ struct Actor {
     /// What the screen did while the last action's input was being delivered (see `watching`), for the settle that
     /// observes that action.
     during: Vec<(Duration, Input)>,
+    /// What the step after the one in hand will touch (`ActParams::next`), and whether it was missing from the
+    /// screen before this one, so that its showing up is this step's doing.
+    ready: Option<(crate::wire::Next, bool)>,
+    /// The number of the last frame this actor was told of. The frame channel keeps only the newest frame, so a
+    /// jump in the numbers means frames went by unseen, and where they drew is not known.
+    frame_seq: Option<u64>,
+    frames_missed: bool,
     change_seen: bool,
     /// When an action was last delivered without waiting for its effects.
     unobserved: Option<Duration>,
@@ -538,10 +559,19 @@ impl Actor {
 
     fn absorb(&mut self, sig: Signal, at: Duration) -> Option<Input> {
         let input = match sig {
-            Signal::Frame(f) => Input::Frame {
-                changed_area_pt2: f.changed_area_pt2,
-                changed_box: f.changed_box.unwrap_or_else(zero),
-            },
+            Signal::Frame(f) => {
+                if self
+                    .frame_seq
+                    .is_none_or(|seen| f.seq > seen.saturating_add(1))
+                {
+                    self.frames_missed = true;
+                }
+                self.frame_seq = Some(f.seq);
+                Input::Frame {
+                    changed_area_pt2: f.changed_area_pt2,
+                    changed_box: f.changed_box.unwrap_or_else(zero),
+                }
+            }
             Signal::Window => {
                 if !self.power_is_pushed() {
                     self.awake = None;

@@ -588,6 +588,14 @@ async fn replay_with_screens_keeps_each_steps_screen_then_compares_with_it() {
         again.contains(&format!("\n2 screens matched those in {dir}\n")),
         "{again}"
     );
+    let traces: String = std::fs::read_dir(home.path().join("traces"))
+        .unwrap()
+        .map(|e| std::fs::read_to_string(e.unwrap().path()).unwrap())
+        .collect();
+    assert!(
+        traces.contains("\"method\":\"act\"") && !traces.contains("\"next\""),
+        "a step whose screen is compared waits for the whole screen: {traces}"
+    );
 
     std::fs::remove_file(shots.join("01.png")).unwrap();
     let mut wide = Vec::new();

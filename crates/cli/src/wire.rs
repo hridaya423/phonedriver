@@ -579,6 +579,18 @@ pub struct ActParams {
     /// a dialog in front where there was none, or none where there was one (decision D110).
     #[serde(default)]
     pub on: Option<OnScreen>,
+    /// A replayed step: what the step after it will touch, and the screen that one was saved on. When this target
+    /// was not on screen before the action and is there after it, in one place and with nothing drawn over it for
+    /// the quiet period, the action's settle ends there instead of waiting for the whole screen (decision D127).
+    #[serde(default)]
+    pub next: Option<Next>,
+}
+
+#[derive(Debug, Clone, PartialEq, Deserialize)]
+pub struct Next {
+    pub target: Target,
+    #[serde(default)]
+    pub on: Option<OnScreen>,
 }
 
 /// The screen a saved step was done on: the app in front, and whether a dialog, sheet or alert was over it.

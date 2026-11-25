@@ -28,6 +28,8 @@ Support code: `crates/cli/tests/support/guard_rig.rs` (screens `checkout()` and 
 
 **Sync commit: `4fc2204`** (the head when this check was written; the covered files were unchanged by the commit that added it).
 
+2026-11-25, D127: the batch loop (`actor/wait.rs`) gives each `act` step the target of the step after it as `next`, which changes how long the reply waits and not what is held or approved: the guard reads the tapped button on the screen the step starts from, as before. `guard_property` was run on the Mac mini (with `ulimit -n 4096`: an ssh shell's 256 files give `Too many open files`, on main too). Break B1 named `actor.rs`, where the loop no longer is, and matched nothing; `breaks.py` names `actor/wait.rs` now, and with the break in place the property failed with `device saw [Tap(Place), Tap(Place)]`. The sync commit is not moved.
+
 When you finish a change, run:
 
 ```

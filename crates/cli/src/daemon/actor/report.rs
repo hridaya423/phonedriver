@@ -25,20 +25,37 @@ impl Actor {
             self.now()
         };
         let t = Instant::now();
-        let (st, probe) = self.settle_probing(cfg, started, true).await;
+        // Typed text is checked on the reply's tree, so a `type` waits for two whole reads to agree as it did. A
+        // device that sends no frames cannot say when the screen last drew.
+        let frames = self
+            .device()?
+            .info()
+            .capabilities
+            .contains(Capabilities::FRAMES);
+        let next = self.ready.take().filter(|_| verify.is_none() && frames);
+        let ready = next
+            .as_ref()
+            .map(|(next, arrives)| (&mut *s, next, *arrives));
+        let (st, probe) = self.settle_probing(cfg, started, true, ready).await;
         self.lap("settle", t);
-        self.report(s, st, probe, summary, via, verify).await
+        let next = next.as_ref().map(|(next, _)| next);
+        self.report(s, st, probe, summary, via, verify, next).await
     }
 
     /// The accessibility tree can lag the pixels: a dialog or an expanding card appears a moment after the screen went
     /// quiet, and a page keeps loading behind a progress bar. Reads again until two reads agree and nothing is loading.
+    ///
+    /// With `on`, two reads in a row that agree on the next step's target (`Actor::place`) end it too, and the answer
+    /// says so (decision D127).
     pub(super) async fn stabilize(
         &self,
         mut tree: RawTree,
         read_at: Option<Duration>,
         until: Instant,
-    ) -> Result<RawTree, Error> {
+        mut on: Option<(&mut Session, &crate::wire::Next)>,
+    ) -> Result<(RawTree, bool), Error> {
         let started = Instant::now();
+        let mut held = self.held(&mut on, &tree);
         let mut wait = read_at.map_or(TREE_STEP, |at| {
             TREE_STEP.saturating_sub(self.now().saturating_sub(at))
         });
@@ -51,6 +68,11 @@ impl Actor {
             // added 1.2 s after the tap, and the reply listed 6 of 17. A clock or a counter changes without growing.
             let growing = next.nodes.len() > tree.nodes.len();
             tree = next;
+            let before = held.take();
+            held = self.held(&mut on, &tree);
+            if before.is_some() && before == held {
+                return Ok((tree, true));
+            }
             let limit = if tree.web_view_pending() {
                 WEB_VIEW_WAIT
             } else if tree.loading() || growing {
@@ -59,9 +81,20 @@ impl Actor {
                 TREE_STABLE_WAIT
             };
             if (same && !tree.loading()) || started.elapsed() >= limit || Instant::now() >= until {
-                return Ok(tree);
+                return Ok((tree, false));
             }
         }
+    }
+
+    fn held(
+        &self,
+        on: &mut Option<(&mut Session, &crate::wire::Next)>,
+        tree: &RawTree,
+    ) -> Option<(Rect, usize)> {
+        let (s, next) = on.as_mut()?;
+        self.place(s, next, tree)
+            .filter(|(_, holds)| *holds)
+            .map(|(bounds, _)| (bounds, tree.nodes.len()))
     }
 
     /// Reads the screen after a settle and answers with what changed since the agent last saw it.
@@ -74,29 +107,32 @@ impl Actor {
         mut summary: String,
         via: Option<&'static str>,
         verify: Option<Verify>,
+        next: Option<&crate::wire::Next>,
     ) -> Result<ActionResult, Error> {
         let t = Instant::now();
         let until = t + REPORT_WAIT;
         let open = || Instant::now() < until;
+        let mut ready = probe.as_ref().is_some_and(|p| p.ready);
         let (mut tree, agreed, read_at) = match probe {
             Some(p) => (p.tree, p.stable, Some(p.at)),
             None => (self.device()?.tree().await?, false, None),
         };
         self.lap("tree", t);
-        let agreed = agreed && !tree.loading() && !tree.web_view_pending();
+        let agreed = ready || (agreed && !tree.loading() && !tree.web_view_pending());
         if !agreed
             && (matches!(st, State::Done { changed: true, .. })
                 || verify.is_some()
                 || tree.loading())
         {
             let t = Instant::now();
-            tree = self.stabilize(tree, read_at, until).await?;
+            let on = next.map(|next| (&mut *s, next));
+            (tree, ready) = self.stabilize(tree, read_at, until, on).await?;
             self.lap("stabilize", t);
         }
         let render = Instant::now();
         let st = Some(st);
         let mut rendered = self.build(s, &tree, None);
-        if only_lost_lines(s, &rendered) {
+        if !ready && only_lost_lines(s, &rendered) {
             let started = Instant::now();
             while started.elapsed() < CONTENT_WAIT && open() {
                 tokio::time::sleep(TREE_STEP).await;
@@ -119,7 +155,7 @@ impl Actor {
             .is_some_and(|prev| matches!(diff(prev, &rendered), DiffOrFull::Full));
         let bare_since = Instant::now();
         let mut filled = None;
-        while arrived && bare(&rendered) {
+        while !ready && arrived && bare(&rendered) {
             let limit = if rendered.loading() {
                 SPINNER_WAIT
             } else {
@@ -134,7 +170,7 @@ impl Actor {
             filled = Some(tree);
         }
         if let Some(tree) = filled.filter(|_| !bare(&rendered)) {
-            let tree = self.stabilize(tree, None, until).await?;
+            let tree = self.stabilize(tree, None, until, None).await?.0;
             rendered = self.build(s, &tree, None);
         }
         self.read_checkboxes(&mut rendered, s.last.as_ref()).await?;
@@ -180,7 +216,7 @@ impl Actor {
             if let Some(tree) =
                 late.filter(|_| !search_unanswered(s.last.as_ref(), &rendered, field))
             {
-                let tree = self.stabilize(tree, None, until).await?;
+                let tree = self.stabilize(tree, None, until, None).await?.0;
                 rendered = self.build(s, &tree, None);
             }
         }
