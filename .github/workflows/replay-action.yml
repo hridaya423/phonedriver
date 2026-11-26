@@ -29,7 +29,10 @@ jobs:
           API: "35"
         run: nohup bash action/emulator.sh start < /dev/null > "$RUNNER_TEMP/emulator-start.log" 2>&1 &
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
-      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        id: gradle
         with:
           path: |
             ~/.gradle/caches
@@ -46,6 +49,13 @@ jobs:
       - name: Build the Android testbed
         working-directory: testbeds/android
         run: ./gradlew --no-daemon -q assembleDebug
+      - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        if: github.ref == 'refs/heads/main' && steps.gradle.outputs.cache-hit != 'true'
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ hashFiles('testbeds/android/**/*.gradle.kts', 'testbeds/android/gradle/**', 'testbeds/android/gradle.properties') }}
       - uses: ./
         with:
           binary: target/debug/phonedriver
@@ -89,6 +99,8 @@ jobs:
         with:
           toolchain: stable
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
       - name: Name the runner image
         id: image
         run: echo "image=$ImageOS-$ImageVersion" >> "$GITHUB_OUTPUT"
@@ -111,10 +123,7 @@ jobs:
           CARGO_PROFILE_DEV_OPT_LEVEL: 0
       - name: Boot the kept Simulator
         if: steps.simulator.outputs.cache-hit == 'true'
-        run: |
-          (cd ~/Library/Developer/CoreSimulator && find Caches -maxdepth 3 -exec ls -ld {} + ; du -sh Caches/* ) > "$RUNNER_TEMP/caches-before.txt" 2>&1 || true
-          bash .github/scripts/boot-simulator.sh > "$RUNNER_TEMP/boot.log" 2>&1
-          nohup bash -c 'for i in $(seq 40); do date +%T; top -l 2 -s 1 -o cpu -n 10 -stats command,cpu,rsize | tail -11; sleep 5; done' < /dev/null > "$RUNNER_TEMP/top.log" 2>&1 &
+        run: bash .github/scripts/boot-simulator.sh > "$RUNNER_TEMP/boot.log" 2>&1
       - name: Wait for the Simulator to finish booting
         id: booted
         run: |
@@ -138,7 +147,7 @@ jobs:
         if: always()
         run: tail -n 60 ~/.phonedriver/runner/*.log
       - name: Keep the Simulator's data for later boots
-        if: steps.simulator.outputs.cache-hit != 'true'
+        if: github.ref == 'refs/heads/main' && steps.simulator.outputs.cache-hit != 'true'
         env:
           UDID: ${{ steps.booted.outputs.udid }}
         run: |
@@ -147,16 +156,7 @@ jobs:
           cp -c -R "$HOME/Library/Developer/CoreSimulator/Devices/$UDID/data" "$RUNNER_TEMP/simulator/$UDID/data"
           echo "kept the device's data: $(du -sh "$RUNNER_TEMP/simulator/$UDID/data" | cut -f1)"
       - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        if: steps.simulator.outputs.cache-hit != 'true'
+        if: github.ref == 'refs/heads/main' && steps.simulator.outputs.cache-hit != 'true'
         with:
           path: ${{ runner.temp }}/simulator
           key: simulator-v2-${{ steps.image.outputs.image }}
-      - name: Diagnose the settle
-        if: always()
-        run: |
-          cat "$RUNNER_TEMP/caches-before.txt" || true
-          echo ===== after
-          cd ~/Library/Developer/CoreSimulator && find Caches -maxdepth 3 -newer "$RUNNER_TEMP/boot.log" -exec ls -ld {} + ; du -sh Caches/* || true
-          du -sh ~/Library/Developer/CoreSimulator/Devices/*/data 2>/dev/null | sort -h | tail -3
-          echo ===== top
-          cat "$RUNNER_TEMP/top.log" || true
