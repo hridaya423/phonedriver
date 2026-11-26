@@ -4,6 +4,7 @@ Every release of phonedriver, newest first. Binaries and checksums for each vers
 
 ## Unreleased
 
+- **Agents chain a step further** (D134): the server's instructions now say that a `then` path may name steps on screens not seen yet, and that a wrong guess stops there with the screen and costs one call. In 9 agent runs with it, 12 steps rode on an earlier tap against 3 in 9 runs without, about one model turn fewer on a job that walks menus.
 - **Fixed: `setting open` showed the first screen again** (Android 17, D132): once one settings screen had been opened, `setting open` of another left the first in front and still answered `ok opened`. Settings hands its own link to the page it already shows, and that page ignores it. Each screen now starts in a cleared task, so the one asked for is the one shown. Seen on the API 37 emulator: SIMs, then Battery, Internet and Dark theme, each stayed on SIMs before and each opens now.
 - **`setting open` takes the name on the screen** (D132): `setting open "Battery"` opens the screen with that title, and a setting's key (`mobile_network_list/mobile_data`) opens the screen it sits on. A word that names no screen answers with the screens that hold it (`open one of: top_level_apps (Apps)`), so the next call is the right one and no `find` goes between.
 - **For contributors**: `CONTRIBUTING.md` says how to build, what CI runs and what a pull request needs; issues have a bug form that asks for `phonedriver doctor`'s output and an idea form; pull requests have a template.

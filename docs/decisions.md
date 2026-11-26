@@ -2269,3 +2269,26 @@ Live, API 37 emulator on win-pc, daemon on the Mac mini, an empty home each run.
 **Rejected, for now.** Telling the two cases apart by the window list (a window that is opening may be listed before its nodes are) or by whether the tapped element is among the lines that left: neither was observed on a device, and a rule made from a guess would be right on the fake only. Halving the wait: nothing measured says how long the tree lags an opening window on a slow phone.
 
 **Reopen if.** Someone records the device's own tree at short intervals across an opening dialog and across a dismissal and they differ in a way the daemon can read, or flows with many dismissals show up in real runs.
+
+## D134. The server's instructions say that a wrong guess in a `then` path costs one call (2026-11-26)
+
+**Question.** A phone job's tokens follow its model turns: on the nine-job benchmark of 10 November (27 runs, `docs/bench/jobs.json`), tokens are about 14,800 plus 5,600 a tool call (R² 0.88). In those transcripts 41 of 242 turns named a target the agent had already been shown and wrote nothing in between, so they could have gone with the call before them: 17% at most. Three ways to get there were tried before anything was kept.
+
+**Method.** `claude -p` on the subscription, `claude-sonnet-5-5`, Claude Code 2.1.330, the published harness's flags (`--strict-mcp-config`, `--tools ""`, 40 turns), on `Pixel_API_37` (the phone image, emulator-5554) with the agent and the daemon on the Mac mini. Three jobs of the benchmark, three runs an arm, arm order turned each round, each run reset and checked from the phone's own data by `jobs.py`. 36 runs, 36 passed. Scripts and transcripts: `~/pd-i1-eval` on the mini.
+
+| Arm | What changed | `then` calls (steps) | Turns: clock-settings | chrome-prefs | qa-shop | Median tokens: clock | chrome | shop |
+|---|---|---|---|---|---|---|---|---|
+| base | nothing | 3 (3) | 15, 15, 15 | 13, 13, 13 | 21, 27, 38 | 118,455 | 109,494 | 197,824 |
+| refs | `then` described as "texts or @refs … several controls on this screen", and the same in the instructions | 3 (5) | 15, 15, 15 | 13, 14, 14 | 20, 22, 29 | 119,023 | 109,961 | 157,000 |
+| skill | `SKILL.md` appended to the system prompt, so the agent has read all of it | 7 (10) | 13, 13, 14 | 12, 12, 13 | 24, 24, 25 | 156,547 | 154,741 | 288,912 |
+| kept | one clause added to the instructions (below) | 8 (12) | 14, 14, 15 | 11, 12, 14 | 23, 23, 26 | 118,187 | 90,263 | 185,943 |
+
+**Decision.** The sentence `A path of taps you can predict goes in one `tap` with `then`.` now ends `: name every step you expect, even on screens you have not seen; a missing text stops there and returns that screen, so a wrong guess costs one call.` It is the skill's own sentence. The instructions are 880 characters, up from 732. The tool list is unchanged.
+
+**Why this one.** It is the only arm that changed what agents did without costing more than it saved. With it an agent writes `{"target":"@e15","then":["Settings","Search engine"]}` where base writes `"then":["Settings"]` and taps again: 12 chained steps against 3, seven of eight chains reached their end, and the one that guessed a label wrong (`Always use secure connections`, which is a page further down) stopped at that step with the screen, as the sentence says. That is about one turn less on the two jobs that walk menus. The shop test has no path to predict and did not change; its run-to-run spread (21 to 38 turns on base) is larger than anything measured here.
+
+**Rejected.** (1) Telling agents that `then` takes @refs for several controls of one screen: no agent sent a ref in `then` in nine runs, one sent `"then": @e45`, which is not JSON, and turns did not move. Refs do work in `then`, and saying so did nothing. (2) Installing the skill from `init`, which this arm bounds from above (the agent cannot have read less of it): one or two turns fewer on two jobs, no clear change on the third, and 32 to 46% more tokens on every job, because 14,700 characters ride along on each turn. A client that loads a skill only when asked would pay less and gain less. The plugin still carries the skill for people who want it. (3) Raising the tool-list budget (D130) for more words on `then`: arm "refs" is those words.
+
+**Limits.** Nine runs an arm, one model, one emulator, three jobs; the counts show a direction, not a rate. Token medians of three runs move by more than the effect on two of three jobs. Haiku was not run. The bare harness re-reads about 5,600 tokens a turn; a real session re-reads 29,000 to 57,000 (118 and 7 runs measured on 25 and 14 November), where a saved turn is worth more and 148 characters less.
+
+**Reopen if.** Agents start guessing paths that fail more often than they land, or a client stops showing instructions to the model.
