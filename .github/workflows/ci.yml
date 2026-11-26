@@ -41,10 +41,13 @@ jobs:
         with:
           drive-size: 12GB
           workspace-copy: true
+          trusted-dev-drive: true
+          env-mapping: |
+            CARGO_HOME,{{ DEV_DRIVE }}/.cargo
       - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
         with:
           toolchain: stable
-          components: rustfmt, clippy
+          components: ${{ runner.os == 'Linux' && 'rustfmt, clippy' || 'clippy' }}
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           save-if: ${{ github.ref == 'refs/heads/main' }}
@@ -52,13 +55,17 @@ jobs:
       - name: Format
         if: runner.os == 'Linux'
         run: cargo fmt --all --check
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ env.DEV_DRIVE_WORKSPACE || github.workspace }}/android-agent/build/phonedriver-agent.jar
+          key: agent-jar-${{ runner.os }}-${{ hashFiles('android-agent/src/**', 'android-agent/aidl/**', 'android-agent/build.sh') }}
       - name: Build the Android agent jar
         shell: bash
         working-directory: ${{ env.DEV_DRIVE_WORKSPACE || github.workspace }}
         env:
           ROOT: ${{ env.DEV_DRIVE_WORKSPACE || github.workspace }}
         run: |
-          bash android-agent/build.sh
+          [ -f android-agent/build/phonedriver-agent.jar ] || bash android-agent/build.sh
           echo "PHONEDRIVER_AGENT_JAR=$ROOT/android-agent/build/phonedriver-agent.jar" >> "$GITHUB_ENV"
       - name: Lint
         working-directory: ${{ env.DEV_DRIVE_WORKSPACE || github.workspace }}
@@ -82,6 +89,9 @@ jobs:
         with:
           drive-size: 12GB
           workspace-copy: true
+          trusted-dev-drive: true
+          env-mapping: |
+            CARGO_HOME,{{ DEV_DRIVE }}/.cargo
       - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
         with:
           toolchain: stable
@@ -92,13 +102,17 @@ jobs:
         with:
           save-if: ${{ github.ref == 'refs/heads/main' }}
           workspaces: ${{ env.DEV_DRIVE_WORKSPACE || '.' }}
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ env.DEV_DRIVE_WORKSPACE || github.workspace }}/android-agent/build/phonedriver-agent.jar
+          key: agent-jar-${{ runner.os }}-${{ hashFiles('android-agent/src/**', 'android-agent/aidl/**', 'android-agent/build.sh') }}
       - name: Build the Android agent jar
         shell: bash
         working-directory: ${{ env.DEV_DRIVE_WORKSPACE || github.workspace }}
         env:
           ROOT: ${{ env.DEV_DRIVE_WORKSPACE || github.workspace }}
         run: |
-          bash android-agent/build.sh
+          [ -f android-agent/build/phonedriver-agent.jar ] || bash android-agent/build.sh
           echo "PHONEDRIVER_AGENT_JAR=$ROOT/android-agent/build/phonedriver-agent.jar" >> "$GITHUB_ENV"
       - name: Test
         working-directory: ${{ env.DEV_DRIVE_WORKSPACE || github.workspace }}

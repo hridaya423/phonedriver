@@ -8,6 +8,9 @@ on:
   workflow_dispatch:
 permissions:
   contents: read
+env:
+  CARGO_PROFILE_DEV_OPT_LEVEL: 1
+  CARGO_PROFILE_DEV_DEBUG: 0
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
@@ -26,24 +29,26 @@ jobs:
           API: "35"
         run: nohup bash action/emulator.sh start < /dev/null > "$RUNNER_TEMP/emulator-start.log" 2>&1 &
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
-        with:
-          save-if: ${{ github.ref == 'refs/heads/main' }}
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
             ~/.gradle/caches
             ~/.gradle/wrapper
           key: gradle-${{ runner.os }}-${{ hashFiles('testbeds/android/**/*.gradle.kts', 'testbeds/android/gradle/**', 'testbeds/android/gradle.properties') }}
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: android-agent/build/phonedriver-agent.jar
+          key: agent-jar-${{ runner.os }}-${{ hashFiles('android-agent/src/**', 'android-agent/aidl/**', 'android-agent/build.sh') }}
       - name: Build the Android agent
-        run: bash android-agent/build.sh
+        run: "[ -f android-agent/build/phonedriver-agent.jar ] || bash android-agent/build.sh"
       - name: Build phonedriver
-        run: PHONEDRIVER_AGENT_JAR="$GITHUB_WORKSPACE/android-agent/build/phonedriver-agent.jar" cargo build --release --locked -p phonedriver
+        run: PHONEDRIVER_AGENT_JAR="$GITHUB_WORKSPACE/android-agent/build/phonedriver-agent.jar" cargo build --locked -p phonedriver --config 'profile.dev.package."*".opt-level=3'
       - name: Build the Android testbed
         working-directory: testbeds/android
         run: ./gradlew --no-daemon -q assembleDebug
       - uses: ./
         with:
-          binary: target/release/phonedriver
+          binary: target/debug/phonedriver
           app: testbeds/android/app/build/outputs/apk/debug/app-debug.apk
           runs: testbeds/android/runs/*.steps
           record: true
@@ -52,7 +57,7 @@ jobs:
       - name: A second replay compares each step's screen with the one the first kept
         uses: ./
         with:
-          binary: target/release/phonedriver
+          binary: target/debug/phonedriver
           runs: testbeds/android/runs/taps.steps
           screens: ${{ runner.temp }}/phonedriver-runs/screens
           artifact: replay-android-screens
@@ -61,9 +66,12 @@ jobs:
         continue-on-error: true
         uses: ./
         with:
-          binary: target/release/phonedriver
+          binary: target/debug/phonedriver
           runs: testbeds/android/runs/missing/*.steps
           artifact: replay-android-missed
+      - name: The emulator's logs
+        if: failure()
+        run: tail -n 60 "$RUNNER_TEMP/emulator-start.log" "$RUNNER_TEMP/emulator.log" || true
       - name: Check that the missed run was reported
         env:
           FAILED: ${{ steps.missed.outputs.failed }}
@@ -97,13 +105,11 @@ jobs:
           SH
           nohup bash "$RUNNER_TEMP/boot.sh" < /dev/null > "$RUNNER_TEMP/boot.log" 2>&1 &
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
-        with:
-          save-if: ${{ github.ref == 'refs/heads/main' }}
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.phonedriver/runner/*/dd/Build/Products
           key: ios-runner-${{ steps.sim.outputs.image }}-${{ hashFiles('ios-runner/**') }}
-      - run: cargo build --release --locked -p phonedriver
+      - run: cargo build --locked -p phonedriver --config 'profile.dev.package."*".opt-level=3'
       - name: Wait for the Simulator to finish booting
         id: booted
         run: |
@@ -124,6 +130,6 @@ jobs:
         with:
           platform: ios
           device: ${{ steps.booted.outputs.udid }}
-          binary: target/release/phonedriver
+          binary: target/debug/phonedriver
           runs: testbeds/ios/runs/*.steps
           artifact: replay-ios

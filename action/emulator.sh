@@ -8,7 +8,8 @@ started="$RUNNER_TEMP/emulator.started"
 failed="$RUNNER_TEMP/emulator.failed"
 
 booted() {
-  [ "$("$adb" -s emulator-5554 shell getprop sys.boot_completed 2> /dev/null | tr -d '\r')" = 1 ]
+  [ "$("$adb" -s emulator-5554 shell getprop sys.boot_completed 2> /dev/null | tr -d '\r')" = 1 ] &&
+    "$adb" -s emulator-5554 shell pm path android > /dev/null 2>&1
 }
 
 case "${1:-}" in
@@ -17,7 +18,7 @@ case "${1:-}" in
       echo "::error::the Android emulator needs a Linux runner, such as ubuntu-latest"
       exit 1
     fi
-    if [ -f "$started" ] || booted; then
+    if [ -f "$started" ]; then
       exit 0
     fi
     touch "$started"
