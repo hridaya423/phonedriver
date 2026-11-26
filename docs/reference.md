@@ -499,7 +499,7 @@ Over MCP it is a `batch` step: `{"tool":"check","target":"Total","equals":"€24
 
 ### Dates and times
 
-A field that opens a date or time picker is set in one call: the tap opens the picker, `--select` sets it, reads the value back from the picker and confirms.
+A field that opens a date or time picker is set in one call: the tap opens the picker, `--select` sets it, reads the value back from the picker and confirms. When the picker is already open, send `--select` to the button that confirms it (`tap "OK" --select 07:30`): the picker is set first and the button is tapped once.
 
 ```
 $ phonedriver tap "Date" --select 2026-12-18

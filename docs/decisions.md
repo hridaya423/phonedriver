@@ -2292,3 +2292,16 @@ Live, API 37 emulator on win-pc, daemon on the Mac mini, an empty home each run.
 **Limits.** Nine runs an arm, one model, one emulator, three jobs; the counts show a direction, not a rate. Token medians of three runs move by more than the effect on two of three jobs. Haiku was not run. The bare harness re-reads about 5,600 tokens a turn; a real session re-reads 29,000 to 57,000 (118 and 7 runs measured on 25 and 14 November), where a saved turn is worth more and 148 characters less.
 
 **Reopen if.** Agents start guessing paths that fail more often than they land, or a client stops showing instructions to the model.
+
+## D135. `select` sets the Clock app's time picker, and a picker that is already open (2026-11-26)
+
+**Found.** In the agent runs for D136 every one of nine runs of the alarm job called `tap` with `select` and every call failed, on the build of this branch and the API 37 emulator. Two causes.
+
+1. Material Components' time picker, in its text input, lists the part being typed into twice at one place: a chip (`button "Hour 9 o'clock"`, checkable) and the text field over it (value `09`), both at 65.5, 260.6, 96 by 80. `slots` sorted the parts by x and kept the first of two at one place, which was the chip, so the hour was never typed: `the time picker showed no field to type into` (4 of 10 calls). The spike of 24 November set this picker; the tree it read is not kept, so what changed since is not known.
+2. The picker opens as soon as `Add alarm` is tapped, so in 5 of 10 calls the agent sent `{"target": "@e40", "select": "07:30"}` with `@e40` the picker's `OK`. `pick` tapped the target first: the alarm was saved at the time the picker happened to show (9:00 PM), and the error said `the picker is still open and nothing was confirmed`. The tenth call named a ref that had left the screen.
+
+**Decision.** (1) Where a field and a chip are at one place, the field is the part. (2) A target that is the button confirming a picker already on screen is not tapped first: the picker is set, read back, and then that button is tapped once. The reply says `set the open picker to 07:30, then tapped @e40 "OK"`.
+
+**Proof.** Red, `--test pickers`: `21 passed; 2 failed` (`the time picker showed no field to type into`; `picked 21:00` for 07:30). Green: 23 passed. Live on the emulator: `tap "Add alarm" --select 06:15` answered `ok tapped @e9 "Add alarm", set the picker to 06:15, then tapped @e65 "OK" · verified` and the list shows `Alarm Tomorrow 6:15 AM`; with the picker open, `tap "OK" --select 05:45` answered `ok set the open picker to 05:45, then tapped @e40 "OK" · verified` and the list shows `5:45 AM`. The alarm job again, three runs with no skill: 12, 12 and 13 turns and 99,957 to 101,506 tokens, from 19, 20 and 24 turns and 169,314 to 169,769; each run's check reads the alarm from the Clock app's own database.
+
+**Not done.** Any other target inside an open picker (its title, a mark of the face) is still tapped first; two calls did that to the title, which takes no tap, and the fix of cause 1 covers them. A tap that closes the picker by another button than the one that confirms is not detected.

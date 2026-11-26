@@ -72,3 +72,7 @@ iOS Simulator: `en_GB` 9 of 9, `en_US` 7 of 7, `ja_JP` 7 of 7, `ar_EG` 7 of 7, `
 Android, on a quiet host: a far date 11 to 15 s, a time 4 to 10 s. In the language runs, with other builds on the emulator's disk, everything took about twice that (a far date 17 to 28 s, wheels 13 to 23 s). iOS: a date in the shown month 4 s, 1990 from 2026 17 to 24 s (one touch a year), a time wheel 5 to 12 s.
 
 The spike scripts ran from `~/pd-h1-spike` on the Mac mini and are not in the repo.
+
+## Addendum, 2026-11-26: the Clock app's picker lists a field over its chip
+
+Read on the API 37 emulator with `snapshot --json` after `Switch to text input mode for the time input.` on the Clock app's `Add alarm`: `button "Hour 9 o'clock"` (checkable, checked) and a text field with the value `09` and the hint `Hour`, both at 65.5, 260.6, 96 by 80; `button "Minute 0 minutes"` (checkable) alone at 185.5; `material_clock_period_am_button`, `material_clock_period_pm_button`, `material_timepicker_mode_button`, `material_timepicker_ok_button`. After the minute chip is tapped the field is over the minute and the hour is a chip alone. `select` took the chip for the part and failed (D135). The picker also opens in the mode it was last left in, with the keyboard up when that was the text input.

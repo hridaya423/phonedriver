@@ -1096,6 +1096,140 @@ async fn a_picker_that_stays_open_when_its_button_is_tapped_is_not_reported_as_s
     assert!(rig.world.lock().unwrap().open);
 }
 
+/// Material Components' time picker as the Clock app shows it (API 37 emulator, 2026-11-26): in its text input
+/// the part that is being typed into is a chip with a text field over it at the same place, and the other is a
+/// chip alone that gets the field when it is tapped.
+struct ChipTime {
+    typing: bool,
+    open: bool,
+    at: (String, String, bool),
+    focus: &'static str,
+    picked: String,
+}
+
+impl World for ChipTime {
+    fn draw(&self) -> Vec<Node> {
+        if !self.open {
+            return vec![node("Time", BUTTON, [0.0, 60.0, 180.0, 48.0])];
+        }
+        let mut all = vec![
+            node("mode", BUTTON, [20.0, 700.0, 48.0, 48.0])
+                .text("Switch to text input mode for the time input.")
+                .id("com.example:id/material_timepicker_mode_button"),
+            node("OK", BUTTON, [260.0, 700.0, 90.0, 48.0])
+                .id("com.example:id/material_timepicker_ok_button"),
+            node(
+                "AM",
+                "android.widget.RadioButton",
+                [290.0, 250.0, 52.0, 48.0],
+            )
+            .id("com.example:id/material_clock_period_am_button")
+            .flags(if self.at.2 { "c" } else { "cC" }),
+            node(
+                "PM",
+                "android.widget.RadioButton",
+                [290.0, 300.0, 52.0, 46.0],
+            )
+            .id("com.example:id/material_clock_period_pm_button")
+            .flags(if self.at.2 { "cC" } else { "c" }),
+        ];
+        if !self.typing {
+            return all;
+        }
+        for (key, x, says, value) in [
+            (
+                "hour",
+                60.0,
+                format!("Hour {} o'clock", self.at.0),
+                &self.at.0,
+            ),
+            (
+                "minute",
+                180.0,
+                format!("Minute {} minutes", self.at.1),
+                &self.at.1,
+            ),
+        ] {
+            let place = [x, 260.0, 96.0, 80.0];
+            let on = self.focus == key;
+            all.push(
+                node(format!("{key} chip"), BUTTON, place)
+                    .text(says)
+                    .flags(if on { "cC" } else { "c" }),
+            );
+            if on {
+                all.push(node(key, FIELD, place).text(value).flags("EF"));
+            }
+        }
+        all
+    }
+
+    fn tap(&mut self, key: &str) {
+        match key {
+            "Time" => self.open = true,
+            "mode" => {
+                self.typing = !self.typing;
+                self.focus = "hour";
+            }
+            "hour" | "hour chip" => self.focus = "hour",
+            "minute" | "minute chip" => self.focus = "minute",
+            "AM" | "PM" => self.at.2 = key == "PM",
+            _ => {
+                self.open = false;
+                let hour: u32 = self.at.0.parse().unwrap_or(99);
+                self.picked = format!(
+                    "picked {:02}:{}",
+                    hour % 12 + if self.at.2 { 12 } else { 0 },
+                    self.at.1
+                );
+            }
+        }
+    }
+
+    fn text(&mut self, text: &str) {
+        match self.focus {
+            "hour" => self.at.0 = text.into(),
+            _ => self.at.1 = text.into(),
+        }
+    }
+}
+
+fn chip_time(open: bool) -> ChipTime {
+    ChipTime {
+        typing: false,
+        open,
+        at: ("9".into(), "00".into(), true),
+        focus: "hour",
+        picked: String::new(),
+    }
+}
+
+#[tokio::test]
+async fn a_time_field_drawn_over_its_chip_is_the_one_typed_into() {
+    for time in ["07:30", "19:45"] {
+        let rig = picker(chip_time(false));
+        let r = rig.select("Time", time).await;
+        assert_eq!(
+            rig.world.lock().unwrap().picked,
+            format!("picked {time}"),
+            "{r:?}"
+        );
+    }
+}
+
+#[tokio::test]
+async fn select_on_the_button_that_confirms_an_open_picker_sets_the_picker_before_that_button_is_tapped()
+ {
+    let rig = picker(chip_time(true));
+    let r = rig.select("OK", "07:30").await;
+    assert_eq!(rig.world.lock().unwrap().picked, "picked 07:30", "{r:?}");
+    let taps = rig.taps();
+    assert_eq!(taps.iter().filter(|t| *t == "OK").count(), 1, "{taps:?}");
+    assert_eq!(taps.last().unwrap(), "OK");
+    let reply = r.unwrap().to_string();
+    assert!(reply.contains("set the open picker to 07:30"), "{reply}");
+}
+
 /// A clock with nothing but its face, as Compose Material 3 draws it: the hours, then by itself the minutes in
 /// fives; a tap between two marks goes to the nearer one and a drag stays where it ends, a minute short at first.
 struct Clock {
