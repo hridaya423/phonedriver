@@ -96,40 +96,35 @@ jobs:
         with:
           path: ~/.phonedriver/runner/*/dd/Build/Products
           key: ios-runner-${{ steps.image.outputs.image }}-${{ hashFiles('ios-runner/**') }}
+      - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        id: simulator
+        with:
+          path: ${{ runner.temp }}/simulator
+          key: simulator-${{ steps.image.outputs.image }}
       - name: Boot a Simulator while phonedriver builds
-        id: sim
         run: |
-          cat > "$RUNNER_TEMP/boot.sh" <<'SH'
-          set -euo pipefail
-          udid=$(xcrun simctl list devices available -j | jq -r '
-            .devices | to_entries
-            | map(select(.key | test("SimRuntime\\.iOS-")))
-            | sort_by(.key | capture("iOS-(?<v>[0-9-]+)$").v | split("-") | map(tonumber))
-            | reverse | map(.value[] | select(.name | startswith("iPhone"))) | .[0].udid')
-          echo "$udid" > "$RUNNER_TEMP/udid.tmp"
-          mv "$RUNNER_TEMP/udid.tmp" "$RUNNER_TEMP/udid"
-          xcrun simctl bootstatus "$udid" -b
-          SH
-          nohup bash "$RUNNER_TEMP/boot.sh" < /dev/null > "$RUNNER_TEMP/boot.log" 2>&1 &
+          nohup bash .github/scripts/boot-simulator.sh < /dev/null > "$RUNNER_TEMP/boot.log" 2>&1 &
+          echo $! > "$RUNNER_TEMP/boot.pid"
       - run: cargo build --locked -p phonedriver --config 'profile.dev.package."*".opt-level=3'
         env:
           CARGO_PROFILE_DEV_OPT_LEVEL: 0
       - name: Wait for the Simulator to finish booting
         id: booted
         run: |
-          for _ in $(seq 600); do
-            [ -s "$RUNNER_TEMP/udid" ] && break
+          while [ ! -f "$RUNNER_TEMP/booted" ] && kill -0 "$(cat "$RUNNER_TEMP/boot.pid")" 2> /dev/null; do
             sleep 0.5
           done
-          if [ ! -s "$RUNNER_TEMP/udid" ]; then
-            echo "::error::no iPhone Simulator was found to boot"
-            cat "$RUNNER_TEMP/boot.log"
+          cat "$RUNNER_TEMP/boot.log"
+          if [ ! -f "$RUNNER_TEMP/booted" ]; then
+            echo "::error::the Simulator did not boot"
             exit 1
           fi
-          udid=$(cat "$RUNNER_TEMP/udid")
-          xcrun simctl bootstatus "$udid"
-          cat "$RUNNER_TEMP/boot.log"
-          echo "udid=$udid" >> "$GITHUB_OUTPUT"
+          echo "udid=$(cat "$RUNNER_TEMP/udid")" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        if: steps.simulator.outputs.cache-hit != 'true'
+        with:
+          path: ${{ runner.temp }}/simulator
+          key: simulator-${{ steps.image.outputs.image }}
       - uses: ./
         with:
           platform: ios
