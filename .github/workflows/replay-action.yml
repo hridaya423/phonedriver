@@ -111,7 +111,10 @@ jobs:
           CARGO_PROFILE_DEV_OPT_LEVEL: 0
       - name: Boot the kept Simulator
         if: steps.simulator.outputs.cache-hit == 'true'
-        run: bash .github/scripts/boot-simulator.sh > "$RUNNER_TEMP/boot.log" 2>&1
+        run: |
+          (cd ~/Library/Developer/CoreSimulator && find Caches -maxdepth 3 -exec ls -ld {} + ; du -sh Caches/* ) > "$RUNNER_TEMP/caches-before.txt" 2>&1 || true
+          bash .github/scripts/boot-simulator.sh > "$RUNNER_TEMP/boot.log" 2>&1
+          nohup bash -c 'for i in $(seq 40); do date +%T; top -l 2 -s 1 -o cpu -n 10 -stats command,cpu,rsize | tail -11; sleep 5; done' < /dev/null > "$RUNNER_TEMP/top.log" 2>&1 &
       - name: Wait for the Simulator to finish booting
         id: booted
         run: |
@@ -139,3 +142,12 @@ jobs:
       - name: The runner's log
         if: always()
         run: tail -n 60 ~/.phonedriver/runner/*.log
+      - name: Diagnose the settle
+        if: always()
+        run: |
+          cat "$RUNNER_TEMP/caches-before.txt" || true
+          echo ===== after
+          cd ~/Library/Developer/CoreSimulator && find Caches -maxdepth 3 -newer "$RUNNER_TEMP/boot.log" -exec ls -ld {} + ; du -sh Caches/* || true
+          du -sh ~/Library/Developer/CoreSimulator/Devices/*/data 2>/dev/null | sort -h | tail -3
+          echo ===== top
+          cat "$RUNNER_TEMP/top.log" || true
