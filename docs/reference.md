@@ -767,6 +767,8 @@ BLAZE_TESTS=all blaze test
 cargo clippy --all-targets -- -D warnings
 ```
 
+Each crate's integration tests are one binary, `all`, with a module per file: one file's tests are `--test all guard_property::`. CI runs them with `cargo nextest run --workspace --profile ci`, each test in a process of its own (`.config/nextest.toml`).
+
 Tests that need a device are ignored by default. Set `PHONEDRIVER_TEST_DEVICE` (for example `android:emulator-5554` or `sim:<udid>`) and pass `--ignored`. [`AGENTS.md`](AGENTS.md) holds the rules for working in this repository.
 
 <details>
