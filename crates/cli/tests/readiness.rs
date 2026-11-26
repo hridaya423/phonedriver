@@ -1,8 +1,7 @@
 //! Decision D127: a replayed step ends on the next step's target, once that target has appeared and is still,
 //! instead of waiting for the whole screen to go quiet. Every case where it must not is here too.
 
-#[path = "support/fakes.rs"]
-mod fakes;
+use crate::fakes;
 
 use std::sync::Arc;
 use std::time::Duration;

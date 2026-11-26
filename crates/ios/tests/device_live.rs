@@ -1,5 +1,5 @@
 //! `IosDevice` against the iOS testbed on a booted simulator, checked against the testbed's event log.
-//! `PHONEDRIVER_TEST_DEVICE=sim:<udid> cargo test -p phonedriver-ios --test device_live -- --ignored --test-threads=1`.
+//! `PHONEDRIVER_TEST_DEVICE=sim:<udid> cargo test -p phonedriver-ios --test all device_live:: -- --ignored --test-threads=1`.
 
 #![cfg(unix)]
 

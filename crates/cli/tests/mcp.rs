@@ -1,5 +1,4 @@
-#[path = "support/fakes.rs"]
-mod fakes;
+use crate::fakes;
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};

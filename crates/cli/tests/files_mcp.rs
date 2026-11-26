@@ -1,8 +1,7 @@
 //! `files` over MCP on a person's phone (decision D119): the human is asked through the client for each transfer,
 //! shown the file, its size and its hash, and a decline copies nothing.
 
-#[path = "support/fakes.rs"]
-mod fakes;
+use crate::fakes;
 
 use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};

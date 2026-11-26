@@ -2,10 +2,7 @@
 //! category reaches the device only after the human's answer, whatever the batch, the answers, the protocol version
 //! and the retries. The oracle below is written from the promise, not from `mcp.rs`.
 
-#[path = "support/fakes.rs"]
-mod fakes;
-#[path = "support/guard_rig.rs"]
-mod guard_rig;
+use crate::guard_rig;
 
 use std::collections::{HashMap, VecDeque};
 use std::sync::{Arc, LazyLock, Mutex};

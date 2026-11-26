@@ -1,10 +1,9 @@
 //! End-to-end tests: the real CLI and daemon against the Android testbed, checked against the testbed's own event log.
-//! Run with `ADB_SERVER_SOCKET=... PHONEDRIVER_TEST_DEVICE=android:emulator-5554 blaze test -p phonedriver --test e2e -- --ignored`.
+//! Run with `ADB_SERVER_SOCKET=... PHONEDRIVER_TEST_DEVICE=android:emulator-5554 blaze test -p phonedriver --test all e2e:: -- --ignored`.
 
 #![allow(dead_code)]
 
-#[path = "support/rig.rs"]
-mod rig;
+use crate::rig;
 
 use rig::*;
 use serde_json::Value;

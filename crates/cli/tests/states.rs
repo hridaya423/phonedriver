@@ -3,8 +3,7 @@
 
 #![allow(dead_code)]
 
-#[path = "support/rig.rs"]
-mod rig;
+use crate::rig;
 
 use std::time::Duration;
 

@@ -1,6 +1,6 @@
 //! End-to-end tests: the real CLI and daemon against the iOS testbed on a booted simulator, checked against the
 //! testbed's event log. On the Mac that hosts the simulator:
-//! `PHONEDRIVER_TEST_DEVICE=sim:<udid> cargo test -p phonedriver --test e2e_ios -- --ignored --test-threads=1`.
+//! `PHONEDRIVER_TEST_DEVICE=sim:<udid> cargo test -p phonedriver --test all e2e_ios:: -- --ignored --test-threads=1`.
 
 #![cfg(unix)]
 #![allow(dead_code)]

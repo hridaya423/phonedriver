@@ -1,8 +1,7 @@
 //! `files`: a file goes from one host folder to the device's Pictures or Download, or comes back from there, and
 //! the reply is a receipt (decision D119).
 
-#[path = "support/fakes.rs"]
-mod fakes;
+use crate::fakes;
 
 use std::path::Path;
 use std::sync::Arc;

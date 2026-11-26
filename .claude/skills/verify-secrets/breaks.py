@@ -23,7 +23,7 @@ assert src.count(old) == 1, (name, src.count(old))
 os.makedirs(OUT, exist_ok=True)
 open(path, "w").write(src.replace(old, new))
 try:
-    r = subprocess.run(["cargo", "test", "--locked", "-p", "phonedriver", "--test", "secret_property"], capture_output=True, text=True)
+    r = subprocess.run(["cargo", "test", "--locked", "-p", "phonedriver", "--test", "all", "secret_property::"], capture_output=True, text=True)
     out = r.stdout + r.stderr
 finally:
     open(path, "w").write(src)
