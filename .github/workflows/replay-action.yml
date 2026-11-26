@@ -24,8 +24,10 @@ jobs:
       - name: Start an emulator while phonedriver builds
         env:
           API: "35"
-        run: bash action/emulator.sh start
+        run: nohup bash action/emulator.sh start < /dev/null > "$RUNNER_TEMP/emulator-start.log" 2>&1 &
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
@@ -95,6 +97,8 @@ jobs:
           SH
           nohup bash "$RUNNER_TEMP/boot.sh" < /dev/null > "$RUNNER_TEMP/boot.log" 2>&1 &
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.phonedriver/runner/*/dd/Build/Products
