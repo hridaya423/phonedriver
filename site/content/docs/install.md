@@ -8,7 +8,7 @@ seo: Install phonedriver: npx, Homebrew, plugin or one prompt
 
 phonedriver ships as one self-contained binary: CLI, daemon, MCP server, and the Android helper jar packed inside. Nothing extra to download on the phone.
 
-> The current release is phonedriver 0.1.7, on npm, Homebrew and GitHub Releases. You only need to build from source if you want to change it.
+> The current release is phonedriver 0.1.8, on npm, Homebrew and GitHub Releases. You only need to build from source if you want to change it.
 
 ## The one-command setup
 
@@ -96,7 +96,7 @@ The compiled binary lands at `target/release/phonedriver`.
 
 ```console
 $ phonedriver version
-phonedriver 0.1.7
+phonedriver 0.1.8
 ```
 
 `phonedriver doctor` checks `adb`, connected devices, the helper, `UiAutomation`, the video stream, Xcode, booted simulators, and daemon socket permissions. It starts the agent only on emulators and Simulators that no other session holds; a physical phone or tablet is listed as `not probed` with the command to probe it (`phonedriver doctor --device <id>`), and `--all-devices` probes them all. Anything that isn't `ok` prints the exact fix right underneath:
