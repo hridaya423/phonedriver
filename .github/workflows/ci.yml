@@ -8,6 +8,9 @@ permissions:
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_PROFILE_DEV_DEBUG: line-tables-only
 jobs:
   test:
     strategy:
@@ -19,21 +22,42 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      - name: Move the workspace to a Dev Drive
+        if: runner.os == 'Windows'
+        uses: samypr100/setup-dev-drive@562171fe8df7401fdf582d766cd3b6ab80d5b1a0 # v4.1.0
+        with:
+          drive-size: 12GB
+          workspace-copy: true
       - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
         with:
           toolchain: stable
           components: rustfmt, clippy
+      - uses: taiki-e/install-action@cfdb7ed4ccc7c7dce37759eae89dc5674b469b39 # v2.90.3
+        with:
+          tool: nextest@0.9
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
-      - run: cargo fmt --all --check
+        with:
+          workspaces: ${{ env.DEV_DRIVE_WORKSPACE || '.' }}
+      - name: Format
+        if: runner.os == 'Linux'
+        run: cargo fmt --all --check
       - name: Build the Android agent jar
         shell: bash
+        working-directory: ${{ env.DEV_DRIVE_WORKSPACE || github.workspace }}
         run: |
           bash android-agent/build.sh
-          echo "PHONEDRIVER_AGENT_JAR=$GITHUB_WORKSPACE/android-agent/build/phonedriver-agent.jar" >> "$GITHUB_ENV"
-      - run: cargo clippy --locked --workspace --all-targets -- -D warnings
+          echo "PHONEDRIVER_AGENT_JAR=$PWD/android-agent/build/phonedriver-agent.jar" >> "$GITHUB_ENV"
+      - name: Lint
+        working-directory: ${{ env.DEV_DRIVE_WORKSPACE || github.workspace }}
+        run: cargo clippy --locked --workspace --all-targets -- -D warnings
       - name: Lint without the Android feature
-        if: matrix.os == 'ubuntu-latest'
+        if: runner.os == 'Linux'
         run: cargo clippy --locked -p phonedriver --no-default-features --all-targets -- -D warnings
-      - run: cargo test --locked --workspace --no-fail-fast
+      - name: Test
+        working-directory: ${{ env.DEV_DRIVE_WORKSPACE || github.workspace }}
+        run: cargo nextest run --locked --workspace --profile ci
+      - name: Doc tests
+        working-directory: ${{ env.DEV_DRIVE_WORKSPACE || github.workspace }}
+        run: cargo test --locked --workspace --doc
       - run: node --test packaging/test/plugin.test.js
       - run: node --test packaging/npm/test/launcher.test.js

@@ -21,11 +21,20 @@ jobs:
       - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
         with:
           toolchain: stable
-      - name: Build phonedriver and the Android testbed
-        run: |
-          bash android-agent/build.sh
-          PHONEDRIVER_AGENT_JAR="$GITHUB_WORKSPACE/android-agent/build/phonedriver-agent.jar" cargo build --release --locked -p phonedriver
-          (cd testbeds/android && ./gradlew --no-daemon -q assembleDebug)
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ hashFiles('testbeds/android/**/*.gradle.kts', 'testbeds/android/gradle/**', 'testbeds/android/gradle.properties') }}
+      - name: Build the Android agent
+        run: bash android-agent/build.sh
+      - name: Build phonedriver
+        run: PHONEDRIVER_AGENT_JAR="$GITHUB_WORKSPACE/android-agent/build/phonedriver-agent.jar" cargo build --release --locked -p phonedriver
+      - name: Build the Android testbed
+        working-directory: testbeds/android
+        run: ./gradlew --no-daemon -q assembleDebug
       - uses: ./
         with:
           binary: target/release/phonedriver
@@ -65,10 +74,34 @@ jobs:
       - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
         with:
           toolchain: stable
+      - name: Boot a Simulator while phonedriver builds
+        id: sim
+        run: |
+          set -euo pipefail
+          udid=$(xcrun simctl list devices available -j | jq -r '
+            .devices | to_entries
+            | map(select(.key | test("SimRuntime\\.iOS-")))
+            | sort_by(.key | capture("iOS-(?<v>[0-9-]+)$").v | split("-") | map(tonumber))
+            | reverse | map(.value[] | select(.name | startswith("iPhone"))) | .[0].udid')
+          echo "udid=$udid" >> "$GITHUB_OUTPUT"
+          echo "image=$ImageOS-$ImageVersion" >> "$GITHUB_OUTPUT"
+          nohup xcrun simctl bootstatus "$udid" -b > "$RUNNER_TEMP/boot.log" 2>&1 &
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.phonedriver/runner/*/dd/Build/Products
+          key: ios-runner-${{ steps.sim.outputs.image }}-${{ hashFiles('ios-runner/**') }}
       - run: cargo build --release --locked -p phonedriver
+      - name: Wait for the Simulator to finish booting
+        env:
+          UDID: ${{ steps.sim.outputs.udid }}
+        run: |
+          xcrun simctl bootstatus "$UDID"
+          cat "$RUNNER_TEMP/boot.log"
       - uses: ./
         with:
           platform: ios
+          device: ${{ steps.sim.outputs.udid }}
           binary: target/release/phonedriver
           runs: testbeds/ios/runs/*.steps
           artifact: replay-ios

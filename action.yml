@@ -96,6 +96,11 @@ runs:
           echo "::error::the Android emulator needs a Linux runner, such as ubuntu-latest"
           exit 1
         fi
+        adb="$ANDROID_HOME/platform-tools/adb"
+        if [ "$("$adb" -s emulator-5554 shell getprop sys.boot_completed 2> /dev/null | tr -d '\r')" = 1 ]; then
+          echo "PHONEDRIVER_DEVICE=android:emulator-5554" >> "$GITHUB_ENV"
+          exit 0
+        fi
         echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules >/dev/null
         sudo udevadm control --reload-rules
         sudo udevadm trigger --name-match=kvm
@@ -115,7 +120,6 @@ runs:
         nohup "$ANDROID_HOME/emulator/emulator" -avd phonedriver -port 5554 -no-window -no-audio -no-boot-anim \
           -no-snapshot -gpu swiftshader_indirect > "$log" 2>&1 &
         emulator=$!
-        adb="$ANDROID_HOME/platform-tools/adb"
         for _ in $(seq 300); do
           if ! kill -0 "$emulator" 2> /dev/null; then
             echo "::error::the emulator stopped before it booted; its log:"
