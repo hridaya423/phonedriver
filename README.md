@@ -183,7 +183,7 @@ The repository is also a GitHub Action that boots an emulator or a Simulator, in
 - Reads a web page whole in one call: `snapshot` with `page: true` returns the text of the page in Chrome, or in a debug build's web view, through the browser's own debugging socket ([Reading a web page](docs/reference.md#reading-a-web-page)).
 - Reads a screen that gives no element list (a web view with accessibility off, a Flutter or game canvas) from its pixels, on macOS and Windows with the system's own text recognition and on Linux with Tesseract if it is installed. The text found can be tapped by name.
 - `press fingerprint` touches an Android emulator's fingerprint sensor, and on an iOS Simulator the same key answers Face ID, so a test can pass or fail the prompt.
-- One call can tap a whole path: `tap {"target":"More options","then":["Settings","Dark theme"]}`. Models tap one step at a time unless told otherwise, so give your agent the skill (`phonedriver skill` prints it), which tells it to send paths.
+- One call can tap a whole path: `tap {"target":"More options","then":["Settings","Dark theme"]}`. Models tap one step at a time unless told otherwise, so the server's instructions tell them to send paths. An agent on the command line gets the same from the skill (`phonedriver init --skill` installs it, `phonedriver skill` prints it).
 
 <details>
 <summary>The 19 MCP tools</summary>

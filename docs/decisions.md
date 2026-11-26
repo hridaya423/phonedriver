@@ -2331,3 +2331,17 @@ Installed, the agent opened the skill in 2 of 6 runs. In the appended arms a run
 **Limits.** Three runs an arm; sums of 6 to 12 runs differ by less than the spread of one job. The harness re-reads about 5,600 tokens a turn, a real session 29,000 to 57,000, where 1,200 tokens are 2 to 4% of a turn. One model, one emulator. An agent that uses the command line with no MCP server has no instructions and no tool list, and for it the skill is the only guide: not measured.
 
 **Reopen if.** Someone measures command-line agents with and without the skill, or a job turns up that agents do in fewer turns only with it.
+
+## D137. `init --skill` installs the skill, and plain `init` does not (2026-11-26)
+
+**Question.** D136 measured that the skill beside the MCP server costs tokens and saves no turn. The owner still wanted `init` able to install it, and chose the opt-in of three offered: a flag, on by default, or nothing.
+
+**Decision.** `phonedriver init --skill` writes `SKILL.md` into `<skills>/phonedriver/` for each agent it found, and the agent's line ends with what became of it. Plain `init` writes none. The folders are the ones each agent's own documentation named for a person's skills on 26 November 2026: Claude Code `~/.claude/skills`; VS Code (Copilot) `~/.copilot/skills`; Codex, Cursor and Gemini CLI `~/.agents/skills`, which all three read, so the file is written once and the other lines say it is there.
+
+**Not overwritten.** A `SKILL.md` already there with other text is someone's edit or an older version's; it is left and the line says to delete it and run again. A new file is made only where nothing is (`create_new`), so a link someone put at that path is not followed (the rule of D105).
+
+**Rejected.** On by default: every phone job of every MCP user would carry it for nothing measured (D136). The agents' own folders for the three that share one (`~/.codex/skills`, `~/.cursor/skills`, `~/.gemini/skills`): three copies to keep in step where each agent documents the shared folder.
+
+**Limits.** Cursor also reads `~/.claude/skills`, so on a machine with Claude Code and Cursor it finds the skill twice under one name; what Cursor does with that was not tried. `CLAUDE_CONFIG_DIR` and `CODEX_HOME` are not read. No agent was run against a folder `init --skill` wrote: the tests check the files and the lines, and D136's installed runs used a project skill.
+
+**Reopen if.** A client changes its folder, or runs of command-line agents (idea 9 of the parked list) show the skill pays there, which would be a reason to print the hint in `init`'s output.

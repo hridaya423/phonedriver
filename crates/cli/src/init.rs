@@ -2,6 +2,9 @@
 //!
 //! Claude Code and Codex own files that they rewrite themselves, so their own commands add the server. Cursor,
 //! VS Code and Gemini CLI read a JSON file, which is edited here when it is plain JSON and left alone otherwise.
+//!
+//! With `--skill` each agent found also gets `SKILL.md` in the folder it reads a person's own skills from
+//! (decision D137). Plain `init` writes none: beside the MCP server the skill cost tokens and saved no turn (D136).
 
 use std::path::{Path, PathBuf};
 use std::process::{Command, ExitCode};
@@ -9,6 +12,16 @@ use std::process::{Command, ExitCode};
 use serde_json::{Value, json};
 
 const NAME: &str = "phonedriver";
+
+/// The skill `phonedriver skill` prints and `init --skill` installs.
+pub const SKILL: &str = include_str!("../../../SKILL.md");
+
+/// Where each agent reads a person's own skills, under the home folder, as its documentation said on 2026-11-26:
+/// Claude Code `~/.claude/skills`, VS Code's Copilot `~/.copilot/skills`, and Codex, Cursor and Gemini CLI
+/// `~/.agents/skills`, one folder the three share.
+const CLAUDE_SKILLS: &str = ".claude/skills";
+const COPILOT_SKILLS: &str = ".copilot/skills";
+const SHARED_SKILLS: &str = ".agents/skills";
 
 /// How an agent starts the server.
 #[derive(Debug, Clone, PartialEq)]
@@ -232,14 +245,45 @@ fn file_agent(dir: PathBuf, file: &str, key: &str, server: &Server, dry_run: boo
     in_file(&dir.join(file), key, server, dry_run)
 }
 
-/// Adds the server to each agent found and prints one line for each. Unless `register_only`, the doctor checks
-/// follow. False when an agent that was found could not be given the server.
-pub fn run(home: &Path, dry_run: bool, register_only: bool) -> ExitCode {
+/// What became of the skill in one agent's folder of skills. A file that is there with other text is someone's
+/// own or an older version's, and is left; a new one is made only where nothing is, links included.
+fn with_skill(skills: &Path, dry_run: bool) -> Result<String, String> {
+    use std::io::Write;
+    let file = skills.join(NAME).join("SKILL.md");
+    match std::fs::read_to_string(&file) {
+        Ok(has) if has == SKILL => return Ok(format!("skill already at {}", file.display())),
+        Ok(_) => {
+            return Ok(format!(
+                "skill not changed: {} is not this version's; delete it and run `init --skill` again to replace it",
+                file.display()
+            ));
+        }
+        Err(_) => {}
+    }
+    if dry_run {
+        return Ok(format!("would write the skill to {}", file.display()));
+    }
+    std::fs::create_dir_all(skills.join(NAME))
+        .and_then(|()| {
+            std::fs::OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .open(&file)
+        })
+        .and_then(|mut new| new.write_all(SKILL.as_bytes()))
+        .map(|()| format!("skill written to {}", file.display()))
+        .map_err(|e| format!("skill failed: cannot write {}: {e}", file.display()))
+}
+
+/// Adds the server to each agent found and prints one line for each; with `skill`, the line also says what became
+/// of the skill in that agent's folder. Unless `register_only`, the doctor checks follow. False when an agent that
+/// was found could not be given the server, or the skill it was to get.
+pub fn run(home: &Path, dry_run: bool, register_only: bool, skill: bool) -> ExitCode {
     let server = Server::here();
     let user = std::env::home_dir().unwrap_or_default();
     let agents = [
-        ("Claude Code", claude(&server, dry_run)),
-        ("Codex", codex(&server, dry_run)),
+        ("Claude Code", claude(&server, dry_run), CLAUDE_SKILLS),
+        ("Codex", codex(&server, dry_run), SHARED_SKILLS),
         (
             "Cursor",
             file_agent(
@@ -249,10 +293,12 @@ pub fn run(home: &Path, dry_run: bool, register_only: bool) -> ExitCode {
                 &server,
                 dry_run,
             ),
+            SHARED_SKILLS,
         ),
         (
             "VS Code",
             file_agent(vs_code_user(&user), "mcp.json", "servers", &server, dry_run),
+            COPILOT_SKILLS,
         ),
         (
             "Gemini CLI",
@@ -263,19 +309,28 @@ pub fn run(home: &Path, dry_run: bool, register_only: bool) -> ExitCode {
                 &server,
                 dry_run,
             ),
+            SHARED_SKILLS,
         ),
     ];
-    for (name, outcome) in &agents {
-        let line = match outcome {
+    let mut skill_failed = false;
+    for (name, outcome, skills) in &agents {
+        let mut line = match outcome {
             Outcome::NotFound => "not found".to_string(),
             Outcome::Did(what) => what.clone(),
             Outcome::Already => "already there".to_string(),
             Outcome::NotChanged(why) => format!("not changed: {why}"),
             Outcome::Failed(why) => format!("failed: {why}"),
         };
+        if skill && *outcome != Outcome::NotFound {
+            let said = with_skill(&user.join(skills), dry_run).unwrap_or_else(|why| {
+                skill_failed = true;
+                why
+            });
+            line = format!("{line} · {said}");
+        }
         println!("{name:<12} {line}");
     }
-    if agents.iter().all(|(_, o)| *o == Outcome::NotFound) {
+    if agents.iter().all(|(_, o, _)| *o == Outcome::NotFound) {
         println!(
             "\nNo agent found on this machine. Add this to your agent's MCP servers:\n{}",
             server.to_paste("mcpServers")
@@ -285,7 +340,10 @@ pub fn run(home: &Path, dry_run: bool, register_only: bool) -> ExitCode {
             "\nRestart your agent so that it loads phonedriver, then ask it: Open Settings and turn on dark mode."
         );
     }
-    let failed = agents.iter().any(|(_, o)| matches!(o, Outcome::Failed(_)));
+    let failed = skill_failed
+        || agents
+            .iter()
+            .any(|(_, o, _)| matches!(o, Outcome::Failed(_)));
     if !register_only && !dry_run {
         println!();
         crate::doctor::run(home, None, false);
