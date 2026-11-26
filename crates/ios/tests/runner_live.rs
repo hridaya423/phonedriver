@@ -1,5 +1,5 @@
 //! Runner lifecycle on booted simulators. Run on the Mac that hosts them:
-//! `PHONEDRIVER_TEST_DEVICE=sim:<udid> cargo test -p phonedriver-ios --test runner_live -- --ignored --test-threads=1`.
+//! `PHONEDRIVER_TEST_DEVICE=sim:<udid> cargo test -p phonedriver-ios --test all runner_live:: -- --ignored --test-threads=1`.
 //! The two-simulator test also needs `PHONEDRIVER_TEST_DEVICE2=sim:<udid>`.
 
 #![cfg(unix)]

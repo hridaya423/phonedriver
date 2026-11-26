@@ -1,4 +1,4 @@
-mod support;
+use crate::support;
 
 #[tokio::test]
 #[ignore = "needs PHONEDRIVER_TEST_DEVICE"]

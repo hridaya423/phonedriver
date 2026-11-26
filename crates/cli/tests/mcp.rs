@@ -1,5 +1,4 @@
-#[path = "support/fakes.rs"]
-mod fakes;
+use crate::fakes;
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -2026,7 +2025,10 @@ async fn setting_finds_reads_and_writes_a_setting_by_key() {
 fn test_socket(home: &std::path::Path, name: &str) -> std::path::PathBuf {
     if cfg!(windows) {
         let scope = home.file_name().unwrap().to_string_lossy();
-        std::path::PathBuf::from(format!(r"\\.\pipe\phonedriver-test-{scope}-{name}"))
+        std::path::PathBuf::from(format!(
+            r"\\.\pipe\phonedriver-test-{}-{scope}-{name}",
+            std::process::id()
+        ))
     } else {
         home.join("run").join(name)
     }

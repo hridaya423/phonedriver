@@ -110,7 +110,10 @@ async fn a_fast_step_says_nothing() {
 fn test_socket(home: &std::path::Path, name: &str) -> std::path::PathBuf {
     if cfg!(windows) {
         let scope = home.file_name().unwrap().to_string_lossy();
-        std::path::PathBuf::from(format!(r"\\.\pipe\phonedriver-test-{scope}-{name}"))
+        std::path::PathBuf::from(format!(
+            r"\\.\pipe\phonedriver-test-{}-{scope}-{name}",
+            std::process::id()
+        ))
     } else {
         home.join("run").join(name)
     }

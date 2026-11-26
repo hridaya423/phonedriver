@@ -2345,3 +2345,17 @@ Installed, the agent opened the skill in 2 of 6 runs. In the appended arms a run
 **Limits.** Cursor also reads `~/.claude/skills`, so on a machine with Claude Code and Cursor it finds the skill twice under one name; what Cursor does with that was not tried. `CLAUDE_CONFIG_DIR` and `CODEX_HOME` are not read. No agent was run against a folder `init --skill` wrote: the tests check the files and the lines, and D136's installed runs used a project skill.
 
 **Reopen if.** A client changes its folder, or runs of command-line agents (idea 9 of the parked list) show the skill pays there, which would be a reason to print the hint in `init`'s output.
+
+## D138. CI runs one test binary a crate under nextest, lints beside the tests, and boots devices while phonedriver builds (2026-11-26, #67)
+
+**What.** `ci` splits lint from test on all three systems. Tests run under cargo-nextest (profile `ci`: 48 threads, the slow groups first, the video tests three at a time), and each crate's integration tests are one binary, `tests/all.rs`, so the link step runs once per crate. Debug info is `line-tables-only`. Windows builds on a trusted Dev Drive with `CARGO_HOME` on it. The Android agent jar is cached by its sources. Notes-only changes skip CI. Each guard property runs as four shards. The replay jobs build the dev profile with optimized dependencies. The emulator's whole setup runs in the background while phonedriver builds (`action/emulator.sh start`, then `wait`). The iOS job keeps the Simulator's data after a passing replay, keyed by runner image, and puts it back before the next boot. Every cache is saved from `main` only.
+
+**Measured** (job wall time, before → after): Ubuntu tests 229 s → 67 s; macOS tests 381 s → 71 s; Windows tests 364 s → 165 s; lint runs beside them in 52 to 86 s; Android replay ~420 s → 268 s; iOS replay 600 to 1200 s → 574 s on a cache miss.
+
+**Found on the way.** Test daemons on Windows shared pipe names once each test ran in its own process ("Access is denied"), so the names now carry the process id. The video length check measured past `record_stop`, which writes the file's index. A booted Simulator slowed the build beside it from 44 s to 237 s, which is why a kept device boots after the build. A device from a fresh image keeps setting itself up for minutes after its first boot (its data grows from 1.2 GB to 1.9 GB), which is why its data is kept after the replay, not after the boot.
+
+**Rejected.** `cache-workspace-crates` (cargo judges workspace crates fresh by mtime, so a restored target can skip a changed file). Saving caches from pull requests (the 10 GB limit was passed at 10.5 GB and evicts `main`'s). Booting the kept Simulator during the build.
+
+**Limits.** macOS runner speed varies by about four times between runs. A boot from the settled data has not yet been timed; the first runs on `main` after the merge save it for each runner image. The Android dark-theme screen compare and the iOS runner's 180 s start timeout flake as they did before this change.
+
+**Reopen if.** The iOS job on a cache hit is not faster than on a miss, or the caches pass 10 GB again.

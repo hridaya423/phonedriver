@@ -1015,7 +1015,10 @@ async fn the_daemon_exits_after_fifteen_idle_minutes_with_no_clients() {
 fn local_socket(home: &Path, name: &str) -> PathBuf {
     if cfg!(windows) {
         let scope = home.file_name().unwrap().to_string_lossy();
-        PathBuf::from(format!(r"\\.\pipe\phonedriver-test-{scope}-{name}"))
+        PathBuf::from(format!(
+            r"\\.\pipe\phonedriver-test-{}-{scope}-{name}",
+            std::process::id()
+        ))
     } else {
         home.join(name)
     }

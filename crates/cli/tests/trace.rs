@@ -1,5 +1,4 @@
-#[path = "support/fakes.rs"]
-mod fakes;
+use crate::fakes;
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;

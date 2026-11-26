@@ -1,7 +1,6 @@
 //! Decision D27: a tap that spends money or cannot be undone needs the human's word, asked by phonedriver itself.
 
-#[path = "support/fakes.rs"]
-mod fakes;
+use crate::fakes;
 
 use std::sync::{Arc, Mutex};
 
@@ -18,8 +17,7 @@ use rmcp::service::{ClientLifecycleMode, RequestContext, RunningService};
 use rmcp::{ClientHandler, ClientServiceExt, RoleClient, ServiceExt};
 use serde_json::{Value, json};
 
-#[path = "support/guard_rig.rs"]
-mod guard_rig;
+use crate::guard_rig;
 
 use guard_rig::{PLACE_ORDER, Rig, composer, rig, rig_showing};
 

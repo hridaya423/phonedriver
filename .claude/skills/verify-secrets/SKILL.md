@@ -59,11 +59,11 @@ Empty output means the check still describes the code. Otherwise read the diff f
 ## Run
 
 ```
-cargo test --locked -p phonedriver --test secret_property
+cargo test --locked -p phonedriver --test all secret_property::
 cargo test --locked -p phonedriver --lib secrets
 ```
 
-About 2 seconds after the build. `-- --nocapture` prints `coverage:` lines; a good run ends near 160 types that worked, 40 refused or failed, 115 shell commands and 150 secrets. To list every kind of leak instead of the first: `cargo test --locked -p phonedriver --test secret_property survey -- --ignored --nocapture` (about 15 seconds). On the Mac mini there is no blaze; on a machine with it, `blaze test -p phonedriver --test secret_property`.
+About 2 seconds after the build. `-- --nocapture` prints `coverage:` lines; a good run ends near 160 types that worked, 40 refused or failed, 115 shell commands and 150 secrets. To list every kind of leak instead of the first: `cargo test --locked -p phonedriver --test all secret_property::survey -- --ignored --nocapture` (about 15 seconds). On the Mac mini there is no blaze; on a machine with it, `blaze test -p phonedriver --test all secret_property::`.
 
 A failure prints one line per leak and the shrunk session, for example:
 

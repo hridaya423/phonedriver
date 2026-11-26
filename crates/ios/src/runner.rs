@@ -771,7 +771,7 @@ impl Runner {
                 return Err(Error::Transport {
                     detail: format!(
                         "the runner exited ({status}) before answering; see {}",
-                        log.display()
+                        keep_failed(&log).display()
                     ),
                 });
             }
@@ -780,12 +780,20 @@ impl Runner {
                     waited_ms: SIMULATOR_READY_WAIT.as_millis() as u32,
                     condition: format!(
                         "the runner to answer on port {port}; see {}",
-                        log.display()
+                        keep_failed(&log).display()
                     ),
                 });
             }
             tokio::time::sleep(POLL).await;
         }
+    }
+}
+
+fn keep_failed(log: &Path) -> PathBuf {
+    let kept = log.with_extension("failed.log");
+    match std::fs::rename(log, &kept) {
+        Ok(()) => kept,
+        Err(_) => log.to_path_buf(),
     }
 }
 
@@ -934,14 +942,17 @@ impl Runner {
                 return Err(Error::Transport {
                     detail: format!(
                         "the runner exited ({status}) before answering; see {}",
-                        log.display()
+                        keep_failed(&log).display()
                     ),
                 });
             }
             if Instant::now() >= deadline {
                 return Err(Error::Timeout {
                     waited_ms: READY_WAIT.as_millis() as u32,
-                    condition: format!("the runner to answer on {udid}; see {}", log.display()),
+                    condition: format!(
+                        "the runner to answer on {udid}; see {}",
+                        keep_failed(&log).display()
+                    ),
                 });
             }
             tokio::time::sleep(POLL).await;
@@ -1106,7 +1117,7 @@ impl Runner {
                         return Err(Error::Transport {
                             detail: format!(
                                 "what answers on port {DEVICE_PORT} of {udid} did not prove the token the runner was started with; see {}",
-                                log.display()
+                                keep_failed(&log).display()
                             ),
                         });
                     }
@@ -1127,7 +1138,7 @@ impl Runner {
                         Error::Transport { detail } => Error::Transport {
                             detail: format!(
                                 "the runner did not start: {detail}; see {}",
-                                log.display()
+                                keep_failed(&log).display()
                             ),
                         },
                         other => other,
@@ -1135,7 +1146,7 @@ impl Runner {
                     _ => Error::Transport {
                         detail: format!(
                             "the runner's XCTest session ended before it answered; see {}",
-                            log.display()
+                            keep_failed(&log).display()
                         ),
                     },
                 });
@@ -1143,7 +1154,10 @@ impl Runner {
             if Instant::now() >= deadline {
                 return Err(Error::Timeout {
                     waited_ms: READY_WAIT.as_millis() as u32,
-                    condition: format!("the runner to answer on {udid}; see {}", log.display()),
+                    condition: format!(
+                        "the runner to answer on {udid}; see {}",
+                        keep_failed(&log).display()
+                    ),
                 });
             }
             tokio::time::sleep(POLL).await;
@@ -1160,6 +1174,20 @@ mod tests {
 
     fn token(hex: &str) -> Token {
         Token::from_hex(hex).unwrap()
+    }
+
+    #[test]
+    fn a_failed_start_keeps_its_log_from_the_next_start() {
+        let dir = tempfile::tempdir().unwrap();
+        let log = dir.path().join("6478AFFB.log");
+        std::fs::write(&log, "xcodebuild: error: the first start").unwrap();
+        let kept = keep_failed(&log);
+        assert_eq!(kept, dir.path().join("6478AFFB.failed.log"));
+        std::fs::File::create(&log).unwrap();
+        assert_eq!(
+            std::fs::read_to_string(&kept).unwrap(),
+            "xcodebuild: error: the first start"
+        );
     }
 
     /// A runner as `Server.m` serves one: the first frame must be a `hello` that proves `token`, and the reply proves

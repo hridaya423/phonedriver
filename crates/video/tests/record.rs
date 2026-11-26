@@ -233,6 +233,7 @@ async fn a_recording_whose_keyframe_never_comes_starts_from_the_kept_units_after
     })
     .await;
     tokio::time::sleep(Duration::from_millis(120)).await;
+    let ran_ms = began.elapsed().as_millis() as u64;
     let stopped = video
         .record_stop()
         .unwrap()
@@ -251,8 +252,8 @@ async fn a_recording_whose_keyframe_never_comes_starts_from_the_kept_units_after
         );
     }
     assert!(
-        stopped.recorded.ms <= wall_ms && stopped.recorded.ms + 60 >= wall_ms,
-        "the video is as long as the recording ran: {} ms against {wall_ms}",
+        stopped.recorded.ms <= wall_ms + 1 && stopped.recorded.ms + 60 >= ran_ms,
+        "the video is as long as the recording ran, and the kept units 12 µs each: {} ms against {ran_ms} to {wall_ms}",
         stopped.recorded.ms
     );
 
@@ -300,6 +301,7 @@ async fn a_recording_starts_at_the_first_keyframe_after_its_start_and_holds_noth
         video.store.latest().is_some_and(|f| f.seq >= 20 + 59)
     })
     .await;
+    let ran_ms = began.elapsed().as_millis() as u64;
     let stopped = video.record_stop().unwrap().expect("a recording");
     let wall_ms = began.elapsed().as_millis() as u64;
     let (_, units) = fixture_units().await;
@@ -321,8 +323,8 @@ async fn a_recording_starts_at_the_first_keyframe_after_its_start_and_holds_noth
         "the 200 ms before the keyframe show nothing"
     );
     assert!(
-        stopped.recorded.ms <= wall_ms && stopped.recorded.ms + 60 >= wall_ms,
-        "{} ms against {wall_ms}",
+        stopped.recorded.ms <= wall_ms && stopped.recorded.ms + 60 >= ran_ms,
+        "{} ms against {ran_ms} to {wall_ms}",
         stopped.recorded.ms
     );
     let mut decoder = Decoder::new().unwrap();

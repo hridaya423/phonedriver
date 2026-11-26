@@ -2,12 +2,15 @@ name: replay action
 on:
   push:
     branches: [main]
-    paths: [action.yml, .github/workflows/replay-action.yml, "testbeds/**", "crates/**", "android-agent/**", "ios-runner/**", Cargo.toml, Cargo.lock]
+    paths: [action.yml, "action/**", .github/workflows/replay-action.yml, "testbeds/**", "crates/**", "android-agent/**", "ios-runner/**", Cargo.toml, Cargo.lock]
   pull_request:
-    paths: [action.yml, .github/workflows/replay-action.yml, "testbeds/**", "crates/**", "android-agent/**", "ios-runner/**", Cargo.toml, Cargo.lock]
+    paths: [action.yml, "action/**", .github/workflows/replay-action.yml, "testbeds/**", "crates/**", "android-agent/**", "ios-runner/**", Cargo.toml, Cargo.lock]
   workflow_dispatch:
 permissions:
   contents: read
+env:
+  CARGO_PROFILE_DEV_OPT_LEVEL: 1
+  CARGO_PROFILE_DEV_DEBUG: 0
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
@@ -21,14 +24,41 @@ jobs:
       - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
         with:
           toolchain: stable
-      - name: Build phonedriver and the Android testbed
-        run: |
-          bash android-agent/build.sh
-          PHONEDRIVER_AGENT_JAR="$GITHUB_WORKSPACE/android-agent/build/phonedriver-agent.jar" cargo build --release --locked -p phonedriver
-          (cd testbeds/android && ./gradlew --no-daemon -q assembleDebug)
+      - name: Start an emulator while phonedriver builds
+        env:
+          API: "35"
+        run: nohup bash action/emulator.sh start < /dev/null > "$RUNNER_TEMP/emulator-start.log" 2>&1 &
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        id: gradle
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ hashFiles('testbeds/android/**/*.gradle.kts', 'testbeds/android/gradle/**', 'testbeds/android/gradle.properties') }}
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: android-agent/build/phonedriver-agent.jar
+          key: agent-jar-${{ runner.os }}-${{ hashFiles('android-agent/src/**', 'android-agent/aidl/**', 'android-agent/build.sh') }}
+      - name: Build the Android agent
+        run: "[ -f android-agent/build/phonedriver-agent.jar ] || bash android-agent/build.sh"
+      - name: Build phonedriver
+        run: PHONEDRIVER_AGENT_JAR="$GITHUB_WORKSPACE/android-agent/build/phonedriver-agent.jar" cargo build --locked -p phonedriver --config 'profile.dev.package."*".opt-level=3'
+      - name: Build the Android testbed
+        working-directory: testbeds/android
+        run: ./gradlew --no-daemon -q assembleDebug
+      - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        if: github.ref == 'refs/heads/main' && steps.gradle.outputs.cache-hit != 'true'
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ hashFiles('testbeds/android/**/*.gradle.kts', 'testbeds/android/gradle/**', 'testbeds/android/gradle.properties') }}
       - uses: ./
         with:
-          binary: target/release/phonedriver
+          binary: target/debug/phonedriver
           app: testbeds/android/app/build/outputs/apk/debug/app-debug.apk
           runs: testbeds/android/runs/*.steps
           record: true
@@ -37,7 +67,7 @@ jobs:
       - name: A second replay compares each step's screen with the one the first kept
         uses: ./
         with:
-          binary: target/release/phonedriver
+          binary: target/debug/phonedriver
           runs: testbeds/android/runs/taps.steps
           screens: ${{ runner.temp }}/phonedriver-runs/screens
           artifact: replay-android-screens
@@ -46,9 +76,12 @@ jobs:
         continue-on-error: true
         uses: ./
         with:
-          binary: target/release/phonedriver
+          binary: target/debug/phonedriver
           runs: testbeds/android/runs/missing/*.steps
           artifact: replay-android-missed
+      - name: The emulator's logs
+        if: failure()
+        run: tail -n 60 "$RUNNER_TEMP/emulator-start.log" "$RUNNER_TEMP/emulator.log" || true
       - name: Check that the missed run was reported
         env:
           FAILED: ${{ steps.missed.outputs.failed }}
@@ -65,10 +98,65 @@ jobs:
       - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
         with:
           toolchain: stable
-      - run: cargo build --release --locked -p phonedriver
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - name: Name the runner image
+        id: image
+        run: echo "image=$ImageOS-$ImageVersion" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.phonedriver/runner/*/dd/Build/Products
+          key: ios-runner-${{ steps.image.outputs.image }}-${{ hashFiles('ios-runner/**') }}
+      - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        id: simulator
+        with:
+          path: ${{ runner.temp }}/simulator
+          key: simulator-v2-${{ steps.image.outputs.image }}
+      - name: Boot a Simulator while phonedriver builds
+        if: steps.simulator.outputs.cache-hit != 'true'
+        run: |
+          nohup bash .github/scripts/boot-simulator.sh < /dev/null > "$RUNNER_TEMP/boot.log" 2>&1 &
+          echo $! > "$RUNNER_TEMP/boot.pid"
+      - run: cargo build --locked -p phonedriver --config 'profile.dev.package."*".opt-level=3'
+        env:
+          CARGO_PROFILE_DEV_OPT_LEVEL: 0
+      - name: Boot the kept Simulator
+        if: steps.simulator.outputs.cache-hit == 'true'
+        run: bash .github/scripts/boot-simulator.sh > "$RUNNER_TEMP/boot.log" 2>&1
+      - name: Wait for the Simulator to finish booting
+        id: booted
+        run: |
+          while [ ! -f "$RUNNER_TEMP/booted" ] && [ -f "$RUNNER_TEMP/boot.pid" ] && kill -0 "$(cat "$RUNNER_TEMP/boot.pid")" 2> /dev/null; do
+            sleep 0.5
+          done
+          cat "$RUNNER_TEMP/boot.log"
+          if [ ! -f "$RUNNER_TEMP/booted" ]; then
+            echo "::error::the Simulator did not boot"
+            exit 1
+          fi
+          echo "udid=$(cat "$RUNNER_TEMP/udid")" >> "$GITHUB_OUTPUT"
       - uses: ./
         with:
           platform: ios
-          binary: target/release/phonedriver
+          device: ${{ steps.booted.outputs.udid }}
+          binary: target/debug/phonedriver
           runs: testbeds/ios/runs/*.steps
           artifact: replay-ios
+      - name: The runner's log
+        if: always()
+        run: tail -n 60 ~/.phonedriver/runner/*.log
+      - name: Keep the Simulator's data for later boots
+        if: github.ref == 'refs/heads/main' && steps.simulator.outputs.cache-hit != 'true'
+        env:
+          UDID: ${{ steps.booted.outputs.udid }}
+        run: |
+          xcrun simctl shutdown "$UDID"
+          mkdir -p "$RUNNER_TEMP/simulator/$UDID"
+          cp -c -R "$HOME/Library/Developer/CoreSimulator/Devices/$UDID/data" "$RUNNER_TEMP/simulator/$UDID/data"
+          echo "kept the device's data: $(du -sh "$RUNNER_TEMP/simulator/$UDID/data" | cut -f1)"
+      - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        if: github.ref == 'refs/heads/main' && steps.simulator.outputs.cache-hit != 'true'
+        with:
+          path: ${{ runner.temp }}/simulator
+          key: simulator-v2-${{ steps.image.outputs.image }}

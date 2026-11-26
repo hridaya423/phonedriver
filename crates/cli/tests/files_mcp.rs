@@ -1,8 +1,7 @@
 //! `files` over MCP on a person's phone (decision D119): the human is asked through the client for each transfer,
 //! shown the file, its size and its hash, and a decline copies nothing.
 
-#[path = "support/fakes.rs"]
-mod fakes;
+use crate::fakes;
 
 use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};
@@ -215,7 +214,10 @@ fn on_a_phone_the_human_is_asked_for_each_file_and_a_decline_copies_nothing() {
 fn test_socket(home: &std::path::Path, name: &str) -> std::path::PathBuf {
     if cfg!(windows) {
         let scope = home.file_name().unwrap().to_string_lossy();
-        std::path::PathBuf::from(format!(r"\\.\pipe\phonedriver-test-{scope}-{name}"))
+        std::path::PathBuf::from(format!(
+            r"\\.\pipe\phonedriver-test-{}-{scope}-{name}",
+            std::process::id()
+        ))
     } else {
         home.join("run").join(name)
     }

@@ -1,5 +1,4 @@
-#[path = "support/fakes.rs"]
-mod fakes;
+use crate::fakes;
 
 use std::sync::Arc;
 use std::time::Duration;

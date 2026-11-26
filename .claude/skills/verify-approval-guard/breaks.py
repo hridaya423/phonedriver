@@ -23,7 +23,7 @@ src = open(f).read()
 assert src.count(old) == 1, (name, src.count(old))
 open(f, "w").write(src.replace(old, new))
 try:
-    r = subprocess.run(["cargo","test","-p","phonedriver","--test","guard_property"], capture_output=True, text=True)
+    r = subprocess.run(["cargo","test","-p","phonedriver","--test", "all", "guard_property::"], capture_output=True, text=True)
     out = r.stdout + r.stderr
 finally:
     subprocess.run(["git","checkout","--",f])
