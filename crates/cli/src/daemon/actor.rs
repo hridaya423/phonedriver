@@ -72,6 +72,7 @@ const LOG_LINE_CHARS: usize = 400;
 /// Added to an action's own time when its crash log is read, for the action's preparation before the clock started.
 const CRASH_MARGIN: Duration = Duration::from_secs(2);
 const SETTING_LINES_OF_MANY: usize = 4;
+const SETTING_SCREENS_NEAR: usize = 4;
 const SCREEN_WAIT: Duration = Duration::from_secs(3);
 /// About 2,000 tokens: a mobile Wikipedia article with its sections closed is 6,086 characters.
 const PAGE_CHARS: usize = 8000;

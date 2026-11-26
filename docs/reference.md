@@ -326,6 +326,7 @@ phonedriver setting set dark_ui_mode/dark_ui_activated true  # ok dark_ui_mode/d
 phonedriver setting find "dark theme|media volume"           # several searches in one call
 phonedriver setting set <key> <value> <key> <value>          # several writes in one call
 phonedriver setting open dark_ui_mode                        # shows that settings screen
+phonedriver setting open "Dark theme"                        # the same screen, by the title it shows
 phonedriver setting restore [<key>...]                       # writes back what your writes replaced
 ```
 
