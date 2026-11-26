@@ -44,9 +44,11 @@ jobs:
       - name: Build the Android agent jar
         shell: bash
         working-directory: ${{ env.DEV_DRIVE_WORKSPACE || github.workspace }}
+        env:
+          ROOT: ${{ env.DEV_DRIVE_WORKSPACE || github.workspace }}
         run: |
           bash android-agent/build.sh
-          echo "PHONEDRIVER_AGENT_JAR=$PWD/android-agent/build/phonedriver-agent.jar" >> "$GITHUB_ENV"
+          echo "PHONEDRIVER_AGENT_JAR=$ROOT/android-agent/build/phonedriver-agent.jar" >> "$GITHUB_ENV"
       - name: Lint
         working-directory: ${{ env.DEV_DRIVE_WORKSPACE || github.workspace }}
         run: cargo clippy --locked --workspace --all-targets -- -D warnings
