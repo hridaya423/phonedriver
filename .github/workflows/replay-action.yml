@@ -102,16 +102,20 @@ jobs:
           path: ${{ runner.temp }}/simulator
           key: simulator-${{ steps.image.outputs.image }}
       - name: Boot a Simulator while phonedriver builds
+        if: steps.simulator.outputs.cache-hit != 'true'
         run: |
           nohup bash .github/scripts/boot-simulator.sh < /dev/null > "$RUNNER_TEMP/boot.log" 2>&1 &
           echo $! > "$RUNNER_TEMP/boot.pid"
       - run: cargo build --locked -p phonedriver --config 'profile.dev.package."*".opt-level=3'
         env:
           CARGO_PROFILE_DEV_OPT_LEVEL: 0
+      - name: Boot the kept Simulator
+        if: steps.simulator.outputs.cache-hit == 'true'
+        run: bash .github/scripts/boot-simulator.sh > "$RUNNER_TEMP/boot.log" 2>&1
       - name: Wait for the Simulator to finish booting
         id: booted
         run: |
-          while [ ! -f "$RUNNER_TEMP/booted" ] && kill -0 "$(cat "$RUNNER_TEMP/boot.pid")" 2> /dev/null; do
+          while [ ! -f "$RUNNER_TEMP/booted" ] && [ -f "$RUNNER_TEMP/boot.pid" ] && kill -0 "$(cat "$RUNNER_TEMP/boot.pid")" 2> /dev/null; do
             sleep 0.5
           done
           cat "$RUNNER_TEMP/boot.log"

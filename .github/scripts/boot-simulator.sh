@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Boots the newest iOS runtime's first iPhone in the background of the job. A first boot sets the device up for
 # about four minutes on a 3-core runner, so its data is kept in $RUNNER_TEMP/simulator for the cache and put back
-# before later boots. Writes $RUNNER_TEMP/udid when it has chosen and $RUNNER_TEMP/booted when it is done.
+# before later boots. A device booted from kept data settles for minutes after it boots and slowed a build beside it
+# from 64 s to 237 s, so the job boots it after the build. Writes $RUNNER_TEMP/udid when it has chosen and $RUNNER_TEMP/booted when it is done.
 set -euo pipefail
 
 kept="$RUNNER_TEMP/simulator"
