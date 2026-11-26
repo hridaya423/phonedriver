@@ -447,16 +447,32 @@ impl Actor {
             }
             return Ok(json!({"lines": lines, "more": more}));
         }
-        if let Some(screen) = p.open {
-            let link = match index.screen(&screen) {
-                None => Err(format!(
-                    "no settings screen has the key {screen:?}; `find` lists screens as `screen <key>`"
-                )),
-                Some(found) => found.link.clone().ok_or(format!(
+        if let Some(name) = p.open {
+            let Some(found) = index.named(&name) else {
+                let near: Vec<String> = index
+                    .near(&name, SETTING_SCREENS_NEAR)
+                    .iter()
+                    .map(|s| format!("{} ({})", s.key, s.title()))
+                    .collect();
+                return Err(Error::Refused {
+                    detail: if near.is_empty() {
+                        format!(
+                            "no settings screen has the key {name:?}; `find` lists screens as `screen <key>`"
+                        )
+                    } else {
+                        format!(
+                            "no settings screen has the key {name:?}; open one of: {}",
+                            near.join(", ")
+                        )
+                    },
+                });
+            };
+            let screen = found.key.clone();
+            let link = found.link.clone().ok_or_else(|| Error::Refused {
+                detail: format!(
                     "the settings screen {screen} cannot be opened by key: it shows one item (an app, a SIM) the device must be told"
-                )),
-            }
-            .map_err(|detail| Error::Refused { detail })?;
+                ),
+            })?;
             let act = ActParams {
                 action: Action::Open {
                     url: link,

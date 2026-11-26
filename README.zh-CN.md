@@ -144,7 +144,7 @@ ok tapped @e24 "Dark theme"
 
 MCP 服务器有 14 个工具：`devices`、`apps`、`snapshot`、`screenshot`、`tap`、`type`、`swipe`、`scroll`、`press`、`launch`、`wait`、`batch`、`clipboard` 和 `shell`。`snapshot`、`screenshot` 和 `wait` 被标记为只读，所以客户端可以不经权限提示就运行它们。`phonedriver` CLI 有同样的命令，供脚本和更喜欢用 shell 的智能体使用。你在终端里用过的设备，空闲 30 秒后会交给你的智能体。
 
-一次调用就能点击一整条路径：`tap {"target":"More options","then":["Settings","Dark theme"]}`。除非另有说明，模型每次只点一步，所以请把 skill 交给你的智能体（`phonedriver skill` 会打印它），它会告诉智能体发送路径。
+一次调用就能点击一整条路径：`tap {"target":"More options","then":["Settings","Dark theme"]}`。除非另有说明，模型每次只点一步，所以服务器的说明（instructions）会告诉模型发送路径。使用命令行的智能体可以从 skill 得到同样的内容（`phonedriver init --skill` 安装它，`phonedriver skill` 会打印它）。
 
 ## 限制
 

@@ -686,6 +686,9 @@ pub(crate) enum Verb {
         /// Stop after the agents; do not run the doctor checks.
         #[arg(long)]
         register_only: bool,
+        /// Also put the skill (what `phonedriver skill` prints) where each agent found reads a person's own skills.
+        #[arg(long)]
+        skill: bool,
     },
     /// Say what changed between two screenshots, as text.
     ///
@@ -796,9 +799,10 @@ pub fn run(cli: Cli) -> ExitCode {
         Verb::Init {
             dry_run,
             register_only,
-        } => crate::init::run(&socket::home(), dry_run, register_only),
+            skill,
+        } => crate::init::run(&socket::home(), dry_run, register_only, skill),
         Verb::Skill => {
-            print!("{}", include_str!("../../../SKILL.md"));
+            print!("{}", crate::init::SKILL);
             ExitCode::SUCCESS
         }
         Verb::Ios {

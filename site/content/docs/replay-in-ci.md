@@ -101,7 +101,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: ./gradlew assembleDebug
-      - uses: hridaya423/phonedriver@v0.1.7
+      - uses: hridaya423/phonedriver@v0.1.8
         with:
           app: app/build/outputs/apk/debug/app-debug.apk
           runs: e2e/*.steps

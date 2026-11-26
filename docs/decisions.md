@@ -2230,3 +2230,118 @@ Two failures of the GitHub Action's Android job, each read from its own run befo
 **Limits.** The agent runs were one app (Settings), three paths, two models, on Android; small counts that show the direction and no rate. Settings is the hard case, since `setting` competes for it; an app with no such tool was not run. The instructions are read when the client connects, so a path saved later in the session is known from the `launch` line only. A neighbouring path used as a way in is not prevented. `launch` with `path` over MCP takes no `screens`, `from` or `any_build`: `replay` of the file does. Not run on iOS.
 
 **Reopen if.** Agents invent path names again, or take paths that end beside their goal more often than they save calls.
+
+## D132. `setting open` shows the screen asked for, and takes the name an agent knows it by (2026-11-26)
+
+**Problem.** Two things, both found in agent runs and then on the emulator.
+
+(1) After one settings screen had been opened, `setting open` of another did nothing and answered `ok opened the settings screen <key>`. API 37 emulator, main at `ffc12302`: `setting open mobile_network_list` showed SIMs; `setting open power_usage_summary_screen`, `internet_settings` and `dark_ui_mode` after it each left SIMs in front (`topResumedActivity` stayed `SpaActivity`), with `no change after 3003ms` beside the `ok`. With Home pressed in between, the second open brought SIMs back and the reply said `new screen`.
+
+(2) An agent that has not run `find` names a screen by what it reads on the phone. In 118 `claude -p` runs on Settings tasks (25 November, `~/pd-h3-eval/out` and `~/pd-h4-eval/out` on the Mac mini), 22 of 56 `setting open` calls were refused. Ten of those passed the name of a saved path of that experiment, so they say little. Twelve were guesses of the screen's name or a setting's key: `SIMs`, `battery`, `system language`, `default apps`, `internet_settings/main_toggle_wifi`. The refusal said to run `find`, and the next call was `setting find` in 15 of the 22: two more model turns to reach a screen the first call had named.
+
+**Cause of (1).** The link is Settings' own, from its metadata: an intent for `LAUNCH_SETTINGS_PAGES` with the screen's key. Started as given while Settings has a task, `am start` prints `Warning: Activity not started, intent has been delivered to currently running top-most instance`, and the page on top ignores it. The same intent with `--activity-clear-task` opened Battery, then Internet, each time (by hand, same emulator).
+
+**Decision.**
+- The Android index keeps each screen's link with `launchFlags=0x10008000` (`FLAG_ACTIVITY_NEW_TASK | FLAG_ACTIVITY_CLEAR_TASK`) written into the intent (`crates/android/src/settings.rs` `fresh`). A link that carries flags of its own, and one that is no intent, is kept as it is. Nothing changes in the agent on the phone: `Intent.parseUri` reads the flags.
+- `open` takes, in this order: a screen's key; a setting's key, which opens the screen it sits on; `<screen key>/<anything>`, which opens that screen; and the title a screen shows, when one screen has it (`phonedriver_core::settings::SettingsIndex::named`). The title is the first sentence of the screen's description, compared without case or extra spaces. The reply names the screen by its key.
+- A word that names no screen is refused with up to four screens that can be opened and hold every word of it, a screen with that title first: `no settings screen has the key "default apps"; open one of: top_level_apps (Apps)` (`near`). `-`, `_` and `/` part words as a space does. When none holds it, the refusal points at `find` as before.
+
+**Evidence.** Tests first. `cargo test --locked -p phonedriver --test setting open_` before the change: `1 passed; 2 failed` (`left: "no settings screen has the key \"dark\"; `find` lists screens as `screen <key>`"`). `-p phonedriver-android --lib settings` with `fresh` returning its argument: `6 passed; 2 failed` (`left: "intent:#Intent;action=a.B;S.screen_key=k;end"`). After: 20 and 8 passed, and `-p phonedriver-core --lib settings` 11.
+
+Live, API 37 emulator on win-pc, daemon on the Mac mini, an empty home each run. The sequence Battery, Internet, Dark theme, SIMs, Battery: on main the first opened and the other four answered `no change`; on this build all five answered `new screen` and `topResumedActivity` was `PowerUsageSummaryActivity`, `NetworkProviderSettingsActivity`, `DarkThemeSettingsActivity`, `SpaActivity`, `PowerUsageSummaryActivity`. SIMs, Home, Battery: main showed SIMs again; this build showed Battery. By name: `setting open "SIMs"` and `"sims"` opened `mobile_network_list`, `"battery"` `power_usage_summary_screen`, `"internet"` `internet_settings`, `"internet_settings/main_toggle_wifi"` `internet_settings`; `"default apps"` and `"default-apps"` answered `open one of: top_level_apps (Apps)`; `"languages"` listed `api_language_and_region_settings`, `key_system_language_picker_page` and `spellchecker_language` first; `"nope-xyz"` pointed at `find`.
+
+**Rejected.** Opening the one screen that holds the words when there is only one: `default apps` holds one screen, Apps, which is the page above the one meant, so a single match is not the screen asked for. Clearing the task for every link `open` takes: a browser's task is the person's tabs. Starting Settings' page activity by component: the metadata gives a link, not a component, and the link is the part Android promises. A changed description for `setting` in the tool list: nothing an agent must know to make the first call changed.
+
+**Cost.** A settings screen opened by key no longer has the Settings pages that were under it: Back goes to where Settings was started from. One more clause in a refusal, at most four keys.
+
+**Limits.** One emulator image, Android 17 (the only version with settings by key). Titles are the device's English descriptions; on a phone in another language the description stays English, so a title read off the screen does not match. A screen whose description starts with a sentence that is no title ("Allows users to …") is found by key or by `near` only. The agent runs that showed the refusals were not run again on this build.
+
+**Reopen if.** A Settings version reads the clear-task flag as a reason to refuse the intent, or agents open the wrong screen by a title two builds use for different pages.
+
+## D133. A reply that only lost lines keeps its wait of up to 2 s (2026-11-26)
+
+**Question.** Since 7 November (`367103a3`) a reply whose diff only takes lines away waits up to 2 s (`CONTENT_WAIT`) for more to arrive, because a window caught while it opens looks exactly like that: the old lines are gone and the new ones are not in the tree yet. The price is paid by an action that really only removes something: a banner dismissed, a row deleted, a sheet closed. An audit of saved traces asked whether that price is worth paying.
+
+**Measured.** 1,902 actions in the daemon traces on the Mac mini (12 to 25 November, mostly debug builds): 43 spent 1.9 s or more in the phase that holds this wait. 37 of them were `press hide-keyboard` on 14 November, when the keyboard was a line of the screen; since the header carries the keyboard (`keyboard hidden`), that reply has no removed line. On main today, with a fake device and tokio's clock: `press hide-keyboard` answers in 350 ms with `render` 0 in its trace; a tap that removes a banner and its button and adds nothing answers in 2,350 ms with `render` 2,000; the same tap where one line also appears answers in 350 ms. Without the keyboard case that is 6 of 1,902 actions (three taps on `Dismiss`, a `back`, a launch and a typed text), about 12 s in 50 minutes of action time.
+
+**Decision.** The wait stays. A reply sent while a window is still opening shows a screen that is neither the old one nor the new one, and the agent's next call is a `snapshot`: one model turn, which costs seconds and, in a real session, tens of thousands of tokens re-read. A dismissal that waits costs 2 s and no turn. A replay and a batch already leave the wait when the next step's target is in place (D127).
+
+**Rejected, for now.** Telling the two cases apart by the window list (a window that is opening may be listed before its nodes are) or by whether the tapped element is among the lines that left: neither was observed on a device, and a rule made from a guess would be right on the fake only. Halving the wait: nothing measured says how long the tree lags an opening window on a slow phone.
+
+**Reopen if.** Someone records the device's own tree at short intervals across an opening dialog and across a dismissal and they differ in a way the daemon can read, or flows with many dismissals show up in real runs.
+
+## D134. The server's instructions say that a wrong guess in a `then` path costs one call (2026-11-26)
+
+**Question.** A phone job's tokens follow its model turns: on the nine-job benchmark of 10 November (27 runs, `docs/bench/jobs.json`), tokens are about 14,800 plus 5,600 a tool call (R² 0.88). In those transcripts 41 of 242 turns named a target the agent had already been shown and wrote nothing in between, so they could have gone with the call before them: 17% at most. Three ways to get there were tried before anything was kept.
+
+**Method.** `claude -p` on the subscription, `claude-sonnet-5-5`, Claude Code 2.1.330, the published harness's flags (`--strict-mcp-config`, `--tools ""`, 40 turns), on `Pixel_API_37` (the phone image, emulator-5554) with the agent and the daemon on the Mac mini. Three jobs of the benchmark, three runs an arm, arm order turned each round, each run reset and checked from the phone's own data by `jobs.py`. 36 runs, 36 passed. Scripts and transcripts: `~/pd-i1-eval` on the mini.
+
+| Arm | What changed | `then` calls (steps) | Turns: clock-settings | chrome-prefs | qa-shop | Median tokens: clock | chrome | shop |
+|---|---|---|---|---|---|---|---|---|
+| base | nothing | 3 (3) | 15, 15, 15 | 13, 13, 13 | 21, 27, 38 | 118,455 | 109,494 | 197,824 |
+| refs | `then` described as "texts or @refs … several controls on this screen", and the same in the instructions | 3 (5) | 15, 15, 15 | 13, 14, 14 | 20, 22, 29 | 119,023 | 109,961 | 157,000 |
+| skill | `SKILL.md` appended to the system prompt, so the agent has read all of it | 7 (10) | 13, 13, 14 | 12, 12, 13 | 24, 24, 25 | 156,547 | 154,741 | 288,912 |
+| kept | one clause added to the instructions (below) | 8 (12) | 14, 14, 15 | 11, 12, 14 | 23, 23, 26 | 118,187 | 90,263 | 185,943 |
+
+**Decision.** The sentence `A path of taps you can predict goes in one `tap` with `then`.` now ends `: name every step you expect, even on screens you have not seen; a missing text stops there and returns that screen, so a wrong guess costs one call.` It is the skill's own sentence. The instructions are 880 characters, up from 732. The tool list is unchanged.
+
+**Why this one.** It is the only arm that changed what agents did without costing more than it saved. With it an agent writes `{"target":"@e15","then":["Settings","Search engine"]}` where base writes `"then":["Settings"]` and taps again: 12 chained steps against 3, seven of eight chains reached their end, and the one that guessed a label wrong (`Always use secure connections`, which is a page further down) stopped at that step with the screen, as the sentence says. That is about one turn less on the two jobs that walk menus. The shop test has no path to predict and did not change; its run-to-run spread (21 to 38 turns on base) is larger than anything measured here.
+
+**Rejected.** (1) Telling agents that `then` takes @refs for several controls of one screen: no agent sent a ref in `then` in nine runs, one sent `"then": @e45`, which is not JSON, and turns did not move. Refs do work in `then`, and saying so did nothing. (2) Installing the skill from `init`, which this arm bounds from above (the agent cannot have read less of it): one or two turns fewer on two jobs, no clear change on the third, and 32 to 46% more tokens on every job, because 14,700 characters ride along on each turn. A client that loads a skill only when asked would pay less and gain less. The plugin still carries the skill for people who want it. (3) Raising the tool-list budget (D130) for more words on `then`: arm "refs" is those words.
+
+**Limits.** Nine runs an arm, one model, one emulator, three jobs; the counts show a direction, not a rate. Token medians of three runs move by more than the effect on two of three jobs. Haiku was not run. The bare harness re-reads about 5,600 tokens a turn; a real session re-reads 29,000 to 57,000 (118 and 7 runs measured on 25 and 14 November), where a saved turn is worth more and 148 characters less.
+
+**Reopen if.** Agents start guessing paths that fail more often than they land, or a client stops showing instructions to the model.
+
+## D135. `select` sets the Clock app's time picker, and a picker that is already open (2026-11-26)
+
+**Found.** In the agent runs for D136 every one of nine runs of the alarm job called `tap` with `select` and every call failed, on the build of this branch and the API 37 emulator. Two causes.
+
+1. Material Components' time picker, in its text input, lists the part being typed into twice at one place: a chip (`button "Hour 9 o'clock"`, checkable) and the text field over it (value `09`), both at 65.5, 260.6, 96 by 80. `slots` sorted the parts by x and kept the first of two at one place, which was the chip, so the hour was never typed: `the time picker showed no field to type into` (4 of 10 calls). The spike of 24 November set this picker; the tree it read is not kept, so what changed since is not known.
+2. The picker opens as soon as `Add alarm` is tapped, so in 5 of 10 calls the agent sent `{"target": "@e40", "select": "07:30"}` with `@e40` the picker's `OK`. `pick` tapped the target first: the alarm was saved at the time the picker happened to show (9:00 PM), and the error said `the picker is still open and nothing was confirmed`. The tenth call named a ref that had left the screen.
+
+**Decision.** (1) Where a field and a chip are at one place, the field is the part. (2) A target that is the button confirming a picker already on screen is not tapped first: the picker is set, read back, and then that button is tapped once. The reply says `set the open picker to 07:30, then tapped @e40 "OK"`.
+
+**Proof.** Red, `--test pickers`: `21 passed; 2 failed` (`the time picker showed no field to type into`; `picked 21:00` for 07:30). Green: 23 passed. Live on the emulator: `tap "Add alarm" --select 06:15` answered `ok tapped @e9 "Add alarm", set the picker to 06:15, then tapped @e65 "OK" · verified` and the list shows `Alarm Tomorrow 6:15 AM`; with the picker open, `tap "OK" --select 05:45` answered `ok set the open picker to 05:45, then tapped @e40 "OK" · verified` and the list shows `5:45 AM`. The alarm job again, three runs with no skill: 12, 12 and 13 turns and 99,957 to 101,506 tokens, from 19, 20 and 24 turns and 169,314 to 169,769; each run's check reads the alarm from the Clock app's own database.
+
+**Not done.** Any other target inside an open picker (its title, a mark of the face) is still tapped first; two calls did that to the title, which takes no tap, and the fix of cause 1 covers them. A tap that closes the picker by another button than the one that confirms is not detected.
+
+## D136. The skill is a third of its size, and `init` still does not install it (2026-11-26)
+
+**Question.** D134 found that the whole skill in the system prompt cost 32 to 46% more tokens for one or two turns. The owner asked whether a smaller skill would pay, and to compare with two public collections.
+
+**Compared.** Body size in characters, frontmatter left out. Matt Pocock's `skills` (39): median 3,440, three over 10,000, 112,770 characters in reference files that load when a pointer is followed. Cursor's `pstack` (59): median 1,077, two over 10,000, 103,927 in reference files, 58 of 59 loaded only when the person names them. phonedriver's: 14,691 in one file, larger than 97 of those 98. What they do that ours did not: a short entry file, detail one step away, and nothing in the entry file that a tool or another file already says.
+
+**What was cut.** phonedriver already has the lower steps: each tool's description and parameter notes, each error's hint, and `--help`. The old skill repeated them (the shell examples, the screenshot options, the files rules, what each error means, the verb list). The new one keeps what none of those say: that a call is a model turn, the ways to put more in one call, how to read six things a screen shows, the user's part, and three rare cases. 4,706 characters, 32% of the old. The description is unchanged, so what triggers it is unchanged.
+
+**Measured.** As in D134 (`claude -p`, Sonnet 5.5, the published harness's flags, `Pixel_API_37`), three runs an arm, 54 runs, all passed (12 more were refused at their first call because a daemon of my own still held the emulator, and were run again). Scripts and transcripts: `~/pd-i1-eval/evalrun2.sh` and `out2` on the Mac mini.
+
+| Skill | How the agent gets it | Jobs | Turns, sum | Tokens against no skill |
+|---|---|---|---|---|
+| old, 14,691 | appended to the system prompt | wiki-birthdate, alarm-gym | 66 against 78 | +41% |
+| new, first draft, 4,402 | appended | the same two | 76 against 78 | +21% |
+| new, first draft | appended | those two, clock-settings, chrome-prefs | 152 against 156 | +11% |
+| new, as committed, 4,706 | appended, on the build with D135 | wiki-birthdate, alarm-gym | 51 against 52 | +24% |
+| new, first draft | installed as a project skill, loaded by the `Skill` tool | clock-settings, wiki-birthdate | 58 against 61 | +8% |
+
+Installed, the agent opened the skill in 2 of 6 runs. In the appended arms a run in three (8 of 24) called a tool by its bare name, `tap`, was refused by the client and called again; no run without a skill and no run with the installed skill did. On the alarm job, runs without a skill called `devices` first in 6 of 6 (the harness names the device in its system prompt) and runs with one appended in 2 of 9; that call is a good part of the turns the old skill saved.
+
+**Decision.** The new skill replaces the old in `SKILL.md` and the plugin. `init` still does not install it: where a skill is installed the agent reads it a third of the time, and when it does it pays a turn and about 1,200 tokens on every later turn for nothing these jobs show. The server's instructions reach every MCP client with no call, and that is where a sentence that changes what agents do belongs (D131, D134).
+
+**Limits.** Three runs an arm; sums of 6 to 12 runs differ by less than the spread of one job. The harness re-reads about 5,600 tokens a turn, a real session 29,000 to 57,000, where 1,200 tokens are 2 to 4% of a turn. One model, one emulator. An agent that uses the command line with no MCP server has no instructions and no tool list, and for it the skill is the only guide: not measured.
+
+**Reopen if.** Someone measures command-line agents with and without the skill, or a job turns up that agents do in fewer turns only with it.
+
+## D137. `init --skill` installs the skill, and plain `init` does not (2026-11-26)
+
+**Question.** D136 measured that the skill beside the MCP server costs tokens and saves no turn. The owner still wanted `init` able to install it, and chose the opt-in of three offered: a flag, on by default, or nothing.
+
+**Decision.** `phonedriver init --skill` writes `SKILL.md` into `<skills>/phonedriver/` for each agent it found, and the agent's line ends with what became of it. Plain `init` writes none. The folders are the ones each agent's own documentation named for a person's skills on 26 November 2026: Claude Code `~/.claude/skills`; VS Code (Copilot) `~/.copilot/skills`; Codex, Cursor and Gemini CLI `~/.agents/skills`, which all three read, so the file is written once and the other lines say it is there.
+
+**Not overwritten.** A `SKILL.md` already there with other text is someone's edit or an older version's; it is left and the line says to delete it and run again. A new file is made only where nothing is (`create_new`), so a link someone put at that path is not followed (the rule of D105).
+
+**Rejected.** On by default: every phone job of every MCP user would carry it for nothing measured (D136). The agents' own folders for the three that share one (`~/.codex/skills`, `~/.cursor/skills`, `~/.gemini/skills`): three copies to keep in step where each agent documents the shared folder.
+
+**Limits.** Cursor also reads `~/.claude/skills`, so on a machine with Claude Code and Cursor it finds the skill twice under one name; what Cursor does with that was not tried. `CLAUDE_CONFIG_DIR` and `CODEX_HOME` are not read. No agent was run against a folder `init --skill` wrote: the tests check the files and the lines, and D136's installed runs used a project skill.
+
+**Reopen if.** A client changes its folder, or runs of command-line agents (idea 9 of the parked list) show the skill pays there, which would be a reason to print the hint in `init`'s output.

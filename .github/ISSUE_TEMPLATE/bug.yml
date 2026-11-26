@@ -1,0 +1,56 @@
+name: Bug report
+description: Something phonedriver did wrong, or a device it does not work with.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        A security problem goes to the Security tab, not here: see SECURITY.md.
+        Leave out phone numbers and Wi-Fi names, and replace a real phone's serial number with `XXXX` wherever a device id shows it.
+  - type: input
+    id: version
+    attributes:
+      label: phonedriver version
+      description: The output of `phonedriver --version`.
+      placeholder: phonedriver 0.1.7
+    validations:
+      required: true
+  - type: input
+    id: computer
+    attributes:
+      label: Your computer
+      description: Operating system and version.
+      placeholder: macOS 26.1, Windows 11, Ubuntu 24.04
+    validations:
+      required: true
+  - type: input
+    id: device
+    attributes:
+      label: The phone or emulator
+      description: Model and OS version. Say whether it is a real device, an emulator or a Simulator.
+      placeholder: Galaxy A53, Android 15 (real) / Pixel emulator, API 37 / iPhone 17 Simulator, iOS 26.5
+    validations:
+      required: true
+  - type: input
+    id: client
+    attributes:
+      label: How you ran it
+      description: The agent and its version, or "command line".
+      placeholder: Claude Code 2.1.330 over MCP
+  - type: textarea
+    id: what
+    attributes:
+      label: What you did, what happened, and what you expected
+      description: The call or command, the reply or error as printed, and what should have happened.
+    validations:
+      required: true
+  - type: textarea
+    id: doctor
+    attributes:
+      label: Output of `phonedriver doctor`
+      render: text
+  - type: textarea
+    id: log
+    attributes:
+      label: Anything else
+      description: The last lines of `daemon.log` in phonedriver's home folder often show the cause. Read them before you paste them.

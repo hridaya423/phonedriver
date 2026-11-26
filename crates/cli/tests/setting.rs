@@ -266,6 +266,58 @@ async fn open_opens_the_screens_link_and_returns_the_screen() {
 }
 
 #[tokio::test(start_paused = true)]
+async fn open_takes_the_title_a_screen_shows_or_the_key_of_a_setting_on_it() {
+    for name in [
+        "Dark theme",
+        "dark theme",
+        DARK,
+        "dark_ui_mode/no_such_setting",
+    ] {
+        let (d, fake, _home) = setup("fake:1", true);
+        let r = ok(&d, json!({"open": name})).await;
+        assert!(
+            fake.calls()
+                .contains(&Call::OpenUrl(Url(DARK_LINK.into()), None)),
+            "{name}: {:?}",
+            fake.calls()
+        );
+        assert_eq!(
+            r["summary"], "opened the settings screen dark_ui_mode",
+            "{name}"
+        );
+    }
+    let (d, fake, _home) = setup("fake:1", true);
+    let e = err(&d, json!({"open": "NFC"})).await;
+    assert!(e.message.contains("cannot be opened"), "{}", e.message);
+    assert!(
+        !fake.calls().iter().any(|c| matches!(c, Call::OpenUrl(..))),
+        "{:?}",
+        fake.calls()
+    );
+}
+
+#[tokio::test(start_paused = true)]
+async fn open_with_a_word_no_screen_is_named_by_answers_with_the_screens_that_hold_it() {
+    let (d, fake, _home) = setup("fake:1", true);
+    let e = err(&d, json!({"open": "dark"})).await;
+    assert_eq!(e.code, -32025);
+    assert_eq!(
+        e.message,
+        "no settings screen has the key \"dark\"; open one of: dark_ui_mode (Dark theme)"
+    );
+    let e = err(&d, json!({"open": "nope"})).await;
+    assert_eq!(
+        e.message,
+        "no settings screen has the key \"nope\"; `find` lists screens as `screen <key>`"
+    );
+    assert!(
+        !fake.calls().iter().any(|c| matches!(c, Call::OpenUrl(..))),
+        "{:?}",
+        fake.calls()
+    );
+}
+
+#[tokio::test(start_paused = true)]
 async fn on_a_physical_device_a_setting_the_user_must_confirm_needs_force() {
     let (d, fake, _home) = setup("android:R5CT123", true);
     let e = err(&d, json!({"key": NFC, "value": "false"})).await;

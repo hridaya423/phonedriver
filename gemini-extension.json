@@ -1,11 +1,11 @@
 {
   "name": "phonedriver",
-  "version": "0.1.7",
+  "version": "0.1.8",
   "description": "Let Gemini CLI see and control Android phones and iPhones: it reads the screen as text and taps, types and swipes.",
   "mcpServers": {
     "phonedriver": {
       "command": "npx",
-      "args": ["-y", "phonedriver@0.1.7", "mcp"]
+      "args": ["-y", "phonedriver@0.1.8", "mcp"]
     }
   }
 }

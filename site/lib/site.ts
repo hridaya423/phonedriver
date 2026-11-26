@@ -4,7 +4,7 @@ export const SITE_URL = (process.env.PHONEDRIVER_SITE_URL ?? "https://phonedrive
 export const REPO = "https://github.com/hridaya423/phonedriver";
 export const SPONSORS = "https://github.com/sponsors/hridaya423";
 export const GLAMA = "https://glama.ai/mcp/servers/hridaya423/phonedriver";
-export const VERSION = "0.1.7";
+export const VERSION = "0.1.8";
 export const BOOT =
   "Set up phonedriver so you can use my phone. Run `npx -y phonedriver init`, which adds its MCP server to the agents on this machine and checks my setup, and help me fix what it flags. Then run `npx -y phonedriver skill`, follow it, and show me what is on my phone's screen.";
 export const TODAY = "2026-11-20";
