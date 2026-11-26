@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# Boots the newest iOS runtime's first iPhone in the background of the job. A first boot sets the device up for
-# about four minutes on a 3-core runner, so its data is kept in $RUNNER_TEMP/simulator for the cache and put back
-# before later boots. A device booted from kept data settles for minutes after it boots and slowed a build beside it
-# from 64 s to 237 s, so the job boots it after the build. Writes $RUNNER_TEMP/udid when it has chosen and $RUNNER_TEMP/booted when it is done.
+# Boots the newest iOS runtime's first iPhone. A device from a fresh image sets itself up for minutes after its first
+# boot (widgets, health, push and the like grow its data from 1.2 GB to 1.9 GB), so the job keeps the data of a
+# device that has run the replay and puts it back here before later boots. Writes $RUNNER_TEMP/udid when it has
+# chosen and $RUNNER_TEMP/booted when it is done.
 set -euo pipefail
 
 kept="$RUNNER_TEMP/simulator"
@@ -18,13 +18,6 @@ if [ -d "$kept/$udid/data" ]; then
   rm -rf "$device/data"
   cp -c -R "$kept/$udid/data" "$device/data"
   echo "restored the device's data: $(du -sh "$device/data" | cut -f1)"
-  xcrun simctl bootstatus "$udid" -b
-else
-  xcrun simctl bootstatus "$udid" -b
-  xcrun simctl shutdown "$udid"
-  mkdir -p "$kept/$udid"
-  cp -c -R "$device/data" "$kept/$udid/data"
-  echo "kept the device's data: $(du -sh "$kept/$udid/data" | cut -f1)"
-  xcrun simctl bootstatus "$udid" -b
 fi
+xcrun simctl bootstatus "$udid" -b
 touch "$RUNNER_TEMP/booted"

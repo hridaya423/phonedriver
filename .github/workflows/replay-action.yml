@@ -100,7 +100,7 @@ jobs:
         id: simulator
         with:
           path: ${{ runner.temp }}/simulator
-          key: simulator-${{ steps.image.outputs.image }}
+          key: simulator-v2-${{ steps.image.outputs.image }}
       - name: Boot a Simulator while phonedriver builds
         if: steps.simulator.outputs.cache-hit != 'true'
         run: |
@@ -127,11 +127,6 @@ jobs:
             exit 1
           fi
           echo "udid=$(cat "$RUNNER_TEMP/udid")" >> "$GITHUB_OUTPUT"
-      - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        if: steps.simulator.outputs.cache-hit != 'true'
-        with:
-          path: ${{ runner.temp }}/simulator
-          key: simulator-${{ steps.image.outputs.image }}
       - uses: ./
         with:
           platform: ios
@@ -142,6 +137,20 @@ jobs:
       - name: The runner's log
         if: always()
         run: tail -n 60 ~/.phonedriver/runner/*.log
+      - name: Keep the Simulator's data for later boots
+        if: steps.simulator.outputs.cache-hit != 'true'
+        env:
+          UDID: ${{ steps.booted.outputs.udid }}
+        run: |
+          xcrun simctl shutdown "$UDID"
+          mkdir -p "$RUNNER_TEMP/simulator/$UDID"
+          cp -c -R "$HOME/Library/Developer/CoreSimulator/Devices/$UDID/data" "$RUNNER_TEMP/simulator/$UDID/data"
+          echo "kept the device's data: $(du -sh "$RUNNER_TEMP/simulator/$UDID/data" | cut -f1)"
+      - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        if: steps.simulator.outputs.cache-hit != 'true'
+        with:
+          path: ${{ runner.temp }}/simulator
+          key: simulator-v2-${{ steps.image.outputs.image }}
       - name: Diagnose the settle
         if: always()
         run: |
