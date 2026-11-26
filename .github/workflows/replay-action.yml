@@ -2,9 +2,9 @@ name: replay action
 on:
   push:
     branches: [main]
-    paths: [action.yml, .github/workflows/replay-action.yml, "testbeds/**", "crates/**", "android-agent/**", "ios-runner/**", Cargo.toml, Cargo.lock]
+    paths: [action.yml, "action/**", .github/workflows/replay-action.yml, "testbeds/**", "crates/**", "android-agent/**", "ios-runner/**", Cargo.toml, Cargo.lock]
   pull_request:
-    paths: [action.yml, .github/workflows/replay-action.yml, "testbeds/**", "crates/**", "android-agent/**", "ios-runner/**", Cargo.toml, Cargo.lock]
+    paths: [action.yml, "action/**", .github/workflows/replay-action.yml, "testbeds/**", "crates/**", "android-agent/**", "ios-runner/**", Cargo.toml, Cargo.lock]
   workflow_dispatch:
 permissions:
   contents: read
@@ -21,6 +21,10 @@ jobs:
       - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
         with:
           toolchain: stable
+      - name: Start an emulator while phonedriver builds
+        env:
+          API: "35"
+        run: bash action/emulator.sh start
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
@@ -77,15 +81,19 @@ jobs:
       - name: Boot a Simulator while phonedriver builds
         id: sim
         run: |
+          echo "image=$ImageOS-$ImageVersion" >> "$GITHUB_OUTPUT"
+          cat > "$RUNNER_TEMP/boot.sh" <<'SH'
           set -euo pipefail
           udid=$(xcrun simctl list devices available -j | jq -r '
             .devices | to_entries
             | map(select(.key | test("SimRuntime\\.iOS-")))
             | sort_by(.key | capture("iOS-(?<v>[0-9-]+)$").v | split("-") | map(tonumber))
             | reverse | map(.value[] | select(.name | startswith("iPhone"))) | .[0].udid')
-          echo "udid=$udid" >> "$GITHUB_OUTPUT"
-          echo "image=$ImageOS-$ImageVersion" >> "$GITHUB_OUTPUT"
-          nohup xcrun simctl bootstatus "$udid" -b > "$RUNNER_TEMP/boot.log" 2>&1 &
+          echo "$udid" > "$RUNNER_TEMP/udid.tmp"
+          mv "$RUNNER_TEMP/udid.tmp" "$RUNNER_TEMP/udid"
+          xcrun simctl bootstatus "$udid" -b
+          SH
+          nohup bash "$RUNNER_TEMP/boot.sh" < /dev/null > "$RUNNER_TEMP/boot.log" 2>&1 &
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
@@ -93,15 +101,25 @@ jobs:
           key: ios-runner-${{ steps.sim.outputs.image }}-${{ hashFiles('ios-runner/**') }}
       - run: cargo build --release --locked -p phonedriver
       - name: Wait for the Simulator to finish booting
-        env:
-          UDID: ${{ steps.sim.outputs.udid }}
+        id: booted
         run: |
-          xcrun simctl bootstatus "$UDID"
+          for _ in $(seq 600); do
+            [ -s "$RUNNER_TEMP/udid" ] && break
+            sleep 0.5
+          done
+          if [ ! -s "$RUNNER_TEMP/udid" ]; then
+            echo "::error::no iPhone Simulator was found to boot"
+            cat "$RUNNER_TEMP/boot.log"
+            exit 1
+          fi
+          udid=$(cat "$RUNNER_TEMP/udid")
+          xcrun simctl bootstatus "$udid"
           cat "$RUNNER_TEMP/boot.log"
+          echo "udid=$udid" >> "$GITHUB_OUTPUT"
       - uses: ./
         with:
           platform: ios
-          device: ${{ steps.sim.outputs.udid }}
+          device: ${{ steps.booted.outputs.udid }}
           binary: target/release/phonedriver
           runs: testbeds/ios/runs/*.steps
           artifact: replay-ios

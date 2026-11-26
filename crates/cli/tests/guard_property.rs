@@ -379,11 +379,14 @@ fn version(mrtr: bool) -> ProtocolVersion {
     }
 }
 
+const SHARDS: u32 = 4;
+
 fn config(default_cases: u32) -> ProptestConfig {
     let mut c = ProptestConfig::default();
     if std::env::var("PROPTEST_CASES").is_err() {
         c.cases = default_cases;
     }
+    c.cases = c.cases.div_ceil(SHARDS);
     c.failure_persistence = None;
     c.max_shrink_iters = 400;
     c.max_shrink_time = 40_000;
@@ -571,17 +574,27 @@ async fn all_at_once(scenarios: Vec<Scenario>) -> Result<(), String> {
     Ok(())
 }
 
+fn guarded(scenarios: Vec<Scenario>) -> Result<(), TestCaseError> {
+    let outcome = RT.block_on(all_at_once(scenarios));
+    report(
+        &SESSIONS,
+        &["scenarios", "calls", "prompts", "device inputs"],
+    );
+    prop_assert!(outcome.is_ok(), "{}", outcome.unwrap_err());
+    Ok(())
+}
+
 proptest! {
     #![proptest_config(config(12))]
 
     #[test]
-    fn a_guarded_step_reaches_the_device_only_after_the_humans_answer(
-        scenarios in proptest::collection::vec(scenario(), 1..=8),
-    ) {
-        let outcome = RT.block_on(all_at_once(scenarios));
-        report(&SESSIONS, &["scenarios", "calls", "prompts", "device inputs"]);
-        prop_assert!(outcome.is_ok(), "{}", outcome.unwrap_err());
-    }
+    fn a_guarded_step_reaches_the_device_only_after_the_humans_answer_1(s in proptest::collection::vec(scenario(), 1..=8)) { guarded(s)? }
+    #[test]
+    fn a_guarded_step_reaches_the_device_only_after_the_humans_answer_2(s in proptest::collection::vec(scenario(), 1..=8)) { guarded(s)? }
+    #[test]
+    fn a_guarded_step_reaches_the_device_only_after_the_humans_answer_3(s in proptest::collection::vec(scenario(), 1..=8)) { guarded(s)? }
+    #[test]
+    fn a_guarded_step_reaches_the_device_only_after_the_humans_answer_4(s in proptest::collection::vec(scenario(), 1..=8)) { guarded(s)? }
 }
 
 struct Pending {
@@ -851,25 +864,49 @@ async fn all_retries_at_once(scenarios: Vec<Retries>) -> Result<(), String> {
     Ok(())
 }
 
+fn retried(
+    scenarios: Vec<(Vec<Category>, Vec<Item>, Vec<Op>)>,
+    counted: bool,
+) -> Result<(), TestCaseError> {
+    let outcome = RT.block_on(all_retries_at_once(scenarios));
+    if counted {
+        report(
+            &RETRIES,
+            &[
+                "scenarios",
+                "ops",
+                "fresh questions",
+                "exact resumes",
+                "resumes lost",
+                "answers with no question",
+                "refused answers",
+            ],
+        );
+    }
+    prop_assert!(outcome.is_ok(), "{}", outcome.unwrap_err());
+    Ok(())
+}
+
 proptest! {
     #![proptest_config(config(10))]
 
     #[test]
-    fn a_stale_or_mismatched_retry_of_a_batch_never_taps_a_guarded_step(
-        scenarios in proptest::collection::vec(pool_and_ops(true), 1..=8),
-    ) {
-        let outcome = RT.block_on(all_retries_at_once(scenarios));
-        report(&RETRIES, &["scenarios", "ops", "fresh questions", "exact resumes", "resumes lost", "answers with no question", "refused answers"]);
-        prop_assert!(outcome.is_ok(), "{}", outcome.unwrap_err());
-    }
+    fn a_stale_or_mismatched_retry_of_a_batch_never_taps_a_guarded_step_1(s in proptest::collection::vec(pool_and_ops(true), 1..=8)) { retried(s, true)? }
+    #[test]
+    fn a_stale_or_mismatched_retry_of_a_batch_never_taps_a_guarded_step_2(s in proptest::collection::vec(pool_and_ops(true), 1..=8)) { retried(s, true)? }
+    #[test]
+    fn a_stale_or_mismatched_retry_of_a_batch_never_taps_a_guarded_step_3(s in proptest::collection::vec(pool_and_ops(true), 1..=8)) { retried(s, true)? }
+    #[test]
+    fn a_stale_or_mismatched_retry_of_a_batch_never_taps_a_guarded_step_4(s in proptest::collection::vec(pool_and_ops(true), 1..=8)) { retried(s, true)? }
 
     #[test]
-    fn a_stale_or_mismatched_retry_of_a_tap_or_type_never_taps_a_guarded_step(
-        scenarios in proptest::collection::vec(pool_and_ops(false), 1..=8),
-    ) {
-        let outcome = RT.block_on(all_retries_at_once(scenarios));
-        prop_assert!(outcome.is_ok(), "{}", outcome.unwrap_err());
-    }
+    fn a_stale_or_mismatched_retry_of_a_tap_or_type_never_taps_a_guarded_step_1(s in proptest::collection::vec(pool_and_ops(false), 1..=8)) { retried(s, false)? }
+    #[test]
+    fn a_stale_or_mismatched_retry_of_a_tap_or_type_never_taps_a_guarded_step_2(s in proptest::collection::vec(pool_and_ops(false), 1..=8)) { retried(s, false)? }
+    #[test]
+    fn a_stale_or_mismatched_retry_of_a_tap_or_type_never_taps_a_guarded_step_3(s in proptest::collection::vec(pool_and_ops(false), 1..=8)) { retried(s, false)? }
+    #[test]
+    fn a_stale_or_mismatched_retry_of_a_tap_or_type_never_taps_a_guarded_step_4(s in proptest::collection::vec(pool_and_ops(false), 1..=8)) { retried(s, false)? }
 }
 
 async fn once(w: &World, item: &Item, answer: Option<Ans>) -> CallToolResponse {

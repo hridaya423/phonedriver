@@ -2,7 +2,20 @@ name: ci
 on:
   push:
     branches: [main]
+    paths-ignore: &notes
+      - "site/**"
+      - "design/**"
+      - ".github/assets/**"
+      - "docs/**"
+      - "!docs/reference.md"
+      - "progress.md"
+      - "CHANGELOG.md"
+      - "README*.md"
+      - "SECURITY.md"
+      - "LICENSE"
+      - "NOTICE"
   pull_request:
+    paths-ignore: *notes
 permissions:
   contents: read
 concurrency:
@@ -12,7 +25,7 @@ env:
   CARGO_TERM_COLOR: always
   CARGO_PROFILE_DEV_DEBUG: line-tables-only
 jobs:
-  test:
+  lint:
     strategy:
       fail-fast: false
       matrix:
@@ -32,9 +45,6 @@ jobs:
         with:
           toolchain: stable
           components: rustfmt, clippy
-      - uses: taiki-e/install-action@cfdb7ed4ccc7c7dce37759eae89dc5674b469b39 # v2.90.3
-        with:
-          tool: nextest@0.9
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           workspaces: ${{ env.DEV_DRIVE_WORKSPACE || '.' }}
@@ -55,6 +65,39 @@ jobs:
       - name: Lint without the Android feature
         if: runner.os == 'Linux'
         run: cargo clippy --locked -p phonedriver --no-default-features --all-targets -- -D warnings
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Move the workspace to a Dev Drive
+        if: runner.os == 'Windows'
+        uses: samypr100/setup-dev-drive@562171fe8df7401fdf582d766cd3b6ab80d5b1a0 # v4.1.0
+        with:
+          drive-size: 12GB
+          workspace-copy: true
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+        with:
+          toolchain: stable
+      - uses: taiki-e/install-action@cfdb7ed4ccc7c7dce37759eae89dc5674b469b39 # v2.90.3
+        with:
+          tool: nextest@0.9
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          workspaces: ${{ env.DEV_DRIVE_WORKSPACE || '.' }}
+      - name: Build the Android agent jar
+        shell: bash
+        working-directory: ${{ env.DEV_DRIVE_WORKSPACE || github.workspace }}
+        env:
+          ROOT: ${{ env.DEV_DRIVE_WORKSPACE || github.workspace }}
+        run: |
+          bash android-agent/build.sh
+          echo "PHONEDRIVER_AGENT_JAR=$ROOT/android-agent/build/phonedriver-agent.jar" >> "$GITHUB_ENV"
       - name: Test
         working-directory: ${{ env.DEV_DRIVE_WORKSPACE || github.workspace }}
         run: cargo nextest run --locked --workspace --profile ci
