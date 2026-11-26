@@ -2257,3 +2257,15 @@ Live, API 37 emulator on win-pc, daemon on the Mac mini, an empty home each run.
 **Limits.** One emulator image, Android 17 (the only version with settings by key). Titles are the device's English descriptions; on a phone in another language the description stays English, so a title read off the screen does not match. A screen whose description starts with a sentence that is no title ("Allows users to …") is found by key or by `near` only. The agent runs that showed the refusals were not run again on this build.
 
 **Reopen if.** A Settings version reads the clear-task flag as a reason to refuse the intent, or agents open the wrong screen by a title two builds use for different pages.
+
+## D133. A reply that only lost lines keeps its wait of up to 2 s (2026-11-26)
+
+**Question.** Since 7 November (`367103a3`) a reply whose diff only takes lines away waits up to 2 s (`CONTENT_WAIT`) for more to arrive, because a window caught while it opens looks exactly like that: the old lines are gone and the new ones are not in the tree yet. The price is paid by an action that really only removes something: a banner dismissed, a row deleted, a sheet closed. An audit of saved traces asked whether that price is worth paying.
+
+**Measured.** 1,902 actions in the daemon traces on the Mac mini (12 to 25 November, mostly debug builds): 43 spent 1.9 s or more in the phase that holds this wait. 37 of them were `press hide-keyboard` on 14 November, when the keyboard was a line of the screen; since the header carries the keyboard (`keyboard hidden`), that reply has no removed line. On main today, with a fake device and tokio's clock: `press hide-keyboard` answers in 350 ms with `render` 0 in its trace; a tap that removes a banner and its button and adds nothing answers in 2,350 ms with `render` 2,000; the same tap where one line also appears answers in 350 ms. Without the keyboard case that is 6 of 1,902 actions (three taps on `Dismiss`, a `back`, a launch and a typed text), about 12 s in 50 minutes of action time.
+
+**Decision.** The wait stays. A reply sent while a window is still opening shows a screen that is neither the old one nor the new one, and the agent's next call is a `snapshot`: one model turn, which costs seconds and, in a real session, tens of thousands of tokens re-read. A dismissal that waits costs 2 s and no turn. A replay and a batch already leave the wait when the next step's target is in place (D127).
+
+**Rejected, for now.** Telling the two cases apart by the window list (a window that is opening may be listed before its nodes are) or by whether the tapped element is among the lines that left: neither was observed on a device, and a rule made from a guess would be right on the fake only. Halving the wait: nothing measured says how long the tree lags an opening window on a slow phone.
+
+**Reopen if.** Someone records the device's own tree at short intervals across an opening dialog and across a dismissal and they differ in a way the daemon can read, or flows with many dismissals show up in real runs.
