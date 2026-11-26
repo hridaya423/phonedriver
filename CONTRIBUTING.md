@@ -6,6 +6,7 @@ Bug reports, test results from phones I don't own, and pull requests are all wel
 
 - **A bug or a device that does not work:** [open an issue](https://github.com/hridaya423/phonedriver/issues/new/choose). The form asks for `phonedriver doctor`'s output, which answers most of my first questions.
 - **A security problem:** report it in private, as [SECURITY.md](SECURITY.md) says. Do not open a public issue.
+- **Someone's behaviour:** the [code of conduct](CODE_OF_CONDUCT.md) says what is expected here and where to write.
 - **A question, or something your agent did on a phone:** [Discussions](https://github.com/hridaya423/phonedriver/discussions).
 - **An idea:** an issue is fine. Say what you were doing when you wanted it. A proposal that comes with a measurement, as [#41](https://github.com/hridaya423/phonedriver/issues/41) and [#52](https://github.com/hridaya423/phonedriver/issues/52) did, gets built faster.
 
