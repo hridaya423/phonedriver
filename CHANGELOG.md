@@ -2,7 +2,11 @@
 
 Every release of phonedriver, newest first. Binaries and checksums for each version are on [GitHub Releases](https://github.com/hridaya423/phonedriver/releases).
 
-## Unreleased
+## 0.1.8
+
+Released 26 November 2026.
+
+Fewer calls for the same job. An agent can read a value in the middle of a batch, read a whole list in one call, set a date or time picker, move files to and from the phone, and go down a saved path as it opens an app. Most of it came from issues #41 and #52. It also fixes `setting open` on Android 17 and `select` on the Clock app's time picker.
 
 - **`init --skill` installs the skill** (D137): for each agent it finds, `phonedriver init --skill` writes `SKILL.md` where that agent reads a person's own skills (`~/.claude/skills`, `~/.copilot/skills`, and `~/.agents/skills` for Codex, Cursor and Gemini CLI) and says so on the agent's line. A file already there with other text is left alone. Plain `init` is unchanged.
 - **Fixed: `tap` with `select` on the Clock app's time picker** (Android, D135): it answered `the time picker showed no field to type into`, because Material Components draws the hour's text field over a chip at the same place and the chip was taken for it. And `select` sent to the `OK` of a picker that was already open tapped `OK` first, which saved the time the picker happened to show and then said nothing was confirmed; now the picker is set and read back before that button is tapped. Agents met one or the other in 9 of 9 runs of an alarm job; with the fix the job takes 12 or 13 turns, down from 19 to 24.

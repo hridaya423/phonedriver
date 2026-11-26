@@ -3976,3 +3976,10 @@ The owner asked for an audit, then for each finding to be proven real before any
 - **Whole run** (Mac mini, `ulimit -n 4096`): `cargo test --locked --no-fail-fast -p phonedriver -p phonedriver-core -p phonedriver-android`: 53 targets, 1266 passed, 0 failed; `cargo fmt --all --check` exit 0; `cargo clippy --locked --workspace --all-targets -- -D warnings` exit 0.
 - **Not done**: no agent was started against a folder this wrote (Cursor with the skill in two folders it reads is untried); Windows was not run (`tests/init.rs` is `cfg(unix)`); the three translated READMEs still carry the old sentence about the skill.
 - **Left as found**: the emulator is off, the tunnel closed, `~/pd-i1/target` cleaned, test daemons stopped.
+
+## 2026-11-26 (night): 0.1.8
+
+- **Asked**: the translated READMEs brought in step, a code of conduct with an address to write to, and the release.
+- **Changed**: the sentence about the skill in `README.ja.md`, `README.ko.md` and `README.zh-CN.md`; `CODE_OF_CONDUCT.md` (Contributor Covenant 2.1, fetched from contributor-covenant.org, with the contact filled in) and a line to it in `CONTRIBUTING.md`; the version in the 20 files the 0.1.7 release changed, and `## 0.1.8` over what was `## Unreleased`. The branch is `release/0.1.8`, the commits of `improve/audit-fixes` rebased on `origin/main` 877dc060.
+- **Whole run** on the release tree (Mac mini, `ulimit -n 4096`): `cargo test --locked --no-fail-fast -p phonedriver -p phonedriver-core -p phonedriver-android`: 53 targets, 1266 passed, 0 failed; `cargo fmt --all --check` exit 0; `cargo clippy --locked --workspace --all-targets -- -D warnings` exit 0; `phonedriver --version`: `phonedriver 0.1.8`. `node --test packaging/test/plugin.test.js`: 12 pass.
+- **Not run before the push**: CI's own stable toolchain and Windows; the pull request's checks are that run. iOS tests and a physical phone, as before.

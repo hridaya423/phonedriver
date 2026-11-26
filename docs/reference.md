@@ -75,7 +75,7 @@ That binary has no Android support (`phonedriver doctor` skips the Android check
 
 ```console
 $ target/release/phonedriver version
-phonedriver 0.1.7
+phonedriver 0.1.8
 ```
 
 To use a binary you built instead of the npm package, register it with your client by its full path: `claude mcp add phonedriver -- "$PWD/target/release/phonedriver" mcp`.
@@ -695,7 +695,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: ./gradlew assembleDebug
-      - uses: hridaya423/phonedriver@v0.1.7
+      - uses: hridaya423/phonedriver@v0.1.8
         with:
           app: app/build/outputs/apk/debug/app-debug.apk
           runs: e2e/*.steps
