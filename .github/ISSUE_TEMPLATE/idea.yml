@@ -1,0 +1,23 @@
+name: Idea
+description: Something phonedriver should do, or do differently.
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: doing
+    attributes:
+      label: What were you doing when you wanted this?
+      description: The job your agent or you were on, and where it got stuck or took too many steps.
+    validations:
+      required: true
+  - type: textarea
+    id: want
+    attributes:
+      label: What should happen instead?
+      description: A call and the reply you would like to see is the clearest way to say it.
+    validations:
+      required: true
+  - type: textarea
+    id: measured
+    attributes:
+      label: Anything you measured
+      description: Calls, seconds or tokens, with and without a workaround. Optional, and it moves an idea up the list.
