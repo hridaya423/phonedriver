@@ -109,7 +109,7 @@ jobs:
         with:
           path: ~/.phonedriver/runner/*/dd/Build/Products
           key: ios-runner-${{ steps.sim.outputs.image }}-${{ hashFiles('ios-runner/**') }}
-      - run: cargo build --locked -p phonedriver --config 'profile.dev.package."*".opt-level=3'
+      - run: cargo build --locked -p phonedriver --config 'profile.dev.package."*".opt-level=3' --config 'profile.dev.package.phonedriver.opt-level=0'
       - name: Wait for the Simulator to finish booting
         id: booted
         run: |
@@ -133,3 +133,6 @@ jobs:
           binary: target/debug/phonedriver
           runs: testbeds/ios/runs/*.steps
           artifact: replay-ios
+      - name: The runner's log
+        if: always()
+        run: tail -n 60 ~/.phonedriver/runner/*.log
