@@ -207,3 +207,122 @@ fn init_ends_with_the_doctor_checks() {
     let out = m.out(&[]);
     assert!(out.contains("adb server"), "{out}");
 }
+
+fn skill() -> String {
+    fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/../../SKILL.md")).unwrap()
+}
+
+const CLAUDE_SKILL: &str = ".claude/skills/phonedriver/SKILL.md";
+const SHARED_SKILL: &str = ".agents/skills/phonedriver/SKILL.md";
+const COPILOT_SKILL: &str = ".copilot/skills/phonedriver/SKILL.md";
+
+#[test]
+fn init_with_skill_writes_the_skill_where_each_agent_found_reads_a_persons_own() {
+    let m = Machine::new().with_every_agent();
+    let out = m.out(&["--register-only", "--skill"]);
+    assert_eq!(fs::read_to_string(m.path(CLAUDE_SKILL)).unwrap(), skill());
+    assert_eq!(fs::read_to_string(m.path(SHARED_SKILL)).unwrap(), skill());
+    assert!(!m.path(".copilot").exists(), "VS Code was not found");
+    let line = |agent: &str| {
+        out.lines()
+            .find(|l| l.starts_with(agent))
+            .unwrap_or_else(|| panic!("no line for {agent} in:\n{out}"))
+            .to_string()
+    };
+    assert!(line("Claude Code").contains("added"), "{out}");
+    assert!(
+        line("Claude Code").ends_with(&format!(
+            "· skill written to {}",
+            m.path(CLAUDE_SKILL).display()
+        )),
+        "{out}"
+    );
+    assert!(
+        line("Codex").ends_with(&format!(
+            "· skill written to {}",
+            m.path(SHARED_SKILL).display()
+        )),
+        "{out}"
+    );
+    for agent in ["Cursor", "Gemini CLI"] {
+        assert!(
+            line(agent).ends_with(&format!(
+                "· skill already at {}",
+                m.path(SHARED_SKILL).display()
+            )),
+            "Codex, Cursor and Gemini CLI read one folder: {out}"
+        );
+    }
+    assert_eq!(line("VS Code"), "VS Code      not found");
+}
+
+#[test]
+fn vs_code_gets_the_skill_in_the_folder_copilot_reads() {
+    let m = Machine::new();
+    for user in ["Library/Application Support/Code/User", ".config/Code/User"] {
+        fs::create_dir_all(m.path(user)).unwrap();
+    }
+    let out = m.out(&["--register-only", "--skill"]);
+    assert_eq!(
+        fs::read_to_string(m.path(COPILOT_SKILL)).unwrap(),
+        skill(),
+        "{out}"
+    );
+    assert!(!m.path(".claude").exists() && !m.path(".agents").exists());
+}
+
+#[test]
+fn init_without_skill_writes_no_skill() {
+    let m = Machine::new().with_every_agent();
+    let out = m.out(&["--register-only"]);
+    assert!(!m.path(".claude").exists() && !m.path(".agents").exists());
+    assert!(!out.contains("skill"), "{out}");
+}
+
+#[test]
+fn a_skill_file_that_differs_is_left_as_it_is_and_the_line_says_so() {
+    let m = Machine::new().with_every_agent();
+    fs::create_dir_all(m.path(CLAUDE_SKILL).parent().unwrap()).unwrap();
+    fs::write(m.path(CLAUDE_SKILL), "mine\n").unwrap();
+    let out = m.out(&["--register-only", "--skill"]);
+    assert_eq!(fs::read_to_string(m.path(CLAUDE_SKILL)).unwrap(), "mine\n");
+    assert!(
+        out.contains(&format!(
+            "· skill not changed: {} is not this version's; delete it and run `init --skill` again to replace it",
+            m.path(CLAUDE_SKILL).display()
+        )),
+        "{out}"
+    );
+    assert_eq!(fs::read_to_string(m.path(SHARED_SKILL)).unwrap(), skill());
+}
+
+#[test]
+fn a_dry_run_with_skill_writes_nothing_and_a_second_run_finds_the_skill_there() {
+    let m = Machine::new().with_every_agent();
+    let out = m.out(&["--register-only", "--skill", "--dry-run"]);
+    assert!(!m.path(".claude").exists() && !m.path(".agents").exists());
+    assert!(
+        out.contains(&format!(
+            "· would write the skill to {}",
+            m.path(CLAUDE_SKILL).display()
+        )),
+        "{out}"
+    );
+    m.out(&["--register-only", "--skill"]);
+    let out = m.out(&["--register-only", "--skill"]);
+    assert_eq!(out.matches("· skill already at ").count(), 4, "{out}");
+}
+
+#[test]
+fn a_skill_that_cannot_be_written_fails_the_run_and_says_why() {
+    let m = Machine::new();
+    m.program("claude", FAKE_CLAUDE);
+    fs::write(m.path(".claude"), "a file where the folder would be").unwrap();
+    let out = m
+        .init(&["--register-only", "--skill"])
+        .env("PHONEDRIVER_NPX", "1")
+        .assert()
+        .failure();
+    let out = String::from_utf8(out.get_output().stdout.clone()).unwrap();
+    assert!(out.contains("· skill failed: cannot write "), "{out}");
+}

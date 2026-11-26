@@ -29,6 +29,17 @@ Restart your agent so that it loads phonedriver, then ask it: Open Settings and 
 
 The doctor checks follow (`--register-only` leaves them out, `--dry-run` changes nothing). Claude Code and Codex are asked through their own `mcp add` (Claude Code with `--scope user`). Cursor (`~/.cursor/mcp.json`), VS Code (the user profile's `mcp.json`) and Gemini CLI (`~/.gemini/settings.json`) get the entry in their file; the file's other keys are kept, and its keys come back in alphabetical order. A file that is not plain JSON, or that already has another `phonedriver` entry, is not touched: the line says why and prints the entry to paste. Started through `npx`, the entry is `npx -y phonedriver mcp` (`cmd /c npx ...` on Windows); started as an installed binary, it is `phonedriver mcp`, or the binary's full path when that name is not on `PATH`.
 
+`init --skill` also puts [`SKILL.md`](../SKILL.md) where each agent it found reads a person's own skills: `~/.claude/skills/phonedriver/` for Claude Code, `~/.copilot/skills/phonedriver/` for VS Code, and `~/.agents/skills/phonedriver/` for Codex, Cursor and Gemini CLI, which share that folder. Each line then ends with what became of it:
+
+```console
+$ npx -y phonedriver init --skill
+Claude Code  added, for every project · skill written to /Users/you/.claude/skills/phonedriver/SKILL.md
+Codex        already there · skill written to /Users/you/.agents/skills/phonedriver/SKILL.md
+Cursor       added to /Users/you/.cursor/mcp.json · skill already at /Users/you/.agents/skills/phonedriver/SKILL.md
+```
+
+A `SKILL.md` that is already there with other text is left as it is, and the line says to delete it first. Plain `init` installs no skill, because beside the MCP server it costs more than it saves: the server already sends its instructions to every agent, and in our runs an installed skill was opened in 2 of 6 and used about 8% more tokens. It is for an agent that drives the `phonedriver` command line with no MCP server, which has no other guide, and for anyone who wants it.
+
 The installers below put a permanent `phonedriver` on your `PATH` instead.
 
 ```sh
@@ -64,7 +75,7 @@ That binary has no Android support (`phonedriver doctor` skips the Android check
 
 ```console
 $ target/release/phonedriver version
-phonedriver 0.1.7
+phonedriver 0.1.8
 ```
 
 To use a binary you built instead of the npm package, register it with your client by its full path: `claude mcp add phonedriver -- "$PWD/target/release/phonedriver" mcp`.
@@ -326,6 +337,7 @@ phonedriver setting set dark_ui_mode/dark_ui_activated true  # ok dark_ui_mode/d
 phonedriver setting find "dark theme|media volume"           # several searches in one call
 phonedriver setting set <key> <value> <key> <value>          # several writes in one call
 phonedriver setting open dark_ui_mode                        # shows that settings screen
+phonedriver setting open "Dark theme"                        # the same screen, by the title it shows
 phonedriver setting restore [<key>...]                       # writes back what your writes replaced
 ```
 
@@ -498,7 +510,7 @@ Over MCP it is a `batch` step: `{"tool":"check","target":"Total","equals":"€24
 
 ### Dates and times
 
-A field that opens a date or time picker is set in one call: the tap opens the picker, `--select` sets it, reads the value back from the picker and confirms.
+A field that opens a date or time picker is set in one call: the tap opens the picker, `--select` sets it, reads the value back from the picker and confirms. When the picker is already open, send `--select` to the button that confirms it (`tap "OK" --select 07:30`): the picker is set first and the button is tapped once.
 
 ```
 $ phonedriver tap "Date" --select 2026-12-18
@@ -683,7 +695,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: ./gradlew assembleDebug
-      - uses: hridaya423/phonedriver@v0.1.7
+      - uses: hridaya423/phonedriver@v0.1.8
         with:
           app: app/build/outputs/apk/debug/app-debug.apk
           runs: e2e/*.steps

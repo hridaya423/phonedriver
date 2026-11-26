@@ -30,7 +30,7 @@ inputs:
     description: A folder of screenshots kept by `phonedriver replay --screens`, with a subfolder for each run named as its steps file. Each step's screen is compared with its screenshot, and a run stops at the first whose text changed. A run with no subfolder keeps its screens in the artifact, under `screens/`, to commit.
     default: ""
   version:
-    description: The phonedriver release to install, such as `0.1.7`, or `latest`.
+    description: The phonedriver release to install, such as `0.1.8`, or `latest`.
     default: latest
   binary:
     description: A phonedriver binary already on the runner, used instead of a release.

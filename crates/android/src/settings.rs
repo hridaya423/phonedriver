@@ -109,6 +109,21 @@ fn values_text(possible: &str, types: &HashMap<String, &Value>) -> String {
         .unwrap_or_else(|| name.to_string())
 }
 
+const INTENT: &str = "intent:#Intent;";
+/// `FLAG_ACTIVITY_NEW_TASK | FLAG_ACTIVITY_CLEAR_TASK`.
+const CLEARED_TASK: &str = "launchFlags=0x10008000;";
+
+/// Settings' own link, started as it is given, is handed to the page a running Settings already shows, and that
+/// page ignores it: `am start` answers "intent has been delivered to currently running top-most instance" and the
+/// first screen stays in front (API 37 emulator, 2026-11-26: SIMs, then Battery). In a cleared task the screen asked
+/// for is the one shown.
+fn fresh(link: &str) -> String {
+    match link.strip_prefix(INTENT) {
+        Some(rest) if !link.contains("launchFlags=") => format!("{INTENT}{CLEARED_TASK}{rest}"),
+        _ => link.to_string(),
+    }
+}
+
 /// The index from a `getDeviceStateMetadata` reply. A screen's key is the `screen_key` of its link; a link that
 /// needs an item filled in (`%24itemization`) is not kept, because nothing here can fill it.
 pub fn index(reply: &str) -> Result<SettingsIndex, String> {
@@ -134,7 +149,9 @@ pub fn index(reply: &str) -> Result<SettingsIndex, String> {
         out.screens.push(SettingScreen {
             key,
             about: text(screen, "description").unwrap_or_default(),
-            link: link.filter(|l| !l.contains("%24itemization") && !l.contains("$itemization")),
+            link: link
+                .filter(|l| !l.contains("%24itemization") && !l.contains("$itemization"))
+                .map(|l| fresh(&l)),
         });
         for item in items {
             let Some(key) = text(item, "key") else {
@@ -196,6 +213,17 @@ mod tests {
     }
 
     #[test]
+    fn a_screens_link_starts_it_in_a_cleared_task_and_a_link_with_flags_of_its_own_keeps_them() {
+        assert_eq!(
+            fresh("intent:#Intent;action=a.B;S.screen_key=k;end"),
+            "intent:#Intent;launchFlags=0x10008000;action=a.B;S.screen_key=k;end"
+        );
+        let own = "intent:#Intent;action=a.B;launchFlags=0x4000000;end";
+        assert_eq!(fresh(own), own);
+        assert_eq!(fresh("https://example.com/a"), "https://example.com/a");
+    }
+
+    #[test]
     fn the_index_holds_each_setting_with_its_screen_and_what_a_write_accepts() {
         let index = index(METADATA).unwrap();
         let dark = item(&index, "dark_ui_mode/dark_ui_activated");
@@ -207,7 +235,7 @@ mod tests {
         assert_eq!(
             screen.link.as_deref(),
             Some(
-                "intent:#Intent;action=com.android.settings.action.LAUNCH_SETTINGS_PAGES;package=com.android.settings;S.screen_key=dark_ui_mode;end"
+                "intent:#Intent;launchFlags=0x10008000;action=com.android.settings.action.LAUNCH_SETTINGS_PAGES;package=com.android.settings;S.screen_key=dark_ui_mode;end"
             )
         );
         assert_eq!(

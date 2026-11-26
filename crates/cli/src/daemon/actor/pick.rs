@@ -461,7 +461,9 @@ impl Face<'_> {
 }
 
 /// The two parts of a time picker that hold the hour and the minute, left to right: text fields, or the chips that
-/// show a number and turn into a field when tapped.
+/// show a number and turn into a field when tapped. Material Components keeps the chip under the field it turned
+/// into, at the same place (the Clock app's `Add alarm` on the API 37 emulator, 2026-11-26), and there the field
+/// is the part.
 fn slots<'a>(
     now: &'a Rendered,
     names: Option<&CalendarNames>,
@@ -481,9 +483,32 @@ fn slots<'a>(
     let area = |e: &Element| e.bounds.w * e.bounds.h;
     let largest = all.iter().map(|e| area(e)).fold(0.0, f32::max);
     all.retain(|e| area(e) >= largest * 0.6);
-    all.sort_by(|a, b| a.bounds.x.total_cmp(&b.bounds.x));
+    let chip = |e: &Element| e.role != Role::TextField;
+    all.sort_by(|a, b| {
+        a.bounds
+            .x
+            .total_cmp(&b.bounds.x)
+            .then(chip(a).cmp(&chip(b)))
+    });
     all.dedup_by(|a, b| (a.bounds.x - b.bounds.x).abs() < 2.0);
     all
+}
+
+/// The button that confirms a picker: the platform's, Material Components', or one that says so.
+fn confirm(now: &Rendered) -> Option<&Element> {
+    now.elements
+        .iter()
+        .find(|e| {
+            matches!(
+                id(e),
+                "button1" | "confirm_button" | "material_timepicker_ok_button"
+            )
+        })
+        .or_else(|| {
+            now.elements.iter().find(|e| {
+                e.role == Role::Button && ["ok", "set", "done"].iter().any(|word| says(e, word))
+            })
+        })
 }
 
 /// The number a slot shows: what its field holds, what its chip says (`Minute 45 minutes`), or the text drawn in it.
@@ -503,6 +528,9 @@ fn slot_number(now: &Rendered, slot: &Element) -> Option<u32> {
 impl Actor {
     /// The tap that opens the picker, then the picker. `sub` makes the parameters of each tap and text this sends,
     /// with the caller's approval and time limit, so every one of them is guarded and settled as its own action is.
+    /// A target that is the button confirming a picker already open is not tapped first: agents sent
+    /// `{"target": "OK", "select": "07:30"}` to the Clock app's open picker in 5 of 10 calls (2026-11-26), and the
+    /// tap confirmed the time the picker happened to show.
     pub(super) async fn pick(
         &mut self,
         s: &mut Session,
@@ -511,17 +539,26 @@ impl Actor {
         sub: impl Fn(Action) -> ActParams,
     ) -> Result<ActionResult, Error> {
         let before = s.last.clone();
-        let scope = match &open.action {
+        let (scope, confirms) = match &open.action {
             Action::Tap { target, .. } => {
                 let now = self.fresh(s).await?;
-                s.resolve(target, &now)
-                    .ok()
-                    .and_then(|found| found.element)
-                    .map(|e| e.bounds)
+                let tapped = s.resolve(target, &now).ok().and_then(|found| found.element);
+                let confirms = tapped
+                    .as_ref()
+                    .is_some_and(|e| confirm(&now).is_some_and(|c| c.r#ref == e.r#ref));
+                (tapped.map(|e| e.bounds), confirms)
             }
-            _ => None,
+            _ => (None, false),
         };
-        let opened = Box::pin(self.act_now(s, open)).await?;
+        let (opened, scope) = if confirms {
+            (None, None)
+        } else {
+            (Some(Box::pin(self.act_now(s, open)).await?), scope)
+        };
+        let lead = opened.as_ref().map_or_else(
+            || format!("set the open picker to {want}"),
+            |opened| format!("{}, set the picker to {want}", opened.summary),
+        );
         let names = self.device()?.calendar_names(None).await.ok().flatten();
         match want {
             Want::Date { year, month, day } => {
@@ -568,32 +605,18 @@ impl Actor {
                     select: None,
                 };
                 let mut done = Box::pin(self.act_now(s, sub(beside))).await?;
-                done.summary = format!(
-                    "{}, set the picker to {want}, then closed it",
-                    opened.summary
-                );
+                done.summary = format!("{lead}, then closed it");
                 done.verified = Some(true);
                 done.changed = true;
                 return Ok(done);
             }
         }
-        let confirm = now
-            .elements
-            .iter()
-            .find(|e| {
-                matches!(
-                    id(e),
-                    "button1" | "confirm_button" | "material_timepicker_ok_button"
-                )
-            })
-            .or_else(|| {
-                now.elements.iter().find(|e| {
-                    e.role == Role::Button && ["ok", "set", "done"].iter().any(|word| says(e, word))
-                })
-            })
-            .map(|e| e.r#ref);
-        let Some(confirm) = confirm else {
-            let mut left = opened;
+        let Some(confirm) = confirm(&now).map(|e| e.r#ref) else {
+            let Some(mut left) = opened else {
+                return Err(not_picked(
+                    "the button that confirms the picker left the screen while the picker was set",
+                ));
+            };
             left.summary = format!(
                 "{}, then set the picker to {want} · it shows no button that confirms it: if it needs one, tap it",
                 left.summary
@@ -624,10 +647,7 @@ impl Actor {
                 "the picker shows {want} and stayed open when the button that confirms it was tapped"
             )));
         }
-        done.summary = format!(
-            "{}, set the picker to {want}, then {}",
-            opened.summary, done.summary
-        );
+        done.summary = format!("{lead}, then {}", done.summary);
         done.verified = Some(true);
         done.changed = true;
         Ok(done)

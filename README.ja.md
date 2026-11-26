@@ -144,7 +144,7 @@ Android 13 以降では、エージェントは非表示の 2 つ目の画面で
 
 MCP サーバーには 14 個のツールがあります: `devices`, `apps`, `snapshot`, `screenshot`, `tap`, `type`, `swipe`, `scroll`, `press`, `launch`, `wait`, `batch`, `clipboard`, `shell`。`snapshot`、`screenshot`、`wait` は読み取り専用としてマークされているため、クライアントは権限プロンプトなしで実行できます。`phonedriver` CLI にも同じコマンドがあり、スクリプトや、シェルを好むエージェントで使えます。ターミナルで使ったデバイスは、30 秒間アイドルになるとエージェントに引き渡されます。
 
-1 回の呼び出しで、パス全体をタップできます: `tap {"target":"More options","then":["Settings","Dark theme"]}`。モデルは、指示されない限り 1 ステップずつタップします。そこで、エージェントにスキル（`phonedriver skill` で表示されます）を渡してください。スキルは、パスを送るようエージェントに伝えます。
+1 回の呼び出しで、パス全体をタップできます: `tap {"target":"More options","then":["Settings","Dark theme"]}`。モデルは、指示されない限り 1 ステップずつタップします。そこで、サーバーの指示（instructions）が、パスを送るようモデルに伝えます。コマンドラインを使うエージェントは、同じことをスキルから得られます（`phonedriver init --skill` でインストールし、`phonedriver skill` で表示できます）。
 
 ## 制限事項
 

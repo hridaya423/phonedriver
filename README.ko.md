@@ -144,7 +144,7 @@ Android 13 이상에서는 에이전트가 숨겨진 두 번째 화면에서 작
 
 MCP 서버에는 도구가 14개 있습니다. `devices`, `apps`, `snapshot`, `screenshot`, `tap`, `type`, `swipe`, `scroll`, `press`, `launch`, `wait`, `batch`, `clipboard`, `shell`입니다. `snapshot`, `screenshot`, `wait`는 읽기 전용으로 표시되어 있으므로 클라이언트는 권한 프롬프트 없이 실행할 수 있습니다. `phonedriver` CLI에도 같은 명령이 있어, 스크립트나 셸을 선호하는 에이전트에서 쓸 수 있습니다. 터미널에서 사용한 기기는 30초 동안 유휴 상태이면 에이전트에게 넘어갑니다.
 
-한 번의 호출로 경로 전체를 탭할 수 있습니다. `tap {"target":"More options","then":["Settings","Dark theme"]}`. 모델은 따로 지시하지 않으면 한 단계씩 탭합니다. 그러니 에이전트에게 스킬(`phonedriver skill`로 출력됩니다)을 주세요. 스킬은 경로를 보내라고 에이전트에게 알려 줍니다.
+한 번의 호출로 경로 전체를 탭할 수 있습니다. `tap {"target":"More options","then":["Settings","Dark theme"]}`. 모델은 따로 지시하지 않으면 한 단계씩 탭합니다. 그래서 서버의 지침(instructions)이 경로를 보내라고 모델에게 알려 줍니다. 명령줄을 쓰는 에이전트는 같은 내용을 스킬에서 얻습니다(`phonedriver init --skill`로 설치하고, `phonedriver skill`로 출력합니다).
 
 ## 제한 사항
 

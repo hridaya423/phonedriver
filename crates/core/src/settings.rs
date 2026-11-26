@@ -70,6 +70,26 @@ fn first_sentence(text: &str) -> &str {
     text.split_once(". ").map_or(text, |(head, _)| head)
 }
 
+fn title(about: &str) -> &str {
+    first_sentence(about).trim().trim_end_matches('.')
+}
+
+fn fold(text: &str) -> String {
+    text.split_whitespace()
+        .map(str::to_lowercase)
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+const TITLE_CHARS: usize = 60;
+
+impl SettingScreen {
+    /// The first sentence of what the screen is about, which is the title it shows when it has one.
+    pub fn title(&self) -> String {
+        cut(title(&self.about), TITLE_CHARS)
+    }
+}
+
 impl SettingsIndex {
     pub fn item(&self, key: &str) -> Option<&SettingItem> {
         self.items.iter().find(|i| i.key == key)
@@ -77,6 +97,54 @@ impl SettingsIndex {
 
     pub fn screen(&self, key: &str) -> Option<&SettingScreen> {
         self.screens.iter().find(|s| s.key == key)
+    }
+
+    /// The screen `name` means: the screen with that key, the screen a setting's key (`<screen>/<setting>`) sits on,
+    /// or the one screen whose title is `name` (case and spacing ignored). A title two screens share names neither.
+    pub fn named(&self, name: &str) -> Option<&SettingScreen> {
+        if let Some(screen) = self.screen(name) {
+            return Some(screen);
+        }
+        if let Some(item) = self.item(name) {
+            return self.screens.get(item.screen);
+        }
+        if let Some(screen) = name.split_once('/').and_then(|(key, _)| self.screen(key)) {
+            return Some(screen);
+        }
+        let wanted = fold(name);
+        if wanted.is_empty() {
+            return None;
+        }
+        let mut titled = self
+            .screens
+            .iter()
+            .filter(|s| fold(title(&s.about)) == wanted);
+        match (titled.next(), titled.next()) {
+            (Some(one), None) => Some(one),
+            _ => None,
+        }
+    }
+
+    /// At most `limit` screens that can be opened and hold every word of `name` in their key or in what they are
+    /// about (case ignored; `-`, `_` and `/` part words as spaces do), a screen whose title is `name` first.
+    pub fn near(&self, name: &str, limit: usize) -> Vec<&SettingScreen> {
+        let spaced = name.replace(['-', '_', '/'], " ");
+        let wanted = fold(&spaced);
+        if wanted.is_empty() {
+            return Vec::new();
+        }
+        let mut near: Vec<&SettingScreen> = self
+            .screens
+            .iter()
+            .filter(|s| s.link.is_some())
+            .filter(|s| {
+                let text = format!("{} {}", s.key, s.about).to_lowercase();
+                wanted.split(' ').all(|w| text.contains(w))
+            })
+            .collect();
+        near.sort_by_key(|s| fold(title(&s.about)) != wanted);
+        near.truncate(limit);
+        near
     }
 
     /// At most `limit` settings, then `screen_limit` screens, that hold every word of `query` (case ignored). A word in a setting's purpose
@@ -252,6 +320,51 @@ mod tests {
         );
         let found = index().find("notifications", 12, 3);
         assert!(found.lines.is_empty(), "{:?}", found.lines);
+    }
+
+    #[test]
+    fn a_screen_is_named_by_its_key_by_a_setting_on_it_or_by_the_title_it_shows() {
+        let index = index();
+        let key = |name: &str| index.named(name).map(|s| s.key.as_str());
+        assert_eq!(key("dark_ui_mode"), Some("dark_ui_mode"));
+        assert_eq!(key("dark_ui_mode/dark_ui_activated"), Some("dark_ui_mode"));
+        assert_eq!(key("sound_screen/no_such_setting"), Some("sound_screen"));
+        assert_eq!(key("Dark theme"), Some("dark_ui_mode"));
+        assert_eq!(key("sound and  vibration"), Some("sound_screen"));
+        assert_eq!(key("dark"), None);
+        assert_eq!(key("volume"), None);
+        assert_eq!(key(""), None);
+    }
+
+    #[test]
+    fn a_title_two_screens_share_names_neither() {
+        let mut index = index();
+        index.screens[1].about = "Dark theme. Another screen with that title.".into();
+        assert_eq!(index.named("Dark theme"), None);
+        assert_eq!(index.named("dark_ui_mode").unwrap().key, "dark_ui_mode");
+    }
+
+    #[test]
+    fn near_lists_the_screens_that_open_and_hold_every_word_a_title_first() {
+        let index = index();
+        let keys = |name: &str| -> Vec<&str> {
+            index.near(name, 4).iter().map(|s| s.key.as_str()).collect()
+        };
+        assert_eq!(keys("dark"), ["dark_ui_mode"]);
+        assert_eq!(keys("sound-screen"), ["sound_screen"]);
+        assert_eq!(keys("Volume_levels"), ["sound_screen"]);
+        assert!(keys("battery").is_empty());
+        assert!(keys(" - ").is_empty());
+        let mut two = index.clone();
+        two.screens[2].link = Some("intent:#Intent;S.screen_key=app_notifications;end".into());
+        two.screens[2].about = "Sound. Notifications of one app, dark or not.".into();
+        let keys: Vec<&str> = two
+            .near("sound", 4)
+            .iter()
+            .map(|s| s.key.as_str())
+            .collect();
+        assert_eq!(keys, ["app_notifications", "sound_screen"]);
+        assert_eq!(two.near("sound", 1).len(), 1);
     }
 
     #[test]

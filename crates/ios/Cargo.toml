@@ -12,8 +12,8 @@ getrandom = "0.4.3"
 hmac = "0.13.0"
 idevice = { version = "=0.1.68", git = "https://github.com/hridaya423/idevice", rev = "f580a6f69e45e10e98fe6315e477697b75312332", default-features = false, features = ["ring", "usbmuxd", "tcp", "mdns", "pair", "amfi", "mobile_image_mounter", "core_device", "display_stream", "xctest", "tss", "tunnel_tcp_stack", "remote_pairing"] }
 plist = "1.10.3"
-phonedriver-core = { version = "0.1.7", path = "../core" }
-phonedriver-video = { version = "0.1.7", path = "../video" }
+phonedriver-core = { version = "0.1.8", path = "../core" }
+phonedriver-video = { version = "0.1.8", path = "../video" }
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.154"
 sha2 = "0.11.1"
