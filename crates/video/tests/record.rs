@@ -252,8 +252,8 @@ async fn a_recording_whose_keyframe_never_comes_starts_from_the_kept_units_after
         );
     }
     assert!(
-        stopped.recorded.ms <= wall_ms && stopped.recorded.ms + 60 >= ran_ms,
-        "the video is as long as the recording ran: {} ms against {ran_ms} to {wall_ms}",
+        stopped.recorded.ms <= wall_ms + 1 && stopped.recorded.ms + 60 >= ran_ms,
+        "the video is as long as the recording ran, and the kept units 12 µs each: {} ms against {ran_ms} to {wall_ms}",
         stopped.recorded.ms
     );
 
