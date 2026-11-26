@@ -111,7 +111,9 @@ jobs:
           xcrun simctl bootstatus "$udid" -b
           SH
           nohup bash "$RUNNER_TEMP/boot.sh" < /dev/null > "$RUNNER_TEMP/boot.log" 2>&1 &
-      - run: cargo build --locked -p phonedriver --config 'profile.dev.package."*".opt-level=3' --config 'profile.dev.package.phonedriver.opt-level=0'
+      - run: cargo build --locked -p phonedriver --config 'profile.dev.package."*".opt-level=3'
+        env:
+          CARGO_PROFILE_DEV_OPT_LEVEL: 0
       - name: Wait for the Simulator to finish booting
         id: booted
         run: |
