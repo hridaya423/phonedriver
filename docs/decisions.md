@@ -2305,3 +2305,29 @@ Live, API 37 emulator on win-pc, daemon on the Mac mini, an empty home each run.
 **Proof.** Red, `--test pickers`: `21 passed; 2 failed` (`the time picker showed no field to type into`; `picked 21:00` for 07:30). Green: 23 passed. Live on the emulator: `tap "Add alarm" --select 06:15` answered `ok tapped @e9 "Add alarm", set the picker to 06:15, then tapped @e65 "OK" · verified` and the list shows `Alarm Tomorrow 6:15 AM`; with the picker open, `tap "OK" --select 05:45` answered `ok set the open picker to 05:45, then tapped @e40 "OK" · verified` and the list shows `5:45 AM`. The alarm job again, three runs with no skill: 12, 12 and 13 turns and 99,957 to 101,506 tokens, from 19, 20 and 24 turns and 169,314 to 169,769; each run's check reads the alarm from the Clock app's own database.
 
 **Not done.** Any other target inside an open picker (its title, a mark of the face) is still tapped first; two calls did that to the title, which takes no tap, and the fix of cause 1 covers them. A tap that closes the picker by another button than the one that confirms is not detected.
+
+## D136. The skill is a third of its size, and `init` still does not install it (2026-11-26)
+
+**Question.** D134 found that the whole skill in the system prompt cost 32 to 46% more tokens for one or two turns. The owner asked whether a smaller skill would pay, and to compare with two public collections.
+
+**Compared.** Body size in characters, frontmatter left out. Matt Pocock's `skills` (39): median 3,440, three over 10,000, 112,770 characters in reference files that load when a pointer is followed. Cursor's `pstack` (59): median 1,077, two over 10,000, 103,927 in reference files, 58 of 59 loaded only when the person names them. phonedriver's: 14,691 in one file, larger than 97 of those 98. What they do that ours did not: a short entry file, detail one step away, and nothing in the entry file that a tool or another file already says.
+
+**What was cut.** phonedriver already has the lower steps: each tool's description and parameter notes, each error's hint, and `--help`. The old skill repeated them (the shell examples, the screenshot options, the files rules, what each error means, the verb list). The new one keeps what none of those say: that a call is a model turn, the ways to put more in one call, how to read six things a screen shows, the user's part, and three rare cases. 4,706 characters, 32% of the old. The description is unchanged, so what triggers it is unchanged.
+
+**Measured.** As in D134 (`claude -p`, Sonnet 5.5, the published harness's flags, `Pixel_API_37`), three runs an arm, 54 runs, all passed (12 more were refused at their first call because a daemon of my own still held the emulator, and were run again). Scripts and transcripts: `~/pd-i1-eval/evalrun2.sh` and `out2` on the Mac mini.
+
+| Skill | How the agent gets it | Jobs | Turns, sum | Tokens against no skill |
+|---|---|---|---|---|
+| old, 14,691 | appended to the system prompt | wiki-birthdate, alarm-gym | 66 against 78 | +41% |
+| new, first draft, 4,402 | appended | the same two | 76 against 78 | +21% |
+| new, first draft | appended | those two, clock-settings, chrome-prefs | 152 against 156 | +11% |
+| new, as committed, 4,706 | appended, on the build with D135 | wiki-birthdate, alarm-gym | 51 against 52 | +24% |
+| new, first draft | installed as a project skill, loaded by the `Skill` tool | clock-settings, wiki-birthdate | 58 against 61 | +8% |
+
+Installed, the agent opened the skill in 2 of 6 runs. In the appended arms a run in three (8 of 24) called a tool by its bare name, `tap`, was refused by the client and called again; no run without a skill and no run with the installed skill did. On the alarm job, runs without a skill called `devices` first in 6 of 6 (the harness names the device in its system prompt) and runs with one appended in 2 of 9; that call is a good part of the turns the old skill saved.
+
+**Decision.** The new skill replaces the old in `SKILL.md` and the plugin. `init` still does not install it: where a skill is installed the agent reads it a third of the time, and when it does it pays a turn and about 1,200 tokens on every later turn for nothing these jobs show. The server's instructions reach every MCP client with no call, and that is where a sentence that changes what agents do belongs (D131, D134).
+
+**Limits.** Three runs an arm; sums of 6 to 12 runs differ by less than the spread of one job. The harness re-reads about 5,600 tokens a turn, a real session 29,000 to 57,000, where 1,200 tokens are 2 to 4% of a turn. One model, one emulator. An agent that uses the command line with no MCP server has no instructions and no tool list, and for it the skill is the only guide: not measured.
+
+**Reopen if.** Someone measures command-line agents with and without the skill, or a job turns up that agents do in fewer turns only with it.
