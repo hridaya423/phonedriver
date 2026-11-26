@@ -151,7 +151,8 @@ impl Env {
         let home = tempfile::tempdir().unwrap();
         let socket = if cfg!(windows) {
             PathBuf::from(format!(
-                r"\\.\pipe\phonedriver-test-{}",
+                r"\\.\pipe\phonedriver-test-{}-{}",
+                std::process::id(),
                 home.path().file_name().unwrap().to_string_lossy()
             ))
         } else {
@@ -501,7 +502,8 @@ async fn fake_daemon_on(
     );
     let socket = if cfg!(windows) {
         PathBuf::from(format!(
-            r"\\.\pipe\phonedriver-test-{}-served",
+            r"\\.\pipe\phonedriver-test-{}-{}-served",
+            std::process::id(),
             home.path().file_name().unwrap().to_string_lossy()
         ))
     } else {

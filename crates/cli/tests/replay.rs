@@ -329,7 +329,8 @@ async fn served(fake: Arc<FakeDevice>) -> (tempfile::TempDir, PathBuf) {
     );
     let socket = if cfg!(windows) {
         PathBuf::from(format!(
-            r"\\.\pipe\phonedriver-test-{}-replay",
+            r"\\.\pipe\phonedriver-test-{}-{}-replay",
+            std::process::id(),
             home.path().file_name().unwrap().to_string_lossy()
         ))
     } else {
