@@ -554,6 +554,23 @@ app com.google.android.apps.nexuslauncher
 
 When nothing changed the hint says so and no screen is repeated. A ref the session never saw still answers that refs are per session. Decision D114.
 
+Before a `tap` on text gives that answer, it looks where the screen scrolls. When no label on screen is close to the text, it drags down the list, then along a row of tabs that scrolls sideways, up to 8 times each way or to the end, and taps the text when it shows:
+
+```
+$ phonedriver tap "Shop"
+ok scrolled right 4 times, then tapped @e64 "Shop" · new screen
+```
+
+When the text does not show, it drags back, so the screen and the refs are the ones from before, and the hint says what it tried:
+
+```
+$ phonedriver tap "Zebra crossing"
+error: no element matches "Zebra crossing"
+hint: Scrolled down to the end and back without finding it.
+```
+
+After 8 drags on a longer list the hint names the `scroll --until` that looks further. A full-screen pager is not dragged, and neither is anything when a label on screen is close to the text (the hint lists those instead) or the tap was sent with `--no-settle`. A step of a `batch`, a `then` path or a replay looks the same way. Decision D138.
+
 ### Saving and replaying a run
 
 `phonedriver save run.steps` writes what the session has done so far to a file, and `phonedriver replay run.steps` does it again with no model:

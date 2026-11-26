@@ -39,7 +39,7 @@ use super::ledger::{Entry, Ledger};
 use super::originals::{self, Original};
 use super::scope::ScopedDevice;
 use super::secrets::Secrets;
-use super::session::{Resolved, Session};
+use super::session::{Resolved, Session, looks};
 use super::shell;
 use super::verify::{Expect, Verdict, Verify};
 use super::{collect, guard, secret_field};
@@ -108,6 +108,11 @@ const NO_APP_LIST: usize = 40;
 
 /// How many drags `type` makes to bring back a field the keyboard pushed out of its list.
 const BRING_BACK_DRAGS: u32 = 4;
+
+/// How many drags each way a `tap` makes looking for text that is not on screen (decision D138): twice the most a
+/// recorded agent's `scroll` needed after such a tap was refused (1 or 4 drags, 8 runs). A `scroll` with `until`
+/// looks further.
+const LOOK_DRAGS: u32 = 8;
 
 /// How long a replayed step waits for the kind of screen it was saved on before it is refused. Android goes on
 /// reporting a page that slides in as a window short of one edge after the settle is over, and that reads as a

@@ -361,6 +361,7 @@ impl Actor {
                     Op::Gesture,
                     "this device cannot inject touches",
                 )?;
+                let mut looked = String::new();
                 let Resolved {
                     at,
                     line: element,
@@ -372,7 +373,16 @@ impl Actor {
                     let t = Instant::now();
                     let r = self.resolve_target(s, &target).await;
                     self.lap("resolve", t);
-                    r?
+                    match r {
+                        Err(Error::NotFound {
+                            similar, scrolls, ..
+                        }) if p.settle && similar.is_empty() && !scrolls.is_empty() => {
+                            let (r, said) = self.look_for(s, &consent, cfg, &target).await?;
+                            looked = said;
+                            r
+                        }
+                        r => r?,
+                    }
                 };
                 // Calendar's "Add" on a Simulator without calendar access: the tap waited 2 s for nothing.
                 if let Some(e) = found.as_ref().filter(|e| {
@@ -446,6 +456,7 @@ impl Actor {
                 } else {
                     summary
                 };
+                let summary = format!("{looked}{summary}");
                 let summary = approved_summary(summary, approved);
                 if let Some(e) = found.as_ref().filter(|e| {
                     let can_change = match e.role {
@@ -1309,6 +1320,106 @@ impl Actor {
             y: 0.0,
             w: size.w,
             h: size.h,
+        }
+    }
+
+    /// Looks for the text a `tap` named where the screen shows no such text, nothing close to it, and something that
+    /// scrolls (decision D138): the drags of the `scroll` the refusal used to name, each way in turn, until the text
+    /// resolves, the way ends (what scrolls says it goes no further, or two drags change nothing) or `LOOK_DRAGS`.
+    /// A look that finds nothing drags back as often as it moved the screen, so a refused tap leaves the screen as
+    /// the agent saw it. The rows get their refs from the table as it was before the look: left to the reads in
+    /// between, a row that came back by way of another place kept the ref it was given there (Settings, API 37
+    /// emulator: every row but the first had a new one).
+    pub(super) async fn look_for(
+        &mut self,
+        s: &mut Session,
+        consent: &Consent,
+        cfg: Config,
+        target: &Target,
+    ) -> Result<(Resolved, String), Error> {
+        let device = self.device()?;
+        let held = s.refs.clone();
+        let mut now = self.fresh(s).await?;
+        let mut looked = Vec::new();
+        let mut over = Vec::new();
+        let mut went = Vec::new();
+        for way in looks(&now) {
+            let (mut made, mut moved, mut idle) = (0u32, 0u32, 0u32);
+            let found = loop {
+                match s.resolve(target, &now) {
+                    Ok(found) if found.covered.is_none() || idle >= 2 => break Some(found),
+                    Ok(_) | Err(Error::NotFound { .. }) => {}
+                    Err(e) => return Err(e),
+                }
+                let Some(holder) = now.index_of(way.holder).filter(|_| way.goes_on(&now)) else {
+                    break None;
+                };
+                if idle >= 2 || made >= LOOK_DRAGS {
+                    break None;
+                }
+                let area = above_keyboard(now.elements[holder].bounds, now.header.keyboard);
+                let drag = gesture::scroll(area, way.direction);
+                self.guard_touch(s, consent, &drag, false, Some(&now), None)
+                    .await?;
+                let started = self.begin_action();
+                device.gesture(drag).await?;
+                made += 1;
+                self.settle(cfg, started).await;
+                let next = self.fresh(s).await?;
+                let changed = !matches!(diff(&now, &next), DiffOrFull::Diff(c) if c.is_empty());
+                idle = if changed { 0 } else { idle + 1 };
+                moved += u32::from(changed);
+                now = next;
+            };
+            let name = way.direction.name();
+            if let Some(found) = found {
+                looked.push(format!("{name} {}", plural(made.into(), "time")));
+                return Ok((found, format!("scrolled {}, then ", looked.join(" and "))));
+            }
+            if idle >= 2 || !way.goes_on(&now) {
+                over.push(way.words());
+                if moved > 0 {
+                    looked.push(format!("{name} to the end"));
+                }
+            } else {
+                looked.push(format!("{name} {}", plural(made.into(), "time")));
+            }
+            went.push((way, moved));
+        }
+        for (way, moved) in went.into_iter().rev() {
+            for _ in 0..moved {
+                let back = way.direction.opposite();
+                let area =
+                    scroll_container(&now, back).map_or_else(|| self.screen_rect(), |e| e.bounds);
+                let drag = gesture::scroll(above_keyboard(area, now.header.keyboard), back);
+                self.guard_touch(s, consent, &drag, false, Some(&now), None)
+                    .await?;
+                let started = self.begin_action();
+                device.gesture(drag).await?;
+                self.settle(cfg, started).await;
+                now = self.fresh(s).await?;
+            }
+        }
+        s.refs = held;
+        let now = self.fresh(s).await?;
+        match s.resolve(target, &now) {
+            Err(Error::NotFound {
+                query,
+                similar,
+                mut scrolls,
+                screen,
+                ..
+            }) => {
+                scrolls.retain(|way| !over.contains(way));
+                Err(Error::NotFound {
+                    query,
+                    similar,
+                    scrolls,
+                    looked,
+                    screen,
+                })
+            }
+            found => found.map(|found| (found, String::new())),
         }
     }
 

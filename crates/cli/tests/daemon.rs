@@ -3329,7 +3329,7 @@ async fn scroll_until_looks_inside_what_it_scrolls_not_at_a_toolbar_above_it() {
 
 #[tokio::test(start_paused = true)]
 async fn a_tap_on_a_target_that_is_not_there_fails_without_the_daemon_waiting() {
-    let (source, fake) = FakeSource::with(vec![list_tree(&["Row 0", "Row 1"])]);
+    let (source, fake) = FakeSource::with(vec![tree(&["Row 0", "Row 1"])]);
     let (d, _home) = daemon(source);
     ok(&d, "default", "snapshot", json!({})).await;
     let started = tokio::time::Instant::now();
@@ -6966,4 +6966,316 @@ async fn a_system_dialog_over_an_app_is_named_in_the_header_and_is_not_the_app()
         "{text}"
     );
     assert!(text.contains("button \"Allow\""), "{text}");
+}
+
+/// A drag of more than 20 points up or to the left turns to the next of `pages`, one down or to the right turns
+/// back, and the first and last pages stay.
+fn turns_pages(fake: &FakeDevice, pages: Vec<RawTree>) {
+    let at = std::sync::atomic::AtomicUsize::new(0);
+    fake.on_gesture(move |g| {
+        let path = &g.fingers[0];
+        let (from, to) = (path.first()?.at, path.last()?.at);
+        let pulled = (from.x - to.x) + (from.y - to.y);
+        if pulled.abs() <= 20.0 {
+            return None;
+        }
+        let was = at.load(std::sync::atomic::Ordering::Relaxed);
+        let next = if pulled > 0.0 {
+            (was + 1).min(pages.len() - 1)
+        } else {
+            was.saturating_sub(1)
+        };
+        at.store(next, std::sync::atomic::Ordering::Relaxed);
+        Some(vec![pages[next].clone()])
+    });
+}
+
+fn drags(fake: &FakeDevice) -> Vec<(Point, Point)> {
+    fake.calls()
+        .iter()
+        .filter_map(|c| match c {
+            Call::Gesture(g) => {
+                let path = &g.fingers[0];
+                Some((path.first()?.at, path.last()?.at))
+            }
+            _ => None,
+        })
+        .filter(|(from, to)| (from.x - to.x).abs() + (from.y - to.y).abs() > 20.0)
+        .collect()
+}
+
+async fn kept_steps(d: &Daemon) -> Vec<Value> {
+    let kept = ok(d, "default", "journal", json!({"keep": true})).await;
+    kept["steps"].as_array().unwrap().clone()
+}
+
+/// Recorded agent runs of 2026-11-26: 8 taps named text that was further along a list or a row of tabs, each was
+/// refused with "It may be off screen", and each agent's next call was the `scroll` the hint named, which found the
+/// text in 1 or 4 drags (decision D138).
+#[tokio::test(start_paused = true)]
+async fn a_tap_on_text_further_down_the_list_scrolls_to_it_and_taps_it() {
+    let pages = vec![
+        list_tree(&["Row 0", "Row 1"]),
+        list_tree(&["Row 5", "Row 6"]),
+        list_tree(&["Row 8", "Shop"]),
+    ];
+    let (source, fake) = FakeSource::with(vec![pages[0].clone()]);
+    turns_pages(&fake, pages);
+    let (d, _home) = daemon(source);
+    ok(&d, "default", "snapshot", json!({})).await;
+    let r = ok(&d, "default", "act", tap_text("Shop")).await;
+    let summary = r["summary"].as_str().unwrap();
+    assert!(
+        summary.starts_with("scrolled down 2 times, then tapped @e")
+            && summary.contains("\"Shop\""),
+        "{r}"
+    );
+    assert_eq!(drags(&fake).len(), 2, "{:?}", fake.calls());
+    let Some(Call::Gesture(tap)) = fake.calls().last().cloned() else {
+        panic!("the last call is the tap: {:?}", fake.calls());
+    };
+    assert_eq!(tap.fingers[0][0].at, Point { x: 180.0, y: 175.0 });
+    let text = r["observation"]["text"].as_str().unwrap();
+    assert!(
+        text.contains("\"Row 8\"") && text.contains("\"Shop\""),
+        "the reply is against the screen the agent last saw, so it lists what the scrolls brought: {text}"
+    );
+    let kept = kept_steps(&d).await;
+    assert_eq!(kept.len(), 1, "a replay's tap scrolls again: {kept:?}");
+    assert_eq!(kept[0]["params"]["action"]["target"]["text"], "Shop");
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_tap_on_text_the_list_does_not_hold_scrolls_back_and_says_what_it_scrolled() {
+    let pages = vec![
+        list_tree(&["Row 0", "Row 1"]),
+        list_tree(&["Row 5", "Row 6"]),
+        list_tree(&["Row 998", "Row 999"]),
+    ];
+    let (source, fake) = FakeSource::with(vec![pages[0].clone()]);
+    turns_pages(&fake, pages);
+    let (d, _home) = daemon(source);
+    ok(&d, "default", "snapshot", json!({})).await;
+    let e = err(&d, "default", "act", tap_text("Zebra")).await;
+    assert_eq!(e.data["code_name"], "not_found", "{e:?}");
+    let hint = e.data["hint"].as_str().unwrap();
+    assert_eq!(
+        hint,
+        "Scrolled down to the end and back without finding it."
+    );
+    let dragged = drags(&fake);
+    assert_eq!(
+        fake.calls().len(),
+        6,
+        "two drags that move the list, two that do not, two back, and no tap: {:?}",
+        fake.calls()
+    );
+    assert!(
+        dragged[..4].iter().all(|(from, to)| from.y > to.y)
+            && dragged[4..].iter().all(|(from, to)| from.y < to.y),
+        "{dragged:?}"
+    );
+    assert_eq!(
+        e.data["screen"], "",
+        "the screen is the one the agent last saw: {e:?}"
+    );
+    assert!(kept_steps(&d).await.is_empty());
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_tap_on_text_gives_up_after_eight_drags_and_names_the_scroll_that_looks_further() {
+    let pages: Vec<RawTree> = (0..20)
+        .map(|i| list_tree(&[&format!("Row {}", i * 2), &format!("Row {}", i * 2 + 1)]))
+        .collect();
+    let (source, fake) = FakeSource::with(vec![pages[0].clone()]);
+    turns_pages(&fake, pages);
+    let (d, _home) = daemon(source);
+    ok(&d, "default", "snapshot", json!({})).await;
+    let e = err(&d, "default", "act", tap_text("Zebra")).await;
+    assert_eq!(e.data["code_name"], "not_found", "{e:?}");
+    assert_eq!(
+        fake.calls().len(),
+        16,
+        "eight down and eight back: {:?}",
+        fake.calls()
+    );
+    assert_eq!(
+        e.data["hint"],
+        "Scrolled down 8 times and back without finding it. `phonedriver scroll down --until \"Zebra\"` looks further."
+    );
+    assert_eq!(e.data["screen"], "", "{e:?}");
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_tap_on_text_close_to_a_label_on_screen_or_sent_without_settling_scrolls_nothing() {
+    let (source, fake) = FakeSource::with(vec![list_tree(&["Wi-Fi", "Row 1"])]);
+    turns_pages(
+        &fake,
+        vec![
+            list_tree(&["Wi-Fi", "Row 1"]),
+            list_tree(&["Wifi", "Row 3"]),
+        ],
+    );
+    let (d, _home) = daemon(source);
+    let e = err(&d, "default", "act", tap_text("Wifi")).await;
+    let hint = e.data["hint"].as_str().unwrap();
+    assert!(hint.starts_with("Use one of these instead"), "{hint}");
+    let mut unsettled = tap_text("Zebra");
+    unsettled["settle"] = json!(false);
+    let e = err(&d, "default", "act", unsettled).await;
+    assert!(
+        e.data["hint"]
+            .as_str()
+            .unwrap()
+            .starts_with("It may be off screen"),
+        "{e:?}"
+    );
+    assert_eq!(fake.calls().len(), 0, "{:?}", fake.calls());
+}
+
+fn tab_row(labels: &[&str]) -> RawTree {
+    sideways(48, labels)
+}
+
+/// Buttons side by side in something `tall` points high that scrolls to the right.
+fn sideways(tall: i32, labels: &[&str]) -> RawTree {
+    let mut nodes = vec![
+        r#"{"p":-1,"w":1,"cls":"android.widget.FrameLayout","b":[0,0,360,800],"f":"vVe"}"#
+            .to_string(),
+        format!(
+            r#"{{"p":0,"w":1,"cls":"android.view.View","b":[0,0,360,{tall}],"f":"vVeS","a":["scroll_fwd","scroll_right"]}}"#
+        ),
+    ];
+    for (i, l) in labels.iter().enumerate() {
+        let left = 90 * i as i32;
+        nodes.push(format!(
+            r#"{{"p":1,"w":1,"cls":"android.widget.Button","text":"{l}","b":[{left},0,{},48],"f":"vVe","a":["tap"]}}"#,
+            left + 90
+        ));
+    }
+    let json = format!(
+        r#"{{"windows":[{{"id":1,"type":"application","package":"com.example","bounds":[0,0,360,800]}}],"nodes":[{}]}}"#,
+        nodes.join(",")
+    );
+    RawTree::from_android_json(&json, Scale { density: 1.0 }).unwrap()
+}
+
+/// The testbed's row of tabs (API 37 emulator) reports `scroll_fwd` and `scroll_right`. Read as "scrolls down and
+/// right", it sent four agents' hints to `scroll` down first, and a drag down inside the row moves nothing.
+#[tokio::test(start_paused = true)]
+async fn a_tap_on_a_tab_further_along_its_row_drags_the_row_sideways() {
+    let pages = vec![
+        tab_row(&["Taps", "Text", "List", "Busy"]),
+        tab_row(&["List", "Busy", "Wait", "Shop"]),
+    ];
+    let (source, fake) = FakeSource::with(vec![pages[0].clone()]);
+    turns_pages(&fake, pages);
+    let (d, _home) = daemon(source);
+    let snap = ok(&d, "default", "snapshot", json!({})).await;
+    let text = snap["text"].as_str().unwrap();
+    assert!(text.contains("scrollable→"), "{text}");
+    let r = ok(&d, "default", "act", tap_text("Shop")).await;
+    let summary = r["summary"].as_str().unwrap();
+    assert!(
+        summary.starts_with("scrolled right 1 time, then tapped @e"),
+        "{r}"
+    );
+    let dragged = drags(&fake);
+    let [(from, to)] = dragged[..] else {
+        panic!("one drag: {:?}", fake.calls());
+    };
+    assert!(
+        from.x - to.x > 20.0 && from.y == to.y && from.y < 48.0,
+        "{from:?} to {to:?}"
+    );
+}
+
+/// Three rows of a list as the platform names them, so a row that moves keeps its ref from one read to the next.
+fn slid(rows: [usize; 3], further: bool) -> RawTree {
+    let mut nodes = vec![
+        r#"{"p":-1,"w":1,"cls":"android.widget.FrameLayout","b":[0,0,360,800],"f":"vVe"}"#
+            .to_string(),
+        format!(
+            r#"{{"p":0,"w":1,"n":"list","cls":"androidx.recyclerview.widget.RecyclerView","b":[0,100,360,700],"f":"vVeS","a":["scroll_up"{}]}}"#,
+            if further { r#","scroll_down""# } else { "" }
+        ),
+    ];
+    for (slot, row) in rows.iter().enumerate() {
+        let top = 100 + 50 * slot as i32;
+        nodes.push(format!(
+            r#"{{"p":1,"w":1,"n":"row{row}","cls":"android.widget.TextView","text":"Row {row}","b":[0,{top},360,{}],"f":"vVe"}}"#,
+            top + 50
+        ));
+    }
+    let json = format!(
+        r#"{{"windows":[{{"id":1,"type":"application","package":"com.example","bounds":[0,0,360,800]}}],"nodes":[{}]}}"#,
+        nodes.join(",")
+    );
+    RawTree::from_android_json(&json, Scale { density: 1.0 }).unwrap()
+}
+
+/// Settings on the API 37 emulator: the drags back do not pass the places the drags forward did, a row shown on
+/// the way back at another place got a new ref there and kept it, and the refused tap answered with the whole
+/// screen under new refs.
+#[tokio::test(start_paused = true)]
+async fn a_tap_that_looked_and_found_nothing_leaves_the_rows_the_refs_they_had() {
+    let (source, fake) = FakeSource::with(vec![slid([0, 1, 2], true)]);
+    let path = [
+        slid([2, 3, 4], true),
+        slid([3, 4, 5], false),
+        slid([1, 2, 3], true),
+        slid([0, 1, 2], true),
+    ];
+    let dragged = std::sync::atomic::AtomicUsize::new(0);
+    fake.on_gesture(move |g| {
+        let from = g.fingers[0].first()?.at;
+        let to = g.fingers[0].last()?.at;
+        ((from.y - to.y).abs() > 20.0).then(|| {
+            let at = dragged.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            vec![path[at.min(path.len() - 1)].clone()]
+        })
+    });
+    let (d, _home) = daemon(source);
+    let snap = ok(&d, "default", "snapshot", json!({})).await;
+    let row = snap["text"]
+        .as_str()
+        .unwrap()
+        .lines()
+        .find(|l| l.contains("\"Row 1\""))
+        .and_then(|l| l.trim_start().split(' ').next())
+        .unwrap()
+        .trim_start_matches('@')
+        .to_string();
+    let e = err(&d, "default", "act", tap_text("Zebra")).await;
+    assert_eq!(
+        e.data["hint"],
+        "Scrolled down to the end and back without finding it."
+    );
+    assert_eq!(e.data["screen"], "", "{e:?}");
+    assert_eq!(drags(&fake).len(), 4, "{:?}", fake.calls());
+    let r = ok(&d, "default", "act", tap_ref(&row)).await;
+    assert!(r["summary"].as_str().unwrap().contains("\"Row 1\""), "{r}");
+}
+
+/// Chrome's first-run screen (API 37 emulator) is a pager that says it scrolls right and does not move: a tap on
+/// `More options` dragged it twice and answered after 4 s. A pager that does move turns its page.
+#[tokio::test(start_paused = true)]
+async fn a_tap_on_text_a_pager_does_not_show_leaves_the_pager_alone() {
+    let pages = vec![
+        sideways(700, &["Add account", "Stay signed out"]),
+        sideways(700, &["More options", "Sync"]),
+    ];
+    let (source, fake) = FakeSource::with(vec![pages[0].clone()]);
+    turns_pages(&fake, pages);
+    let (d, _home) = daemon(source);
+    let started = tokio::time::Instant::now();
+    let e = err(&d, "default", "act", tap_text("More options")).await;
+    assert!(
+        e.data["hint"].as_str().unwrap().starts_with(
+            "It may be off screen: `phonedriver scroll right --within @e1 --until \"More options\"`"
+        ),
+        "{e:?}"
+    );
+    assert!(fake.calls().is_empty(), "{:?}", fake.calls());
+    assert_eq!(started.elapsed(), Duration::ZERO);
 }

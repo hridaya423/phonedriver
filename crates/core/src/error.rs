@@ -432,6 +432,10 @@ pub enum Error {
         /// Ways the screen can still scroll, as `scroll` arguments: `down`, `right --within @e1`.
         #[serde(default)]
         scrolls: Vec<String>,
+        /// What a `tap` scrolled, and scrolled back, while it looked for the text: `down 8 times`, `right to the
+        /// end` (decision D138). `scrolls` then holds the ways that go further than it looked.
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        looked: Vec<String>,
         /// As `StaleRef::screen`.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         screen: Option<String>,
@@ -713,6 +717,26 @@ impl Error {
                 }
                 None => "Run `phonedriver snapshot` for fresh refs.".into(),
             },
+            Error::NotFound {
+                query,
+                similar,
+                scrolls,
+                looked,
+                ..
+            } if !looked.is_empty() => {
+                let next = if !similar.is_empty() {
+                    format!(" Use one of these instead: {}", similar.join("; "))
+                } else if !scrolls.is_empty() {
+                    let ways: Vec<String> = scrolls
+                        .iter()
+                        .map(|way| format!("`phonedriver scroll {way} --until {}`", crate::render::quote(query)))
+                        .collect();
+                    format!(" {} looks further.", ways.join(" or "))
+                } else {
+                    String::new()
+                };
+                format!("Scrolled {} and back without finding it.{next}", looked.join(" and "))
+            }
             Error::NotFound { similar, .. } if !similar.is_empty() => {
                 format!("Use one of these instead: {}", similar.join("; "))
             }
@@ -1010,6 +1034,7 @@ mod tests {
                 query: "Wifi".into(),
                 similar: vec!["@e4 button \"Wi‑Fi\"".into()],
                 scrolls: vec![],
+                looked: vec![],
                 screen: None,
             },
             Error::Ambiguous {

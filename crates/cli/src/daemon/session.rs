@@ -539,31 +539,89 @@ fn not_found(now: &Rendered, text: &str) -> Error {
         .take(5)
         .map(|(_, e)| now.line(e))
         .collect();
-    let further = |forward: Actions| {
-        now.elements
-            .iter()
-            .filter(|e| e.actions.contains(forward))
-            .max_by(|a, b| a.bounds.area().total_cmp(&b.bounds.area()))
-    };
-    let down = further(Actions::SCROLL_DOWN);
-    let scrolls = [(down, "down"), (further(Actions::SCROLL_RIGHT), "right")]
-        .into_iter()
-        .filter_map(|(holder, way)| {
-            let holder = holder?;
-            let largest = down.is_some_and(|d| d.r#ref == holder.r#ref);
-            Some(if largest {
-                way.to_string()
-            } else {
-                format!("{way} --within @{}", holder.r#ref)
-            })
-        })
-        .collect();
+    let scrolls = ways(now).iter().map(Way::words).collect();
     Error::NotFound {
         query: text.to_string(),
         similar,
         scrolls,
+        looked: Vec::new(),
         screen: None,
     }
+}
+
+/// A way a screen can still scroll forward: the largest element that scrolls that way, which `scroll` is told by
+/// name when it is not the one that scrolls down.
+#[derive(Debug, Clone, Copy)]
+pub struct Way {
+    pub direction: Direction,
+    pub holder: Ref,
+    pub named: bool,
+}
+
+impl Way {
+    /// As `scroll` arguments: `down`, `right --within @e1`.
+    pub fn words(&self) -> String {
+        match self.named {
+            false => self.direction.name().to_string(),
+            true => format!("{} --within @{}", self.direction.name(), self.holder),
+        }
+    }
+
+    pub fn goes_on(&self, now: &Rendered) -> bool {
+        let forward = match self.direction {
+            Direction::Down => Actions::SCROLL_DOWN,
+            Direction::Up => Actions::SCROLL_UP,
+            Direction::Right => Actions::SCROLL_RIGHT,
+            Direction::Left => Actions::SCROLL_LEFT,
+        };
+        now.index_of(self.holder)
+            .is_some_and(|i| now.elements[i].actions.contains(forward))
+    }
+}
+
+/// A row that scrolls sideways is looked along when it is at least this many times as wide as it is tall: the
+/// testbed's row of tabs is 411 by 48 points, and the pager of Chrome's first-run screen, 411 by 845, was dragged
+/// twice for a text it could not hold and did not move (API 37 emulator).
+const STRIP: f32 = 4.0;
+
+fn further(now: &Rendered, forward: Actions, fits: impl Fn(&Element) -> bool) -> Option<&Element> {
+    now.elements
+        .iter()
+        .filter(|e| e.actions.contains(forward) && fits(e))
+        .max_by(|a, b| a.bounds.area().total_cmp(&b.bounds.area()))
+}
+
+fn each_way(down: Option<&Element>, right: Option<&Element>) -> Vec<Way> {
+    [(down, Direction::Down), (right, Direction::Right)]
+        .into_iter()
+        .filter_map(|(holder, direction)| {
+            let holder = holder?.r#ref;
+            Some(Way {
+                direction,
+                holder,
+                named: down.is_none_or(|d| d.r#ref != holder),
+            })
+        })
+        .collect()
+}
+
+/// The ways a screen can still scroll forward, down before right.
+pub fn ways(now: &Rendered) -> Vec<Way> {
+    each_way(
+        further(now, Actions::SCROLL_DOWN, |_| true),
+        further(now, Actions::SCROLL_RIGHT, |_| true),
+    )
+}
+
+/// The ways a `tap` looks for text that is not on screen (decision D138): down the largest list, then along the
+/// largest strip.
+pub fn looks(now: &Rendered) -> Vec<Way> {
+    each_way(
+        further(now, Actions::SCROLL_DOWN, |_| true),
+        further(now, Actions::SCROLL_RIGHT, |e| {
+            e.bounds.w >= STRIP * e.bounds.h
+        }),
+    )
 }
 
 /// Exact label first (core), then the same label in any case and spacing, then a label that holds the text as whole

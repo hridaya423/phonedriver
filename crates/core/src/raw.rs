@@ -391,7 +391,11 @@ fn node(
     for c in n.f.chars() {
         flags |= NodeFlags::from_letter(c).ok_or(ParseError::UnknownFlag(c))?;
     }
-    let horizontal = n.coll.is_some_and(|c| c.cols > c.rows);
+    // Compose's `horizontalScroll` has no collection: it names `scroll_right` beside `scroll_fwd`, as a column
+    // names `scroll_down` (the testbed's row of tabs, API 37 emulator).
+    let names = |axis: [&str; 2]| n.a.iter().any(|a| axis.contains(&a.as_str()));
+    let horizontal = n.coll.is_some_and(|c| c.cols > c.rows)
+        || names(["scroll_left", "scroll_right"]) && !names(["scroll_up", "scroll_down"]);
     let mut actions = Actions::empty();
     for a in &n.a {
         actions |= match a.as_str() {
@@ -813,6 +817,32 @@ mod tests {
         let json = r#"{"windows":[],"nodes":[{"p":-1,"w":1,"cls":"androidx.recyclerview.widget.RecyclerView","b":[0,0,1,1],"a":["scroll_fwd"],"coll":{"rows":1,"cols":8}}]}"#;
         let t = RawTree::from_android_json(json, Scale { density: 1.0 }).unwrap();
         assert_eq!(t.nodes[0].actions, Actions::SCROLL_RIGHT);
+    }
+
+    #[test]
+    fn forward_on_a_node_that_names_only_sideways_scrolls_is_right() {
+        let node = |actions: &str| {
+            let json = format!(
+                r#"{{"windows":[],"nodes":[{{"p":-1,"w":1,"cls":"android.view.View","b":[0,0,1,1],"f":"vVeS","a":[{actions}]}}]}}"#
+            );
+            RawTree::from_android_json(&json, Scale { density: 1.0 })
+                .unwrap()
+                .nodes[0]
+                .actions
+        };
+        assert_eq!(
+            node(r#""scroll_fwd","scroll_right""#),
+            Actions::SCROLL_RIGHT
+        );
+        assert_eq!(
+            node(r#""scroll_back","scroll_fwd","scroll_left","scroll_right""#),
+            Actions::SCROLL_LEFT | Actions::SCROLL_RIGHT
+        );
+        assert_eq!(node(r#""scroll_down","scroll_fwd""#), Actions::SCROLL_DOWN);
+        assert_eq!(
+            node(r#""scroll_down","scroll_fwd","scroll_right""#),
+            Actions::SCROLL_DOWN | Actions::SCROLL_RIGHT
+        );
     }
 
     #[test]

@@ -4,7 +4,7 @@ expression: text
 ---
 device android:emulator-5554 · Pixel 9 · Android 17 · 360x800pt · portrait
 app com.android.settings (Settings)
-@e1 group scrollable
+@e1 group scrollable→
   @e2 button "Taps"
   @e3 button "Text"
   @e4 button "List"
