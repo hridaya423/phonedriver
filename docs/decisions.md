@@ -2380,7 +2380,7 @@ When this Mac has no valid Apple Development identity, `signing_team` looks at `
 
 **Reopen if.** A free account cannot sign `dev.phonedriver.runner.<team>` either, or a team is not allowed to register app IDs at all and needs the runner signed with a profile someone else made.
 
-## D138. A `tap` on text that is not on screen looks for it where the screen scrolls (2026-11-26)
+## D140. A `tap` on text that is not on screen looks for it where the screen scrolls (2026-11-26)
 
 **Question.** A `tap` on text the screen does not show was refused with `It may be off screen` and the `scroll` to send. Is the agent's next call ever anything else?
 

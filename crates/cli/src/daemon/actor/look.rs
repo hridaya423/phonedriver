@@ -1,5 +1,5 @@
 //! A `tap` on text that is not on screen looks for it where the screen scrolls, and puts the screen back when the
-//! text is nowhere (decision D138).
+//! text is nowhere (decision D140).
 
 use std::collections::HashMap;
 

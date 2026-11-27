@@ -7011,7 +7011,7 @@ async fn kept_steps(d: &Daemon) -> Vec<Value> {
 
 /// Recorded agent runs of 2026-11-26: 8 taps named text that was further along a list or a row of tabs, each was
 /// refused with "It may be off screen", and each agent's next call was the `scroll` the hint named, which found the
-/// text in 1 or 4 drags (decision D138).
+/// text in 1 or 4 drags (decision D140).
 #[tokio::test(start_paused = true)]
 async fn a_tap_on_text_further_down_the_list_scrolls_to_it_and_taps_it() {
     let pages = vec![

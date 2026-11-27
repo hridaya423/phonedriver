@@ -49,7 +49,7 @@ async fn a_guarded_tap_is_refused_with_the_app_the_label_and_what_the_screen_say
     assert_eq!(rig.gestures(), 0);
 }
 
-/// Decision D138: a tap looks down a list for text the screen does not show. The button it finds there is held as
+/// Decision D140: a tap looks down a list for text the screen does not show. The button it finds there is held as
 /// any other, and until the human's word only the drag has reached the device.
 #[tokio::test]
 async fn a_guarded_button_that_a_tap_scrolled_to_is_held_before_it_is_tapped() {

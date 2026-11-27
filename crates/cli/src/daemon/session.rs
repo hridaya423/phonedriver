@@ -614,7 +614,7 @@ pub fn ways(now: &Rendered) -> Vec<Way> {
     )
 }
 
-/// The ways a `tap` looks for text that is not on screen (decision D138): down the largest list, then along the
+/// The ways a `tap` looks for text that is not on screen (decision D140): down the largest list, then along the
 /// largest strip.
 pub fn looks(now: &Rendered) -> Vec<Way> {
     each_way(

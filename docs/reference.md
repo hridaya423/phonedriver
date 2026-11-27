@@ -569,7 +569,7 @@ error: no element matches "Zebra crossing"
 hint: Scrolled down to the end and back without finding it.
 ```
 
-After 6 drags on a longer list the hint names the `scroll --until` that looks further. A feed of cards as tall as the screen cannot be measured, so it stays where the look ended and the hint says `The screen is where that left it.` A full-screen pager is not dragged, and neither is anything when a label on screen is close to the text (the hint lists those instead) or the tap was sent with `--no-settle`. A step of a `batch`, a `then` path or a replay looks the same way. Decision D138.
+After 6 drags on a longer list the hint names the `scroll --until` that looks further. A feed of cards as tall as the screen cannot be measured, so it stays where the look ended and the hint says `The screen is where that left it.` A full-screen pager is not dragged, and neither is anything when a label on screen is close to the text (the hint lists those instead) or the tap was sent with `--no-settle`. A step of a `batch`, a `then` path or a replay looks the same way. Decision D140.
 
 ### Saving and replaying a run
 

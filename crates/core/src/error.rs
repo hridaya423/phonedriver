@@ -433,7 +433,7 @@ pub enum Error {
         #[serde(default)]
         scrolls: Vec<String>,
         /// What a `tap` scrolled, and scrolled back, while it looked for the text: `down 6 times`, `right to the
-        /// end` (decision D138). `scrolls` then holds the ways that go further than it looked. A boxed slice, since
+        /// end` (decision D140). `scrolls` then holds the ways that go further than it looked. A boxed slice, since
         /// with a `Vec` here and `stayed` an `Error` is 128 bytes, where clippy's `result_large_err` begins.
         #[serde(default, skip_serializing_if = "<[String]>::is_empty")]
         looked: Box<[String]>,
