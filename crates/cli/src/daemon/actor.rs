@@ -432,6 +432,7 @@ macro_rules! own_app_hint {
 
 mod act;
 mod approval;
+mod look;
 mod observe;
 mod ops;
 pub mod pick;

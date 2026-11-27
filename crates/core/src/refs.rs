@@ -64,7 +64,7 @@ fn in_list(nodes: &[Node], i: usize) -> bool {
 }
 
 /// Assigns session-stable refs to pruned nodes (architecture 4.3).
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct RefTable {
     next: u32,
     by_identity: HashMap<Identity, usize>,

@@ -361,6 +361,7 @@ impl Actor {
                     Op::Gesture,
                     "this device cannot inject touches",
                 )?;
+                let mut looked = String::new();
                 let Resolved {
                     at,
                     line: element,
@@ -372,7 +373,16 @@ impl Actor {
                     let t = Instant::now();
                     let r = self.resolve_target(s, &target).await;
                     self.lap("resolve", t);
-                    r?
+                    match r {
+                        Err(Error::NotFound {
+                            similar, scrolls, ..
+                        }) if p.settle && similar.is_empty() && !scrolls.is_empty() => {
+                            let (r, said) = self.look_for(s, &consent, cfg, &target).await?;
+                            looked = said;
+                            r
+                        }
+                        r => r?,
+                    }
                 };
                 // Calendar's "Add" on a Simulator without calendar access: the tap waited 2 s for nothing.
                 if let Some(e) = found.as_ref().filter(|e| {
@@ -446,6 +456,7 @@ impl Actor {
                 } else {
                     summary
                 };
+                let summary = format!("{looked}{summary}");
                 let summary = approved_summary(summary, approved);
                 if let Some(e) = found.as_ref().filter(|e| {
                     let can_change = match e.role {

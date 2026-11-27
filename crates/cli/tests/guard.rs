@@ -49,6 +49,64 @@ async fn a_guarded_tap_is_refused_with_the_app_the_label_and_what_the_screen_say
     assert_eq!(rig.gestures(), 0);
 }
 
+/// Decision D140: a tap looks down a list for text the screen does not show. The button it finds there is held as
+/// any other, and until the human's word only the drag has reached the device.
+#[tokio::test]
+async fn a_guarded_button_that_a_tap_scrolled_to_is_held_before_it_is_tapped() {
+    let cart = |rows: [&str; 2]| {
+        let row = |text: &str, top: i32| {
+            format!(
+                r#"{{"p":1,"w":1,"cls":"android.widget.Button","text":"{text}","b":[0,{top},360,{}],"f":"vVe","a":["tap"]}}"#,
+                top + 50
+            )
+        };
+        let json = format!(
+            r#"{{"windows":[{{"id":1,"type":"application","package":"com.example.shop","bounds":[0,0,360,800]}}],"nodes":[
+            {{"p":-1,"w":1,"cls":"android.widget.FrameLayout","b":[0,0,360,800],"f":"vVe"}},
+            {{"p":0,"w":1,"cls":"androidx.recyclerview.widget.RecyclerView","b":[0,100,360,700],"f":"vVeS","a":["scroll_down"]}},
+            {},{}]}}"#,
+            row(rows[0], 100),
+            row(rows[1], 150)
+        );
+        phonedriver_core::raw::RawTree::from_android_json(
+            &json,
+            phonedriver_core::geometry::Scale { density: 1.0 },
+        )
+        .unwrap()
+    };
+    let rig = rig_showing(cart(["2 x Pad thai", "Total $34.10"])).await;
+    let below = cart(["Total $34.10", PLACE_ORDER]);
+    let dragged = |g: &phonedriver_core::device::Gesture| {
+        let path = &g.fingers[0];
+        matches!((path.first(), path.last()), (Some(a), Some(b)) if (a.at.y - b.at.y).abs() > 20.0)
+    };
+    rig.fake
+        .on_gesture(move |g| dragged(g).then(|| vec![below.clone()]));
+    let mut c = Client::connect_to(&rig.socket, "guard-test").await.unwrap();
+    let held = refused(c.call("act", json!({"action": tap("Place order")})).await);
+    assert_eq!(held["label"], PLACE_ORDER);
+    let touches = |rig: &Rig| -> Vec<bool> {
+        rig.fake
+            .calls()
+            .iter()
+            .filter_map(|c| match c {
+                Call::Gesture(g) => Some(dragged(g)),
+                _ => None,
+            })
+            .collect()
+    };
+    assert_eq!(touches(&rig), [true], "one drag and no tap");
+    let r = c
+        .call(
+            "act",
+            json!({"action": tap("Place order"), "approval": "once"}),
+        )
+        .await
+        .unwrap();
+    assert!(r["summary"].as_str().unwrap().contains("approved"), "{r}");
+    assert_eq!(touches(&rig), [true, false], "the tap, with no more drags");
+}
+
 #[tokio::test]
 async fn an_unguarded_tap_is_not_asked_about() {
     let rig = rig().await;

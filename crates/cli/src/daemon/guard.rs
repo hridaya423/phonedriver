@@ -318,7 +318,7 @@ fn slides(e: &Element) -> bool {
 }
 
 /// Movement within which a finger still clicks what it went down on, in points (Android's touch slop is 8 dp).
-const TOUCH_SLOP: f32 = 8.0;
+pub const TOUCH_SLOP: f32 = 8.0;
 
 /// Whether a finger of the gesture stays where it went down, as a tap does.
 pub fn tap_like(g: &Gesture) -> bool {

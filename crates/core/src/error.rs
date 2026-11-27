@@ -432,6 +432,14 @@ pub enum Error {
         /// Ways the screen can still scroll, as `scroll` arguments: `down`, `right --within @e1`.
         #[serde(default)]
         scrolls: Vec<String>,
+        /// What a `tap` scrolled, and scrolled back, while it looked for the text: `down 6 times`, `right to the
+        /// end` (decision D140). `scrolls` then holds the ways that go further than it looked. A boxed slice, since
+        /// with a `Vec` here and `stayed` an `Error` is 128 bytes, where clippy's `result_large_err` begins.
+        #[serde(default, skip_serializing_if = "<[String]>::is_empty")]
+        looked: Box<[String]>,
+        /// The look could not tell how far it had scrolled, so the screen is where it stopped.
+        #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+        stayed: bool,
         /// As `StaleRef::screen`.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         screen: Option<String>,
@@ -713,6 +721,32 @@ impl Error {
                 }
                 None => "Run `phonedriver snapshot` for fresh refs.".into(),
             },
+            Error::NotFound {
+                query,
+                similar,
+                scrolls,
+                looked,
+                stayed,
+                ..
+            } if !looked.is_empty() => {
+                let next = if !similar.is_empty() {
+                    format!(" Use one of these instead: {}", similar.join("; "))
+                } else if !scrolls.is_empty() {
+                    let ways: Vec<String> = scrolls
+                        .iter()
+                        .map(|way| format!("`phonedriver scroll {way} --until {}`", crate::render::quote(query)))
+                        .collect();
+                    format!(" {} looks further.", ways.join(" or "))
+                } else {
+                    String::new()
+                };
+                let back = if *stayed {
+                    " without finding it. The screen is where that left it."
+                } else {
+                    " and back without finding it."
+                };
+                format!("Scrolled {}{back}{next}", looked.join(" and "))
+            }
             Error::NotFound { similar, .. } if !similar.is_empty() => {
                 format!("Use one of these instead: {}", similar.join("; "))
             }
@@ -1010,6 +1044,8 @@ mod tests {
                 query: "Wifi".into(),
                 similar: vec!["@e4 button \"Wi‑Fi\"".into()],
                 scrolls: vec![],
+                looked: Box::default(),
+                stayed: false,
                 screen: None,
             },
             Error::Ambiguous {

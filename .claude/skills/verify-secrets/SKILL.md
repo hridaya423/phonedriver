@@ -48,6 +48,9 @@ Three unit tests in `daemon/secrets.rs` cover what the property's fixed secrets 
 
 2026-11-25, pickers everywhere (D125, D126): `Device::calendar_names` is a new device reply (month names, the words for the halves of the day, digits), read by the daemon and never returned as such; `FakeDevice` answers it. `not_picked` details now quote what wheels and fields show, which leaves through `Daemon::call` and its mask like every other error; `select` is still not secret text. `--test secret_property`: 3 passed; break B1 on the Mac mini failed as it should (`step 1 (check): the reply holds the secret Ty0mW4zR8nB3c`). The sync commit is not moved.
 
+2026-11-26, D138: `not_found` gained `looked`, the ways a `tap` scrolled while it looked for its text (`down to the end`, `right 8 times`): directions and counts, never text a caller gave. The error still names the target in `query`, as before, and leaves through `Daemon::call`; the trace keeps a text target as its length. A typed secret is not a tap target. `--test secret_property`: 3 passed on the Mac mini. The property does not generate a look, and break B1 was not run again. The sync commit is not moved.
+2026-11-27, D138 again: `not_found` gained `stayed`, a flag for a look that could not put the screen back, and `looked` became a boxed slice; neither holds text a caller gave. `--test secret_property`: 3 passed on the Mac mini. Break B1 was not run again. The sync commit is not moved.
+
 When you finish a change, run:
 
 ```

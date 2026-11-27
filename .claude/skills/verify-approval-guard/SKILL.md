@@ -30,6 +30,9 @@ Support code: `crates/cli/tests/support/guard_rig.rs` (screens `checkout()` and 
 
 2026-11-25, D127: the batch loop (`actor/wait.rs`) gives each `act` step the target of the step after it as `next`, which changes how long the reply waits and not what is held or approved: the guard reads the tapped button on the screen the step starts from, as before. `guard_property` was run on the Mac mini (with `ulimit -n 4096`: an ssh shell's 256 files give `Too many open files`, on main too). Break B1 named `actor.rs`, where the loop no longer is, and matched nothing; `breaks.py` names `actor/wait.rs` now, and with the break in place the property failed with `device saw [Tap(Place), Tap(Place)]`. The sync commit is not moved.
 
+2026-11-26, D138: a `tap` on text that is not on screen now drags a list before it resolves the text again (`actor/act.rs`: `look_for`). The drags go through `guard_touch` as a `scroll`'s do, and the element found goes on to `guard_tap` as before, so what is held and what an answer covers are unchanged. The property's screens show every button, so it does not generate a look; `--test guard a_guarded_button_that_a_tap_scrolled_to_is_held_before_it_is_tapped` does (one drag reaches the device, the tap only with `approval`). `guard_property` on the Mac mini: 7 passed. The sync commit is not moved.
+2026-11-27, D138 again: the look moved to `actor/look.rs`. Its drags forward and every pull of the way back (`back`, up to three rounds) go through `guard_touch`, each against the screen read nearest to where that pull starts, so a pull that would start on a guarded button is held as a scroll's would be. `--test guard`: 62 passed, `guard_property`: 7 passed on the Mac mini. The sync commit is not moved.
+
 When you finish a change, run:
 
 ```
