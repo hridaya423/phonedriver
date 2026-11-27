@@ -2,6 +2,12 @@
 
 Every release of phonedriver, newest first. Binaries and checksums for each version are on [GitHub Releases](https://github.com/hridaya423/phonedriver/releases).
 
+## Unreleased
+
+- **Fixed: `phonedriver ios setup` could not sign the runner for most Apple accounts** (#69, D139): every Mac built the runner as `dev.phonedriver.runner`, and Apple gives an app ID to one team, so a free Apple account got `The app identifier "dev.phonedriver.runner.xctrunner" cannot be registered to your development team because it is not available`. The runner is now signed as `dev.phonedriver.runner.<your team ID>`, with nothing to set. `PHONEDRIVER_BUNDLE_ID` names another ID. A runner built before this is built again once, and the old app stays on the device until you delete it.
+- **A failed runner build says what Xcode said** (#69): the error carries Xcode's own lines, not only the path of a log. A team with no devices yet is told to run `phonedriver ios register`.
+- **A certificate macOS refuses is no longer "no certificate"** (#69): with Apple's intermediate certificate missing from the keychain, `ios setup` said this Mac had no Apple Development certificate. It now says the certificate is there, why macOS will not sign with it, and where to get the missing one.
+
 ## 0.1.8
 
 Released 26 November 2026.

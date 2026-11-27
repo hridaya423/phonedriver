@@ -254,11 +254,20 @@ pub enum UserAction {
     EnableDeveloperMode,
     MountDeveloperImage,
     SetSigningTeam,
-    ChooseSigningTeam { teams: Vec<String> },
+    /// This Mac holds an Apple Development certificate that macOS will not sign with; `reason` is the word
+    /// `security find-identity` gives, such as `CSSMERR_TP_NOT_TRUSTED`.
+    FixSigningCertificate {
+        reason: String,
+    },
+    ChooseSigningTeam {
+        teams: Vec<String>,
+    },
     RegisterDevice,
     InstallRunner,
     PairForWifi,
-    ApproveSystemPrompt { text: String },
+    ApproveSystemPrompt {
+        text: String,
+    },
 }
 
 impl UserAction {
@@ -283,6 +292,11 @@ impl UserAction {
             UserAction::SetSigningTeam => {
                 "Running on an iPhone or iPad needs an Apple developer team to sign the runner. This Mac has no valid Apple Development certificate, and PHONEDRIVER_TEAM is not set."
                     .into()
+            }
+            UserAction::FixSigningCertificate { reason } => {
+                format!(
+                    "This Mac has an Apple Development certificate, but macOS will not sign with it ({reason})."
+                )
             }
             UserAction::ChooseSigningTeam { teams } => {
                 format!(
@@ -325,6 +339,12 @@ impl UserAction {
             UserAction::MountDeveloperImage => "Run `phonedriver ios setup` to mount the image.",
             UserAction::SetSigningTeam => {
                 "Open Xcode > Settings > Accounts, sign in with your Apple Account, then choose Manage Certificates and add an Apple Development certificate. phonedriver reads the team from it. To name a team yourself, set PHONEDRIVER_TEAM to its ID (ten letters and digits, under Membership details on developer.apple.com/account), export it in the shell that starts the daemon and run `phonedriver daemon stop` if one is already running. `phonedriver ios setup` checks all of this."
+            }
+            UserAction::FixSigningCertificate { reason } if reason == "CSSMERR_TP_NOT_TRUSTED" => {
+                "Download \"Worldwide Developer Relations - G3\" from https://www.apple.com/certificateauthority/ and open it to add it to the keychain: macOS cannot follow the certificate back to Apple, most often because that intermediate certificate is missing. Then run `phonedriver ios setup`."
+            }
+            UserAction::FixSigningCertificate { .. } => {
+                "Open Xcode > Settings > Accounts, choose Manage Certificates and add a new Apple Development certificate, then run `phonedriver ios setup`."
             }
             UserAction::ChooseSigningTeam { .. } => {
                 "Set PHONEDRIVER_TEAM to the team that should sign the runner. Export it in the shell that starts the daemon and run `phonedriver daemon stop` if one is already running."
@@ -913,6 +933,12 @@ mod tests {
             UserAction::EnableDeveloperMode,
             UserAction::MountDeveloperImage,
             UserAction::SetSigningTeam,
+            UserAction::FixSigningCertificate {
+                reason: "CSSMERR_TP_NOT_TRUSTED".into(),
+            },
+            UserAction::FixSigningCertificate {
+                reason: "CSSMERR_TP_CERT_EXPIRED".into(),
+            },
             UserAction::ChooseSigningTeam {
                 teams: vec!["TEAMONE".into(), "TEAMTWO".into()],
             },
@@ -1163,6 +1189,7 @@ mod tests {
         "Check",
         "Hide",
         "Set",
+        "Download",
     ];
 
     #[test]
@@ -1372,6 +1399,36 @@ mod tests {
             can_be_started(&off(8)),
             "iPhone 1 (iOS 26.5), iPhone 2 (iOS 26.5), iPhone 3 (iOS 26.5), iPhone 4 (iOS 26.5), iPhone 5 (iOS 26.5), iPhone 6 (iOS 26.5) and 2 more"
         );
+    }
+
+    /// Issue #69: with Apple's intermediate certificate missing, the Mac was told it had no certificate at all.
+    #[test]
+    fn a_certificate_macos_refuses_is_named_with_the_reason_and_the_missing_intermediate() {
+        let e = Error::NeedsUser {
+            action: UserAction::FixSigningCertificate {
+                reason: "CSSMERR_TP_NOT_TRUSTED".into(),
+            },
+        };
+        let message = e.to_string();
+        assert!(
+            message.contains("has an Apple Development certificate"),
+            "{message}"
+        );
+        assert!(message.contains("CSSMERR_TP_NOT_TRUSTED"), "{message}");
+        let hint = e.hint();
+        assert!(
+            hint.contains("Worldwide Developer Relations - G3"),
+            "{hint}"
+        );
+        assert!(hint.contains("apple.com/certificateauthority"), "{hint}");
+        let expired = Error::NeedsUser {
+            action: UserAction::FixSigningCertificate {
+                reason: "CSSMERR_TP_CERT_EXPIRED".into(),
+            },
+        }
+        .hint();
+        assert!(!expired.contains("Worldwide"), "{expired}");
+        assert!(expired.contains("Manage Certificates"), "{expired}");
     }
 
     #[test]

@@ -50,6 +50,38 @@ async fn the_runner_builds_once_per_source_hash() {
     assert!(second.xctestrun.is_file());
 }
 
+/// Needs no device: a Mac whose Xcode is signed in to the team of its Apple Development certificate (or to
+/// `PHONEDRIVER_TEAM`). `cargo test -p phonedriver-ios --test all a_device_build -- --ignored`.
+#[tokio::test]
+#[ignore]
+async fn a_device_build_is_signed_under_the_id_that_holds_the_team() {
+    let team = phonedriver_ios::team::signing_team().unwrap();
+    let home = tempfile::tempdir().unwrap();
+    let first = runner::build_for(home.path(), Some(&team)).await.unwrap();
+    assert!(first.built);
+    let products = first.xctestrun.parent().unwrap();
+    let id = format!("dev.phonedriver.runner.{team}.xctrunner");
+    let run = std::fs::read_to_string(&first.xctestrun).unwrap();
+    assert!(run.contains(&format!("<string>{id}</string>")), "{run}");
+    let app = products.join(runner::DEVICE_PROFILE);
+    let app = app.parent().unwrap();
+    let signed = Command::new("/usr/bin/codesign")
+        .args(["--display", "--verbose=2"])
+        .arg(app)
+        .output()
+        .unwrap();
+    let signed = String::from_utf8_lossy(&signed.stderr).into_owned();
+    assert!(signed.contains(&format!("Identifier={id}\n")), "{signed}");
+    assert!(
+        signed.contains(&format!("TeamIdentifier={team}\n")),
+        "{signed}"
+    );
+    assert!(runner::profile_expiry(&products.join(runner::DEVICE_PROFILE)).is_some());
+    let again = runner::build_for(home.path(), Some(&team)).await.unwrap();
+    assert!(!again.built);
+    assert_eq!(again.xctestrun, first.xctestrun);
+}
+
 #[tokio::test(flavor = "multi_thread")]
 #[ignore]
 async fn two_simulators_get_two_runners_on_two_ports() {

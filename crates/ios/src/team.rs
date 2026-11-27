@@ -16,6 +16,20 @@ fn identities(listing: &str) -> Vec<&str> {
         .collect()
 }
 
+/// Why macOS will not sign with an "Apple Development" identity this Mac holds. `security find-identity -p
+/// codesigning` lists every identity before the valid ones, and writes the reason after the name of each one it
+/// refuses: `1) <sha1> "Apple Development: A Person (ABCDE12345)" (CSSMERR_TP_NOT_TRUSTED)`. Issue #69: with Apple's
+/// intermediate certificate missing from the keychain, a certificate that was there counted as none.
+fn refused(listing: &str) -> Option<&str> {
+    listing.lines().find_map(|line| {
+        let (_, name) = line.trim().split_once(") ")?.1.split_once(' ')?;
+        let (_, reason) = name
+            .strip_prefix("\"Apple Development: ")?
+            .rsplit_once("\" (")?;
+        reason.strip_suffix(')')
+    })
+}
+
 /// Each certificate in the output of `security find-certificate -a -Z -p`, as its SHA-1 and its PEM text.
 fn certificates(dump: &str) -> Vec<(&str, String)> {
     let mut found = Vec::new();
@@ -122,8 +136,39 @@ pub fn signing_team() -> Result<String, Error> {
         .filter(|t| !t.is_empty())
     {
         Some(team) => Ok(team),
-        None => choose(certificate_teams()),
+        None => {
+            let teams = certificate_teams();
+            if teams.is_empty()
+                && let Some(reason) = refused(&output(
+                    "/usr/bin/security",
+                    &["find-identity", "-p", "codesigning"],
+                ))
+            {
+                return Err(Error::NeedsUser {
+                    action: UserAction::FixSigningCertificate {
+                        reason: reason.to_string(),
+                    },
+                });
+            }
+            choose(teams)
+        }
     }
+}
+
+/// The bundle id a device build of the runner is signed with: `asked`, else one that holds `team`. Apple gives an
+/// app id to one team, and a free account signs only ids registered to it, so an id that is the same for everyone
+/// works for one team (issue #69, a free account on Xcode 27.2: "The app identifier
+/// "dev.phonedriver.runner.xctrunner" cannot be registered to your development team because it is not available").
+pub fn bundle_id_for(team: &str, asked: Option<&str>) -> String {
+    match asked.filter(|id| !id.is_empty()) {
+        Some(id) => id.to_string(),
+        None => format!("dev.phonedriver.runner.{team}"),
+    }
+}
+
+/// `bundle_id_for` with `PHONEDRIVER_BUNDLE_ID` as what was asked.
+pub fn bundle_id(team: &str) -> String {
+    bundle_id_for(team, std::env::var("PHONEDRIVER_BUNDLE_ID").ok().as_deref())
 }
 
 #[cfg(test)]
@@ -135,6 +180,15 @@ mod tests {
         let listing = "  1) AAAA1111 \"Apple Development: A Person (ABCDE12345)\"\n  2) BBBB2222 \"Developer ID Application: A Company (TEAM123456)\"\n  3) CCCC3333 \"Apple Distribution: A Company (TEAM123456)\"\n     3 valid identities found\n";
         assert_eq!(identities(listing), vec!["AAAA1111"]);
         assert!(identities("     0 valid identities found\n").is_empty());
+    }
+
+    #[test]
+    fn an_apple_development_identity_macos_refuses_gives_its_reason_and_a_valid_one_gives_none() {
+        let untrusted = "\nPolicy: Code Signing\n  Matching identities\n  1) BBBB2222 \"Developer ID Application: A Company (TEAM123456)\" (CSSMERR_TP_CERT_EXPIRED)\n  2) AAAA1111 \"Apple Development: A Person (ABCDE12345)\" (CSSMERR_TP_NOT_TRUSTED)\n     2 identities found\n\n  Valid identities only\n     0 valid identities found\n";
+        assert_eq!(refused(untrusted), Some("CSSMERR_TP_NOT_TRUSTED"));
+        let valid = "\nPolicy: Code Signing\n  Matching identities\n  1) AAAA1111 \"Apple Development: A Person (ABCDE12345)\"\n     1 identities found\n\n  Valid identities only\n  1) AAAA1111 \"Apple Development: A Person (ABCDE12345)\"\n     1 valid identities found\n";
+        assert_eq!(refused(valid), None);
+        assert_eq!(refused("     0 identities found\n"), None);
     }
 
     #[test]
@@ -155,6 +209,28 @@ mod tests {
         let subject = "subject=C=US,O=A Company\\, Inc.,OU=TEAM123456,CN=Apple Development: A Person (ABCDE12345),UID=ABCDE12345\n";
         assert_eq!(team_in(subject), Some("TEAM123456"));
         assert_eq!(team_in("subject=CN=No Team"), None);
+    }
+
+    #[test]
+    fn the_runner_id_for_a_device_holds_the_team_unless_another_is_asked_for() {
+        assert_eq!(
+            bundle_id_for("ABCDE12345", None),
+            "dev.phonedriver.runner.ABCDE12345"
+        );
+        assert_ne!(
+            bundle_id_for("ABCDE12345", None),
+            bundle_id_for("TEAM123456", None),
+            "two teams never ask Apple for the same id"
+        );
+        assert_eq!(
+            bundle_id_for("ABCDE12345", Some("com.example.phonedriver")),
+            "com.example.phonedriver"
+        );
+        assert_eq!(
+            bundle_id_for("ABCDE12345", Some("")),
+            "dev.phonedriver.runner.ABCDE12345",
+            "a variable set to nothing asks for nothing"
+        );
     }
 
     #[test]
