@@ -544,7 +544,8 @@ fn not_found(now: &Rendered, text: &str) -> Error {
         query: text.to_string(),
         similar,
         scrolls,
-        looked: Vec::new(),
+        looked: Box::default(),
+        stayed: false,
         screen: None,
     }
 }

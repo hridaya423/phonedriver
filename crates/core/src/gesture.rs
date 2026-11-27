@@ -111,6 +111,45 @@ pub fn scroll(area: Rect, direction: Direction) -> Gesture {
     swipe(area, direction.opposite(), SCROLL_DISTANCE, false)
 }
 
+/// The first move of a `pull`, in points: past the touch slop of Android (8 dp).
+pub const PULL_LEAD: f32 = 16.0;
+
+/// A drag of `travel` points in `direction`, centered in `area`, that holds before it lifts as a scroll does and
+/// makes its first move `PULL_LEAD` long whatever the travel. An Android list follows the finger from the first move
+/// that takes it past the touch slop, and that move itself moves nothing: in ten even steps a drag lost a tenth of
+/// its travel (the testbed's list and Settings, API 37 emulator: 166.1, 332.6 and 498.7 points for drags of 184.6,
+/// 369.2 and 553.8). With a first move of one length every pull loses that length, so pulls of other lengths can
+/// take back what some moved. It moves at a scroll's pace: at 120 ms a pull back left Settings 58.7 points from
+/// where it began, and one along the testbed's row of tabs changed the page (API 37 emulator).
+pub fn pull(area: Rect, direction: Direction, travel: f32) -> Gesture {
+    let (dx, dy) = along(direction);
+    let c = area.center();
+    let at = |d: f32| Point {
+        x: c.x + dx * (d - travel / 2.0),
+        y: c.y + dy * (d - travel / 2.0),
+    };
+    let step = MOVE_MS / STEPS;
+    let mut gesture = drag(
+        at(PULL_LEAD.min(travel)),
+        at(travel),
+        STEPS - 1,
+        MOVE_MS - step,
+        HOLD_MS,
+    );
+    let path = &mut gesture.fingers[0];
+    for point in path.iter_mut() {
+        point.t_ms += step;
+    }
+    path.insert(
+        0,
+        TimedPoint {
+            at: at(0.0),
+            t_ms: 0,
+        },
+    );
+    gesture
+}
+
 /// One tap, or `count` taps 80 ms apart, or one press that lifts after `long_ms`.
 pub fn tap(at: Point, count: u32, long_ms: Option<u32>) -> Gesture {
     let up = long_ms.unwrap_or(0);
@@ -198,6 +237,29 @@ mod tests {
 
     fn path(g: &Gesture) -> &[TimedPoint] {
         &g.fingers[0]
+    }
+
+    #[test]
+    fn a_pull_makes_its_first_move_the_same_length_whatever_its_travel() {
+        for travel in [26.0, 300.0, 640.0] {
+            let g = pull(AREA, Direction::Up, travel);
+            let p = path(&g);
+            assert_eq!((p[0].at.x, p[0].t_ms), (200.0, 0));
+            assert!((p[0].at.y - (500.0 + travel / 2.0)).abs() < 0.01);
+            assert!(
+                (p[0].at.y - p[1].at.y - PULL_LEAD).abs() < 0.01 && p[1].t_ms == 25,
+                "{travel}: {:?}",
+                &p[..2]
+            );
+            assert!((p[10].at.y - (500.0 - travel / 2.0)).abs() < 0.01);
+            assert_eq!(p[10].t_ms, 250);
+            let last = p.last().unwrap();
+            assert_eq!((last.at.y, last.t_ms), (p[10].at.y, 400));
+            assert!(p.windows(2).all(|w| w[1].t_ms - w[0].t_ms <= 25));
+        }
+        let sideways = pull(AREA, Direction::Left, 200.0);
+        let p = path(&sideways);
+        assert_eq!((p[0].at.x, p[1].at.x, p[0].at.y), (300.0, 284.0, 500.0));
     }
 
     #[test]

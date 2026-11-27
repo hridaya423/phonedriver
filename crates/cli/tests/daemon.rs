@@ -7045,8 +7045,348 @@ async fn a_tap_on_text_further_down_the_list_scrolls_to_it_and_taps_it() {
     assert_eq!(kept[0]["params"]["action"]["target"]["text"], "Shop");
 }
 
+/// A list that scrolls as Android's do, 600 points of it showing: it follows the finger from the first point of a
+/// drag that is more than the touch slop from where the finger went down, so that move itself moves nothing (the
+/// testbed's list and Settings on the API 37 emulator moved 166.1, 332.6 and 498.7 points for drags of 184.6, 369.2
+/// and 553.8 in ten even steps), and it stops at both ends. A finger that goes on pulling down at the top is what
+/// refreshes a feed, so `pulled` adds up how far; `shortest` is the shortest drag, since one under the slop is a
+/// tap on whatever row is there. With `strip`, a row of tabs that says it scrolls right lies above the list. `late`
+/// names drags, counted from 1, that move the list so many points less than their travel would.
+struct Reel {
+    rows: usize,
+    tall: f32,
+    strip: bool,
+    stretch: f32,
+    late: Mutex<Vec<(usize, f32)>>,
+    drags: Mutex<usize>,
+    at: Mutex<f32>,
+    pulled: Mutex<f32>,
+    shortest: Mutex<f32>,
+}
+
+impl Reel {
+    const TOP: f32 = 100.0;
+    const SHOWN: f32 = 600.0;
+    const SLOP: f32 = 8.0;
+
+    fn new(rows: usize, tall: f32, at: f32) -> Arc<Reel> {
+        Arc::new(Reel {
+            rows,
+            tall,
+            strip: false,
+            stretch: 0.0,
+            late: Mutex::new(Vec::new()),
+            drags: Mutex::new(0),
+            at: Mutex::new(at),
+            pulled: Mutex::new(0.0),
+            shortest: Mutex::new(f32::MAX),
+        })
+    }
+
+    /// A list that has been dragged into its end gives back `stretch` points of the next drag before it moves.
+    fn stretching(rows: usize, stretch: f32) -> Arc<Reel> {
+        Arc::new(Reel {
+            rows,
+            tall: 80.0,
+            strip: false,
+            stretch,
+            late: Mutex::new(Vec::new()),
+            drags: Mutex::new(0),
+            at: Mutex::new(0.0),
+            pulled: Mutex::new(0.0),
+            shortest: Mutex::new(f32::MAX),
+        })
+    }
+
+    fn with_strip(rows: usize) -> Arc<Reel> {
+        Arc::new(Reel {
+            rows,
+            tall: 80.0,
+            strip: true,
+            stretch: 0.0,
+            late: Mutex::new(Vec::new()),
+            drags: Mutex::new(0),
+            at: Mutex::new(0.0),
+            pulled: Mutex::new(0.0),
+            shortest: Mutex::new(f32::MAX),
+        })
+    }
+
+    fn end(&self) -> f32 {
+        self.rows as f32 * self.tall - Self::SHOWN
+    }
+
+    fn at(&self) -> f32 {
+        *self.at.lock().unwrap()
+    }
+
+    fn tree(&self) -> RawTree {
+        let at = self.at();
+        let mut actions = Vec::new();
+        if at > 0.5 {
+            actions.push(r#""scroll_up""#);
+        }
+        if at < self.end() - 0.5 {
+            actions.push(r#""scroll_down""#);
+        }
+        let mut nodes = vec![
+            r#"{"p":-1,"w":1,"cls":"android.widget.FrameLayout","b":[0,0,360,800],"f":"vVe"}"#
+                .to_string(),
+            format!(
+                r#"{{"p":0,"w":1,"n":"list","cls":"androidx.recyclerview.widget.RecyclerView","b":[0,100,360,700],"f":"vVeS","a":[{}]}}"#,
+                actions.join(",")
+            ),
+        ];
+        for row in 0..self.rows {
+            let top = Self::TOP + row as f32 * self.tall - at;
+            let (from, to) = (
+                top.max(Self::TOP),
+                (top + self.tall).min(Self::TOP + Self::SHOWN),
+            );
+            if to - from < 1.0 {
+                continue;
+            }
+            nodes.push(format!(
+                r#"{{"p":1,"w":1,"n":"row{row}","cls":"android.widget.Button","text":"Row {row}","b":[0,{from},360,{to}],"f":"vVe","a":["tap"]}}"#
+            ));
+        }
+        if self.strip {
+            nodes.push(
+                r#"{"p":0,"w":1,"n":"tabs","cls":"android.view.View","b":[0,40,360,88],"f":"vVeS","a":["scroll_fwd","scroll_right"]}"#
+                    .to_string(),
+            );
+            let tabs = nodes.len() - 1;
+            for (i, tab) in ["Taps", "Text", "List", "Busy"].iter().enumerate() {
+                let left = 90 * i;
+                nodes.push(format!(
+                    r#"{{"p":{tabs},"w":1,"n":"tab{i}","cls":"android.widget.Button","text":"{tab}","b":[{left},40,{},88],"f":"vVe","a":["tap"]}}"#,
+                    left + 90
+                ));
+            }
+        }
+        let json = format!(
+            r#"{{"windows":[{{"id":1,"type":"application","package":"com.example","bounds":[0,0,360,800]}}],"nodes":[{}]}}"#,
+            nodes.join(",")
+        );
+        RawTree::from_android_json(&json, Scale { density: 1.0 }).unwrap()
+    }
+
+    fn drive(self: &Arc<Reel>, fake: &FakeDevice) {
+        let reel = self.clone();
+        fake.on_gesture(move |g| {
+            let path = &g.fingers[0];
+            let (down, up) = (path.first()?.at.y, path.last()?.at.y);
+            if path.len() <= 2 || down == up {
+                return None;
+            }
+            let mut shortest = reel.shortest.lock().unwrap();
+            *shortest = shortest.min((up - down).abs());
+            let grabbed = path
+                .iter()
+                .map(|p| p.at.y)
+                .find(|y| (y - down).abs() > Self::SLOP)?;
+            let mut moved = grabbed - up;
+            if moved < 0.0 && reel.at() > reel.end() - 0.5 {
+                moved = (moved + reel.stretch).min(0.0);
+            }
+            let nth = {
+                let mut drags = reel.drags.lock().unwrap();
+                *drags += 1;
+                *drags
+            };
+            for (_, less) in reel.late.lock().unwrap().iter().filter(|(n, _)| *n == nth) {
+                moved = moved.signum() * (moved.abs() - less).max(0.0);
+            }
+            let wanted = reel.at() + moved;
+            *reel.pulled.lock().unwrap() += (-wanted).max(0.0);
+            *reel.at.lock().unwrap() = wanted.clamp(0.0, reel.end());
+            Some(vec![reel.tree()])
+        });
+    }
+
+    async fn daemon(self: &Arc<Reel>) -> (Arc<Daemon>, Arc<FakeDevice>, tempfile::TempDir) {
+        let (source, fake) = FakeSource::with(vec![self.tree()]);
+        self.drive(&fake);
+        let (d, home) = daemon(source);
+        ok(&d, "default", "snapshot", json!({})).await;
+        (d, fake, home)
+    }
+}
+
 #[tokio::test(start_paused = true)]
 async fn a_tap_on_text_the_list_does_not_hold_scrolls_back_and_says_what_it_scrolled() {
+    let reel = Reel::new(30, 80.0, 0.0);
+    let (d, fake, _home) = reel.daemon().await;
+    let e = err(&d, "default", "act", tap_text("Zebra")).await;
+    assert_eq!(e.data["code_name"], "not_found", "{e:?}");
+    assert_eq!(
+        e.data["hint"],
+        "Scrolled down to the end and back without finding it."
+    );
+    assert!(reel.at() < 0.5, "the list is where it was: {}", reel.at());
+    assert!(
+        *reel.pulled.lock().unwrap() < 0.5,
+        "nothing pulled at the top"
+    );
+    assert_eq!(
+        e.data["screen"], "",
+        "the screen is the one the agent last saw: {e:?}"
+    );
+    let dragged = drags(&fake);
+    let down = dragged.iter().filter(|(from, to)| from.y > to.y).count();
+    assert_eq!(
+        (down, dragged.len() - down),
+        (4, 4),
+        "1,800 points in four drags that move at most 464, and back in four of 450: {dragged:?}"
+    );
+    assert_eq!(fake.calls().len(), 8, "and no tap: {:?}", fake.calls());
+    assert!(kept_steps(&d).await.is_empty());
+}
+
+/// The first build dragged back as often as it had dragged forward. From the middle of a list that left it short,
+/// since the last drag forward was cut off by the end, and at the top of a list the last drag back pulled on. The
+/// second measured how far the rows had moved and took every drag to lose the same length before it moves
+/// anything, which a drag in even steps does not: Settings on the API 37 emulator came back 14.9 points short and
+/// the testbed's list a row short. Ten points from the end is a drag back of 26, and rows 150 tall are never whole
+/// in two reads that follow each other.
+#[tokio::test(start_paused = true)]
+async fn a_look_from_the_middle_of_a_list_comes_back_to_the_point_it_left() {
+    for (tall, at) in [(80.0, 500.0), (80.0, 1790.0), (150.0, 333.0)] {
+        let reel = Reel::new(30, tall, at);
+        let (d, _fake, _home) = reel.daemon().await;
+        let e = err(&d, "default", "act", tap_text("Zebra")).await;
+        assert_eq!(e.data["code_name"], "not_found", "{e:?}");
+        assert!(
+            (reel.at() - at).abs() < 0.5,
+            "rows {tall} tall from {at}: the list is at {}",
+            reel.at()
+        );
+        assert_eq!(e.data["screen"], "", "{e:?}");
+        let shortest = *reel.shortest.lock().unwrap();
+        assert!(
+            shortest > 2.0 * Reel::SLOP,
+            "no drag short enough to be a tap: {shortest}"
+        );
+    }
+}
+
+/// The first drag back from the end of the testbed's row of tabs moved 20 to 68 points less than its length: the row
+/// was still giving back the stretch of the drag that had reached its end (API 37 emulator).
+#[tokio::test(start_paused = true)]
+async fn a_list_that_gives_way_late_at_its_end_is_still_put_back_where_it_was() {
+    let reel = Reel::stretching(30, 36.0);
+    let (d, fake, _home) = reel.daemon().await;
+    let e = err(&d, "default", "act", tap_text("Zebra")).await;
+    assert_eq!(
+        e.data["hint"],
+        "Scrolled down to the end and back without finding it."
+    );
+    assert!(reel.at() < 0.5, "the list is where it was: {}", reel.at());
+    assert!(*reel.pulled.lock().unwrap() < 0.5);
+    assert_eq!(e.data["screen"], "", "{e:?}");
+    assert_eq!(
+        drags(&fake).len(),
+        9,
+        "four down, four back, and one for the 36 points the first of those lost: {:?}",
+        drags(&fake)
+    );
+}
+
+/// The first drag after the testbed started moved its row of tabs 278.5 points where the next two moved 313.1: the
+/// app was late by one more of the drag's steps (3 runs in 30, API 37 emulator). Taken for what every drag loses,
+/// that sent each drag back 34.7 points too far, the row was pulled into its start, and the tap that followed did
+/// nothing while the row gave that back. Some drags also moved 10.7 points more than their travel less the first
+/// move, and the least loss taken for every drag's left the testbed's list 10.7 short.
+#[tokio::test(start_paused = true)]
+async fn a_drag_that_moved_less_or_more_than_the_others_does_not_set_how_far_the_drags_back_go() {
+    for (rows, late) in [(30, 34.7), (12, 34.7), (30, -10.7), (200, -10.7)] {
+        let reel = Reel::new(rows, 80.0, 0.0);
+        *reel.late.lock().unwrap() = vec![(1, late)];
+        let (d, _fake, _home) = reel.daemon().await;
+        let e = err(&d, "default", "act", tap_text("Zebra")).await;
+        assert_eq!(e.data["code_name"], "not_found", "{e:?}");
+        assert!(
+            reel.at() < 0.5,
+            "{rows} rows, {late}: the list is at {}",
+            reel.at()
+        );
+        let pulled = *reel.pulled.lock().unwrap();
+        assert!(
+            pulled < 0.5,
+            "{rows} rows, {late}: pulled {pulled} at the top"
+        );
+    }
+}
+
+/// One pull after the drags back left the testbed's row of tabs 16 points off in 1 run of 25: in another, the
+/// drags back had left it 89.9 points off and the pull that followed 8.8 (API 37 emulator).
+#[tokio::test(start_paused = true)]
+async fn a_pull_that_falls_short_of_where_the_list_began_is_followed_by_one_more() {
+    let reel = Reel::new(30, 80.0, 0.0);
+    *reel.late.lock().unwrap() = vec![(5, 89.9), (9, 8.8)];
+    let (d, fake, _home) = reel.daemon().await;
+    let e = err(&d, "default", "act", tap_text("Zebra")).await;
+    assert_eq!(e.data["code_name"], "not_found", "{e:?}");
+    assert!(reel.at() < 0.5, "the list is at {}", reel.at());
+    assert!(*reel.pulled.lock().unwrap() < 0.5);
+    assert_eq!(
+        drags(&fake).len(),
+        10,
+        "four down, four back, and two pulls: {:?}",
+        drags(&fake)
+    );
+}
+
+/// On an emulator that had run for hours the drags back fell so far short that no row of the first screen was in
+/// view, and with nothing to read the distance against, the list stayed nine rows from where it began.
+#[tokio::test(start_paused = true)]
+async fn a_way_back_that_falls_far_short_is_measured_against_the_screens_the_look_passed() {
+    let reel = Reel::new(30, 80.0, 0.0);
+    *reel.late.lock().unwrap() = vec![(5, 300.0), (6, 300.0), (7, 300.0), (8, 300.0)];
+    let (d, _fake, _home) = reel.daemon().await;
+    let e = err(&d, "default", "act", tap_text("Zebra")).await;
+    assert_eq!(
+        e.data["hint"],
+        "Scrolled down to the end and back without finding it."
+    );
+    assert!(reel.at() < 0.5, "the list is at {}", reel.at());
+    assert!(*reel.pulled.lock().unwrap() < 0.5);
+    assert_eq!(e.data["screen"], "", "{e:?}");
+}
+
+/// Six drags of 80% show as much of a list as the eight of 60% that the first build made, and a miss on the
+/// testbed's 1,000 rows took 20.6 s with those eight, the drags back, and a look along the row of tabs after them
+/// (API 37 emulator).
+#[tokio::test(start_paused = true)]
+async fn a_tap_on_text_gives_up_after_six_drags_and_names_the_scroll_that_looks_further() {
+    let reel = Reel::with_strip(200);
+    let (d, fake, _home) = reel.daemon().await;
+    let e = err(&d, "default", "act", tap_text("Zebra")).await;
+    assert_eq!(e.data["code_name"], "not_found", "{e:?}");
+    assert_eq!(
+        e.data["hint"],
+        "Scrolled down 6 times and back without finding it. `phonedriver scroll down --until \"Zebra\"` or `phonedriver scroll right --within @e1 --until \"Zebra\"` looks further."
+    );
+    assert!(reel.at() < 0.5, "{}", reel.at());
+    assert!(*reel.pulled.lock().unwrap() < 0.5);
+    let dragged = drags(&fake);
+    assert!(
+        dragged.iter().all(|(from, to)| from.x == to.x),
+        "no drag along the tabs once the six are spent: {dragged:?}"
+    );
+    assert_eq!(
+        dragged.len(),
+        12,
+        "six down, and the same six back: {dragged:?}"
+    );
+    assert_eq!(fake.calls().len(), 12, "{:?}", fake.calls());
+    assert_eq!(e.data["screen"], "", "{e:?}");
+}
+
+/// A feed of cards as tall as the window shares no row between one drag and the next, so how far it moved cannot
+/// be read off the screen, and a drag back by guess could pull on at the top.
+#[tokio::test(start_paused = true)]
+async fn a_look_that_cannot_tell_how_far_it_scrolled_leaves_the_list_there_and_says_so() {
     let pages = vec![
         list_tree(&["Row 0", "Row 1"]),
         list_tree(&["Row 5", "Row 6"]),
@@ -7057,53 +7397,18 @@ async fn a_tap_on_text_the_list_does_not_hold_scrolls_back_and_says_what_it_scro
     let (d, _home) = daemon(source);
     ok(&d, "default", "snapshot", json!({})).await;
     let e = err(&d, "default", "act", tap_text("Zebra")).await;
-    assert_eq!(e.data["code_name"], "not_found", "{e:?}");
-    let hint = e.data["hint"].as_str().unwrap();
-    assert_eq!(
-        hint,
-        "Scrolled down to the end and back without finding it."
-    );
-    let dragged = drags(&fake);
-    assert_eq!(
-        fake.calls().len(),
-        6,
-        "two drags that move the list, two that do not, two back, and no tap: {:?}",
-        fake.calls()
-    );
-    assert!(
-        dragged[..4].iter().all(|(from, to)| from.y > to.y)
-            && dragged[4..].iter().all(|(from, to)| from.y < to.y),
-        "{dragged:?}"
-    );
-    assert_eq!(
-        e.data["screen"], "",
-        "the screen is the one the agent last saw: {e:?}"
-    );
-    assert!(kept_steps(&d).await.is_empty());
-}
-
-#[tokio::test(start_paused = true)]
-async fn a_tap_on_text_gives_up_after_eight_drags_and_names_the_scroll_that_looks_further() {
-    let pages: Vec<RawTree> = (0..20)
-        .map(|i| list_tree(&[&format!("Row {}", i * 2), &format!("Row {}", i * 2 + 1)]))
-        .collect();
-    let (source, fake) = FakeSource::with(vec![pages[0].clone()]);
-    turns_pages(&fake, pages);
-    let (d, _home) = daemon(source);
-    ok(&d, "default", "snapshot", json!({})).await;
-    let e = err(&d, "default", "act", tap_text("Zebra")).await;
-    assert_eq!(e.data["code_name"], "not_found", "{e:?}");
-    assert_eq!(
-        fake.calls().len(),
-        16,
-        "eight down and eight back: {:?}",
-        fake.calls()
-    );
     assert_eq!(
         e.data["hint"],
-        "Scrolled down 8 times and back without finding it. `phonedriver scroll down --until \"Zebra\"` looks further."
+        "Scrolled down to the end without finding it. The screen is where that left it."
     );
-    assert_eq!(e.data["screen"], "", "{e:?}");
+    assert_eq!(
+        fake.calls().len(),
+        4,
+        "two drags that move the list, two that do not, none back: {:?}",
+        fake.calls()
+    );
+    let screen = e.data["screen"].as_str().unwrap();
+    assert!(screen.contains("\"Row 999\""), "{screen}");
 }
 
 #[tokio::test(start_paused = true)]
@@ -7190,71 +7495,29 @@ async fn a_tap_on_a_tab_further_along_its_row_drags_the_row_sideways() {
     );
 }
 
-/// Three rows of a list as the platform names them, so a row that moves keeps its ref from one read to the next.
-fn slid(rows: [usize; 3], further: bool) -> RawTree {
-    let mut nodes = vec![
-        r#"{"p":-1,"w":1,"cls":"android.widget.FrameLayout","b":[0,0,360,800],"f":"vVe"}"#
-            .to_string(),
-        format!(
-            r#"{{"p":0,"w":1,"n":"list","cls":"androidx.recyclerview.widget.RecyclerView","b":[0,100,360,700],"f":"vVeS","a":["scroll_up"{}]}}"#,
-            if further { r#","scroll_down""# } else { "" }
-        ),
-    ];
-    for (slot, row) in rows.iter().enumerate() {
-        let top = 100 + 50 * slot as i32;
-        nodes.push(format!(
-            r#"{{"p":1,"w":1,"n":"row{row}","cls":"android.widget.TextView","text":"Row {row}","b":[0,{top},360,{}],"f":"vVe"}}"#,
-            top + 50
-        ));
-    }
-    let json = format!(
-        r#"{{"windows":[{{"id":1,"type":"application","package":"com.example","bounds":[0,0,360,800]}}],"nodes":[{}]}}"#,
-        nodes.join(",")
-    );
-    RawTree::from_android_json(&json, Scale { density: 1.0 }).unwrap()
-}
-
-/// Settings on the API 37 emulator: the drags back do not pass the places the drags forward did, a row shown on
-/// the way back at another place got a new ref there and kept it, and the refused tap answered with the whole
+/// Settings on the API 37 emulator: a row that was also on screen one drag further down came back under a new ref,
+/// since the reads on the way had last seen it at that other place, and the refused tap answered with the whole
 /// screen under new refs.
 #[tokio::test(start_paused = true)]
 async fn a_tap_that_looked_and_found_nothing_leaves_the_rows_the_refs_they_had() {
-    let (source, fake) = FakeSource::with(vec![slid([0, 1, 2], true)]);
-    let path = [
-        slid([2, 3, 4], true),
-        slid([3, 4, 5], false),
-        slid([1, 2, 3], true),
-        slid([0, 1, 2], true),
-    ];
-    let dragged = std::sync::atomic::AtomicUsize::new(0);
-    fake.on_gesture(move |g| {
-        let from = g.fingers[0].first()?.at;
-        let to = g.fingers[0].last()?.at;
-        ((from.y - to.y).abs() > 20.0).then(|| {
-            let at = dragged.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-            vec![path[at.min(path.len() - 1)].clone()]
-        })
-    });
+    let reel = Reel::new(30, 80.0, 0.0);
+    let (source, fake) = FakeSource::with(vec![reel.tree()]);
+    reel.drive(&fake);
     let (d, _home) = daemon(source);
     let snap = ok(&d, "default", "snapshot", json!({})).await;
     let row = snap["text"]
         .as_str()
         .unwrap()
         .lines()
-        .find(|l| l.contains("\"Row 1\""))
+        .find(|l| l.contains("\"Row 5\""))
         .and_then(|l| l.trim_start().split(' ').next())
         .unwrap()
         .trim_start_matches('@')
         .to_string();
     let e = err(&d, "default", "act", tap_text("Zebra")).await;
-    assert_eq!(
-        e.data["hint"],
-        "Scrolled down to the end and back without finding it."
-    );
     assert_eq!(e.data["screen"], "", "{e:?}");
-    assert_eq!(drags(&fake).len(), 4, "{:?}", fake.calls());
     let r = ok(&d, "default", "act", tap_ref(&row)).await;
-    assert!(r["summary"].as_str().unwrap().contains("\"Row 1\""), "{r}");
+    assert!(r["summary"].as_str().unwrap().contains("\"Row 5\""), "{r}");
 }
 
 /// Chrome's first-run screen (API 37 emulator) is a pager that says it scrolls right and does not move: a tap on
