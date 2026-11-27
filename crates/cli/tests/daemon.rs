@@ -6971,7 +6971,11 @@ async fn a_system_dialog_over_an_app_is_named_in_the_header_and_is_not_the_app()
 /// A drag of more than 20 points up or to the left turns to the next of `pages`, one down or to the right turns
 /// back, and the first and last pages stay.
 fn turns_pages(fake: &FakeDevice, pages: Vec<RawTree>) {
-    let at = std::sync::atomic::AtomicUsize::new(0);
+    turns_pages_from(fake, pages, 0)
+}
+
+fn turns_pages_from(fake: &FakeDevice, pages: Vec<RawTree>, first: usize) {
+    let at = std::sync::atomic::AtomicUsize::new(first);
     fake.on_gesture(move |g| {
         let path = &g.fingers[0];
         let (from, to) = (path.first()?.at, path.last()?.at);
@@ -7444,11 +7448,25 @@ fn tab_row(labels: &[&str]) -> RawTree {
 
 /// Buttons side by side in something `tall` points high that scrolls to the right.
 fn sideways(tall: i32, labels: &[&str]) -> RawTree {
+    scrolling_sideways(tall, labels, r#""scroll_fwd","scroll_right""#)
+}
+
+/// A row of tabs part of the way along: it says it scrolls back and to the left, and forward and to the right when
+/// `further`.
+fn tab_row_along(labels: &[&str], further: bool) -> RawTree {
+    let actions = match further {
+        true => r#""scroll_back","scroll_left","scroll_fwd","scroll_right""#,
+        false => r#""scroll_back","scroll_left""#,
+    };
+    scrolling_sideways(48, labels, actions)
+}
+
+fn scrolling_sideways(tall: i32, labels: &[&str], actions: &str) -> RawTree {
     let mut nodes = vec![
         r#"{"p":-1,"w":1,"cls":"android.widget.FrameLayout","b":[0,0,360,800],"f":"vVe"}"#
             .to_string(),
         format!(
-            r#"{{"p":0,"w":1,"cls":"android.view.View","b":[0,0,360,{tall}],"f":"vVeS","a":["scroll_fwd","scroll_right"]}}"#
+            r#"{{"p":0,"w":1,"cls":"android.view.View","b":[0,0,360,{tall}],"f":"vVeS","a":[{actions}]}}"#
         ),
     ];
     for (i, l) in labels.iter().enumerate() {
@@ -7493,6 +7511,90 @@ async fn a_tap_on_a_tab_further_along_its_row_drags_the_row_sideways() {
         from.x - to.x > 20.0 && from.y == to.y && from.y < 48.0,
         "{from:?} to {to:?}"
     );
+}
+
+fn tabs_from_the_middle() -> Vec<RawTree> {
+    vec![
+        tab_row(&["Taps", "Text", "List", "Busy"]),
+        tab_row_along(&["List", "Busy", "Wait", "Shop"], true),
+        tab_row_along(&["Wait", "Shop", "Cart", "Help"], false),
+    ]
+}
+
+/// The testbed on the API 37 emulator, 2026-11-27: `tap "Shop"` scrolled the row of tabs to the right and tapped it,
+/// and the `tap "Taps"` that followed answered `Scrolled right to the end and back without finding it`, with `Taps`
+/// to the left of what the row showed. The tap that found one tab had put the others out of reach.
+#[tokio::test(start_paused = true)]
+async fn a_tap_on_a_tab_back_along_its_row_puts_the_row_back_and_then_looks_left() {
+    let pages = tabs_from_the_middle();
+    let (source, fake) = FakeSource::with(vec![pages[1].clone()]);
+    turns_pages_from(&fake, pages, 1);
+    let (d, _home) = daemon(source);
+    let snap = ok(&d, "default", "snapshot", json!({})).await;
+    let text = snap["text"].as_str().unwrap();
+    assert!(text.contains("scrollable←→"), "{text}");
+    let r = ok(&d, "default", "act", tap_text("Taps")).await;
+    let summary = r["summary"].as_str().unwrap();
+    assert!(
+        summary.starts_with("scrolled right to the end and left 1 time, then tapped @e"),
+        "{r}"
+    );
+    let dragged = drags(&fake);
+    let leftward: Vec<bool> = dragged.iter().map(|(from, to)| from.x > to.x).collect();
+    assert_eq!(
+        leftward,
+        [true, false, false],
+        "to the end, back to where the row was, then one drag the other way: {dragged:?}"
+    );
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_tap_on_text_neither_end_of_the_row_holds_leaves_the_row_where_it_was() {
+    let pages = tabs_from_the_middle();
+    let (source, fake) = FakeSource::with(vec![pages[1].clone()]);
+    turns_pages_from(&fake, pages, 1);
+    let (d, _home) = daemon(source);
+    ok(&d, "default", "snapshot", json!({})).await;
+    let e = err(&d, "default", "act", tap_text("Zebra")).await;
+    assert_eq!(e.data["code_name"], "not_found", "{e:?}");
+    assert_eq!(
+        e.data["hint"],
+        "Scrolled right to the end and left to the start and back without finding it."
+    );
+    assert_eq!(
+        e.data["screen"], "",
+        "the screen is the one the agent last saw: {e:?}"
+    );
+    let dragged = drags(&fake);
+    let leftward: Vec<bool> = dragged.iter().map(|(from, to)| from.x > to.x).collect();
+    assert_eq!(leftward, [true, false, false, true], "{dragged:?}");
+    let after = ok(&d, "default", "snapshot", json!({})).await;
+    let text = after["text"].as_str().unwrap();
+    assert!(
+        text.contains("\"Wait\"") && !text.contains("\"Taps\""),
+        "{text}"
+    );
+}
+
+/// A row at its start has nothing to its left, so a miss there is the drags it was before a tap looked left.
+#[tokio::test(start_paused = true)]
+async fn a_row_at_its_start_is_not_looked_along_to_the_left() {
+    let pages = vec![
+        tab_row(&["Taps", "Text", "List", "Busy"]),
+        tab_row_along(&["List", "Busy", "Wait", "Shop"], false),
+    ];
+    let (source, fake) = FakeSource::with(vec![pages[0].clone()]);
+    turns_pages(&fake, pages);
+    let (d, _home) = daemon(source);
+    ok(&d, "default", "snapshot", json!({})).await;
+    let e = err(&d, "default", "act", tap_text("Zebra")).await;
+    assert_eq!(
+        e.data["hint"],
+        "Scrolled right to the end and back without finding it."
+    );
+    let dragged = drags(&fake);
+    let leftward: Vec<bool> = dragged.iter().map(|(from, to)| from.x > to.x).collect();
+    assert_eq!(leftward, [true, false], "{dragged:?}");
 }
 
 /// Settings on the API 37 emulator: a row that was also on screen one drag further down came back under a new ref,

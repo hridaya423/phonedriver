@@ -554,7 +554,7 @@ app com.google.android.apps.nexuslauncher
 
 When nothing changed the hint says so and no screen is repeated. A ref the session never saw still answers that refs are per session. Decision D114.
 
-Before a `tap` on text gives that answer, it looks where the screen scrolls. When no label on screen is close to the text, it drags down the list, then along a row of tabs that scrolls sideways, up to 6 times in all or to the end, and taps the text when it shows:
+Before a `tap` on text gives that answer, it looks where the screen scrolls. When no label on screen is close to the text, it drags down the list, then along a row of tabs that scrolls sideways (to the right, and back to the left when the row is part of the way along), up to 6 times in all or to the end, and taps the text when it shows:
 
 ```
 $ phonedriver tap "Shop"

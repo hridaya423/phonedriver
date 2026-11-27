@@ -614,15 +614,22 @@ pub fn ways(now: &Rendered) -> Vec<Way> {
     )
 }
 
-/// The ways a `tap` looks for text that is not on screen (decision D140): down the largest list, then along the
-/// largest strip.
+/// The ways a `tap` looks for text that is not on screen (decision D140): down the largest list, along the largest
+/// strip, and back along a strip that is part of the way along, which is where a tap that scrolled it has left the
+/// tabs before the ones it shows. Not back up a list: a drag that reaches the top goes on pulling, which is how a
+/// feed is told to refresh.
 pub fn looks(now: &Rendered) -> Vec<Way> {
-    each_way(
-        further(now, Actions::SCROLL_DOWN, |_| true),
-        further(now, Actions::SCROLL_RIGHT, |e| {
-            e.bounds.w >= STRIP * e.bounds.h
-        }),
-    )
+    let strip = |e: &Element| e.bounds.w >= STRIP * e.bounds.h;
+    let down = further(now, Actions::SCROLL_DOWN, |_| true);
+    let mut ways = each_way(down, further(now, Actions::SCROLL_RIGHT, strip));
+    if let Some(back) = further(now, Actions::SCROLL_LEFT, strip) {
+        ways.push(Way {
+            direction: Direction::Left,
+            holder: back.r#ref,
+            named: down.is_none_or(|d| d.r#ref != back.r#ref),
+        });
+    }
+    ways
 }
 
 /// Exact label first (core), then the same label in any case and spacing, then a label that holds the text as whole

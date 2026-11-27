@@ -166,7 +166,9 @@ impl Leg {
 impl Actor {
     /// Looks for the text a `tap` named where the screen shows no such text, nothing close to it, and something that
     /// scrolls: the drags of the `scroll` the refusal used to name, each way in turn, until the text resolves, the
-    /// way ends (what scrolls says it goes no further, or two drags change nothing) or `LOOK_DRAGS`.
+    /// way ends (what scrolls says it goes no further, or two drags change nothing) or `LOOK_DRAGS`. A strip looked
+    /// along to its end is put back before it is looked along the other way, so that way starts where the agent saw
+    /// the strip and its drags are not spent on what the first way showed.
     ///
     /// A look that finds nothing puts the screen back, so a refused tap leaves it as the agent saw it. The rows get
     /// their refs from the table as it was before the look: left to the reads in between, a row that came back by
@@ -186,9 +188,15 @@ impl Actor {
         let mut over = Vec::new();
         let mut legs: Vec<Leg> = Vec::new();
         let mut left = LOOK_DRAGS;
+        let mut stayed = false;
         for way in looks(&now) {
             if left == 0 {
                 break;
+            }
+            if let Some(same) = legs.iter().position(|leg| leg.way.holder == way.holder) {
+                let other_way = legs.remove(same);
+                stayed |= !self.back(s, consent, cfg, &other_way).await?;
+                now = self.fresh(s).await?;
             }
             let mut leg = Leg {
                 way,
@@ -237,7 +245,11 @@ impl Actor {
             if idle >= 2 || !way.goes_on(&now) {
                 over.push(way.words());
                 if moved > 0 {
-                    looked.push(format!("{name} to the end"));
+                    let end = match way.direction {
+                        Direction::Up | Direction::Left => "start",
+                        Direction::Down | Direction::Right => "end",
+                    };
+                    looked.push(format!("{name} to the {end}"));
                 }
             } else {
                 looked.push(format!("{name} {made}"));
@@ -245,7 +257,6 @@ impl Actor {
             leg.screens.push(now.clone());
             legs.push(leg);
         }
-        let mut stayed = false;
         for leg in legs.iter().rev() {
             stayed |= !self.back(s, consent, cfg, leg).await?;
         }
