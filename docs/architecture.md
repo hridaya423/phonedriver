@@ -241,7 +241,7 @@ pub enum Error {
 }
 ```
 
-`UserAction` is closed: `UnlockDevice`, `AcceptUsbDebugging`, `EnableUsbDebugging`, `AllowXiaomiInjection`, `TrustComputer`, `EnableDeveloperMode`, `MountDeveloperImage`, `SetSigningTeam`, `ChooseSigningTeam`, `RegisterDevice`, `ApproveSystemPrompt { text }` (a biometric or OS prompt only a person may answer). Each has one message that tells the user exactly what to do on which device.
+`UserAction` is closed: `UnlockDevice`, `AcceptUsbDebugging`, `EnableUsbDebugging`, `AllowXiaomiInjection`, `TrustComputer`, `EnableDeveloperMode`, `MountDeveloperImage`, `SetSigningTeam`, `FixSigningCertificate { reason }`, `ChooseSigningTeam`, `RegisterDevice`, `InstallRunner`, `PairForWifi`, `ApproveSystemPrompt { text }` (a biometric or OS prompt only a person may answer). Each has one message that tells the user exactly what to do on which device.
 
 Every variant serializes as `{ code, message, hint }`. `hint` names the next command to run.
 
@@ -413,7 +413,7 @@ Simulator lifecycle (task 5.4, `crates/ios/src/runner.rs`). The runner's sources
 
 Private headers drift between Xcode releases. The runner is built and tested against the Xcode on the build machine (27.0 at planning time); a build failure after an Xcode update is expected maintenance, not a design flaw.
 
-Signing: built with Xcode automatic signing for the user's team. A free Apple ID works and its signing profile lasts 7 days; a paid team's lasts a year. A device build whose profile has run out is not used again: the next connect builds, signs and installs the runner anew (decision D84), and `doctor` shows the expiry. Without a Mac (decision D96) phonedriver does not sign: `.github/workflows/runner-ipa.yml` builds the runner for devices unsigned on a macOS machine and publishes `PhonedriverRunner.ipa`, and the person signs and installs it with Sideloadly and their own Apple ID, which also signs it again before a free Apple ID's 7 days run out. phonedriver never handles Apple ID credentials.
+Signing: built with Xcode automatic signing for the user's team, as the bundle ID `dev.phonedriver.runner.<team>` (decision D139: Apple gives an app ID to one team, and a free account must register the exact ID). A free Apple ID works and its signing profile lasts 7 days; a paid team's lasts a year. A device build whose profile has run out is not used again: the next connect builds, signs and installs the runner anew (decision D84), and `doctor` shows the expiry. Without a Mac (decision D96) phonedriver does not sign: `.github/workflows/runner-ipa.yml` builds the runner for devices unsigned on a macOS machine and publishes `PhonedriverRunner.ipa`, and the person signs and installs it with Sideloadly and their own Apple ID, which also signs it again before a free Apple ID's 7 days run out. phonedriver never handles Apple ID credentials.
 
 ### 7.4 iOS states
 

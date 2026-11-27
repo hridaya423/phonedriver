@@ -438,8 +438,9 @@ async fn build_signed(home: &Path, team: Option<&str>, register: Option<&str>) -
         None => hash.clone(),
     });
     let products = dir.join("dd").join("Build").join("Products");
+    let id = team.map(crate::team::bundle_id);
     if register.is_none()
-        && let Some(xctestrun) = reusable(&products, team.is_some(), SystemTime::now())
+        && let Some(xctestrun) = reusable(&products, id.as_deref(), SystemTime::now())
     {
         return Ok(Build {
             xctestrun,
@@ -472,30 +473,14 @@ async fn build_signed(home: &Path, team: Option<&str>, register: Option<&str>) -
         "-scheme",
         "PhonedriverRunner",
     ]);
-    match team {
-        None => {
-            xcodebuild
-                .args(["-destination", "generic/platform=iOS Simulator"])
-                .arg(format!("ARCHS={arch}"))
-                .arg("ONLY_ACTIVE_ARCH=NO");
-        }
-        Some(team) => {
-            match register {
-                Some(udid) => xcodebuild
-                    .args(["-destination", &format!("id={udid}")])
-                    .arg("-allowProvisioningDeviceRegistration"),
-                None => xcodebuild.args(["-destination", "generic/platform=iOS"]),
-            };
-            xcodebuild
-                .arg("-allowProvisioningUpdates")
-                .arg(format!("DEVELOPMENT_TEAM={team}"))
-                .args([
-                    "CODE_SIGN_STYLE=Automatic",
-                    "CODE_SIGN_IDENTITY=Apple Development",
-                ]);
-        }
-    }
-    run_logged(
+    match team.zip(id.as_deref()) {
+        Some((team, id)) => xcodebuild.args(signing(team, id, register)),
+        None => xcodebuild
+            .args(["-destination", "generic/platform=iOS Simulator"])
+            .arg(format!("ARCHS={arch}"))
+            .arg("ONLY_ACTIVE_ARCH=NO"),
+    };
+    if let Err(failed) = run_logged(
         xcodebuild
             .arg("-derivedDataPath")
             .arg(dir.join("dd"))
@@ -504,13 +489,20 @@ async fn build_signed(home: &Path, team: Option<&str>, register: Option<&str>) -
         &log,
         "xcodebuild build-for-testing",
     )
-    .await?;
+    .await
+    {
+        let said = std::fs::read_to_string(&log).unwrap_or_default();
+        return Err(not_built(failed, &said, register.is_some()));
+    }
     let xctestrun = find_xctestrun(&products).ok_or_else(|| Error::Transport {
         detail: format!(
             "the runner built but no .xctestrun file is in {}",
             products.display()
         ),
     })?;
+    if let Some(id) = &id {
+        std::fs::write(products.join(SIGNED_AS), id).map_err(io)?;
+    }
     for stale in stale_builds(&root, &hash) {
         let _ = std::fs::remove_dir_all(stale);
     }
@@ -520,6 +512,70 @@ async fn build_signed(home: &Path, team: Option<&str>, register: Option<&str>) -
         built: true,
     })
 }
+
+/// What `xcodebuild` is told so that it signs the runner as `id` for the devices of `team`, or with `register` for
+/// that one device, which Xcode then adds to the team's Apple developer account.
+fn signing(team: &str, id: &str, register: Option<&str>) -> Vec<String> {
+    let mut args = vec!["-destination".to_string()];
+    match register {
+        Some(udid) => args.extend([
+            format!("id={udid}"),
+            "-allowProvisioningDeviceRegistration".to_string(),
+        ]),
+        None => args.push("generic/platform=iOS".to_string()),
+    }
+    args.extend([
+        "-allowProvisioningUpdates".to_string(),
+        format!("DEVELOPMENT_TEAM={team}"),
+        format!("PRODUCT_BUNDLE_IDENTIFIER={id}"),
+        "CODE_SIGN_STYLE=Automatic".to_string(),
+        "CODE_SIGN_IDENTITY=Apple Development".to_string(),
+    ]);
+    args
+}
+
+/// A failed build of the runner, as an error that says what Xcode said. The two texts are from issue #69 (a free
+/// Apple account on Xcode 27.2): the first when the account held no device yet, the second when another team held
+/// the bundle id.
+fn not_built(failed: Error, log: &str, registering: bool) -> Error {
+    if !registering && log.contains("has no devices from which to generate a provisioning profile")
+    {
+        return Error::NeedsUser {
+            action: UserAction::RegisterDevice,
+        };
+    }
+    let Error::Transport { detail } = failed else {
+        return failed;
+    };
+    let mut said: Vec<&str> = Vec::new();
+    for line in log.lines() {
+        if let Some((_, text)) = line.split_once("error: ")
+            && !said.contains(&text.trim())
+        {
+            said.push(text.trim());
+        }
+    }
+    said.truncate(3);
+    if said.is_empty() {
+        return Error::Transport { detail };
+    }
+    let held =
+        log.contains("cannot be registered to your development team because it is not available");
+    Error::Transport {
+        detail: format!(
+            "{detail}. Xcode said: {}{}",
+            said.join(" "),
+            if held {
+                " Another team holds that app ID: set PHONEDRIVER_BUNDLE_ID to one of your own (for example com.yourname.phonedriver), export it in the shell that starts the daemon and run `phonedriver daemon stop`."
+            } else {
+                ""
+            }
+        ),
+    }
+}
+
+/// The file beside a device build's products that holds the bundle id the build was signed as.
+const SIGNED_AS: &str = "bundle-id";
 
 /// Where a device build keeps its signing profile, under its build products.
 pub const DEVICE_PROFILE: &str =
@@ -555,13 +611,18 @@ pub fn expired(date: &str, now: SystemTime) -> bool {
     unix_seconds(date).is_some_and(|end| now >= end)
 }
 
-/// The build under `products`, unless it is signed and its profile has run out. A free Apple ID's profile lasts
-/// seven days and a paid team's a year; building again signs the runner with a new one.
-fn reusable(products: &Path, signed: bool, now: SystemTime) -> Option<PathBuf> {
+/// The build under `products`, unless it is a device build whose profile has run out or that was signed as another
+/// bundle id than `signed_as`. A free Apple ID's profile lasts seven days and a paid team's a year; building again
+/// signs the runner with a new one. A build from before 0.1.9 names no id: it has the one every team shared.
+fn reusable(products: &Path, signed_as: Option<&str>, now: SystemTime) -> Option<PathBuf> {
     let xctestrun = find_xctestrun(products)?;
-    let run_out = signed
-        && profile_expiry(&products.join(DEVICE_PROFILE)).is_some_and(|date| expired(&date, now));
-    (!run_out).then_some(xctestrun)
+    let Some(id) = signed_as else {
+        return Some(xctestrun);
+    };
+    let same_id = std::fs::read_to_string(products.join(SIGNED_AS)).is_ok_and(|was| was == id);
+    let run_out =
+        profile_expiry(&products.join(DEVICE_PROFILE)).is_some_and(|date| expired(&date, now));
+    (same_id && !run_out).then_some(xctestrun)
 }
 
 /// The builds under `root` made from other sources than `hash`, for the Simulator and for devices.
@@ -1447,9 +1508,12 @@ mod tests {
 
     const PROFILE: &str = "Debug-iphoneos/PhonedriverRunner-Runner.app/embedded.mobileprovision";
 
+    const ID: &str = "dev.phonedriver.runner.ABCDE12345";
+
     fn products_with_profile(expires: Option<&str>) -> tempfile::TempDir {
         let dir = tempfile::tempdir().unwrap();
         std::fs::write(dir.path().join("Runner_iphoneos27.0-arm64.xctestrun"), "").unwrap();
+        std::fs::write(dir.path().join(SIGNED_AS), ID).unwrap();
         if let Some(expires) = expires {
             let profile = dir.path().join(PROFILE);
             std::fs::create_dir_all(profile.parent().unwrap()).unwrap();
@@ -1480,15 +1544,108 @@ mod tests {
             profile_expiry(&week.path().join(PROFILE)).as_deref(),
             Some("2026-11-16T00:00:00Z")
         );
-        assert!(reusable(week.path(), true, at(1_794_787_199)).is_some());
-        assert!(reusable(week.path(), true, at(1_794_787_200)).is_none());
+        assert!(reusable(week.path(), Some(ID), at(1_794_787_199)).is_some());
+        assert!(reusable(week.path(), Some(ID), at(1_794_787_200)).is_none());
         assert!(
-            reusable(week.path(), false, at(1_794_787_200)).is_some(),
+            reusable(week.path(), None, at(1_794_787_200)).is_some(),
             "a Simulator build is not signed"
         );
         let unreadable = products_with_profile(None);
-        assert!(reusable(unreadable.path(), true, at(1_794_787_200)).is_some());
-        assert!(reusable(&unreadable.path().join("missing"), true, at(0)).is_none());
+        assert!(reusable(unreadable.path(), Some(ID), at(1_794_787_200)).is_some());
+        assert!(reusable(&unreadable.path().join("missing"), Some(ID), at(0)).is_none());
+    }
+
+    #[test]
+    fn a_signed_build_is_used_again_only_under_the_id_it_was_signed_as() {
+        let now = std::time::UNIX_EPOCH + Duration::from_secs(1_794_000_000);
+        let built = products_with_profile(Some("2027-11-12T20:35:22Z"));
+        assert!(reusable(built.path(), Some(ID), now).is_some());
+        assert!(
+            reusable(built.path(), Some("com.example.phonedriver"), now).is_none(),
+            "another id was asked for since"
+        );
+        std::fs::remove_file(built.path().join(SIGNED_AS)).unwrap();
+        assert!(
+            reusable(built.path(), Some(ID), now).is_none(),
+            "a build from before 0.1.9 has the id every team shared"
+        );
+        assert!(reusable(built.path(), None, now).is_some());
+    }
+
+    #[test]
+    fn a_device_build_is_signed_by_the_team_under_the_id_whether_or_not_it_registers_a_device() {
+        let device = signing("ABCDE12345", ID, None);
+        assert!(device.contains(&"DEVELOPMENT_TEAM=ABCDE12345".to_string()));
+        assert!(device.contains(&format!("PRODUCT_BUNDLE_IDENTIFIER={ID}")));
+        assert!(device.contains(&"generic/platform=iOS".to_string()));
+        assert!(!device.contains(&"-allowProvisioningDeviceRegistration".to_string()));
+        let registering = signing("ABCDE12345", ID, Some("00008110-000A"));
+        assert!(registering.contains(&"id=00008110-000A".to_string()));
+        assert!(registering.contains(&"-allowProvisioningDeviceRegistration".to_string()));
+        assert!(registering.contains(&format!("PRODUCT_BUNDLE_IDENTIFIER={ID}")));
+    }
+
+    const HELD: &str = "/src/PhonedriverRunner.xcodeproj: error: Failed Registering Bundle Identifier: The app identifier \"com.example.app.xctrunner\" cannot be registered to your development team because it is not available. Change your bundle identifier to a unique string to try again. (in target 'PhonedriverRunner' from project 'PhonedriverRunner')\n/src/PhonedriverRunner.xcodeproj: error: No profiles for 'com.example.app.xctrunner' were found: Xcode couldn't find any iOS App Development provisioning profiles matching 'com.example.app.xctrunner'. (in target 'PhonedriverRunner' from project 'PhonedriverRunner')\n** TEST BUILD FAILED **\n";
+    const NO_DEVICES: &str = "/src/PhonedriverRunner.xcodeproj: error: Your team has no devices from which to generate a provisioning profile. Connect a device to use or manually add device IDs in Certificates, Identifiers & Profiles. https://developer.apple.com/account/ (in target 'PhonedriverRunner' from project 'PhonedriverRunner')\n** TEST BUILD FAILED **\n";
+
+    fn failed() -> Error {
+        Error::Transport {
+            detail: "xcodebuild build-for-testing failed (exit status: 65); the runner did not build, see /home/runner/x/build.log".into(),
+        }
+    }
+
+    #[test]
+    fn a_failed_build_says_what_xcode_said_and_names_the_variable_when_another_team_holds_the_id() {
+        let Error::Transport { detail } = not_built(failed(), HELD, false) else {
+            panic!("a held id is not something `ios register` fixes");
+        };
+        assert!(
+            detail.contains(
+                "cannot be registered to your development team because it is not available"
+            ),
+            "{detail}"
+        );
+        assert!(
+            detail.contains("No profiles for 'com.example.app.xctrunner' were found"),
+            "{detail}"
+        );
+        assert!(detail.contains("PHONEDRIVER_BUNDLE_ID"), "{detail}");
+        assert!(detail.contains("see /home/runner/x/build.log"), "{detail}");
+        assert!(!detail.contains("TEST BUILD FAILED"), "{detail}");
+        let Error::Transport { detail } = not_built(failed(), "ld: symbol(s) not found\n", false)
+        else {
+            panic!();
+        };
+        assert!(!detail.contains("PHONEDRIVER_BUNDLE_ID"), "{detail}");
+    }
+
+    #[test]
+    fn each_thing_xcode_said_is_told_once_and_only_the_first_three() {
+        let log =
+            "a.m:1:1: error: one\nb.m:2:2: error: one\nerror: two\nerror: three\nerror: four\n";
+        let Error::Transport { detail } = not_built(failed(), log, false) else {
+            panic!();
+        };
+        assert_eq!(detail.matches("one").count(), 1, "{detail}");
+        assert!(
+            detail.contains("two") && detail.contains("three"),
+            "{detail}"
+        );
+        assert!(!detail.contains("four"), "{detail}");
+    }
+
+    #[test]
+    fn a_team_with_no_devices_is_asked_to_register_this_one_unless_that_is_what_failed() {
+        assert_eq!(
+            not_built(failed(), NO_DEVICES, false),
+            Error::NeedsUser {
+                action: UserAction::RegisterDevice
+            }
+        );
+        assert!(
+            matches!(not_built(failed(), NO_DEVICES, true), Error::Transport { detail } if detail.contains("has no devices")),
+            "`ios register` must not answer with `run ios register`"
+        );
     }
 
     #[test]
